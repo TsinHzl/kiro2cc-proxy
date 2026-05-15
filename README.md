@@ -50,7 +50,7 @@ kiro2cc-proxy 是一个本地代理服务。它把标准的 Anthropic Claude API
 
 1. 拥有一个 Kiro 账号（通过 [kiro.dev](https://kiro.dev) 注册，支持 Social 登录）
 2. 从 Kiro IDE 或账号管理工具中导出凭据（`refreshToken` 等信息）
-3. **国内用户**：需要配置 HTTP/SOCKS5 代理，否则无法访问 Claude 模型
+3. > ⚠️ **【重要】国内用户**：必须配置本地 HTTP/SOCKS5 代理（Clash/V2Ray 等），否则所有 Claude 模型请求均会返回 `INVALID_MODEL_ID` 错误，无法使用。
 
 **整体流程：**
 
@@ -126,7 +126,7 @@ cd kiro2cc-proxy
 
 - **API Key**：自己随便设一个，客户端连接时用这个 Key 认证
 - **Admin API Key**：管理面板的登录密码，建议设置
-- **代理端口**：国内用户必须填写，填本地代理软件（Clash/V2Ray 等）的端口
+- > ⚠️ **【重要】代理端口（国内用户必须配置）**：不配置代理将无法访问任何 Claude 模型，请填写本地代理软件（Clash/V2Ray/Shadowsocks 等）的 HTTP 监听端口，例如 `7890` 或 `10089`。不知道端口号请查看代理软件的设置页面。
 
 配置完成后自动生成 `app/config/config.json`，服务启动，浏览器自动打开管理面板。
 
@@ -244,12 +244,34 @@ bash start_server.sh restart   # 重启
 
 ## 获取 Kiro 凭据
 
-### 通过 Kiro Account Manager 导出
+### 完整流程：从 Kiro Account Manager 导出到管理面板导入
 
-1. 安装并登录 Kiro IDE 或 Kiro Account Manager
-2. 登录你的 Kiro 账号（支持 GitHub/Google 等 Social 登录）
-3. 导出账号信息为 JSON 格式
-4. 将导出的内容保存为 `app/config/credentials.json`（本地）或 `data/credentials.json`（Docker）
+**第一步：从 Kiro Account Manager 导出账号 JSON**
+
+1. 安装 Kiro IDE 或 Kiro Account Manager
+2. 使用 GitHub / Google 等 Social 账号登录
+3. 在账号管理界面找到"导出账号信息"或"Export Account"选项
+4. 导出为 JSON 文件（或复制 JSON 内容）
+
+**第二步：启动 kiro2cc-proxy 服务**
+
+按照[本地部署](#本地部署macos)或[服务器部署](#服务器部署linux)章节启动服务，确保服务正常运行。
+
+**第三步：通过管理面板导入凭据（推荐）**
+
+1. 打开管理面板：`http://127.0.0.1:8990/admin`（服务器部署则替换为对应 IP）
+2. 输入 `config.json` 中配置的 `adminApiKey` 登录
+3. 进入凭据管理页面
+4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
+5. 管理面板自动识别账号信息并显示，确认后保存即可
+
+**第四步（可选）：手动创建凭据文件**
+
+也可以跳过管理面板，直接将导出的 JSON 内容保存为文件：
+- 本地部署：`app/config/credentials.json`
+- Docker 部署：`data/credentials.json`
+
+文件格式见下方说明，保存后重启服务生效。
 
 ### credentials.json 格式
 
@@ -472,7 +494,7 @@ Authorization: Bearer your-api-key
 
 **Q：请求返回 `INVALID_MODEL_ID`**
 
-国内 IP 无法访问 Claude 模型，需要在 `config.json` 中配置 `proxyUrl`，或使用境外服务器。
+> ⚠️ **【重要】** 国内 IP 无法直接访问 Claude 模型。必须在 `app/config/config.json` 中配置 `proxyUrl`（如 `"proxyUrl": "http://127.0.0.1:7890"`），或使用境外服务器。这是国内用户最常见的问题。
 
 **Q：请求返回 401 Unauthorized**
 

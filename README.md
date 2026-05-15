@@ -44,7 +44,7 @@
 
 **这个项目是什么？**
 
-kiro-rs 是一个本地代理服务。它把标准的 Anthropic Claude API 请求转发给 Kiro（AWS 的 AI 编程工具），让你可以用 Kiro 账号免费使用 Claude 模型。
+kiro2cc-proxy 是一个本地代理服务。它把标准的 Anthropic Claude API 请求转发给 Kiro（AWS 的 AI 编程工具），让你可以用 Kiro 账号免费使用 Claude 模型。
 
 **使用前提：**
 
@@ -83,7 +83,7 @@ source "$HOME/.cargo/env"
 
 ```bash
 git clone <仓库地址>
-cd kiro-rs
+cd kiro2cc-proxy
 ```
 
 ### 第三步：构建项目
@@ -97,7 +97,7 @@ cd kiro-rs
 构建成功后输出：
 ```
   构建成功！
-  二进制位置: ./target/release/kiro-rs
+  二进制位置: ./target/release/kiro2cc-proxy
 ```
 
 > 后续除非更新了代码，否则无需重新构建。
@@ -152,8 +152,8 @@ cd kiro-rs
 
 ```bash
 # 1. 克隆仓库
-git clone <仓库地址> /opt/kiro-rs
-cd /opt/kiro-rs
+git clone <仓库地址> /opt/kiro2cc-proxy
+cd /opt/kiro2cc-proxy
 
 # 2. 创建数据目录和配置文件
 mkdir -p data
@@ -198,8 +198,8 @@ docker compose down
 
 ```bash
 # 1. 克隆仓库
-git clone <仓库地址> /opt/kiro-rs-src
-cd /opt/kiro-rs-src
+git clone <仓库地址> /opt/kiro2cc-proxy-src
+cd /opt/kiro2cc-proxy-src
 
 # 2. 创建配置文件
 cp config.example.json app/config/config.json
@@ -212,10 +212,10 @@ sudo bash install_server.sh
 安装完成后服务开机自启，常用命令：
 
 ```bash
-systemctl status kiro-rs       # 查看状态
-systemctl restart kiro-rs      # 重启
-systemctl stop kiro-rs         # 停止
-journalctl -u kiro-rs -f       # 实时日志
+systemctl status kiro2cc-proxy       # 查看状态
+systemctl restart kiro2cc-proxy      # 重启
+systemctl stop kiro2cc-proxy         # 停止
+journalctl -u kiro2cc-proxy -f       # 实时日志
 ```
 
 ### 方式三：手动后台运行（无 systemd）
@@ -519,7 +519,7 @@ git pull
 ## 项目结构
 
 ```
-kiro-rs/
+kiro2cc-proxy/
 ├── src/                    # Rust 源码
 ├── admin-ui/               # 管理面板前端
 ├── user-ui/                # 用户面板前端

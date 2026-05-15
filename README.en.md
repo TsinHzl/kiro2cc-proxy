@@ -44,7 +44,7 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 
 **What is this project?**
 
-kiro-rs is a local proxy service. It forwards standard Anthropic Claude API requests to Kiro (AWS's AI coding tool), allowing you to use Claude models for free with a Kiro account.
+kiro2cc-proxy is a local proxy service. It forwards standard Anthropic Claude API requests to Kiro (AWS's AI coding tool), allowing you to use Claude models for free with a Kiro account.
 
 **Prerequisites:**
 
@@ -83,7 +83,7 @@ source "$HOME/.cargo/env"
 
 ```bash
 git clone <repo-url>
-cd kiro-rs
+cd kiro2cc-proxy
 ```
 
 ### Step 3: Build the Project
@@ -97,7 +97,7 @@ This script builds the admin-ui frontend, user-ui frontend, and then compiles th
 On success:
 ```
   Build complete!
-  Binary: ./target/release/kiro-rs
+  Binary: ./target/release/kiro2cc-proxy
 ```
 
 > No need to rebuild unless you update the code.
@@ -152,8 +152,8 @@ Press `Ctrl+C` in the terminal running the service, or close the terminal window
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> /opt/kiro-rs
-cd /opt/kiro-rs
+git clone <repo-url> /opt/kiro2cc-proxy
+cd /opt/kiro2cc-proxy
 
 # 2. Create data directory and config
 mkdir -p data
@@ -197,8 +197,8 @@ For running the binary directly without Docker.
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> /opt/kiro-rs-src
-cd /opt/kiro-rs-src
+git clone <repo-url> /opt/kiro2cc-proxy-src
+cd /opt/kiro2cc-proxy-src
 
 # 2. Create config
 cp config.example.json app/config/config.json
@@ -211,10 +211,10 @@ sudo bash install_server.sh
 The service starts automatically on boot. Common commands:
 
 ```bash
-systemctl status kiro-rs       # Check status
-systemctl restart kiro-rs      # Restart
-systemctl stop kiro-rs         # Stop
-journalctl -u kiro-rs -f       # Live logs
+systemctl status kiro2cc-proxy       # Check status
+systemctl restart kiro2cc-proxy      # Restart
+systemctl stop kiro2cc-proxy         # Stop
+journalctl -u kiro2cc-proxy -f       # Live logs
 ```
 
 ### Option 3: Manual Background Process (No systemd)
@@ -518,7 +518,7 @@ git pull
 ## Project Structure
 
 ```
-kiro-rs/
+kiro2cc-proxy/
 ├── src/                    # Rust source code
 ├── admin-ui/               # Admin panel frontend
 ├── user-ui/                # User panel frontend

@@ -2,6 +2,8 @@
 
 一个用 Rust 编写的 Anthropic Claude API 兼容代理服务，将 Anthropic API 请求转换为 Kiro API 请求。
 
+> **✅ 支持模型：Claude Sonnet 4.5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Haiku 4.5**（含 claude-sonnet-4、claude-opus-4.6、claude-opus-4.7 等最新模型）
+
 [English](README.en.md) | 中文
 
 ## 免责声明

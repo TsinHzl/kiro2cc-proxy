@@ -2,6 +2,8 @@
 
 A Rust-based Anthropic Claude API-compatible proxy that converts Anthropic API requests into Kiro API requests.
 
+> **✅ Supported Models: Claude Sonnet 4.5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Haiku 4.5** (including claude-opus-4.6, claude-opus-4.7, and other latest models)
+
 [中文](README.md) | English
 
 ## Disclaimer

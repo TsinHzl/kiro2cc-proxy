@@ -475,6 +475,8 @@ Override the global proxy for individual credentials:
 
 ## Claude Code Integration
 
+### Option 1: Environment Variables (recommended)
+
 Set these environment variables in your terminal to route Claude Code through this proxy:
 
 ```bash
@@ -488,6 +490,37 @@ export ANTHROPIC_API_KEY="your-apiKey-from-config"
 echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
 echo 'export ANTHROPIC_API_KEY="your-api-key"' >> ~/.zshrc
 source ~/.zshrc
+```
+
+### Option 2: settings.json
+
+Configure the proxy directly in Claude Code's settings file — no need to set environment variables each time.
+
+Config file locations:
+- Global: `~/.claude/settings.json`
+- Per-project: `<project-root>/.claude/settings.json` (applies to current project only)
+
+Add the following to the config file:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
+    "ANTHROPIC_API_KEY": "your-apiKey-from-config"
+  }
+}
+```
+
+If the file already has other settings, merge the `env` field in:
+
+```json
+{
+  "theme": "dark",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
+    "ANTHROPIC_API_KEY": "your-api-key"
+  }
+}
 ```
 
 **Verify it works:**

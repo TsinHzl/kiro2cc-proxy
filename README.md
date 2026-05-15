@@ -476,6 +476,8 @@ bash start_server.sh restart   # 重启
 
 ## 接入 Claude Code
 
+### 方式一：环境变量（推荐）
+
 服务启动后，在终端中设置以下环境变量即可让 Claude Code 使用本代理：
 
 ```bash
@@ -489,6 +491,37 @@ export ANTHROPIC_API_KEY="你在 config.json 中设置的 apiKey"
 echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
 echo 'export ANTHROPIC_API_KEY="your-api-key"' >> ~/.zshrc
 source ~/.zshrc
+```
+
+### 方式二：settings.json 配置
+
+在 Claude Code 的配置文件中直接写入代理地址，无需每次设置环境变量。
+
+配置文件路径：
+- 全局配置：`~/.claude/settings.json`
+- 项目配置：`<项目根目录>/.claude/settings.json`（仅对当前项目生效）
+
+在配置文件中添加以下内容：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
+    "ANTHROPIC_API_KEY": "你在 config.json 中设置的 apiKey"
+  }
+}
+```
+
+如果文件已有其他配置，将 `env` 字段合并进去即可：
+
+```json
+{
+  "theme": "dark",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
+    "ANTHROPIC_API_KEY": "your-api-key"
+  }
+}
 ```
 
 **验证是否生效：**

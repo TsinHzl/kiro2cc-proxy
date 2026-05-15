@@ -4,5 +4,6 @@
   "apiKey": "",
   "tlsBackend": "rustls",
   "region": "us-east-1",
-  "adminApiKey": "Hackair007!"
+  "adminApiKey": "Hackair007!",
+  "proxyUrl": "http://127.0.0.1:10089"
 }

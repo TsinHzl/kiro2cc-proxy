@@ -30,6 +30,7 @@
 
 - [快速开始（新手必读）](#快速开始新手必读)
 - [本地部署（macOS）](#本地部署macos)
+- [本地部署（Windows）](#本地部署windows)
 - [服务器部署（Linux）](#服务器部署linux)
 - [获取 Kiro 凭据](#获取-kiro-凭据)
 - [配置详解](#配置详解)
@@ -91,7 +92,7 @@ cd kiro2cc-proxy
 ### 第三步：构建项目
 
 ```bash
-./build.sh
+./build-mac.sh
 ```
 
 脚本会依次构建 admin-ui 前端、user-ui 前端，最后编译 Rust 二进制。首次构建约需 5~15 分钟。
@@ -108,12 +109,12 @@ cd kiro2cc-proxy
 
 **方式一：双击启动（推荐）**
 
-在 Finder 中找到项目目录，双击 `run-local-service.command` 文件。
+在 Finder 中找到项目目录，双击 `run-local-service-mac.command` 文件。
 
 **方式二：终端启动**
 
 ```bash
-./run-local-service.command
+./run-local-service-mac.command
 ```
 
 **首次启动**会进入配置向导：
@@ -143,6 +144,79 @@ cd kiro2cc-proxy
 ### 停止服务
 
 在运行服务的终端窗口按 `Ctrl+C`，或直接关闭终端窗口。
+
+---
+
+## 本地部署（Windows）
+
+### 第一步：安装依赖
+
+1. 安装 [Node.js](https://nodejs.org)（LTS 版本）
+2. 安装 [Rust](https://rustup.rs)（下载并运行 `rustup-init.exe`）
+3. 安装 [Git](https://git-scm.com/download/win)
+
+安装完成后重新打开 PowerShell，确认以下命令可用：
+
+```powershell
+node -v
+cargo -v
+git -v
+```
+
+### 第二步：获取项目代码
+
+```powershell
+git clone <仓库地址>
+cd kiro2cc-proxy
+```
+
+### 第三步：构建项目
+
+以管理员身份打开 PowerShell，先允许执行脚本（仅需一次）：
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+然后构建：
+
+```powershell
+.\build-windows.ps1
+```
+
+脚本会依次构建 admin-ui 前端、user-ui 前端，最后编译 Rust 二进制。首次构建约需 5~15 分钟。
+
+> 后续除非更新了代码，否则无需重新构建。
+
+### 第四步：启动服务
+
+```powershell
+.\run-local-service-windows.ps1
+```
+
+**首次启动**会进入配置向导：
+
+```
+  API Key（访问此代理的密钥，自定义即可）: sk-my-proxy-key
+  Admin API Key（管理后台密码，直接回车跳过）: my-admin-pass
+  端口 [默认: 5678]:
+  Region [默认: us-east-1]:
+  本地 HTTP 代理端口（直接回车跳过，例如: 7890 / 10089）: 7890
+```
+
+- > ⚠️ **【重要】代理端口（国内用户必须配置）**：不配置代理将无法访问任何 Claude 模型，请填写本地代理软件（Clash/V2Ray/Shadowsocks 等）的 HTTP 监听端口，例如 `7890` 或 `10089`。
+
+配置完成后自动生成 `app\config\config.json`，服务启动，浏览器自动打开管理面板。
+
+**后续启动**直接读取已有配置，无需重新填写。
+
+### 第五步：填入 Kiro 凭据
+
+服务启动后，打开管理面板 `http://127.0.0.1:5678/admin`，在凭据管理页面添加从 Kiro 导出的凭据。
+
+### 停止服务
+
+在运行服务的 PowerShell 窗口按 `Ctrl+C`，或直接关闭窗口。
 
 ---
 
@@ -508,7 +582,7 @@ Authorization: Bearer your-api-key
 
 **Q：端口被占用**
 
-`run-local-service.command` 会自动终止占用端口的进程。如仍报错，手动执行：
+`run-local-service-mac.command` 会自动终止占用端口的进程。如仍报错，手动执行：
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -525,8 +599,8 @@ lsof -ti:5678 | xargs kill -9
 
 ```bash
 git pull
-./build.sh
-./run-local-service.command
+./build-mac.sh
+./run-local-service-mac.command
 ```
 
 ---
@@ -551,8 +625,11 @@ kiro2cc-proxy/
 ├── config.example.json     # 配置示例
 ├── docker-compose.yml      # Docker 部署配置
 ├── Dockerfile              # Docker 镜像构建
-├── build.sh                # 一键构建脚本（macOS/Linux）
-├── run-local-service.command           # macOS 本地启动脚本
+├── build-mac.sh            # 一键构建脚本（macOS）
+├── build-windows.ps1       # 一键构建脚本（Windows）
+├── run-local-service-mac.command    # macOS 本地启动脚本
+├── run-local-service-windows.ps1   # Windows 本地启动脚本
+├── run-local-service-mac.command           # macOS 本地启动脚本
 ├── install_server.sh       # Linux systemd 一键安装脚本
 └── start_server.sh         # Linux 手动后台管理脚本
 ```

@@ -96,7 +96,7 @@ systemctl start "$SERVICE_NAME"
 
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
-    PORT=$(python3 -c "import json; c=json.load(open('$INSTALL_DIR/config.json')); print(c.get('port',8990))" 2>/dev/null || echo "8990")
+    PORT=$(python3 -c "import json; c=json.load(open('$INSTALL_DIR/config.json')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
     echo ""
     echo "=================================================="
     echo "  安装完成 ✓"

@@ -119,7 +119,7 @@ cd kiro2cc-proxy
 ```
   API Key（访问此代理的密钥，自定义即可）: sk-my-proxy-key
   Admin API Key（管理后台密码，直接回车跳过）: my-admin-pass
-  端口 [默认: 8990]:
+  端口 [默认: 5678]:
   Region [默认: us-east-1]:
   本地 HTTP 代理端口（直接回车跳过，例如: 7890 / 10089）: 7890
 ```
@@ -134,7 +134,7 @@ cd kiro2cc-proxy
 
 ### 第五步：填入 Kiro 凭据
 
-服务启动后，打开管理面板 `http://127.0.0.1:8990/admin`，在凭据管理页面添加从 Kiro 导出的凭据。
+服务启动后，打开管理面板 `http://127.0.0.1:5678/admin`，在凭据管理页面添加从 Kiro 导出的凭据。
 
 也可以直接创建 `app/config/credentials.json`，格式见[获取 Kiro 凭据](#获取-kiro-凭据)章节。
 
@@ -166,7 +166,7 @@ nano data/config.json   # 填入 apiKey 和 adminApiKey
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "sk-your-api-key",
   "region": "us-east-1",
   "adminApiKey": "your-admin-password"
@@ -188,9 +188,9 @@ docker compose logs -f
 docker compose down
 ```
 
-服务启动后访问 `http://服务器IP:8990/admin` 进入管理面板。
+服务启动后访问 `http://服务器IP:5678/admin` 进入管理面板。
 
-> **注意**：Docker Compose 默认只监听 `127.0.0.1:8990`，如需外网访问，修改 `docker-compose.yml` 中的 `ports` 为 `"0.0.0.0:8990:8990"`，并确保防火墙已开放该端口。
+> **注意**：Docker Compose 默认只监听 `127.0.0.1:5678`，如需外网访问，修改 `docker-compose.yml` 中的 `ports` 为 `"0.0.0.0:5678:5678"`，并确保防火墙已开放该端口。
 
 ### 方式二：systemd 一键安装
 
@@ -259,7 +259,7 @@ bash start_server.sh restart   # 重启
 
 **第三步：通过管理面板导入凭据（推荐）**
 
-1. 打开管理面板：`http://127.0.0.1:8990/admin`（服务器部署则替换为对应 IP）
+1. 打开管理面板：`http://127.0.0.1:5678/admin`（服务器部署则替换为对应 IP）
 2. 输入 `config.json` 中配置的 `adminApiKey` 登录
 3. 进入凭据管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
@@ -328,7 +328,7 @@ bash start_server.sh restart   # 重启
 |------|------|--------|------|
 | `apiKey` | **是** | — | 客户端连接时使用的 API Key，自定义即可 |
 | `host` | 否 | `127.0.0.1` | 监听地址，`0.0.0.0` 允许外网/局域网访问 |
-| `port` | 否 | `8990` | 监听端口 |
+| `port` | 否 | `5678` | 监听端口 |
 | `region` | 否 | `us-east-1` | AWS 区域 |
 | `authRegion` | 否 | 同 `region` | Token 刷新使用的区域 |
 | `apiRegion` | 否 | 同 `region` | API 请求使用的区域 |
@@ -346,7 +346,7 @@ bash start_server.sh restart   # 重启
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "sk-my-proxy-key",
   "region": "us-east-1",
   "adminApiKey": "my-admin-password",
@@ -390,14 +390,14 @@ bash start_server.sh restart   # 重启
 服务启动后，在终端中设置以下环境变量即可让 Claude Code 使用本代理：
 
 ```bash
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8990"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
 export ANTHROPIC_API_KEY="你在 config.json 中设置的 apiKey"
 ```
 
 **永久生效**（加入 `~/.zshrc` 或 `~/.bashrc`）：
 
 ```bash
-echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:8990"' >> ~/.zshrc
+echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
 echo 'export ANTHROPIC_API_KEY="your-api-key"' >> ~/.zshrc
 source ~/.zshrc
 ```
@@ -405,7 +405,7 @@ source ~/.zshrc
 **验证是否生效：**
 
 ```bash
-curl http://127.0.0.1:8990/v1/messages \
+curl http://127.0.0.1:5678/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{
@@ -465,7 +465,7 @@ Authorization: Bearer your-api-key
 
 ## Admin 管理面板
 
-配置了 `adminApiKey` 后，访问 `http://127.0.0.1:8990/admin` 进入管理面板。
+配置了 `adminApiKey` 后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
 
 功能：
 - 查看所有凭据状态（是否有效、失败次数等）
@@ -508,7 +508,7 @@ Authorization: Bearer your-api-key
 
 `start.command` 会自动终止占用端口的进程。如仍报错，手动执行：
 ```bash
-lsof -ti:8990 | xargs kill -9
+lsof -ti:5678 | xargs kill -9
 ```
 
 **Q：Write Failed / 会话卡死**

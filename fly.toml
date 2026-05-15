@@ -5,10 +5,10 @@ primary_region = 'sjc'
 
 [env]
   HOST = '0.0.0.0'
-  PORT = '8990'
+  PORT = '5678'
 
 [http_service]
-  internal_port = 8990
+  internal_port = 5678
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true

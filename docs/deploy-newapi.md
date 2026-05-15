@@ -97,7 +97,7 @@ curl http://localhost:3000/api/status
 
 - 类型：Anthropic Claude
 - 密钥：kiro-rs 的 apiKey
-- API 地址：`http://host.docker.internal:8990`（不带 `/v1`）
+- API 地址：`http://host.docker.internal:5678`（不带 `/v1`）
 - 模型：选择 kiro-rs 支持的模型
 
 ## 用户分发流程

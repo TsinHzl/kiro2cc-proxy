@@ -119,7 +119,7 @@ In Finder, navigate to the project directory and double-click `start.command`.
 ```
   API Key (access key for this proxy, set anything you like): sk-my-proxy-key
   Admin API Key (admin panel password, press Enter to skip): my-admin-pass
-  Port [default: 8990]:
+  Port [default: 5678]:
   Region [default: us-east-1]:
   Local HTTP proxy port (press Enter to skip, e.g. 7890 / 10089): 7890
 ```
@@ -134,7 +134,7 @@ After setup, `app/config/config.json` is generated, the service starts, and the 
 
 ### Step 5: Add Kiro Credentials
 
-After the service starts, open the admin panel at `http://127.0.0.1:8990/admin` and add credentials exported from Kiro.
+After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add credentials exported from Kiro.
 
 Alternatively, create `app/config/credentials.json` directly — see [Getting Kiro Credentials](#getting-kiro-credentials).
 
@@ -166,7 +166,7 @@ Minimal `data/config.json`:
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "sk-your-api-key",
   "region": "us-east-1",
   "adminApiKey": "your-admin-password"
@@ -187,9 +187,9 @@ docker compose logs -f
 docker compose down
 ```
 
-Access the admin panel at `http://your-server-ip:8990/admin`.
+Access the admin panel at `http://your-server-ip:5678/admin`.
 
-> **Note**: Docker Compose defaults to `127.0.0.1:8990`. For external access, change `ports` in `docker-compose.yml` to `"0.0.0.0:8990:8990"` and open the port in your firewall.
+> **Note**: Docker Compose defaults to `127.0.0.1:5678`. For external access, change `ports` in `docker-compose.yml` to `"0.0.0.0:5678:5678"` and open the port in your firewall.
 
 ### Option 2: systemd One-Click Install
 
@@ -258,7 +258,7 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 
 **Step 3: Import credentials via the Admin Panel (recommended)**
 
-1. Open the admin panel: `http://127.0.0.1:8990/admin` (replace with your server IP for server deployments)
+1. Open the admin panel: `http://127.0.0.1:5678/admin` (replace with your server IP for server deployments)
 2. Log in with the `adminApiKey` configured in `config.json`
 3. Go to the credentials management page
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
@@ -327,7 +327,7 @@ Lower `priority` value = higher priority. Up to 3 retries per credential, 9 per 
 |-------|----------|---------|-------------|
 | `apiKey` | **Yes** | — | API key for client authentication, set any value |
 | `host` | No | `127.0.0.1` | Listen address; `0.0.0.0` allows external/LAN access |
-| `port` | No | `8990` | Listen port |
+| `port` | No | `5678` | Listen port |
 | `region` | No | `us-east-1` | AWS region |
 | `authRegion` | No | same as `region` | Region used for token refresh |
 | `apiRegion` | No | same as `region` | Region used for API requests |
@@ -345,7 +345,7 @@ Full example:
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "sk-my-proxy-key",
   "region": "us-east-1",
   "adminApiKey": "my-admin-password",
@@ -389,14 +389,14 @@ Override the global proxy for individual credentials:
 Set these environment variables in your terminal to route Claude Code through this proxy:
 
 ```bash
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8990"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
 export ANTHROPIC_API_KEY="your-apiKey-from-config"
 ```
 
 **Persist across sessions** (add to `~/.zshrc` or `~/.bashrc`):
 
 ```bash
-echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:8990"' >> ~/.zshrc
+echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
 echo 'export ANTHROPIC_API_KEY="your-api-key"' >> ~/.zshrc
 source ~/.zshrc
 ```
@@ -404,7 +404,7 @@ source ~/.zshrc
 **Verify it works:**
 
 ```bash
-curl http://127.0.0.1:8990/v1/messages \
+curl http://127.0.0.1:5678/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
   -d '{
@@ -464,7 +464,7 @@ Any model name containing the following keywords is automatically mapped:
 
 ## Admin Panel
 
-When `adminApiKey` is configured, access the admin panel at `http://127.0.0.1:8990/admin`.
+When `adminApiKey` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
 
 Features:
 - View all credential statuses (validity, failure count, etc.)
@@ -507,7 +507,7 @@ Try changing `tlsBackend` to `native-tls` in `config.json` and restart the servi
 
 `start.command` automatically kills the process occupying the configured port. If it still fails:
 ```bash
-lsof -ti:8990 | xargs kill -9
+lsof -ti:5678 | xargs kill -9
 ```
 
 **Q: Write Failed / session hangs**

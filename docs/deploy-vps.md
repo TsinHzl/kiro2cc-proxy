@@ -36,14 +36,14 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8990:8990"
+      - "127.0.0.1:5678:5678"
     volumes:
       - ./data:/app/config
     restart: unless-stopped
 EOF
 ```
 
-端口绑定 `127.0.0.1`，仅本机可访问。如需作为 New API 上游渠道，同机部署时填 `http://127.0.0.1:8990` 即可。
+端口绑定 `127.0.0.1`，仅本机可访问。如需作为 New API 上游渠道，同机部署时填 `http://127.0.0.1:5678` 即可。
 
 ### 3. 创建配置文件
 
@@ -52,7 +52,7 @@ cat > ~/kiro-rs/data/config.json << 'EOF'
 {
   "apiKey": "你的API密钥",
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "adminApiKey": "你的管理后台密钥"
 }
 EOF
@@ -72,7 +72,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-看到 `启动 Anthropic API 端点: 0.0.0.0:8990` 即为成功。
+看到 `启动 Anthropic API 端点: 0.0.0.0:5678` 即为成功。
 
 ## 本地访问管理后台
 
@@ -81,21 +81,21 @@ docker compose logs -f
 ### 方式一：命令行 SSH 隧道
 
 ```bash
-ssh -L 8990:127.0.0.1:8990 -i /path/to/your/private-key root@服务器IP
+ssh -L 5678:127.0.0.1:5678 -i /path/to/your/private-key root@服务器IP
 ```
 
 ### 方式二：Termius 端口转发
 
 1. 左侧菜单进入 Port Forwarding
 2. 新建规则，填写：
-   - Local port number: `8990`
+   - Local port number: `5678`
    - Bind address: `127.0.0.1`
    - Intermediate host: 选择对应服务器
    - Destination address: `127.0.0.1`
-   - Destination port number: `8990`
+   - Destination port number: `5678`
 3. 双击规则启用
 
-隧道建立后，本地浏览器打开 `http://localhost:8990/admin` 即可访问管理后台。
+隧道建立后，本地浏览器打开 `http://localhost:5678/admin` 即可访问管理后台。
 
 ## 版本标签
 
@@ -118,7 +118,7 @@ ssh -L 8990:127.0.0.1:8990 -i /path/to/your/private-key root@服务器IP
 ### 架构
 
 ```
-用户 → New API (:3000) → kiro-rs-1 (:8990, 直连)
+用户 → New API (:3000) → kiro-rs-1 (:5678, 直连)
                         → kiro-rs-2 (:8991, 代理 IP-A)
                         → kiro-rs-3 (:8992, 代理 IP-B)
                         → kiro-rs-4 (:8993, 代理 IP-C)
@@ -138,7 +138,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8990:8990"
+      - "127.0.0.1:5678:5678"
     volumes:
       - ./data:/app/config
     restart: unless-stopped
@@ -149,7 +149,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8991:8990"
+      - "127.0.0.1:8991:5678"
     volumes:
       - ./data-2:/app/config
     environment:
@@ -182,7 +182,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-每个实例应显示 `启动 Anthropic API 端点: 0.0.0.0:8990`，带代理的实例还会显示 `已配置 HTTP 代理: socks5://...`。
+每个实例应显示 `启动 Anthropic API 端点: 0.0.0.0:5678`，带代理的实例还会显示 `已配置 HTTP 代理: socks5://...`。
 
 ### 4. New API 添加渠道
 
@@ -197,6 +197,6 @@ docker compose logs -f
 ### 注意事项
 
 - 4 个实例共享同一批号，但 429 冷却状态各自独立
-- Admin UI 只需在 kiro-rs-1 (:8990) 上管理
+- Admin UI 只需在 kiro-rs-1 (:5678) 上管理
 - 某个代理 IP 不可用时，New API 会自动将流量分配到其他渠道
 - 回撤：`docker compose down` 后恢复单实例 docker-compose.yml 即可

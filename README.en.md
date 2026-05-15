@@ -50,7 +50,7 @@ kiro2cc-proxy is a local proxy service. It forwards standard Anthropic Claude AP
 
 1. A Kiro account (register at [kiro.dev](https://kiro.dev), supports Social login)
 2. Credentials exported from Kiro IDE or account manager (`refreshToken` etc.)
-3. **Users in mainland China**: An HTTP/SOCKS5 proxy is required to access Claude models
+3. > ⚠️ **[CRITICAL] Users in mainland China**: A local HTTP/SOCKS5 proxy (Clash/V2Ray etc.) is mandatory. Without it, all Claude model requests will return `INVALID_MODEL_ID` and the service will be unusable.
 
 **Overall flow:**
 
@@ -126,7 +126,7 @@ In Finder, navigate to the project directory and double-click `start.command`.
 
 - **API Key**: Set any value — clients use this to authenticate
 - **Admin API Key**: Password for the admin panel, recommended
-- **Proxy port**: Required for mainland China users — enter the port of your local proxy (Clash/V2Ray etc.)
+- > ⚠️ **[CRITICAL] Proxy port (required for mainland China users)**: Without a proxy, Claude models are completely inaccessible. Enter the HTTP listen port of your local proxy software (Clash/V2Ray/Shadowsocks etc.), e.g. `7890` or `10089`. Check your proxy app's settings if you're unsure of the port number.
 
 After setup, `app/config/config.json` is generated, the service starts, and the admin panel opens in your browser.
 
@@ -243,12 +243,34 @@ Using an overseas server is recommended — no proxy needed.
 
 ## Getting Kiro Credentials
 
-### Export via Kiro Account Manager
+### Full Flow: Export from Kiro Account Manager → Import via Admin Panel
 
-1. Install and log in to Kiro IDE or Kiro Account Manager
-2. Sign in with your Kiro account (GitHub/Google Social login supported)
-3. Export account info as JSON
-4. Save as `app/config/credentials.json` (local) or `data/credentials.json` (Docker)
+**Step 1: Export account JSON from Kiro Account Manager**
+
+1. Install Kiro IDE or Kiro Account Manager
+2. Sign in with your GitHub / Google Social account
+3. Find the "Export Account" option in the account management interface
+4. Export as a JSON file (or copy the JSON content)
+
+**Step 2: Start the kiro2cc-proxy service**
+
+Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#server-deployment-linux) section to start the service.
+
+**Step 3: Import credentials via the Admin Panel (recommended)**
+
+1. Open the admin panel: `http://127.0.0.1:8990/admin` (replace with your server IP for server deployments)
+2. Log in with the `adminApiKey` configured in `config.json`
+3. Go to the credentials management page
+4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
+5. The panel automatically recognizes the account info and displays it — confirm to save
+
+**Step 4 (optional): Create the credentials file manually**
+
+You can skip the admin panel and save the exported JSON directly as a file:
+- Local deployment: `app/config/credentials.json`
+- Docker deployment: `data/credentials.json`
+
+See the format reference below. Restart the service after saving.
 
 ### credentials.json Format
 
@@ -471,7 +493,7 @@ Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker)
 
 **Q: Requests return `INVALID_MODEL_ID`**
 
-Mainland China IPs cannot access Claude models directly. Add `proxyUrl` to `config.json`, or use an overseas server.
+> ⚠️ **[CRITICAL]** Mainland China IPs cannot access Claude models directly. You must add `proxyUrl` to `app/config/config.json` (e.g. `"proxyUrl": "http://127.0.0.1:7890"`), or use an overseas server. This is the most common issue for users in China.
 
 **Q: Requests return 401 Unauthorized**
 

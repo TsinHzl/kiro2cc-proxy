@@ -109,12 +109,12 @@ cd kiro2cc-proxy
 
 **方式一：双击启动（推荐）**
 
-在 Finder 中找到项目目录，双击 `run-local-service-mac.command` 文件。
+在 Finder 中找到项目目录，双击 `run-local-service-mac.sh` 文件。
 
 **方式二：终端启动**
 
 ```bash
-./run-local-service-mac.command
+./run-local-service-mac.sh
 ```
 
 **首次启动**会进入配置向导：
@@ -340,6 +340,19 @@ bash start_server.sh restart   # 重启
 3. 进入凭据管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
 5. 管理面板自动识别账号信息并显示，确认后保存即可
+
+> ⚠️ **【重要】通过 HTTP 访问管理面板时导入凭据会失败**
+>
+> 如果你通过 `http://服务器IP:端口/admin`（非 HTTPS、非 localhost）访问管理面板，浏览器会因安全策略禁用 `crypto.subtle` 加密 API，导致导入时报错 `Cannot read properties of undefined (reading 'digest')`，且后端不会有任何错误日志。
+>
+> **解决方案一（推荐）：为服务器绑定域名并配置 HTTPS**，通过 `https://` 访问管理面板即可正常导入。
+>
+> **解决方案二（临时绕过）：强制浏览器信任该 HTTP 地址**
+>
+> Chrome 用户在地址栏打开：`chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+> Edge 用户在地址栏打开：`edge://flags/#unsafely-treat-insecure-origin-as-secure`
+>
+> 在 "Insecure origins treated as secure" 下方的文本框中填入你的完整地址（如 `http://43.153.11.66:8990`），将右侧开关改为 **Enabled**，点击 **Relaunch** 重启浏览器后重试。
 
 **第四步（可选）：手动创建凭据文件**
 
@@ -580,9 +593,17 @@ Authorization: Bearer your-api-key
 
 尝试将 `config.json` 中的 `tlsBackend` 改为 `native-tls` 后重启服务。
 
+**Q：通过管理面板导入凭据时报错 `Cannot read properties of undefined (reading 'digest')`**
+
+这是浏览器的安全策略限制，`crypto.subtle` 加密 API 只在 HTTPS 或 localhost 环境下可用。通过公网 IP + HTTP 访问管理面板时会触发此错误，后端不会有任何日志。
+
+解决方案：
+- **推荐**：为服务器绑定域名并配置 HTTPS，通过 `https://` 访问管理面板
+- **临时绕过**：Chrome 打开 `chrome://flags/#unsafely-treat-insecure-origin-as-secure`，Edge 打开 `edge://flags/#unsafely-treat-insecure-origin-as-secure`，在文本框填入完整地址（如 `http://43.153.11.66:8990`），改为 Enabled 后重启浏览器
+
 **Q：端口被占用**
 
-`run-local-service-mac.command` 会自动终止占用端口的进程。如仍报错，手动执行：
+`run-local-service-mac.sh` 会自动终止占用端口的进程。如仍报错，手动执行：
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -600,7 +621,7 @@ lsof -ti:5678 | xargs kill -9
 ```bash
 git pull
 ./build-mac.sh
-./run-local-service-mac.command
+./run-local-service-mac.sh
 ```
 
 ---
@@ -627,9 +648,8 @@ kiro2cc-proxy/
 ├── Dockerfile              # Docker 镜像构建
 ├── build-mac.sh            # 一键构建脚本（macOS）
 ├── build-windows.ps1       # 一键构建脚本（Windows）
-├── run-local-service-mac.command    # macOS 本地启动脚本
+├── run-local-service-mac.sh         # macOS 本地启动脚本
 ├── run-local-service-windows.ps1   # Windows 本地启动脚本
-├── run-local-service-mac.command           # macOS 本地启动脚本
 ├── install_server.sh       # Linux systemd 一键安装脚本
 └── start_server.sh         # Linux 手动后台管理脚本
 ```

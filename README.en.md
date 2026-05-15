@@ -109,12 +109,12 @@ On success:
 
 **Option A: Double-click (recommended)**
 
-In Finder, navigate to the project directory and double-click `run-local-service-mac.command`.
+In Finder, navigate to the project directory and double-click `run-local-service-mac.sh`.
 
 **Option B: Terminal**
 
 ```bash
-./run-local-service-mac.command
+./run-local-service-mac.sh
 ```
 
 **First launch** shows a setup wizard:
@@ -339,6 +339,19 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 3. Go to the credentials management page
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
 5. The panel automatically recognizes the account info and displays it — confirm to save
+
+> ⚠️ **Importing credentials fails when accessing the admin panel over HTTP**
+>
+> If you access the admin panel via `http://server-ip:port/admin` (not HTTPS, not localhost), the browser's security policy disables the `crypto.subtle` encryption API, causing an error `Cannot read properties of undefined (reading 'digest')` during import. The backend will show no error logs.
+>
+> **Solution 1 (recommended):** Bind a domain name to your server and configure HTTPS, then access the admin panel via `https://`.
+>
+> **Solution 2 (temporary workaround):** Force the browser to treat the HTTP address as secure.
+>
+> Chrome: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
+> Edge: open `edge://flags/#unsafely-treat-insecure-origin-as-secure`
+>
+> Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box under "Insecure origins treated as secure", set the toggle to **Enabled**, then click **Relaunch** to restart the browser.
 
 **Step 4 (optional): Create the credentials file manually**
 
@@ -579,9 +592,17 @@ The API key used by the client doesn't match `apiKey` in `config.json`. Check an
 
 Try changing `tlsBackend` to `native-tls` in `config.json` and restart the service.
 
+**Q: Importing credentials via the admin panel fails with `Cannot read properties of undefined (reading 'digest')`**
+
+This is a browser security policy restriction. The `crypto.subtle` encryption API is only available in HTTPS or localhost environments. Accessing the admin panel via a public IP + HTTP triggers this error — the backend will show no logs.
+
+Solutions:
+- **Recommended:** Bind a domain name to your server and configure HTTPS, then access via `https://`
+- **Temporary workaround:** Chrome: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`; Edge: open `edge://flags/#unsafely-treat-insecure-origin-as-secure`. Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box, set to **Enabled**, click **Relaunch**
+
 **Q: Port already in use**
 
-`run-local-service-mac.command` automatically kills the process occupying the configured port. If it still fails:
+`run-local-service-mac.sh` automatically kills the process occupying the configured port. If it still fails:
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -599,7 +620,7 @@ Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the por
 ```bash
 git pull
 ./build-mac.sh
-./run-local-service-mac.command
+./run-local-service-mac.sh
 ```
 
 ---
@@ -626,9 +647,8 @@ kiro2cc-proxy/
 ├── Dockerfile              # Docker image build
 ├── build-mac.sh            # One-click build script (macOS)
 ├── build-windows.ps1       # One-click build script (Windows)
-├── run-local-service-mac.command    # macOS local startup script
+├── run-local-service-mac.sh         # macOS local startup script
 ├── run-local-service-windows.ps1   # Windows local startup script
-├── run-local-service-mac.command           # macOS local startup script
 ├── install_server.sh       # Linux systemd one-click install
 └── start_server.sh         # Linux manual background process manager
 ```

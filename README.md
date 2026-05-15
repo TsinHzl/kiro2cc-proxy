@@ -38,7 +38,8 @@
   - [2. 最小配置](#2-最小配置)
   - [3. 启动](#3-启动)
   - [4. 验证](#4-验证)
-  - [Docker](#docker)
+  - [本地启动（macOS）](#本地启动macos)
+  - [服务器部署（Linux）](#服务器部署linux)
 - [配置详解](#配置详解)
   - [config.json](#configjson)
   - [credentials.json](#credentialsjson)
@@ -140,39 +141,64 @@ curl http://127.0.0.1:8990/v1/messages \
   }'
 ```
 
-### Docker
+## 本地启动（macOS）
 
-Docker 镜像地址：
+双击 `start.command` 即可。
 
+首次运行会弹出配置向导，填入 API Key 后自动生成 `config.json` 并启动服务。
+
+手动启动：
+```bash
+bash start.command
 ```
-ghcr.io/dev-longshun/kiro-rs-commercial:latest
-```
 
-**通过 Docker Compose 启动：**
+## 服务器部署（Linux）
+
+### 方式一：一键安装（推荐）
 
 ```bash
-docker-compose up
+# 克隆仓库
+git clone <repo-url> /opt/kiro-rs-src
+cd /opt/kiro-rs-src
+
+# 编辑配置
+cp config.example.json config.json
+nano config.json  # 填入 apiKey
+
+# 一键安装并注册 systemd 服务
+sudo bash install_server.sh
 ```
 
-需要将 `config.json` 和 `credentials.json` 挂载到容器中，具体参见 `docker-compose.yml`。
-
-**通过 Docker 直接启动：**
+安装完成后服务开机自启，常用命令：
 
 ```bash
-docker run -d \
-  -p 8990:8990 \
-  -v ./data:/app/config \
-  -e API_KEY="你的API密钥" \
-  -e ADMIN_API_KEY="你的管理后台密钥" \
-  ghcr.io/dev-longshun/kiro-rs-commercial:latest
+systemctl status kiro-rs
+systemctl restart kiro-rs
+journalctl -u kiro-rs -f   # 实时日志
 ```
 
-**在 Zeabur 等平台部署：**
+### 方式二：手动管理（无 systemd）
 
-1. 选择预构建镜像（Prebuilt Image），输入上方镜像地址
-2. 配置环境变量 `API_KEY` 和 `ADMIN_API_KEY`，或通过 Config File 提供 `config.json`
-3. 开放端口 `8990`
-4. 挂载持久化卷到 `/app/config`（防止凭据丢失）
+```bash
+bash start_server.sh start    # 后台启动
+bash start_server.sh status   # 查看状态
+bash start_server.sh log      # 实时日志
+bash start_server.sh stop     # 停止
+bash start_server.sh restart  # 重启
+```
+
+### 环境变量配置
+
+服务器上可用环境变量覆盖 `config.json`（适合容器/CI 场景）：
+
+| 变量 | 说明 |
+|------|------|
+| `API_KEY` | 访问密钥 |
+| `ADMIN_API_KEY` | 管理后台密钥 |
+| `PORT` | 监听端口（默认 8990） |
+| `HOST` | 监听地址（默认 127.0.0.1） |
+| `REGION` | AWS 区域（默认 us-east-1） |
+| `PROXY_URL` | HTTP/SOCKS5 代理 |
 
 ## 配置详解
 

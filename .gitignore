@@ -28,3 +28,9 @@ kiro-rs.pid
 logs/
 server.env
 .env
+
+# app/config sensitive files (keep config.json as example)
+/app/config/credentials*.json
+/app/config/api_keys.json
+/app/config/api_key_usage.json
+/app/config/kiro_*.json

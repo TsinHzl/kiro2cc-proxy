@@ -30,6 +30,7 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 
 - [Quick Start (New Users)](#quick-start-new-users)
 - [Local Deployment (macOS)](#local-deployment-macos)
+- [Local Deployment (Windows)](#local-deployment-windows)
 - [Server Deployment (Linux)](#server-deployment-linux)
 - [Getting Kiro Credentials](#getting-kiro-credentials)
 - [Configuration Reference](#configuration-reference)
@@ -91,7 +92,7 @@ cd kiro2cc-proxy
 ### Step 3: Build the Project
 
 ```bash
-./build.sh
+./build-mac.sh
 ```
 
 This script builds the admin-ui frontend, user-ui frontend, and then compiles the Rust binary. First build takes 5–15 minutes.
@@ -108,12 +109,12 @@ On success:
 
 **Option A: Double-click (recommended)**
 
-In Finder, navigate to the project directory and double-click `run-local-service.command`.
+In Finder, navigate to the project directory and double-click `run-local-service-mac.command`.
 
 **Option B: Terminal**
 
 ```bash
-./run-local-service.command
+./run-local-service-mac.command
 ```
 
 **First launch** shows a setup wizard:
@@ -143,6 +144,79 @@ Alternatively, create `app/config/credentials.json` directly — see [Getting Ki
 ### Stop the Service
 
 Press `Ctrl+C` in the terminal running the service, or close the terminal window.
+
+---
+
+## Local Deployment (Windows)
+
+### Step 1: Install Dependencies
+
+1. Install [Node.js](https://nodejs.org) (LTS version)
+2. Install [Rust](https://rustup.rs) (download and run `rustup-init.exe`)
+3. Install [Git](https://git-scm.com/download/win)
+
+After installation, reopen PowerShell and verify these commands work:
+
+```powershell
+node -v
+cargo -v
+git -v
+```
+
+### Step 2: Get the Code
+
+```powershell
+git clone <repo-url>
+cd kiro2cc-proxy
+```
+
+### Step 3: Build the Project
+
+Open PowerShell as Administrator and allow script execution (one-time):
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Then build:
+
+```powershell
+.\build-windows.ps1
+```
+
+This script builds the admin-ui frontend, user-ui frontend, and then compiles the Rust binary. First build takes 5–15 minutes.
+
+> No need to rebuild unless you update the code.
+
+### Step 4: Start the Service
+
+```powershell
+.\run-local-service-windows.ps1
+```
+
+**First launch** shows a setup wizard:
+
+```
+  API Key (access key for this proxy, set anything you like): sk-my-proxy-key
+  Admin API Key (admin panel password, press Enter to skip): my-admin-pass
+  Port [default: 5678]:
+  Region [default: us-east-1]:
+  Local HTTP proxy port (press Enter to skip, e.g. 7890 / 10089): 7890
+```
+
+- > ⚠️ **[CRITICAL] Proxy port (required for mainland China users)**: Without a proxy, Claude models are completely inaccessible. Enter the HTTP listen port of your local proxy software (Clash/V2Ray/Shadowsocks etc.), e.g. `7890` or `10089`.
+
+After setup, `app\config\config.json` is generated, the service starts, and the admin panel opens in your browser.
+
+**Subsequent launches** read the existing config — no wizard needed.
+
+### Step 5: Add Kiro Credentials
+
+After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add credentials exported from Kiro.
+
+### Stop the Service
+
+Press `Ctrl+C` in the PowerShell window, or close the window.
 
 ---
 
@@ -507,7 +581,7 @@ Try changing `tlsBackend` to `native-tls` in `config.json` and restart the servi
 
 **Q: Port already in use**
 
-`run-local-service.command` automatically kills the process occupying the configured port. If it still fails:
+`run-local-service-mac.command` automatically kills the process occupying the configured port. If it still fails:
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -524,8 +598,8 @@ Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the por
 
 ```bash
 git pull
-./build.sh
-./run-local-service.command
+./build-mac.sh
+./run-local-service-mac.command
 ```
 
 ---
@@ -550,8 +624,11 @@ kiro2cc-proxy/
 ├── config.example.json     # Config example
 ├── docker-compose.yml      # Docker deployment config
 ├── Dockerfile              # Docker image build
-├── build.sh                # One-click build script (macOS/Linux)
-├── run-local-service.command           # macOS local startup script
+├── build-mac.sh            # One-click build script (macOS)
+├── build-windows.ps1       # One-click build script (Windows)
+├── run-local-service-mac.command    # macOS local startup script
+├── run-local-service-windows.ps1   # Windows local startup script
+├── run-local-service-mac.command           # macOS local startup script
 ├── install_server.sh       # Linux systemd one-click install
 └── start_server.sh         # Linux manual background process manager
 ```

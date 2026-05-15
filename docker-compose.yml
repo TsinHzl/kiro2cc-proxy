@@ -1,0 +1,12 @@
+services:
+  kiro-rs:
+    # 使用国内镜像
+    image: ghcr.io/${IMAGE_OWNER:-dev-longshun}/kiro-rs-commercial:${IMAGE_TAG:-latest}
+    container_name: kiro-rs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8990:8990"
+    volumes:
+      - ./data:/app/config
+    restart: unless-stopped

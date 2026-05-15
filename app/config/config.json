@@ -1,6 +1,6 @@
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "",
   "tlsBackend": "rustls",
   "region": "us-east-1",

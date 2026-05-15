@@ -43,7 +43,7 @@ do_start() {
     if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo "[*] 已启动，PID $(cat "$PID_FILE")"
         # 读取配置中的端口用于提示
-        PORT=$(python3 -c "import json; c=json.load(open('$SCRIPT_DIR/config.json')); print(c.get('port',8990))" 2>/dev/null || echo "8990")
+        PORT=$(python3 -c "import json; c=json.load(open('$SCRIPT_DIR/config.json')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
         echo "[*] API 端点: http://localhost:${PORT}/v1/messages"
     else
         echo "[!] 启动失败，请检查日志: $LOG_FILE"
@@ -73,7 +73,7 @@ do_status() {
     if [ -f "$PID_FILE" ]; then
         PID=$(cat "$PID_FILE")
         if kill -0 "$PID" 2>/dev/null; then
-            PORT=$(python3 -c "import json; c=json.load(open('$SCRIPT_DIR/config.json')); print(c.get('port',8990))" 2>/dev/null || echo "8990")
+            PORT=$(python3 -c "import json; c=json.load(open('$SCRIPT_DIR/config.json')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
             echo "[*] kiro-rs 运行中 (PID $PID，端口 $PORT)"
         else
             echo "[!] PID 文件存在但进程已退出"
@@ -103,7 +103,7 @@ case "${1:-start}" in
         echo "环境变量配置（也可写入 config.json）："
         echo "  API_KEY=sk-your-key"
         echo "  ADMIN_API_KEY=sk-admin-key"
-        echo "  PORT=8990"
+        echo "  PORT=5678"
         echo "  HOST=0.0.0.0"
         echo "  REGION=us-east-1"
         echo "  PROXY_URL=http://127.0.0.1:7890"

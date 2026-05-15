@@ -26,14 +26,14 @@ Add Service → Prebuilt Image → 输入上方镜像地址
 {
   "apiKey": "你的API密钥",
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "adminApiKey": "你的管理后台密钥"
 }
 ```
 
 ### 4. 开放网络端口
 
-在 Networking 中开放端口 `8990`
+在 Networking 中开放端口 `5678`
 
 ### 不需要配置的项
 

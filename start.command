@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 # ============================================================
 # export API_KEY=sk-kiro-rs-your-key
 # export ADMIN_API_KEY=sk-admin-your-key
-# export PORT=8990
+# export PORT=5678
 # export HOST=127.0.0.1
 # export REGION=us-east-1
 # export PROXY_URL=http://127.0.0.1:7890
@@ -57,8 +57,8 @@ setup_config() {
     read -p "  Admin API Key（管理后台密码，直接回车跳过）: " ADMIN_KEY_INPUT
 
     while true; do
-        read -p "  端口 [默认: 8990]: " input_port
-        PORT_INPUT="${input_port:-8990}"
+        read -p "  端口 [默认: 5678]: " input_port
+        PORT_INPUT="${input_port:-5678}"
         if [[ "$PORT_INPUT" =~ ^[0-9]+$ ]] && [ "$PORT_INPUT" -ge 1024 ] && [ "$PORT_INPUT" -le 65535 ]; then
             break
         fi
@@ -105,7 +105,7 @@ elif ! grep -q '"apiKey"' "$CONFIG_FILE" 2>/dev/null; then
 fi
 
 # ── 读取端口并杀掉占用进程 ──────────────────────────────
-CONFIGURED_PORT=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('port',8990))" 2>/dev/null || echo "8990")
+CONFIGURED_PORT=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
 OLD_PID=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null | head -1)
 if [ -n "$OLD_PID" ] && [[ "$OLD_PID" =~ ^[0-9]+$ ]]; then
     echo "[*] 端口 $CONFIGURED_PORT 被 PID $OLD_PID 占用，正在终止..."

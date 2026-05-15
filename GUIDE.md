@@ -64,7 +64,7 @@
 ```
   API Key（号池 apiKey，不要泄露给他人）:
   Admin API Key（号池后台管理登录密码）:
-  端口 [默认: 8990]:
+  端口 [默认: 5678]:
   Region [默认: us-east-1]:
 ```
 
@@ -85,7 +85,7 @@
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8990,
+  "port": 5678,
   "apiKey": "你的 API Key",
   "tlsBackend": "rustls",
   "region": "us-east-1",
@@ -98,7 +98,7 @@
 | `apiKey` | **是** | — | 号池 apiKey，客户端连接时使用，不要泄露给他人 |
 | `adminApiKey` | **是** | — | 号池后台管理面板登录密码 |
 | `host` | 否 | `0.0.0.0` | 监听地址，`0.0.0.0` 允许局域网访问 |
-| `port` | 否 | `8990` | 监听端口 |
+| `port` | 否 | `5678` | 监听端口 |
 | `region` | 否 | `us-east-1` | AWS 区域 |
 | `authRegion` | 否 | 同 `region` | Token 刷新区域 |
 | `apiRegion` | 否 | 同 `region` | API 请求区域 |
@@ -175,7 +175,7 @@
 
 ## 管理面板
 
-服务启动后访问：`http://127.0.0.1:8990/admin`
+服务启动后访问：`http://127.0.0.1:5678/admin`
 
 访问时需要输入 `config.json` 中配置的 `adminApiKey`。
 
@@ -193,7 +193,7 @@
 `./start.command` 启动时会自动将以下环境变量写入 `~/.claude_profile`：
 
 ```bash
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8990"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
 export ANTHROPIC_API_KEY="你配置的 apiKey"
 ```
 
@@ -231,7 +231,7 @@ API Key 不匹配。确认 Claude Code 所在终端已执行 `source ~/.claude_p
 
 `start.command` 会自动杀掉占用配置端口的进程。如仍报错，手动执行：
 ```bash
-lsof -ti:8990 | xargs kill -9
+lsof -ti:5678 | xargs kill -9
 ```
 
 **Q: 局域网内其他设备无法访问**

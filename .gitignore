@@ -15,9 +15,16 @@
 /kiro_balance_cache.json
 /kiro_stats.json
 *.command
+!start.command
 .DS_Store
 /user-ui/node_modules/
 /user-ui/dist/
 /user-ui/tsconfig.tsbuildinfo
 /user-ui/pnpm-lock.yaml
 /user-ui/package-lock.json
+
+# Runtime files
+kiro-rs.pid
+logs/
+server.env
+.env

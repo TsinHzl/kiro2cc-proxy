@@ -15,7 +15,7 @@
 /kiro_balance_cache.json
 /kiro_stats.json
 *.command
-!run.command
+!run-local-service.command
 .DS_Store
 /user-ui/node_modules/
 /user-ui/dist/

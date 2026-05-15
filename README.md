@@ -108,12 +108,12 @@ cd kiro2cc-proxy
 
 **方式一：双击启动（推荐）**
 
-在 Finder 中找到项目目录，双击 `run.command` 文件。
+在 Finder 中找到项目目录，双击 `run-local-service.command` 文件。
 
 **方式二：终端启动**
 
 ```bash
-./run.command
+./run-local-service.command
 ```
 
 **首次启动**会进入配置向导：
@@ -508,7 +508,7 @@ Authorization: Bearer your-api-key
 
 **Q：端口被占用**
 
-`run.command` 会自动终止占用端口的进程。如仍报错，手动执行：
+`run-local-service.command` 会自动终止占用端口的进程。如仍报错，手动执行：
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -526,7 +526,7 @@ lsof -ti:5678 | xargs kill -9
 ```bash
 git pull
 ./build.sh
-./run.command
+./run-local-service.command
 ```
 
 ---
@@ -552,7 +552,7 @@ kiro2cc-proxy/
 ├── docker-compose.yml      # Docker 部署配置
 ├── Dockerfile              # Docker 镜像构建
 ├── build.sh                # 一键构建脚本（macOS/Linux）
-├── run.command           # macOS 本地启动脚本
+├── run-local-service.command           # macOS 本地启动脚本
 ├── install_server.sh       # Linux systemd 一键安装脚本
 └── start_server.sh         # Linux 手动后台管理脚本
 ```

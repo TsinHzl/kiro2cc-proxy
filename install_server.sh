@@ -26,15 +26,24 @@ if ! command -v cargo &>/dev/null; then
     source "$HOME/.cargo/env"
 fi
 
+if ! command -v cargo &>/dev/null; then
+    echo "[!] cargo 仍不可用，请手动安装 Rust 后重试: https://rustup.rs"
+    exit 1
+fi
+
 echo "[*] Rust 版本: $(rustc --version)"
 
-# ── 编译 ──────────────────────────────────────────────
+# ── 编译（以原始用户身份，避免 root 污染 cargo 缓存） ──
 echo "[*] 编译 kiro-rs（首次需要几分钟）..."
 cd "$REPO_DIR"
-cargo build --release
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$SUDO_USER" cargo build --release
+else
+    cargo build --release
+fi
 echo "[*] 编译完成 ✓"
 
-# ── 安装到 /opt/kiro-rs ────────────────────────────────
+# ── 安装到 /opt/kiro-rs（编译成功后再创建目录） ────────
 echo "[*] 安装到 $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 

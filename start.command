@@ -2,7 +2,8 @@
 # kiro-rs macOS 本地启动脚本
 # 双击即可启动，无需 Docker
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # ============================================================
 # 可选：本地覆盖配置（取消注释并修改）
@@ -15,8 +16,8 @@ cd "$(dirname "$0")"
 # export PROXY_URL=http://127.0.0.1:7890
 # ============================================================
 
-CONFIG_FILE="$(pwd)/config.json"
-BINARY="$(pwd)/target/release/kiro-rs"
+CONFIG_FILE="$SCRIPT_DIR/config.json"
+BINARY="$SCRIPT_DIR/target/release/kiro-rs"
 
 echo "=================================================="
 echo "  kiro-rs 启动脚本"
@@ -52,8 +53,14 @@ setup_config() {
 
     read -p "  Admin API Key（管理后台密码，直接回车跳过）: " ADMIN_KEY_INPUT
 
-    read -p "  端口 [默认: 8990]: " input_port
-    PORT_INPUT="${input_port:-8990}"
+    while true; do
+        read -p "  端口 [默认: 8990]: " input_port
+        PORT_INPUT="${input_port:-8990}"
+        if [[ "$PORT_INPUT" =~ ^[0-9]+$ ]] && [ "$PORT_INPUT" -ge 1024 ] && [ "$PORT_INPUT" -le 65535 ]; then
+            break
+        fi
+        echo "  [!] 端口必须为 1024-65535 之间的整数，请重新输入"
+    done
 
     read -p "  Region [默认: us-east-1]: " input_region
     REGION_INPUT="${input_region:-us-east-1}"
@@ -87,11 +94,14 @@ fi
 
 # ── 读取端口并杀掉占用进程 ──────────────────────────────
 CONFIGURED_PORT=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('port',8990))" 2>/dev/null || echo "8990")
-OLD_PID=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null)
-if [ -n "$OLD_PID" ]; then
+OLD_PID=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null | head -1)
+if [ -n "$OLD_PID" ] && [[ "$OLD_PID" =~ ^[0-9]+$ ]]; then
     echo "[*] 端口 $CONFIGURED_PORT 被 PID $OLD_PID 占用，正在终止..."
-    kill -9 $OLD_PID 2>/dev/null
-    sleep 1
+    kill "$OLD_PID" 2>/dev/null
+    sleep 2
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+        kill -9 "$OLD_PID" 2>/dev/null
+    fi
 fi
 
 echo "[*] 启动 kiro-rs，端口: $CONFIGURED_PORT"

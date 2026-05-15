@@ -10,7 +10,7 @@ WorkingDirectory=/opt/kiro-rs
 # 从 .env 文件加载配置（文件不存在时忽略）
 EnvironmentFile=-/opt/kiro-rs/.env
 
-ExecStart=/opt/kiro-rs/target/release/kiro-rs
+ExecStart=/opt/kiro-rs/kiro-rs
 Restart=always
 RestartSec=10
 

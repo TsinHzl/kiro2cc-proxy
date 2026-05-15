@@ -60,6 +60,7 @@ do_stop() {
     PID=$(cat "$PID_FILE")
     if kill -0 "$PID" 2>/dev/null; then
         kill "$PID"
+        sleep 1
         rm -f "$PID_FILE"
         echo "[*] 已停止 (PID $PID)"
     else
@@ -93,7 +94,7 @@ do_log() {
 case "${1:-start}" in
     start)   do_start ;;
     stop)    do_stop ;;
-    restart) do_stop; sleep 1; set +e; do_start ;;
+    restart) set +e; do_stop; sleep 1; do_start ;;
     status)  do_status ;;
     log)     do_log ;;
     *)

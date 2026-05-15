@@ -108,12 +108,12 @@ On success:
 
 **Option A: Double-click (recommended)**
 
-In Finder, navigate to the project directory and double-click `start.command`.
+In Finder, navigate to the project directory and double-click `run.command`.
 
 **Option B: Terminal**
 
 ```bash
-./start.command
+./run.command
 ```
 
 **First launch** shows a setup wizard:
@@ -507,7 +507,7 @@ Try changing `tlsBackend` to `native-tls` in `config.json` and restart the servi
 
 **Q: Port already in use**
 
-`start.command` automatically kills the process occupying the configured port. If it still fails:
+`run.command` automatically kills the process occupying the configured port. If it still fails:
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -525,7 +525,7 @@ Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the por
 ```bash
 git pull
 ./build.sh
-./start.command
+./run.command
 ```
 
 ---
@@ -551,7 +551,7 @@ kiro2cc-proxy/
 ├── docker-compose.yml      # Docker deployment config
 ├── Dockerfile              # Docker image build
 ├── build.sh                # One-click build script (macOS/Linux)
-├── start.command           # macOS local startup script
+├── run.command           # macOS local startup script
 ├── install_server.sh       # Linux systemd one-click install
 └── start_server.sh         # Linux manual background process manager
 ```

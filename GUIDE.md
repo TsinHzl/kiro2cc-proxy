@@ -19,7 +19,7 @@
 
 ```
 1. 首次使用：运行 ./build.sh 构建二进制
-2. 启动服务：运行 ./start.command
+2. 启动服务：运行 ./run.command
 3. 按提示输入 API Key 和 Admin API Key
 4. 浏览器自动打开管理面板，添加凭据即可使用
 ```
@@ -56,7 +56,7 @@
 ### 启动
 
 ```bash
-./start.command
+./run.command
 ```
 
 **首次启动**会进入配置向导，以下字段必须填写（不可留空）：
@@ -106,7 +106,7 @@
 | `loadBalancingMode` | 否 | `priority` | `priority`（按优先级）或 `balanced`（轮询） |
 | `tlsBackend` | 否 | `rustls` | `rustls` 或 `native-tls` |
 
-修改 `config.json` 后重启服务生效。若需重新配置，删除 `config.json` 后重新运行 `./start.command`。
+修改 `config.json` 后重启服务生效。若需重新配置，删除 `config.json` 后重新运行 `./run.command`。
 
 ---
 
@@ -190,7 +190,7 @@
 
 ## Claude Code 接入
 
-`./start.command` 启动时会自动将以下环境变量写入 `~/.claude_profile`：
+`./run.command` 启动时会自动将以下环境变量写入 `~/.claude_profile`：
 
 ```bash
 export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
@@ -217,7 +217,7 @@ source ~/.claude_profile
 
 **Q: 启动报错 `配置文件中未设置 apiKey`**
 
-删除 `config.json` 重新运行 `./start.command`，按向导重新配置。
+删除 `config.json` 重新运行 `./run.command`，按向导重新配置。
 
 **Q: 已加载 0 个凭据配置**
 
@@ -229,7 +229,7 @@ API Key 不匹配。确认 Claude Code 所在终端已执行 `source ~/.claude_p
 
 **Q: 端口被占用**
 
-`start.command` 会自动杀掉占用配置端口的进程。如仍报错，手动执行：
+`run.command` 会自动杀掉占用配置端口的进程。如仍报错，手动执行：
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -247,6 +247,6 @@ lsof -ti:5678 | xargs kill -9
 ```bash
 git pull
 ./build.sh
-./start.command
+./run.command
 ```
 

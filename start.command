@@ -16,7 +16,9 @@ cd "$SCRIPT_DIR"
 # export PROXY_URL=http://127.0.0.1:7890
 # ============================================================
 
-CONFIG_FILE="$SCRIPT_DIR/config.json"
+CONFIG_DIR="$SCRIPT_DIR/app/config"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+CREDENTIALS_FILE="$CONFIG_DIR/credentials.json"
 BINARY="$SCRIPT_DIR/target/release/kiro-rs"
 
 echo "=================================================="
@@ -46,6 +48,7 @@ setup_config() {
     echo ""
     echo "未找到 config.json，需要先完成初始配置。"
     echo ""
+    mkdir -p "$CONFIG_DIR"
 
     while [ -z "$API_KEY_INPUT" ]; do
         read -p "  API Key（访问此代理的密钥，自定义即可）: " API_KEY_INPUT
@@ -118,4 +121,4 @@ if grep -q '"adminApiKey"' "$CONFIG_FILE" 2>/dev/null; then
 fi
 
 # 前台运行，关闭终端窗口即停止
-exec "$BINARY"
+exec "$BINARY" --config "$CONFIG_FILE" --credentials "$CREDENTIALS_FILE"

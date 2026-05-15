@@ -482,14 +482,14 @@ bash start_server.sh restart   # 重启
 
 ```bash
 export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
-export ANTHROPIC_API_KEY="你在 config.json 中设置的 apiKey"
+export ANTHROPIC_API_KEY="在管理面板 API Key 管理页面创建的 Key"
 ```
 
 **永久生效**（加入 `~/.zshrc` 或 `~/.bashrc`）：
 
 ```bash
 echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
-echo 'export ANTHROPIC_API_KEY="your-api-key"' >> ~/.zshrc
+echo 'export ANTHROPIC_API_KEY="在管理面板 API Key 管理页面创建的 Key"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -507,7 +507,7 @@ source ~/.zshrc
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
-    "ANTHROPIC_API_KEY": "你在 config.json 中设置的 apiKey"
+    "ANTHROPIC_API_KEY": "在管理面板 API Key 管理页面创建的 Key"
   }
 }
 ```
@@ -519,7 +519,7 @@ source ~/.zshrc
   "theme": "dark",
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
-    "ANTHROPIC_API_KEY": "your-api-key"
+    "ANTHROPIC_API_KEY": "在管理面板 API Key 管理页面创建的 Key"
   }
 }
 ```

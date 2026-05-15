@@ -481,7 +481,7 @@ Set these environment variables in your terminal to route Claude Code through th
 
 ```bash
 export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"
-export ANTHROPIC_API_KEY="your-apiKey-from-config"
+export ANTHROPIC_API_KEY="API key created in the admin panel's API Key Management page"
 ```
 
 **Persist across sessions** (add to `~/.zshrc` or `~/.bashrc`):
@@ -506,7 +506,7 @@ Add the following to the config file:
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
-    "ANTHROPIC_API_KEY": "your-apiKey-from-config"
+    "ANTHROPIC_API_KEY": "API key created in the admin panel's API Key Management page"
   }
 }
 ```
@@ -518,7 +518,7 @@ If the file already has other settings, merge the `env` field in:
   "theme": "dark",
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:5678",
-    "ANTHROPIC_API_KEY": "your-api-key"
+    "ANTHROPIC_API_KEY": "API key created in the admin panel's API Key Management page"
   }
 }
 ```

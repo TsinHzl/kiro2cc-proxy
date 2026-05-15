@@ -1,0 +1,123 @@
+name: Build Artifacts
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for artifacts (e.g., 2025.12.1)'
+        required: true
+        default: '2026.1.1'
+
+permissions:
+  contents: read
+
+jobs:
+  pre-check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        with:
+          fetch-depth: 0
+      - name: Check if commit has release tag
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/heads/* ]] && git tag --points-at HEAD | grep -q '^v'; then
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping beta build: commit already has a release tag"
+          else
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: pre-check
+    if: needs.pre-check.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            name: macOS-arm64
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            name: macOS-x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: Windows-x64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-6)
+            echo "version=beta-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install admin-ui dependencies
+        working-directory: admin-ui
+        run: pnpm install
+
+      - name: Build admin-ui
+        working-directory: admin-ui
+        run: pnpm build
+
+      - name: Install user-ui dependencies
+        working-directory: user-ui
+        run: npm ci
+
+      - name: Build user-ui
+        working-directory: user-ui
+        run: npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-${{ matrix.target }}"
+          cache-on-failure: true
+
+      - name: Build app
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiro-rs-${{ steps.version.outputs.version }}-${{ matrix.name }}
+          if-no-files-found: error
+          compression-level: 6
+          path: |
+            target/${{ matrix.target }}/release/kiro-rs
+            target/${{ matrix.target }}/release/kiro-rs.exe

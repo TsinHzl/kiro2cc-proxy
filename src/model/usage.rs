@@ -1,0 +1,221 @@
+//! API Key 用量追踪模块
+//!
+//! 记录每个 API Key 的请求用量（input/output tokens），并根据模型定价估算费用。
+//! 数据持久化到 `api_key_usage.json`。
+
+use chrono::{DateTime, Utc};
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// 单条用量记录
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageRecord {
+    /// API Key ID（0 = 主密钥）
+    pub api_key_id: u32,
+    /// 模型名称
+    pub model: String,
+    /// 输入 tokens
+    pub input_tokens: i32,
+    /// 输出 tokens
+    pub output_tokens: i32,
+    /// 估算费用（美元）
+    pub estimated_cost: f64,
+    /// 记录时间
+    pub created_at: DateTime<Utc>,
+}
+
+/// 单个 API Key 的用量汇总
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageSummary {
+    /// API Key ID
+    pub api_key_id: u32,
+    /// 总请求次数
+    pub total_requests: u64,
+    /// 总输入 tokens
+    pub total_input_tokens: i64,
+    /// 总输出 tokens
+    pub total_output_tokens: i64,
+    /// 总估算费用（美元）
+    pub total_cost: f64,
+    /// 按模型分组的用量
+    pub by_model: Vec<ModelUsage>,
+}
+
+/// 按模型分组的用量
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelUsage {
+    pub model: String,
+    pub requests: u64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost: f64,
+}
+/// 模型定价（每百万 tokens，美元）
+/// 使用 200K context 标准定价
+struct ModelPricing {
+    input_per_mtok: f64,
+    output_per_mtok: f64,
+}
+
+/// 根据模型名获取定价
+fn get_model_pricing(model: &str) -> ModelPricing {
+    let model_lower = model.to_lowercase();
+
+    if model_lower.contains("opus") {
+        // Opus 4.5+: $5 / $25
+        ModelPricing {
+            input_per_mtok: 5.0,
+            output_per_mtok: 25.0,
+        }
+    } else if model_lower.contains("haiku") {
+        // Haiku 4.5: $1 / $5
+        ModelPricing {
+            input_per_mtok: 1.0,
+            output_per_mtok: 5.0,
+        }
+    } else {
+        // Sonnet 4: $3 / $15（默认）
+        ModelPricing {
+            input_per_mtok: 3.0,
+            output_per_mtok: 15.0,
+        }
+    }
+}
+
+/// 计算单次请求的估算费用
+fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32) -> f64 {
+    let pricing = get_model_pricing(model);
+    let input_cost = (input_tokens as f64 / 1_000_000.0) * pricing.input_per_mtok;
+    let output_cost = (output_tokens as f64 / 1_000_000.0) * pricing.output_per_mtok;
+    input_cost + output_cost
+}
+
+/// 用量追踪器（线程安全）
+pub struct UsageTracker {
+    records: RwLock<Vec<UsageRecord>>,
+    file_path: PathBuf,
+}
+impl UsageTracker {
+    /// 从文件加载，文件不存在则创建空列表
+    pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        let records = if path.exists() {
+            let content = fs::read_to_string(&path)?;
+            if content.trim().is_empty() {
+                Vec::new()
+            } else {
+                serde_json::from_str(&content)?
+            }
+        } else {
+            Vec::new()
+        };
+        Ok(Self {
+            records: RwLock::new(records),
+            file_path: path,
+        })
+    }
+
+    /// 持久化到文件
+    fn save(&self) -> anyhow::Result<()> {
+        let records = self.records.read();
+        let content = serde_json::to_string(&*records)?;
+        if let Some(parent) = self.file_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&self.file_path, content)?;
+        Ok(())
+    }
+
+    /// 记录一次请求用量
+    pub fn record(
+        &self,
+        api_key_id: u32,
+        model: String,
+        input_tokens: i32,
+        output_tokens: i32,
+    ) {
+        let cost = calculate_cost(&model, input_tokens, output_tokens);
+        let record = UsageRecord {
+            api_key_id,
+            model,
+            input_tokens,
+            output_tokens,
+            estimated_cost: cost,
+            created_at: Utc::now(),
+        };
+        self.records.write().push(record);
+        if let Err(e) = self.save() {
+            tracing::warn!("保存用量记录失败: {}", e);
+        }
+    }
+    /// 获取单个 API Key 的用量汇总
+    pub fn get_summary(&self, api_key_id: u32) -> UsageSummary {
+        let records = self.records.read();
+        let filtered: Vec<&UsageRecord> = records
+            .iter()
+            .filter(|r| r.api_key_id == api_key_id)
+            .collect();
+
+        let mut by_model: HashMap<String, (u64, i64, i64, f64)> = HashMap::new();
+        for r in &filtered {
+            let entry = by_model.entry(r.model.clone()).or_default();
+            entry.0 += 1;
+            entry.1 += r.input_tokens as i64;
+            entry.2 += r.output_tokens as i64;
+            entry.3 += r.estimated_cost;
+        }
+
+        UsageSummary {
+            api_key_id,
+            total_requests: filtered.len() as u64,
+            total_input_tokens: filtered.iter().map(|r| r.input_tokens as i64).sum(),
+            total_output_tokens: filtered.iter().map(|r| r.output_tokens as i64).sum(),
+            total_cost: filtered.iter().map(|r| r.estimated_cost).sum(),
+            by_model: by_model
+                .into_iter()
+                .map(|(model, (requests, input, output, cost))| ModelUsage {
+                    model,
+                    requests,
+                    input_tokens: input,
+                    output_tokens: output,
+                    cost,
+                })
+                .collect(),
+        }
+    }
+
+    /// 获取所有 API Key 的用量概览
+    pub fn get_all_summaries(&self) -> Vec<UsageSummary> {
+        let records = self.records.read();
+        let mut key_ids: Vec<u32> = records.iter().map(|r| r.api_key_id).collect();
+        key_ids.sort();
+        key_ids.dedup();
+        drop(records);
+
+        key_ids.iter().map(|&id| self.get_summary(id)).collect()
+    }
+
+    /// 重置指定 API Key 的用量记录
+    pub fn reset(&self, api_key_id: u32) -> anyhow::Result<()> {
+        let mut records = self.records.write();
+        records.retain(|r| r.api_key_id != api_key_id);
+        drop(records);
+        self.save()
+    }
+
+    /// 获取指定 API Key 的累计费用（轻量版，仅算总费用）
+    pub fn get_total_cost(&self, api_key_id: u32) -> f64 {
+        let records = self.records.read();
+        records
+            .iter()
+            .filter(|r| r.api_key_id == api_key_id)
+            .map(|r| r.estimated_cost)
+            .sum()
+    }
+}

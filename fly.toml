@@ -1,0 +1,29 @@
+app = 'kiro-rs'
+primary_region = 'sjc'
+
+[build]
+
+[env]
+  HOST = '0.0.0.0'
+  PORT = '8990'
+
+[http_service]
+  internal_port = 8990
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = 'connections'
+    hard_limit = 250
+    soft_limit = 200
+
+[[vm]]
+  memory = '256mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[mounts]
+  source = 'kiro_data'
+  destination = '/app/config'

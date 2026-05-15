@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Event Stream Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #58a6ff;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        .input-section label {
+            display: block;
+            margin-bottom: 8px;
+            color: #8b949e;
+            font-size: 14px;
+        }
+        .input-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .format-select {
+            padding: 8px 16px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-size: 14px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: #161b22;
+            color: #c9d1d9;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #238636;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2ea043;
+        }
+        .btn-secondary {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+        }
+        .btn-secondary:hover {
+            background: #30363d;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px 20px;
+            min-width: 150px;
+        }
+        .stat-card .label {
+            color: #8b949e;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .stat-card .value {
+            color: #58a6ff;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .message-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #21262d;
+            border-bottom: 1px solid #30363d;
+            cursor: pointer;
+        }
+        .message-header:hover {
+            background: #30363d;
+        }
+        .message-info {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .message-index {
+            background: #30363d;
+            color: #8b949e;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .message-type {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .message-type.event {
+            background: rgba(56, 139, 253, 0.15);
+            color: #58a6ff;
+        }
+        .message-type.error {
+            background: rgba(248, 81, 73, 0.15);
+            color: #f85149;
+        }
+        .message-type.exception {
+            background: rgba(210, 153, 34, 0.15);
+            color: #d29922;
+        }
+        .event-type {
+            color: #7ee787;
+            font-size: 13px;
+        }
+        .message-size {
+            color: #8b949e;
+            font-size: 12px;
+        }
+        .expand-icon {
+            color: #8b949e;
+            transition: transform 0.2s;
+        }
+        .message.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+        .message-content {
+            display: none;
+            padding: 16px;
+        }
+        .message.expanded .message-content {
+            display: block;
+        }
+        .section-title {
+            color: #8b949e;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .headers-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .headers-table th,
+        .headers-table td {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid #21262d;
+        }
+        .headers-table th {
+            color: #8b949e;
+            font-weight: 500;
+            background: #0d1117;
+        }
+        .headers-table td {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+        .header-name {
+            color: #ff7b72;
+        }
+        .header-type {
+            color: #d2a8ff;
+        }
+        .header-value {
+            color: #a5d6ff;
+        }
+        .payload-container {
+            background: #0d1117;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .payload-tabs {
+            display: flex;
+            border-bottom: 1px solid #21262d;
+        }
+        .payload-tab {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .payload-tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+        .payload-content {
+            padding: 12px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .payload-json {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .payload-raw {
+            white-space: pre;
+            color: #8b949e;
+        }
+        .payload-hex {
+            white-space: pre;
+            color: #8b949e;
+            font-size: 12px;
+        }
+        .json-key {
+            color: #ff7b72;
+        }
+        .json-string {
+            color: #a5d6ff;
+        }
+        .json-number {
+            color: #79c0ff;
+        }
+        .json-boolean {
+            color: #ff7b72;
+        }
+        .json-null {
+            color: #8b949e;
+        }
+        .error-box {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            border-radius: 6px;
+            padding: 12px 16px;
+            color: #f85149;
+            margin-bottom: 16px;
+        }
+        .hex-view {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr;
+            gap: 8px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .hex-offset {
+            color: #8b949e;
+        }
+        .hex-bytes {
+            color: #7ee787;
+        }
+        .hex-ascii {
+            color: #d2a8ff;
+        }
+        .raw-section {
+            margin-top: 20px;
+            padding: 16px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+        .raw-section h3 {
+            color: #8b949e;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .copy-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AWS Event Stream Viewer</h1>
+
+        <div class="input-section">
+            <label>粘贴二进制数据（支持 Hex / Base64 格式）</label>
+            <div class="input-controls">
+                <select id="inputFormat" class="format-select">
+                    <option value="auto">自动检测</option>
+                    <option value="hex">Hex</option>
+                    <option value="base64">Base64</option>
+                </select>
+                <button class="btn btn-primary" onclick="parseInput()">解析</button>
+                <button class="btn btn-secondary" onclick="clearAll()">清空</button>
+                <button class="btn btn-secondary" onclick="loadExample()">加载示例</button>
+            </div>
+            <textarea id="inputData" placeholder="粘贴 Hex 数据 (如: 00 00 00 3e 00 00 00 1d...) 或 Base64 编码数据..."></textarea>
+        </div>
+
+        <div id="error" class="error-box" style="display: none;"></div>
+
+        <div class="results" id="results" style="display: none;">
+            <div class="stats" id="stats"></div>
+            <div class="message-list" id="messageList"></div>
+        </div>
+
+        <div class="raw-section" id="rawSection" style="display: none;">
+            <h3>原始字节数据 <button class="btn btn-secondary copy-btn" onclick="copyRawHex()">复制 Hex</button></h3>
+            <div class="payload-hex" id="rawHex"></div>
+        </div>
+    </div>
+
+    <script>
+        // CRC32 (IEEE/ISO-HDLC) 实现
+        const CRC32_TABLE = (() => {
+            const table = new Uint32Array(256);
+            for (let i = 0; i < 256; i++) {
+                let crc = i;
+                for (let j = 0; j < 8; j++) {
+                    crc = (crc & 1) ? (0xEDB88320 ^ (crc >>> 1)) : (crc >>> 1);
+                }
+                table[i] = crc >>> 0;
+            }
+            return table;
+        })();
+
+        function crc32(data) {
+            let crc = 0xFFFFFFFF;
+            for (let i = 0; i < data.length; i++) {
+                crc = CRC32_TABLE[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+            }
+            return (crc ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        // 值类型定义
+        const VALUE_TYPES = {
+            0: { name: 'BoolTrue', size: 0 },
+            1: { name: 'BoolFalse', size: 0 },
+            2: { name: 'Byte', size: 1 },
+            3: { name: 'Short', size: 2 },
+            4: { name: 'Integer', size: 4 },
+            5: { name: 'Long', size: 8 },
+            6: { name: 'ByteArray', size: -1 },
+            7: { name: 'String', size: -1 },
+            8: { name: 'Timestamp', size: 8 },
+            9: { name: 'UUID', size: 16 }
+        };
+
+        // 输入格式检测
+        function detectFormat(input) {
+            const cleaned = input.replace(/[\s\n\r]/g, '');
+
+            // 检测是否是Base64
+            if (/^[A-Za-z0-9+/]+=*$/.test(cleaned) && cleaned.length % 4 === 0) {
+                // 尝试解码验证
+                try {
+                    atob(cleaned);
+                    return 'base64';
+                } catch {}
+            }
+
+            // 检测是否是Hex
+            if (/^[0-9A-Fa-f\s]+$/.test(input)) {
+                return 'hex';
+            }
+
+            return 'unknown';
+        }
+
+        // 解析输入数据为字节数组
+        function parseInputData(input, format) {
+            const cleaned = input.trim();
+
+            if (format === 'auto') {
+                format = detectFormat(cleaned);
+            }
+
+            if (format === 'base64') {
+                try {
+                    const binary = atob(cleaned.replace(/[\s\n\r]/g, ''));
+                    return new Uint8Array([...binary].map(c => c.charCodeAt(0)));
+                } catch (e) {
+                    throw new Error('Base64 解码失败: ' + e.message);
+                }
+            }
+
+            if (format === 'hex') {
+                const hex = cleaned.replace(/[\s\n\r]/g, '').replace(/0x/gi, '');
+                if (hex.length % 2 !== 0) {
+                    throw new Error('Hex 数据长度必须是偶数');
+                }
+                const bytes = new Uint8Array(hex.length / 2);
+                for (let i = 0; i < hex.length; i += 2) {
+                    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+                }
+                return bytes;
+            }
+
+            throw new Error('无法识别输入格式');
+        }
+
+        // 读取大端序整数
+        function readUint32BE(data, offset) {
+            return (data[offset] << 24 | data[offset + 1] << 16 | data[offset + 2] << 8 | data[offset + 3]) >>> 0;
+        }
+
+        function readUint16BE(data, offset) {
+            return (data[offset] << 8 | data[offset + 1]) >>> 0;
+        }
+
+        function readInt64BE(data, offset) {
+            // JavaScript BigInt for 64-bit
+            let high = readUint32BE(data, offset);
+            let low = readUint32BE(data, offset + 4);
+            return BigInt(high) << 32n | BigInt(low);
+        }
+
+        // 解析头部
+        function parseHeaders(data, headerLength) {
+            const headers = [];
+            let offset = 0;
+
+            while (offset < headerLength) {
+                // 读取名称长度
+                const nameLength = data[offset];
+                offset++;
+
+                if (nameLength === 0 || offset + nameLength > headerLength) {
+                    break;
+                }
+
+                // 读取名称
+                const name = new TextDecoder().decode(data.slice(offset, offset + nameLength));
+                offset += nameLength;
+
+                if (offset >= headerLength) break;
+
+                // 读取值类型
+                const valueType = data[offset];
+                offset++;
+
+                const typeInfo = VALUE_TYPES[valueType] || { name: 'Unknown', size: 0 };
+                let value;
+                let valueSize = typeInfo.size;
+
+                // 解析值
+                switch (valueType) {
+                    case 0: // BoolTrue
+                        value = true;
+                        break;
+                    case 1: // BoolFalse
+                        value = false;
+                        break;
+                    case 2: // Byte
+                        value = data[offset];
+                        offset++;
+                        break;
+                    case 3: // Short
+                        value = readUint16BE(data, offset);
+                        offset += 2;
+                        break;
+                    case 4: // Integer
+                        value = readUint32BE(data, offset);
+                        offset += 4;
+                        break;
+                    case 5: // Long
+                        value = readInt64BE(data, offset).toString();
+                        offset += 8;
+                        break;
+                    case 6: // ByteArray
+                        valueSize = readUint16BE(data, offset);
+                        offset += 2;
+                        value = Array.from(data.slice(offset, offset + valueSize)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                        offset += valueSize;
+                        break;
+                    case 7: // String
+                        valueSize = readUint16BE(data, offset);
+                        offset += 2;
+                        value = new TextDecoder().decode(data.slice(offset, offset + valueSize));
+                        offset += valueSize;
+                        break;
+                    case 8: // Timestamp
+                        value = new Date(Number(readInt64BE(data, offset))).toISOString();
+                        offset += 8;
+                        break;
+                    case 9: // UUID
+                        const uuidBytes = data.slice(offset, offset + 16);
+                        value = Array.from(uuidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                        value = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+                        offset += 16;
+                        break;
+                    default:
+                        value = '(unknown type)';
+                }
+
+                headers.push({ name, type: typeInfo.name, typeCode: valueType, value });
+            }
+
+            return headers;
+        }
+
+        // 解析单个消息帧
+        function parseFrame(data, offset) {
+            if (data.length - offset < 16) {
+                return null;
+            }
+
+            const totalLength = readUint32BE(data, offset);
+            const headerLength = readUint32BE(data, offset + 4);
+            const preludeCrc = readUint32BE(data, offset + 8);
+
+            if (totalLength < 16 || totalLength > 16 * 1024 * 1024) {
+                throw new Error(`消息长度异常: ${totalLength}`);
+            }
+
+            if (data.length - offset < totalLength) {
+                return null;
+            }
+
+            // 验证 Prelude CRC
+            const actualPreludeCrc = crc32(data.slice(offset, offset + 8));
+            const preludeCrcValid = preludeCrc === actualPreludeCrc;
+
+            // 验证 Message CRC
+            const messageCrc = readUint32BE(data, offset + totalLength - 4);
+            const actualMessageCrc = crc32(data.slice(offset, offset + totalLength - 4));
+            const messageCrcValid = messageCrc === actualMessageCrc;
+
+            // 解析头部
+            const headersStart = offset + 12;
+            const headersEnd = headersStart + headerLength;
+            const headers = parseHeaders(data.slice(headersStart, headersEnd), headerLength);
+
+            // 提取 payload
+            const payloadStart = headersEnd;
+            const payloadEnd = offset + totalLength - 4;
+            const payload = data.slice(payloadStart, payloadEnd);
+
+            // 获取消息类型
+            const messageType = headers.find(h => h.name === ':message-type')?.value || 'event';
+            const eventType = headers.find(h => h.name === ':event-type')?.value || '';
+            const contentType = headers.find(h => h.name === ':content-type')?.value || 'application/json';
+
+            return {
+                totalLength,
+                headerLength,
+                preludeCrc: { expected: preludeCrc, actual: actualPreludeCrc, valid: preludeCrcValid },
+                messageCrc: { expected: messageCrc, actual: actualMessageCrc, valid: messageCrcValid },
+                headers,
+                payload,
+                messageType,
+                eventType,
+                contentType,
+                rawBytes: data.slice(offset, offset + totalLength)
+            };
+        }
+
+        // 解析所有消息
+        function parseAllMessages(data) {
+            const messages = [];
+            let offset = 0;
+
+            while (offset < data.length) {
+                try {
+                    const frame = parseFrame(data, offset);
+                    if (!frame) {
+                        break;
+                    }
+                    messages.push(frame);
+                    offset += frame.totalLength;
+                } catch (e) {
+                    console.error('Parse error at offset', offset, e);
+                    // 尝试跳过一个字节继续
+                    offset++;
+                }
+            }
+
+            return messages;
+        }
+
+        // 格式化 JSON 带语法高亮
+        function formatJson(obj, indent = 0) {
+            const spaces = '  '.repeat(indent);
+
+            if (obj === null) {
+                return '<span class="json-null">null</span>';
+            }
+
+            if (typeof obj === 'boolean') {
+                return `<span class="json-boolean">${obj}</span>`;
+            }
+
+            if (typeof obj === 'number') {
+                return `<span class="json-number">${obj}</span>`;
+            }
+
+            if (typeof obj === 'string') {
+                const escaped = obj.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                return `<span class="json-string">"${escaped}"</span>`;
+            }
+
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return '[]';
+                const items = obj.map(item => spaces + '  ' + formatJson(item, indent + 1));
+                return '[\n' + items.join(',\n') + '\n' + spaces + ']';
+            }
+
+            if (typeof obj === 'object') {
+                const keys = Object.keys(obj);
+                if (keys.length === 0) return '{}';
+                const items = keys.map(key => {
+                    const escapedKey = key.replace(/"/g, '\\"');
+                    return spaces + '  ' + `<span class="json-key">"${escapedKey}"</span>: ` + formatJson(obj[key], indent + 1);
+                });
+                return '{\n' + items.join(',\n') + '\n' + spaces + '}';
+            }
+
+            return String(obj);
+        }
+
+        // 格式化 Hex 视图
+        function formatHexView(data) {
+            const lines = [];
+            for (let i = 0; i < data.length; i += 16) {
+                const offset = i.toString(16).padStart(8, '0');
+                const bytes = [];
+                const ascii = [];
+
+                for (let j = 0; j < 16; j++) {
+                    if (i + j < data.length) {
+                        bytes.push(data[i + j].toString(16).padStart(2, '0'));
+                        const char = data[i + j];
+                        ascii.push(char >= 32 && char <= 126 ? String.fromCharCode(char) : '.');
+                    } else {
+                        bytes.push('  ');
+                        ascii.push(' ');
+                    }
+                }
+
+                lines.push(`<span class="hex-offset">${offset}</span>  <span class="hex-bytes">${bytes.join(' ')}</span>  <span class="hex-ascii">${ascii.join('')}</span>`);
+            }
+            return lines.join('\n');
+        }
+
+        // 渲染单个消息
+        function renderMessage(message, index) {
+            const messageTypeClass = message.messageType === 'error' ? 'error' :
+                                    message.messageType === 'exception' ? 'exception' : 'event';
+
+            let payloadText = '';
+            let payloadJson = null;
+
+            try {
+                payloadText = new TextDecoder().decode(message.payload);
+                try {
+                    payloadJson = JSON.parse(payloadText);
+                } catch {}
+            } catch {}
+
+            const headersHtml = message.headers.map(h => `
+                <tr>
+                    <td><span class="header-name">${h.name}</span></td>
+                    <td><span class="header-type">${h.type}</span></td>
+                    <td><span class="header-value">${typeof h.value === 'string' ? h.value.replace(/</g, '&lt;').replace(/>/g, '&gt;') : h.value}</span></td>
+                </tr>
+            `).join('');
+
+            const crcStatus = (crc) => crc.valid
+                ? '<span style="color: #7ee787;">&#10003;</span>'
+                : `<span style="color: #f85149;">&#10007; (expected: ${crc.expected.toString(16)}, got: ${crc.actual.toString(16)})</span>`;
+
+            return `
+                <div class="message" id="message-${index}">
+                    <div class="message-header" onclick="toggleMessage(${index})">
+                        <div class="message-info">
+                            <span class="message-index">#${index + 1}</span>
+                            <span class="message-type ${messageTypeClass}">${message.messageType}</span>
+                            ${message.eventType ? `<span class="event-type">${message.eventType}</span>` : ''}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span class="message-size">${message.totalLength} bytes</span>
+                            <span class="expand-icon">&#9654;</span>
+                        </div>
+                    </div>
+                    <div class="message-content">
+                        <div class="section-title">CRC 校验</div>
+                        <table class="headers-table" style="margin-bottom: 16px;">
+                            <tr><td>Prelude CRC</td><td>${crcStatus(message.preludeCrc)}</td></tr>
+                            <tr><td>Message CRC</td><td>${crcStatus(message.messageCrc)}</td></tr>
+                        </table>
+
+                        <div class="section-title">Headers (${message.headers.length})</div>
+                        <table class="headers-table">
+                            <thead>
+                                <tr><th>Name</th><th>Type</th><th>Value</th></tr>
+                            </thead>
+                            <tbody>
+                                ${headersHtml}
+                            </tbody>
+                        </table>
+
+                        <div class="section-title">Payload (${message.payload.length} bytes)</div>
+                        <div class="payload-container">
+                            <div class="payload-tabs">
+                                <button class="payload-tab active" onclick="switchPayloadTab(${index}, 'json')">JSON</button>
+                                <button class="payload-tab" onclick="switchPayloadTab(${index}, 'raw')">Raw</button>
+                                <button class="payload-tab" onclick="switchPayloadTab(${index}, 'hex')">Hex</button>
+                            </div>
+                            <div class="payload-content">
+                                <div class="payload-json" id="payload-json-${index}">${payloadJson ? formatJson(payloadJson) : `<span style="color: #8b949e;">${payloadText.replace(/</g, '&lt;').replace(/>/g, '&gt;') || '(empty)'}</span>`}</div>
+                                <div class="payload-raw" id="payload-raw-${index}" style="display: none;">${payloadText.replace(/</g, '&lt;').replace(/>/g, '&gt;') || '(empty)'}</div>
+                                <div class="payload-hex" id="payload-hex-${index}" style="display: none;">${formatHexView(message.payload)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        let parsedData = null;
+
+        function parseInput() {
+            const input = document.getElementById('inputData').value;
+            const format = document.getElementById('inputFormat').value;
+            const errorBox = document.getElementById('error');
+            const resultsBox = document.getElementById('results');
+            const rawSection = document.getElementById('rawSection');
+
+            errorBox.style.display = 'none';
+            resultsBox.style.display = 'none';
+            rawSection.style.display = 'none';
+
+            if (!input.trim()) {
+                errorBox.textContent = '请输入数据';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            try {
+                const data = parseInputData(input, format);
+                parsedData = data;
+
+                // 显示原始 Hex
+                document.getElementById('rawHex').innerHTML = formatHexView(data);
+                rawSection.style.display = 'block';
+
+                const messages = parseAllMessages(data);
+
+                if (messages.length === 0) {
+                    errorBox.textContent = '未能解析出任何消息。请检查输入数据格式。';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+
+                // 统计
+                const eventTypes = {};
+                const messageTypes = {};
+                messages.forEach(m => {
+                    messageTypes[m.messageType] = (messageTypes[m.messageType] || 0) + 1;
+                    if (m.eventType) {
+                        eventTypes[m.eventType] = (eventTypes[m.eventType] || 0) + 1;
+                    }
+                });
+
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat-card">
+                        <div class="label">总消息数</div>
+                        <div class="value">${messages.length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">总字节数</div>
+                        <div class="value">${data.length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">消息类型</div>
+                        <div class="value" style="font-size: 14px;">${Object.entries(messageTypes).map(([k, v]) => `${k}: ${v}`).join(', ')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">事件类型</div>
+                        <div class="value" style="font-size: 14px;">${Object.entries(eventTypes).map(([k, v]) => `${k}: ${v}`).join(', ') || '-'}</div>
+                    </div>
+                `;
+
+                document.getElementById('messageList').innerHTML = messages.map((m, i) => renderMessage(m, i)).join('');
+                resultsBox.style.display = 'block';
+
+            } catch (e) {
+                errorBox.textContent = '解析错误: ' + e.message;
+                errorBox.style.display = 'block';
+            }
+        }
+
+        function toggleMessage(index) {
+            const msg = document.getElementById(`message-${index}`);
+            msg.classList.toggle('expanded');
+        }
+
+        function switchPayloadTab(index, tab) {
+            const tabs = document.querySelectorAll(`#message-${index} .payload-tab`);
+            tabs.forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById(`payload-json-${index}`).style.display = tab === 'json' ? 'block' : 'none';
+            document.getElementById(`payload-raw-${index}`).style.display = tab === 'raw' ? 'block' : 'none';
+            document.getElementById(`payload-hex-${index}`).style.display = tab === 'hex' ? 'block' : 'none';
+        }
+
+        function clearAll() {
+            document.getElementById('inputData').value = '';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('rawSection').style.display = 'none';
+            parsedData = null;
+        }
+
+        function copyRawHex() {
+            if (!parsedData) return;
+            const hex = Array.from(parsedData).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            navigator.clipboard.writeText(hex).then(() => {
+                alert('已复制到剪贴板');
+            });
+        }
+
+        function loadExample() {
+            // 构造一个示例事件流消息
+            // 这是一个简单的 assistantResponseEvent 消息
+            const example = `
+00 00 00 8f 00 00 00 47 7d 83 6e 75 0d 3a 6d 65
+73 73 61 67 65 2d 74 79 70 65 07 00 05 65 76 65
+6e 74 0b 3a 65 76 65 6e 74 2d 74 79 70 65 07 00
+16 61 73 73 69 73 74 61 6e 74 52 65 73 70 6f 6e
+73 65 45 76 65 6e 74 0d 3a 63 6f 6e 74 65 6e 74
+2d 74 79 70 65 07 00 10 61 70 70 6c 69 63 61 74
+69 6f 6e 2f 6a 73 6f 6e 7b 22 63 6f 6e 74 65 6e
+74 22 3a 22 48 65 6c 6c 6f 2c 20 57 6f 72 6c 64
+21 22 2c 22 73 74 6f 70 22 3a 66 61 6c 73 65 7d
+c7 8d c2 bc
+            `.trim();
+            document.getElementById('inputData').value = example;
+            document.getElementById('inputFormat').value = 'hex';
+        }
+    </script>
+</body>
+</html>

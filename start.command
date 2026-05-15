@@ -68,6 +68,15 @@ setup_config() {
     read -p "  Region [默认: us-east-1]: " input_region
     REGION_INPUT="${input_region:-us-east-1}"
 
+    echo ""
+    echo "  [代理设置] Kiro API 需要通过代理访问（国内必须配置）"
+    read -p "  本地 HTTP 代理端口（直接回车跳过，例如: 7890 / 10089）: " input_proxy_port
+    PROXY_BLOCK=""
+    if [ -n "$input_proxy_port" ]; then
+        PROXY_BLOCK=",
+  \"proxyUrl\": \"http://127.0.0.1:$input_proxy_port\""
+    fi
+
     ADMIN_BLOCK=""
     if [ -n "$ADMIN_KEY_INPUT" ]; then
         ADMIN_BLOCK=",
@@ -80,7 +89,7 @@ setup_config() {
   "port": $PORT_INPUT,
   "apiKey": "$API_KEY_INPUT",
   "tlsBackend": "rustls",
-  "region": "$REGION_INPUT"$ADMIN_BLOCK
+  "region": "$REGION_INPUT"$ADMIN_BLOCK$PROXY_BLOCK
 }
 EOF
     echo ""

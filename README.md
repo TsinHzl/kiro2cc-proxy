@@ -31,7 +31,6 @@
 - [快速开始（新手必读）](#快速开始新手必读)
 - [本地部署（macOS）](#本地部署macos)
 - [本地部署（Windows）](#本地部署windows)
-- [服务器部署（Linux）](#服务器部署linux)
 - [获取 Kiro 凭据](#获取-kiro-凭据)
 - [配置详解](#配置详解)
 - [接入 Claude Code](#接入-claude-code)
@@ -220,104 +219,6 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ---
 
-## 服务器部署（Linux）
-
-### 方式一：Docker（最简单，推荐）
-
-**前置要求**：服务器已安装 Docker 和 Docker Compose。
-
-```bash
-# 1. 克隆仓库
-git clone <仓库地址> /opt/kiro2cc-proxy
-cd /opt/kiro2cc-proxy
-
-# 2. 创建数据目录和配置文件
-mkdir -p data
-cp config.example.json data/config.json
-nano data/config.json   # 填入 apiKey 和 adminApiKey
-```
-
-`data/config.json` 最小配置：
-
-```json
-{
-  "host": "0.0.0.0",
-  "port": 5678,
-  "apiKey": "sk-your-api-key",
-  "region": "us-east-1",
-  "adminApiKey": "your-admin-password"
-}
-```
-
-```bash
-# 3. 创建凭据文件（也可启动后在管理面板添加）
-# 参考下方"获取 Kiro 凭据"章节
-nano data/credentials.json
-
-# 4. 启动
-docker compose up -d
-
-# 查看日志
-docker compose logs -f
-
-# 停止
-docker compose down
-```
-
-服务启动后访问 `http://服务器IP:5678/admin` 进入管理面板。
-
-> **注意**：Docker Compose 默认只监听 `127.0.0.1:5678`，如需外网访问，修改 `docker-compose.yml` 中的 `ports` 为 `"0.0.0.0:5678:5678"`，并确保防火墙已开放该端口。
-
-### 方式二：systemd 一键安装
-
-适合不想用 Docker、希望直接跑二进制的场景。
-
-```bash
-# 1. 克隆仓库
-git clone <仓库地址> /opt/kiro2cc-proxy-src
-cd /opt/kiro2cc-proxy-src
-
-# 2. 创建配置文件
-cp config.example.json app/config/config.json
-nano app/config/config.json   # 填入 apiKey
-
-# 3. 一键安装（自动编译 + 注册 systemd 服务）
-sudo bash install_server.sh
-```
-
-安装完成后服务开机自启，常用命令：
-
-```bash
-systemctl status kiro2cc-proxy       # 查看状态
-systemctl restart kiro2cc-proxy      # 重启
-systemctl stop kiro2cc-proxy         # 停止
-journalctl -u kiro2cc-proxy -f       # 实时日志
-```
-
-### 方式三：手动后台运行（无 systemd）
-
-```bash
-bash start_server.sh start     # 后台启动
-bash start_server.sh status    # 查看状态
-bash start_server.sh log       # 实时日志
-bash start_server.sh stop      # 停止
-bash start_server.sh restart   # 重启
-```
-
-### 服务器代理配置
-
-国内服务器无法直接访问 Kiro API，需要在 `config.json` 中配置代理：
-
-```json
-{
-  "proxyUrl": "http://your-proxy-host:port"
-}
-```
-
-或使用境外服务器（推荐），无需代理。
-
----
-
 ## 获取 Kiro 凭据
 
 ### 完整流程：从 Kiro Account Manager 导出到管理面板导入
@@ -331,11 +232,11 @@ bash start_server.sh restart   # 重启
 
 **第二步：启动 kiro2cc-proxy 服务**
 
-按照[本地部署](#本地部署macos)或[服务器部署](#服务器部署linux)章节启动服务，确保服务正常运行。
+按照[本地部署](#本地部署macos)章节启动服务，确保服务正常运行。
 
 **第三步：通过管理面板导入凭据（推荐）**
 
-1. 打开管理面板：`http://127.0.0.1:5678/admin`（服务器部署则替换为对应 IP）
+1. 打开管理面板：`http://127.0.0.1:5678/admin`
 2. 输入 `config.json` 中配置的 `adminApiKey` 登录
 3. 进入凭据管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
@@ -358,7 +259,6 @@ bash start_server.sh restart   # 重启
 
 也可以跳过管理面板，直接将导出的 JSON 内容保存为文件：
 - 本地部署：`app/config/credentials.json`
-- Docker 部署：`data/credentials.json`
 
 文件格式见下方说明，保存后重启服务生效。
 
@@ -416,12 +316,11 @@ bash start_server.sh restart   # 重启
 | 字段 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `apiKey` | **是** | — | 客户端连接时使用的 API Key，自定义即可 |
-| `host` | 否 | `127.0.0.1` | 监听地址，`0.0.0.0` 允许外网/局域网访问 |
+| `host` | 否 | `127.0.0.1` | 监听地址 |
 | `port` | 否 | `5678` | 监听端口 |
 | `region` | 否 | `us-east-1` | AWS 区域 |
 | `authRegion` | 否 | 同 `region` | Token 刷新使用的区域 |
 | `apiRegion` | 否 | 同 `region` | API 请求使用的区域 |
-| `adminApiKey` | 否 | — | 管理面板登录密码，不填则不启用管理面板 |
 | `proxyUrl` | 否 | — | HTTP/SOCKS5 代理，如 `http://127.0.0.1:7890` |
 | `proxyUsername` | 否 | — | 代理用户名 |
 | `proxyPassword` | 否 | — | 代理密码 |
@@ -434,11 +333,10 @@ bash start_server.sh restart   # 重启
 
 ```json
 {
-  "host": "0.0.0.0",
+  "host": "127.0.0.1",
   "port": 5678,
   "apiKey": "sk-my-proxy-key",
   "region": "us-east-1",
-  "adminApiKey": "my-admin-password",
   "proxyUrl": "http://127.0.0.1:7890",
   "tlsBackend": "rustls",
   "loadBalancingMode": "priority"
@@ -587,7 +485,7 @@ Authorization: Bearer your-api-key
 
 ## Admin 管理面板
 
-配置了 `adminApiKey` 后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
+访问 `http://127.0.0.1:5678/admin` 进入管理面板（需在 `config.json` 中配置 `adminApiKey`）。
 
 功能：
 - 查看所有凭据状态（是否有效、失败次数等）
@@ -612,7 +510,7 @@ Authorization: Bearer your-api-key
 
 **Q：启动后提示"已加载 0 个凭据配置"**
 
-需要创建 `app/config/credentials.json`（本地）或 `data/credentials.json`（Docker），参考[获取 Kiro 凭据](#获取-kiro-凭据)章节。
+需要创建 `app/config/credentials.json`，参考[获取 Kiro 凭据](#获取-kiro-凭据)章节。
 
 **Q：请求返回 `INVALID_MODEL_ID`**
 
@@ -645,10 +543,6 @@ lsof -ti:5678 | xargs kill -9
 
 输出过长被截断导致，调低客户端的 `max_tokens` 上限。
 
-**Q：局域网内其他设备无法访问**
-
-将 `config.json` 中的 `host` 改为 `0.0.0.0`，确认防火墙已开放对应端口。
-
 **Q：如何更新到最新版本**
 
 ```bash
@@ -677,14 +571,10 @@ kiro2cc-proxy/
 ├── user-ui/                # 用户面板前端
 ├── app/config/             # 本地配置目录（gitignored）
 ├── config.example.json     # 配置示例
-├── docker-compose.yml      # Docker 部署配置
-├── Dockerfile              # Docker 镜像构建
 ├── build-mac.sh            # 一键构建脚本（macOS）
 ├── build-windows.ps1       # 一键构建脚本（Windows）
 ├── run-local-service-mac.sh         # macOS 本地启动脚本
-├── run-local-service-windows.ps1   # Windows 本地启动脚本
-├── install_server.sh       # Linux systemd 一键安装脚本
-└── start_server.sh         # Linux 手动后台管理脚本
+└── run-local-service-windows.ps1   # Windows 本地启动脚本
 ```
 
 ---

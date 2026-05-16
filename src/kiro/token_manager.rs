@@ -18,6 +18,22 @@ use std::time::{Duration as StdDuration, Instant};
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
+
+/// 凭据更新请求（原 admin::types::UpdateCredentialRequest）
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCredentialRequest {
+    pub refresh_token: Option<String>,
+    pub auth_method: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub auth_region: Option<String>,
+    pub api_region: Option<String>,
+    pub machine_id: Option<String>,
+    pub proxy_url: Option<String>,
+    pub proxy_username: Option<String>,
+    pub proxy_password: Option<String>,
+}
 use crate::kiro::model::token_refresh::{
     IdcRefreshRequest, IdcRefreshResponse, RefreshRequest, RefreshResponse,
 };
@@ -1606,7 +1622,7 @@ impl MultiTokenManager {
     pub async fn update_credential(
         &self,
         id: u64,
-        update: crate::admin::types::UpdateCredentialRequest,
+        update: UpdateCredentialRequest,
     ) -> anyhow::Result<()> {
         // 检查凭据是否存在
         let exists = {
@@ -1683,7 +1699,7 @@ impl MultiTokenManager {
     /// 将 UpdateCredentialRequest 中的非 None 字段应用到凭据
     fn apply_update_fields(
         cred: &mut KiroCredentials,
-        update: &crate::admin::types::UpdateCredentialRequest,
+        update: &UpdateCredentialRequest,
     ) {
         if let Some(ref am) = update.auth_method {
             cred.auth_method = Some(if am.eq_ignore_ascii_case("builder-id") || am.eq_ignore_ascii_case("iam") {

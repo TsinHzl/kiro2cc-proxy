@@ -91,7 +91,25 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     try {
       // 1. 解析 JSON
       const parsed = JSON.parse(jsonInput)
-      let credentials: CredentialInput[] = Array.isArray(parsed) ? parsed : [parsed]
+      let credentials: CredentialInput[]
+      if (Array.isArray(parsed)) {
+        credentials = parsed
+      } else if (parsed.accounts && Array.isArray(parsed.accounts)) {
+        // KAM 导出格式：{ version, accounts: [...] }
+        credentials = parsed.accounts
+          .map((a: Record<string, any>) => ({
+            refreshToken: a.credentials?.refreshToken,
+            email: a.email || a.nickname,
+            machineId: a.machineId,
+            authRegion: a.credentials?.region,
+            authMethod: a.credentials?.authMethod,
+            clientId: a.credentials?.clientId || undefined,
+            clientSecret: a.credentials?.clientSecret || undefined,
+          }))
+          .filter((c: CredentialInput) => c.refreshToken)
+      } else {
+        credentials = [parsed]
+      }
 
       if (credentials.length === 0) {
         toast.error('没有可导入的凭据')

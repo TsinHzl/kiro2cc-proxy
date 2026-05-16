@@ -17,6 +17,7 @@ use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
+use crate::model::rpm::RpmTracker;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 
@@ -44,6 +45,8 @@ pub struct KiroProvider {
     tls_backend: TlsBackend,
     /// 并发控制信号量，限制同时发往上游的请求数
     concurrency_limit: Arc<Semaphore>,
+    /// RPM 追踪器（可选，用于记录凭据维度的 RPM）
+    rpm_tracker: Option<Arc<RpmTracker>>,
 }
 
 impl KiroProvider {
@@ -67,7 +70,14 @@ impl KiroProvider {
             client_cache: Mutex::new(cache),
             tls_backend,
             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_REQUESTS)),
+            rpm_tracker: None,
         }
+    }
+
+    /// 设置 RPM 追踪器
+    pub fn with_rpm_tracker(mut self, tracker: Arc<RpmTracker>) -> Self {
+        self.rpm_tracker = Some(tracker);
+        self
     }
 
     /// 根据凭据的代理配置获取（或创建并缓存）对应的 reqwest::Client
@@ -349,6 +359,9 @@ impl KiroProvider {
             // 成功响应
             if status.is_success() {
                 self.token_manager.report_success(ctx.id);
+                if let Some(rpm) = &self.rpm_tracker {
+                    rpm.record_credential(ctx.id);
+                }
                 return Ok(response);
             }
 
@@ -501,6 +514,9 @@ impl KiroProvider {
             // 成功响应
             if status.is_success() {
                 self.token_manager.report_success(ctx.id);
+                if let Some(rpm) = &self.rpm_tracker {
+                    rpm.record_credential(ctx.id);
+                }
                 return Ok(response);
             }
 

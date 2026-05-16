@@ -82,6 +82,10 @@ pub struct Config {
     #[serde(default)]
     pub proxy_password: Option<String>,
 
+    /// Admin API 密钥（可选，设置后启用 Admin API 和 Admin UI）
+    #[serde(default)]
+    pub admin_api_key: Option<String>,
+
     /// 负载均衡模式（"priority" 或 "balanced"）
     #[serde(default = "default_load_balancing_mode")]
     pub load_balancing_mode: String,
@@ -148,6 +152,7 @@ impl Default for Config {
             proxy_url: None,
             proxy_username: None,
             proxy_password: None,
+            admin_api_key: None,
             load_balancing_mode: default_load_balancing_mode(),
             config_path: None,
         }

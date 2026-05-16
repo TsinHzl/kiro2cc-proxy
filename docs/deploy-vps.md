@@ -109,6 +109,23 @@ ssh -L 5678:127.0.0.1:5678 -i /path/to/your/private-key root@服务器IP
 - 更新镜像：`docker compose pull && docker compose up -d`
 - 停止服务：`docker compose down`
 
+## 更新到最新版本
+
+```bash
+cd ~/kiro-rs
+docker compose pull && docker compose up -d
+```
+
+如果是通过 `git clone` 方式部署的（即本地有源码目录）：
+
+```bash
+cd ~/kiro2cc-proxy
+git pull
+docker compose down
+docker compose pull
+docker compose up -d
+```
+
 ---
 
 ## 多实例分流部署（可选）

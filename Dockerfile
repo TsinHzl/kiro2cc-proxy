@@ -7,8 +7,8 @@ COPY admin-ui ./
 RUN pnpm build
 
 WORKDIR /app/user-ui
-COPY user-ui/package.json user-ui/package-lock.json ./
-RUN npm ci
+COPY user-ui/package.json ./
+RUN npm install
 COPY user-ui ./
 RUN npm run build
 

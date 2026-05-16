@@ -89,6 +89,24 @@ git clone <仓库地址>
 cd kiro2cc-proxy
 ```
 
+### （可选）安装 Shell 快捷命令
+
+运行项目自带的一键安装脚本，以后可在任意终端直接使用 `build_kiro2cc_proxy` 和 `run_kiro2cc_proxy` 命令，无需切换到项目目录：
+
+```bash
+bash setup_shell_aliases.sh
+source ~/.zshrc   # zsh 用户；bash 用户执行 source ~/.bashrc
+```
+
+安装后即可使用：
+
+```bash
+build_kiro2cc_proxy   # 等同于 ./build-mac.sh
+run_kiro2cc_proxy     # 等同于 ./run-local-service-mac.sh
+```
+
+> 脚本仅适用于 macOS，自动修改 `~/.zshrc` 和 `~/.bashrc`（如存在），可重复运行（幂等）。
+
 ### 第三步：构建项目
 
 ```bash
@@ -169,6 +187,24 @@ git -v
 git clone <仓库地址>
 cd kiro2cc-proxy
 ```
+
+### （可选）安装 PowerShell 快捷命令
+
+运行项目自带的安装脚本，以后可在任意 PowerShell 直接使用 `build_kiro2cc_proxy` 和 `run_kiro2cc_proxy` 命令，无需切换到项目目录：
+
+```powershell
+.\setup_shell_aliases.ps1
+. $PROFILE
+```
+
+安装后即可使用：
+
+```powershell
+build_kiro2cc_proxy   # 等同于 .\build-windows.ps1
+run_kiro2cc_proxy     # 等同于 .\run-local-service-windows.ps1
+```
+
+> 脚本同时更新 Windows PowerShell 5.x 和 PowerShell 7+ 的 profile，可重复运行（幂等）。
 
 ### 第三步：构建项目
 
@@ -690,6 +726,8 @@ kiro2cc-proxy/
 ├── build-windows.ps1       # 一键构建脚本（Windows）
 ├── run-local-service-mac.sh         # macOS 本地启动脚本
 ├── run-local-service-windows.ps1   # Windows 本地启动脚本
+├── setup_shell_aliases.sh  # macOS Shell 快捷命令安装脚本
+├── setup_shell_aliases.ps1 # Windows PowerShell 快捷命令安装脚本
 ├── install_server.sh       # Linux systemd 一键安装脚本
 └── start_server.sh         # Linux 手动后台管理脚本
 ```

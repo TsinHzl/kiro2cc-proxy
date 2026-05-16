@@ -89,6 +89,24 @@ git clone <repo-url>
 cd kiro2cc-proxy
 ```
 
+### (Optional) Install Shell Aliases
+
+Run the one-click installer to make `build_kiro2cc_proxy` and `run_kiro2cc_proxy` available from any terminal — no need to navigate to the project directory each time:
+
+```bash
+bash setup_shell_aliases.sh
+source ~/.zshrc   # zsh users; bash users run: source ~/.bashrc
+```
+
+After installation:
+
+```bash
+build_kiro2cc_proxy   # equivalent to ./build-mac.sh
+run_kiro2cc_proxy     # equivalent to ./run-local-service-mac.sh
+```
+
+> macOS only. Modifies `~/.zshrc` and `~/.bashrc` (if they exist). Safe to run multiple times (idempotent).
+
 ### Step 3: Build the Project
 
 ```bash
@@ -169,6 +187,24 @@ git -v
 git clone <repo-url>
 cd kiro2cc-proxy
 ```
+
+### (Optional) Install PowerShell Aliases
+
+Run the one-click installer to make `build_kiro2cc_proxy` and `run_kiro2cc_proxy` available from any PowerShell window — no need to navigate to the project directory each time:
+
+```powershell
+.\setup_shell_aliases.ps1
+. $PROFILE
+```
+
+After installation:
+
+```powershell
+build_kiro2cc_proxy   # equivalent to .\build-windows.ps1
+run_kiro2cc_proxy     # equivalent to .\run-local-service-windows.ps1
+```
+
+> Updates both Windows PowerShell 5.x and PowerShell 7+ profiles. Safe to run multiple times (idempotent).
 
 ### Step 3: Build the Project
 
@@ -689,6 +725,8 @@ kiro2cc-proxy/
 ├── build-windows.ps1       # One-click build script (Windows)
 ├── run-local-service-mac.sh         # macOS local startup script
 ├── run-local-service-windows.ps1   # Windows local startup script
+├── setup_shell_aliases.sh  # macOS shell alias installer
+├── setup_shell_aliases.ps1 # Windows PowerShell alias installer
 ├── install_server.sh       # Linux systemd one-click install
 └── start_server.sh         # Linux manual background process manager
 ```

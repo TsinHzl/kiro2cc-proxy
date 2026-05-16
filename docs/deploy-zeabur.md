@@ -3,7 +3,7 @@
 ## 镜像地址
 
 ```
-ghcr.io/dev-longshun/kiro-rs-commercial:latest
+ghcr.io/tsinhzl/kiro-rs-commercial:latest
 ```
 
 ## 部署步骤
@@ -44,7 +44,7 @@ Add Service → Prebuilt Image → 输入上方镜像地址
 ## 版本标签
 
 - `latest` — 打 `v*` tag 时更新（正式版本）
-- `beta` — 每次推送到 `main` 分支时更新
+- `beta` — 每次推送到 `master` 分支时更新
 
 ## 常见问题
 

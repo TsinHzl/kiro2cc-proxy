@@ -3,7 +3,7 @@
 ## 镜像地址
 
 ```
-ghcr.io/dev-longshun/kiro-rs-commercial:latest
+ghcr.io/tsinhzl/kiro-rs-commercial:latest
 ```
 
 ## 前置要求
@@ -31,7 +31,7 @@ mkdir -p ~/kiro-rs/data
 cat > ~/kiro-rs/docker-compose.yml << 'EOF'
 services:
   kiro-rs:
-    image: ghcr.io/dev-longshun/kiro-rs-commercial:latest
+    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
     container_name: kiro-rs
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -100,7 +100,7 @@ ssh -L 5678:127.0.0.1:5678 -i /path/to/your/private-key root@服务器IP
 ## 版本标签
 
 - `latest` — 打 `v*` tag 时更新（正式版本）
-- `beta` — 每次推送到 `main` 分支时更新
+- `beta` — 每次推送到 `master` 分支时更新
 
 ## 常用运维命令
 
@@ -133,7 +133,7 @@ New API 配 4 个渠道，自动负载均衡。50 并发分散到 4 个 IP，每
 ```yaml
 services:
   kiro-rs-1:
-    image: ghcr.io/dev-longshun/kiro-rs-commercial:latest
+    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
     container_name: kiro-rs-1
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -144,7 +144,7 @@ services:
     restart: unless-stopped
 
   kiro-rs-2:
-    image: ghcr.io/dev-longshun/kiro-rs-commercial:latest
+    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
     container_name: kiro-rs-2
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -200,3 +200,38 @@ docker compose logs -f
 - Admin UI 只需在 kiro-rs-1 (:5678) 上管理
 - 某个代理 IP 不可用时，New API 会自动将流量分配到其他渠道
 - 回撤：`docker compose down` 后恢复单实例 docker-compose.yml 即可
+
+---
+
+## 常见问题
+
+### 更新后服务没有变化
+
+`docker compose pull` 不会自动重建容器，需要同时执行：
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+如果镜像 tag 是 `latest`，本地有缓存时 Docker 不会自动拉取新版本，必须显式 `pull`。
+
+### 两台服务器功能不一致
+
+检查两台服务器使用的镜像 owner 是否相同：
+
+```bash
+docker ps --format "{{.Image}}"
+```
+
+正确的镜像地址为 `ghcr.io/tsinhzl/kiro-rs-commercial:latest`。如果使用了其他 owner 的镜像（如 `dev-longshun`），拉取的是别人发布的版本，不会包含本项目的最新改动。
+
+### 服务器配置低，无法本地构建
+
+不要在服务器上执行 `docker compose up --build`，直接使用预构建镜像：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+镜像在每次打 `v*` tag 时由 GitHub Actions 自动构建并推送到 `ghcr.io/tsinhzl/kiro-rs-commercial:latest`。

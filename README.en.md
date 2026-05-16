@@ -85,7 +85,7 @@ source "$HOME/.cargo/env"
 ### Step 2: Get the Code
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git
 cd kiro2cc-proxy
 ```
 
@@ -184,7 +184,7 @@ git -v
 ### Step 2: Get the Code
 
 ```powershell
-git clone <repo-url>
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git
 cd kiro2cc-proxy
 ```
 
@@ -264,7 +264,7 @@ Press `Ctrl+C` in the PowerShell window, or close the window.
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> /opt/kiro2cc-proxy
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
 cd /opt/kiro2cc-proxy
 
 # 2. Create data directory and config
@@ -309,7 +309,7 @@ For running the binary directly without Docker.
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> /opt/kiro2cc-proxy-src
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy-src
 cd /opt/kiro2cc-proxy-src
 
 # 2. Create config

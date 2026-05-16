@@ -85,7 +85,7 @@ source "$HOME/.cargo/env"
 ### 第二步：获取项目代码
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git
 cd kiro2cc-proxy
 ```
 
@@ -184,7 +184,7 @@ git -v
 ### 第二步：获取项目代码
 
 ```powershell
-git clone <仓库地址>
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git
 cd kiro2cc-proxy
 ```
 
@@ -264,7 +264,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ```bash
 # 1. 克隆仓库
-git clone <仓库地址> /opt/kiro2cc-proxy
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
 cd /opt/kiro2cc-proxy
 
 # 2. 创建数据目录和配置文件
@@ -310,7 +310,7 @@ docker compose down
 
 ```bash
 # 1. 克隆仓库
-git clone <仓库地址> /opt/kiro2cc-proxy-src
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy-src
 cd /opt/kiro2cc-proxy-src
 
 # 2. 创建配置文件

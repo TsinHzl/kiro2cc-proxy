@@ -106,6 +106,7 @@ export interface ApiKeyItem {
   spendingLimit: number | null
   durationDays: number | null
   activatedAt: string | null
+  boundCredentialIds?: number[]
 }
 
 export interface CreateApiKeyRequest {
@@ -113,6 +114,7 @@ export interface CreateApiKeyRequest {
   expiresAt?: string | null
   spendingLimit?: number | null
   durationDays?: number | null
+  boundCredentialIds?: number[] | null
 }
 
 export interface UpdateApiKeyRequest {
@@ -121,6 +123,7 @@ export interface UpdateApiKeyRequest {
   expiresAt?: string | null
   spendingLimit?: number | null
   durationDays?: number | null
+  boundCredentialIds?: number[] | null
 }
 
 // API Key 用量汇总

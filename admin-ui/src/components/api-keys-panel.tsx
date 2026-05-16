@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2, Link2, Globe, ChevronDown, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useQueryClient } from '@tanstack/react-query'
-import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm, useCredentials } from '@/hooks/use-credentials'
+import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances } from '@/hooks/use-credentials'
 import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
@@ -42,6 +42,11 @@ export function ApiKeysPanel() {
   const [searchQuery, setSearchQuery] = useState('')
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false)
   const [purging, setPurging] = useState(false)
+  const [createCredDropdownOpen, setCreateCredDropdownOpen] = useState(false)
+  const [editCredDropdownOpen, setEditCredDropdownOpen] = useState(false)
+  const [credSearchQuery, setCredSearchQuery] = useState('')
+  const createCredDropdownRef = useRef<HTMLDivElement>(null)
+  const editCredDropdownRef = useRef<HTMLDivElement>(null)
 
   const quickDurationOptions = [
     { label: '1 小时', value: 1, unit: 'hours' as const },
@@ -73,6 +78,29 @@ export function ApiKeysPanel() {
   const { mutate: updateKey } = useUpdateApiKey()
   const { mutate: deleteKey } = useDeleteApiKey()
   const { mutate: resetUsage } = useResetKeyUsage()
+
+  // 构建 credential id -> CredentialStatusItem 映射
+  const credentialMap = new Map(
+    (credentials?.credentials ?? []).map((c) => [c.id, c])
+  )
+
+  // 批量查询所有凭据余额（含未绑定的，供下拉选择时展示）
+  const allCredIds = (credentials?.credentials ?? []).map((c) => c.id)
+  const credentialBalanceMap = useCredentialBalances(allCredIds)
+
+  // 点击外部关闭下拉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (createCredDropdownRef.current && !createCredDropdownRef.current.contains(e.target as Node)) {
+        setCreateCredDropdownOpen(false)
+      }
+      if (editCredDropdownRef.current && !editCredDropdownRef.current.contains(e.target as Node)) {
+        setEditCredDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // 构建 key_id -> usage 的映射
   const usageMap = new Map<number, UsageSummary>()
@@ -431,115 +459,163 @@ export function ApiKeysPanel() {
             未找到匹配的 API Key
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-3">
-          {[...filteredKeys].sort((a, b) => {
-            if (sortBy === 'cost-desc') {
-              return (usageMap.get(b.id)?.totalCost ?? 0) - (usageMap.get(a.id)?.totalCost ?? 0)
-            }
-            if (sortBy === 'cost-asc') {
-              return (usageMap.get(a.id)?.totalCost ?? 0) - (usageMap.get(b.id)?.totalCost ?? 0)
-            }
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          }).map((apiKey) => {
-            const status = getKeyStatus(apiKey)
-            const usage = usageMap.get(apiKey.id)
-            return (
-              <Card key={apiKey.id} className={status === 'disabled' || status === 'expired' ? 'opacity-60' : ''}>
-                <CardContent className="py-3 px-3 sm:px-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs text-muted-foreground font-mono">{formatSerial(apiKey.id)}</code>
-                          <span className="font-medium truncate">{apiKey.name}</span>
-                          <Badge variant={status === 'active' ? 'success' : status === 'pending' ? 'secondary' : status === 'expired' ? 'warning' : 'destructive'}>
-                            {status === 'active' ? '启用' : status === 'pending' ? '待激活' : status === 'expired' ? '已过期' : '已禁用'}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                          <code>{maskKey(apiKey.key)}</code>
-                          <span>创建: {formatDate(apiKey.createdAt)}</span>
-                          {apiKey.spendingLimit != null ? (
-                            <span className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              额度: ${(usage?.totalCost ?? 0).toFixed(2)} / ${apiKey.spendingLimit.toFixed(2)}
-                            </span>
-                          ) : apiKey.durationDays != null && !apiKey.activatedAt ? (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              有效期: {formatDuration(apiKey.durationDays)}（首次使用后激活）
-                            </span>
-                          ) : apiKey.durationDays != null && apiKey.expiresAt ? (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              到期: {formatDate(apiKey.expiresAt)}（{formatDuration(apiKey.durationDays)}）
-                            </span>
-                          ) : apiKey.expiresAt ? (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              到期: {formatDate(apiKey.expiresAt)}
-                            </span>
-                          ) : null}
-                        </div>
-                        {/* 用量信息（始终显示） */}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <BarChart3 className="h-3 w-3" />
-                            {usage?.totalRequests ?? 0} 次请求
+      ) : (() => {
+        const sortFn = (a: ApiKeyItem, b: ApiKeyItem) => {
+          if (sortBy === 'cost-desc') return (usageMap.get(b.id)?.totalCost ?? 0) - (usageMap.get(a.id)?.totalCost ?? 0)
+          if (sortBy === 'cost-asc') return (usageMap.get(a.id)?.totalCost ?? 0) - (usageMap.get(b.id)?.totalCost ?? 0)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        }
+        const boundKeys = [...filteredKeys].filter(k => k.boundCredentialIds && k.boundCredentialIds.length > 0).sort(sortFn)
+        const globalKeys = [...filteredKeys].filter(k => !k.boundCredentialIds || k.boundCredentialIds.length === 0).sort(sortFn)
+
+        const renderKeyCard = (apiKey: ApiKeyItem, isBound: boolean) => {
+          const status = getKeyStatus(apiKey)
+          const usage = usageMap.get(apiKey.id)
+          return (
+            <Card
+              key={apiKey.id}
+              className={[
+                status === 'disabled' || status === 'expired' ? 'opacity-60' : '',
+                isBound ? 'border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-950/20' : '',
+              ].filter(Boolean).join(' ')}
+            >
+              <CardContent className="py-3 px-3 sm:px-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-xs text-muted-foreground font-mono">{formatSerial(apiKey.id)}</code>
+                        <span className="font-medium truncate">{apiKey.name}</span>
+                        <Badge variant={status === 'active' ? 'success' : status === 'pending' ? 'secondary' : status === 'expired' ? 'warning' : 'destructive'}>
+                          {status === 'active' ? '启用' : status === 'pending' ? '待激活' : status === 'expired' ? '已过期' : '已禁用'}
+                        </Badge>
+                        {isBound && apiKey.boundCredentialIds && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 px-2 py-0.5 text-xs font-medium">
+                            <Link2 className="h-3 w-3 shrink-0" />
+                            {apiKey.boundCredentialIds.map((id) => {
+                              const cred = credentialMap.get(id)
+                              const bal = credentialBalanceMap.get(id)
+                              const label = cred?.email ?? `#${id}`
+                              const balText = bal
+                                ? `${bal.remaining.toFixed(2)}/${bal.usageLimit.toFixed(2)} (${(100 - bal.usagePercentage).toFixed(0)}%剩)`
+                                : null
+                              return (
+                                <span key={id} className="inline-flex items-center gap-1">
+                                  <span>{label}</span>
+                                  {balText && (
+                                    <span className="text-violet-500 dark:text-violet-400 font-normal">{balText}</span>
+                                  )}
+                                </span>
+                              )
+                            }).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} className="opacity-40">·</span>, el], [])}
                           </span>
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">
-                            RPM {rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                        <code>{maskKey(apiKey.key)}</code>
+                        <span>创建: {formatDate(apiKey.createdAt)}</span>
+                        {apiKey.spendingLimit != null ? (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            额度: ${(usage?.totalCost ?? 0).toFixed(2)} / ${apiKey.spendingLimit.toFixed(2)}
                           </span>
-                          <span className="text-muted-foreground">
-                            入 {formatTokens(usage?.totalInputTokens ?? 0)} / 出 {formatTokens(usage?.totalOutputTokens ?? 0)}
+                        ) : apiKey.durationDays != null && !apiKey.activatedAt ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            有效期: {formatDuration(apiKey.durationDays)}（首次使用后激活）
                           </span>
-                          <span className="font-medium text-orange-600 dark:text-orange-400">
-                            {formatCost(usage?.totalCost ?? 0)}
+                        ) : apiKey.durationDays != null && apiKey.expiresAt ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            到期: {formatDate(apiKey.expiresAt)}（{formatDuration(apiKey.durationDays)}）
                           </span>
-                          {usage && usage.totalRequests > 0 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleResetUsage(apiKey)}
-                              title="重置用量"
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {dataUpdatedAt > 0 && (
-                            <span className="text-muted-foreground/60">
-                              · {new Date(dataUpdatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                            </span>
-                          )}
-                        </div>
-                        {apiKey.boundCredentialIds && apiKey.boundCredentialIds.length > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            绑定: {apiKey.boundCredentialIds.map(id => `#${id}`).join(', ')}
+                        ) : apiKey.expiresAt ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            到期: {formatDate(apiKey.expiresAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <BarChart3 className="h-3 w-3" />
+                          {usage?.totalRequests ?? 0} 次请求
+                        </span>
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">
+                          RPM {rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
+                        </span>
+                        <span className="text-muted-foreground">
+                          入 {formatTokens(usage?.totalInputTokens ?? 0)} / 出 {formatTokens(usage?.totalOutputTokens ?? 0)}
+                        </span>
+                        <span className="font-medium text-orange-600 dark:text-orange-400">
+                          {formatCost(usage?.totalCost ?? 0)}
+                        </span>
+                        {usage && usage.totalRequests > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleResetUsage(apiKey)}
+                            title="重置用量"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {dataUpdatedAt > 0 && (
+                          <span className="text-muted-foreground/60">
+                            · {new Date(dataUpdatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
-                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`订单编号: ${apiKey.name}\nBase URL: ${window.location.origin}\nAPI Key: ${apiKey.key}`, apiKey.id)} title="复制 URL 和 Key">
-                        {copiedId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                      <Switch checked={apiKey.enabled} onCheckedChange={() => handleToggleEnabled(apiKey)} />
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(apiKey)} title="编辑">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(apiKey)} title="删除" className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                  <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`订单编号: ${apiKey.name}\nBase URL: ${window.location.origin}\nAPI Key: ${apiKey.key}`, apiKey.id)} title="复制 URL 和 Key">
+                      {copiedId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                    <Switch checked={apiKey.enabled} onCheckedChange={() => handleToggleEnabled(apiKey)} />
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(apiKey)} title="编辑">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(apiKey)} title="删除" className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        }
+
+        return (
+          <div className="space-y-6">
+            {boundKeys.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-400">
+                  <Link2 className="h-4 w-4" />
+                  绑定凭据
+                  <span className="text-xs font-normal text-muted-foreground">({boundKeys.length})</span>
+                </div>
+                <div className="grid gap-2">
+                  {boundKeys.map(k => renderKeyCard(k, true))}
+                </div>
+              </div>
+            )}
+            {globalKeys.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Globe className="h-4 w-4" />
+                  全局策略
+                  <span className="text-xs font-normal">({globalKeys.length})</span>
+                </div>
+                <div className="grid gap-2">
+                  {globalKeys.map(k => renderKeyCard(k, false))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
       {/* 创建对话框 */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
@@ -666,28 +742,17 @@ export function ApiKeysPanel() {
               <div>
                 <label className="text-sm font-medium">绑定凭据</label>
                 <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
-                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
-                  {credentials.credentials.map((cred) => (
-                    <label key={cred.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
-                      <input
-                        type="checkbox"
-                        checked={newBoundCredentialIds.includes(cred.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewBoundCredentialIds((prev) => [...prev, cred.id])
-                          } else {
-                            setNewBoundCredentialIds((prev) => prev.filter((id) => id !== cred.id))
-                          }
-                        }}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-sm">
-                        #{cred.id}{cred.email ? ` · ${cred.email}` : ''}
-                        {cred.disabled && <span className="text-xs text-muted-foreground ml-1">（已禁用）</span>}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <CredentialMultiSelect
+                  credentials={credentials.credentials}
+                  balanceMap={credentialBalanceMap}
+                  selected={newBoundCredentialIds}
+                  onChange={setNewBoundCredentialIds}
+                  dropdownRef={createCredDropdownRef}
+                  open={createCredDropdownOpen}
+                  onOpenChange={setCreateCredDropdownOpen}
+                  searchQuery={credSearchQuery}
+                  onSearchChange={setCredSearchQuery}
+                />
               </div>
             )}
           </div>
@@ -827,28 +892,17 @@ export function ApiKeysPanel() {
               <div>
                 <label className="text-sm font-medium">绑定凭据</label>
                 <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
-                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
-                  {credentials.credentials.map((cred) => (
-                    <label key={cred.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
-                      <input
-                        type="checkbox"
-                        checked={editBoundCredentialIds.includes(cred.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setEditBoundCredentialIds((prev) => [...prev, cred.id])
-                          } else {
-                            setEditBoundCredentialIds((prev) => prev.filter((id) => id !== cred.id))
-                          }
-                        }}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-sm">
-                        #{cred.id}{cred.email ? ` · ${cred.email}` : ''}
-                        {cred.disabled && <span className="text-xs text-muted-foreground ml-1">（已禁用）</span>}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <CredentialMultiSelect
+                  credentials={credentials.credentials}
+                  balanceMap={credentialBalanceMap}
+                  selected={editBoundCredentialIds}
+                  onChange={setEditBoundCredentialIds}
+                  dropdownRef={editCredDropdownRef}
+                  open={editCredDropdownOpen}
+                  onOpenChange={setEditCredDropdownOpen}
+                  searchQuery={credSearchQuery}
+                  onSearchChange={setCredSearchQuery}
+                />
               </div>
             )}
           </div>
@@ -889,6 +943,138 @@ export function ApiKeysPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+interface CredentialMultiSelectProps {
+  credentials: import('@/types/api').CredentialStatusItem[]
+  balanceMap: Map<number, import('@/types/api').BalanceResponse>
+  selected: number[]
+  onChange: (ids: number[]) => void
+  dropdownRef: React.RefObject<HTMLDivElement>
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  searchQuery: string
+  onSearchChange: (q: string) => void
+}
+
+function CredentialMultiSelect({
+  credentials,
+  balanceMap,
+  selected,
+  onChange,
+  dropdownRef,
+  open,
+  onOpenChange,
+  searchQuery,
+  onSearchChange,
+}: CredentialMultiSelectProps) {
+  const filtered = credentials.filter((c) => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.trim().toLowerCase()
+    return (
+      String(c.id).includes(q) ||
+      (c.email ?? '').toLowerCase().includes(q)
+    )
+  })
+
+  const toggle = (id: number) => {
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+  }
+
+  return (
+    <div className="relative mt-2" ref={dropdownRef}>
+      {/* 触发器 */}
+      <button
+        type="button"
+        onClick={() => { onOpenChange(!open); onSearchChange('') }}
+        className="w-full flex items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent/50 transition-colors"
+      >
+        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+          {selected.length === 0 ? (
+            <span className="text-muted-foreground">全局策略（不绑定）</span>
+          ) : (
+            selected.map((id) => {
+              const cred = credentials.find((c) => c.id === id)
+              return (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 px-2 py-0.5 text-xs font-medium"
+                >
+                  {cred?.email ?? `#${id}`}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="hover:text-destructive cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); toggle(id) }}
+                    onKeyDown={(e) => e.key === 'Enter' && toggle(id)}
+                  >
+                    <X className="h-3 w-3" />
+                  </span>
+                </span>
+              )
+            })
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* 下拉面板 */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="搜索用户名或凭据编号..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full rounded-sm border-0 bg-transparent pl-7 pr-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">无匹配凭据</div>
+            ) : (
+              filtered.map((cred) => {
+                const bal = balanceMap.get(cred.id)
+                const isSelected = selected.includes(cred.id)
+                return (
+                  <button
+                    key={cred.id}
+                    type="button"
+                    onClick={() => toggle(cred.id)}
+                    className={`w-full flex items-start gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left ${isSelected ? 'bg-violet-50 dark:bg-violet-950/30' : ''}`}
+                  >
+                    <div className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center ${isSelected ? 'bg-violet-600 border-violet-600 text-white' : 'border-input'}`}>
+                      {isSelected && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium">{cred.email ?? `凭据 #${cred.id}`}</span>
+                        <span className="text-xs text-muted-foreground">#{cred.id}</span>
+                        {cred.disabled && <span className="text-xs text-destructive">已禁用</span>}
+                      </div>
+                      {bal ? (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          剩余用量：{bal.remaining.toFixed(2)} / {bal.usageLimit.toFixed(2)}
+                          <span className="ml-1">({(100 - bal.usagePercentage).toFixed(1)}% 剩余)</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground mt-0.5">余额未加载</div>
+                      )}
+                    </div>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

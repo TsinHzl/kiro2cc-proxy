@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getCredentials,
   setCredentialDisabled,
@@ -40,6 +40,23 @@ export function useCredentialBalance(id: number | null) {
     enabled: id !== null,
     retry: false, // 余额查询失败时不重试（避免重复请求被封禁的账号）
   })
+}
+
+// 批量查询多个凭据余额
+export function useCredentialBalances(ids: number[]) {
+  const results = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['credential-balance', id],
+      queryFn: () => getCredentialBalance(id),
+      retry: false,
+    })),
+  })
+  const balanceMap = new Map<number, import('@/types/api').BalanceResponse>()
+  ids.forEach((id, i) => {
+    const data = results[i]?.data
+    if (data) balanceMap.set(id, data)
+  })
+  return balanceMap
 }
 
 // 设置禁用状态

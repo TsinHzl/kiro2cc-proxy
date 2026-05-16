@@ -3,6 +3,7 @@
 //! 实现 Kiro → Anthropic 流式响应转换和 SSE 状态管理
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::json;
 use uuid::Uuid;
@@ -10,6 +11,7 @@ use uuid::Uuid;
 use crate::cache::PromptCacheUsage;
 
 use crate::kiro::model::events::Event;
+use crate::model::usage::UsageTracker;
 
 /// 找到小于等于目标位置的最近有效UTF-8字符边界
 ///
@@ -524,6 +526,10 @@ pub struct StreamContext {
     /// 是否需要剥离 thinking 内容开头的换行符
     /// 模型输出 `<thinking>\n` 时，`\n` 可能与标签在同一 chunk 或下一 chunk
     strip_thinking_leading_newline: bool,
+    /// 用量追踪器（可选）
+    usage_tracker: Option<Arc<UsageTracker>>,
+    /// API Key ID（用于用量记录）
+    api_key_id: Option<u32>,
     /// 模拟出的 prompt cache usage
     prompt_cache_usage: PromptCacheUsage,
 }
@@ -550,6 +556,8 @@ impl StreamContext {
             thinking_block_index: None,
             text_block_index: None,
             strip_thinking_leading_newline: false,
+            usage_tracker: None,
+            api_key_id: None,
             prompt_cache_usage: PromptCacheUsage::uncached(input_tokens),
         }
     }
@@ -557,6 +565,17 @@ impl StreamContext {
     /// 设置 prompt cache usage
     pub fn with_prompt_cache_usage(mut self, usage: PromptCacheUsage) -> Self {
         self.prompt_cache_usage = usage;
+        self
+    }
+
+    /// 设置用量追踪
+    pub fn with_usage_tracking(
+        mut self,
+        tracker: Option<Arc<UsageTracker>>,
+        api_key_id: Option<u32>,
+    ) -> Self {
+        self.usage_tracker = tracker;
+        self.api_key_id = api_key_id;
         self
     }
 
@@ -1148,6 +1167,11 @@ impl StreamContext {
         // 对外报告的 output_tokens 需要限制在合理范围
         let reported_output_tokens = self.output_tokens.min(OUTPUT_TOKENS_REPORT_CAP);
 
+        // 记录用量（内部记录使用真实值）
+        if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
+            tracker.record(key_id, self.model.clone(), final_input_tokens, self.output_tokens);
+        }
+
         // 注入 signature_delta 事件（伪造模型签名以通过检测）
         events.extend(self.generate_signature_events());
 
@@ -1199,6 +1223,16 @@ impl BufferedStreamContext {
             estimated_input_tokens,
             initial_events_generated: false,
         }
+    }
+
+    /// 设置用量追踪
+    pub fn with_usage_tracking(
+        mut self,
+        tracker: Option<Arc<UsageTracker>>,
+        api_key_id: Option<u32>,
+    ) -> Self {
+        self.inner = self.inner.with_usage_tracking(tracker, api_key_id);
+        self
     }
 
     pub fn with_prompt_cache_usage(mut self, usage: PromptCacheUsage) -> Self {

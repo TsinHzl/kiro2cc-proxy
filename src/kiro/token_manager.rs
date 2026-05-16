@@ -18,22 +18,7 @@ use std::time::{Duration as StdDuration, Instant};
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
-
-/// 凭据更新请求（原 admin::types::UpdateCredentialRequest）
-#[derive(Debug, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateCredentialRequest {
-    pub refresh_token: Option<String>,
-    pub auth_method: Option<String>,
-    pub client_id: Option<String>,
-    pub client_secret: Option<String>,
-    pub auth_region: Option<String>,
-    pub api_region: Option<String>,
-    pub machine_id: Option<String>,
-    pub proxy_url: Option<String>,
-    pub proxy_username: Option<String>,
-    pub proxy_password: Option<String>,
-}
+use crate::admin::types::UpdateCredentialRequest;
 use crate::kiro::model::token_refresh::{
     IdcRefreshRequest, IdcRefreshResponse, RefreshRequest, RefreshResponse,
 };

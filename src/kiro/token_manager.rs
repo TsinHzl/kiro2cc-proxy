@@ -697,7 +697,7 @@ impl MultiTokenManager {
     ///
     /// # 参数
     /// - `model`: 可选的模型名称，用于过滤支持该模型的凭据（如 opus 模型需要付费订阅）
-    fn select_next_credential(&self, model: Option<&str>) -> Option<(u64, KiroCredentials)> {
+    fn select_next_credential(&self, model: Option<&str>, allowed_ids: &[u64]) -> Option<(u64, KiroCredentials)> {
         let entries = self.entries.lock();
 
         // 检查是否是 opus 模型
@@ -710,6 +710,10 @@ impl MultiTokenManager {
             .iter()
             .filter(|e| {
                 if e.disabled {
+                    return false;
+                }
+                // 凭据 ID 白名单过滤（空列表表示不限制）
+                if !allowed_ids.is_empty() && !allowed_ids.contains(&e.id) {
                     return false;
                 }
                 // 如果是 opus 模型，需要检查订阅等级
@@ -786,7 +790,7 @@ impl MultiTokenManager {
                     hit
                 } else {
                     // 当前凭据不可用或 balanced 模式，根据负载均衡策略选择
-                    let mut best = self.select_next_credential(model);
+                    let mut best = self.select_next_credential(model, &[]);
 
                     // 没有可用凭据：如果是"自动禁用导致全灭"，做一次类似重启的自愈
                     if best.is_none() {
@@ -805,7 +809,7 @@ impl MultiTokenManager {
                                 }
                             }
                             drop(entries);
-                            best = self.select_next_credential(model);
+                            best = self.select_next_credential(model, &[]);
                         }
                     }
 
@@ -834,6 +838,71 @@ impl MultiTokenManager {
                     tracing::warn!("凭据 #{} Token 刷新失败，尝试下一个凭据: {}", id, e);
 
                     // Token 刷新失败，切换到下一个优先级的凭据（不计入失败次数）
+                    self.switch_to_next_by_priority();
+                    tried_count += 1;
+                }
+            }
+        }
+    }
+
+    /// 带凭据 ID 白名单的调用上下文获取
+    ///
+    /// 与 acquire_context 逻辑相同，但只在 allowed_ids 指定的凭据中选择。
+    /// 白名单内所有凭据均不可用时直接返回错误，不回退到全局池。
+    pub async fn acquire_context_filtered(
+        &self,
+        model: Option<&str>,
+        allowed_ids: &[u64],
+    ) -> anyhow::Result<CallContext> {
+        if allowed_ids.is_empty() {
+            return self.acquire_context(model).await;
+        }
+
+        let total = allowed_ids.len();
+        let mut tried_count = 0;
+
+        loop {
+            if tried_count >= total {
+                anyhow::bail!(
+                    "绑定的凭据均不可用（共 {} 个）",
+                    total
+                );
+            }
+
+            let (id, credentials) = {
+                let is_balanced = self.load_balancing_mode.lock().as_str() == "balanced";
+
+                let current_hit = if is_balanced {
+                    None
+                } else {
+                    let entries = self.entries.lock();
+                    let current_id = *self.current_id.lock();
+                    entries
+                        .iter()
+                        .find(|e| e.id == current_id && !e.disabled && allowed_ids.contains(&e.id))
+                        .map(|e| (e.id, e.credentials.clone()))
+                };
+
+                if let Some(hit) = current_hit {
+                    hit
+                } else {
+                    match self.select_next_credential(model, allowed_ids) {
+                        Some((new_id, new_creds)) => {
+                            let mut current_id = self.current_id.lock();
+                            *current_id = new_id;
+                            (new_id, new_creds)
+                        }
+                        None => {
+                            anyhow::bail!("绑定的凭据均已禁用（共 {} 个）", total);
+                        }
+                    }
+                }
+            };
+
+            match self.try_ensure_token(id, &credentials).await {
+                Ok(ctx) => return Ok(ctx),
+                Err(e) => {
+                    tracing::warn!("绑定凭据 #{} Token 刷新失败，尝试下一个: {}", id, e);
                     self.switch_to_next_by_priority();
                     tried_count += 1;
                 }

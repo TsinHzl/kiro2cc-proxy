@@ -858,16 +858,22 @@ impl MultiTokenManager {
             return self.acquire_context(model).await;
         }
 
-        let total = allowed_ids.len();
-        let mut tried_count = 0;
+        let mut tried_ids: Vec<u64> = Vec::new();
 
         loop {
-            if tried_count >= total {
+            if tried_ids.len() >= allowed_ids.len() {
                 anyhow::bail!(
                     "绑定的凭据均不可用（共 {} 个）",
-                    total
+                    allowed_ids.len()
                 );
             }
+
+            // 从白名单中排除已尝试过的凭据
+            let effective_ids: Vec<u64> = allowed_ids
+                .iter()
+                .filter(|id| !tried_ids.contains(id))
+                .copied()
+                .collect();
 
             let (id, credentials) = {
                 let is_balanced = self.load_balancing_mode.lock().as_str() == "balanced";
@@ -879,21 +885,25 @@ impl MultiTokenManager {
                     let current_id = *self.current_id.lock();
                     entries
                         .iter()
-                        .find(|e| e.id == current_id && !e.disabled && allowed_ids.contains(&e.id))
+                        .find(|e| {
+                            e.id == current_id
+                                && !e.disabled
+                                && effective_ids.contains(&e.id)
+                        })
                         .map(|e| (e.id, e.credentials.clone()))
                 };
 
                 if let Some(hit) = current_hit {
                     hit
                 } else {
-                    match self.select_next_credential(model, allowed_ids) {
+                    match self.select_next_credential(model, &effective_ids) {
                         Some((new_id, new_creds)) => {
-                            let mut current_id = self.current_id.lock();
-                            *current_id = new_id;
                             (new_id, new_creds)
+                            // Note: intentionally NOT updating current_id here
+                            // to avoid polluting shared state for unfiltered calls
                         }
                         None => {
-                            anyhow::bail!("绑定的凭据均已禁用（共 {} 个）", total);
+                            anyhow::bail!("绑定的凭据均已禁用（共 {} 个）", allowed_ids.len());
                         }
                     }
                 }
@@ -903,8 +913,7 @@ impl MultiTokenManager {
                 Ok(ctx) => return Ok(ctx),
                 Err(e) => {
                     tracing::warn!("绑定凭据 #{} Token 刷新失败，尝试下一个: {}", id, e);
-                    self.switch_to_next_by_priority();
-                    tried_count += 1;
+                    tried_ids.push(id);
                 }
             }
         }

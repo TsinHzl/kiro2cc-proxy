@@ -267,7 +267,7 @@ Press `Ctrl+C` in the PowerShell window, or close the window.
 git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
 cd /opt/kiro2cc-proxy
 
-# 2. Create data directory and config
+# 2. Create config file (note: config lives in data/, not data/config/)
 mkdir -p data
 cp config.example.json data/config.json
 nano data/config.json   # Fill in apiKey and adminApiKey
@@ -285,9 +285,11 @@ Minimal `data/config.json`:
 }
 ```
 
+> ⚠️ **`port` must be an integer**, not a Docker port-mapping string (e.g. `"0.0.0.0:5678:5678"`). Correct: `"port": 5678`.
+
 ```bash
 # 3. Create credentials file (or add via admin panel after startup)
-nano data/credentials.json
+echo "[]" > data/credentials.json
 
 # 4. Start
 docker compose up -d
@@ -301,7 +303,18 @@ docker compose down
 
 Access the admin panel at `http://your-server-ip:5678/admin`.
 
-> **Note**: Docker Compose defaults to `127.0.0.1:5678`. For external access, change `ports` in `docker-compose.yml` to `"0.0.0.0:5678:5678"` and open the port in your firewall.
+> **Note**: `docker-compose.yml` binds to `5678:5678` (all interfaces) by default. To restrict to localhost only, change `ports` to `"127.0.0.1:5678:5678"`. Also make sure your cloud provider's security group (Tencent Cloud / Alibaba Cloud etc.) has an inbound rule allowing port 5678, otherwise external access will be refused.
+
+### Updating to the Latest Version
+
+```bash
+cd /opt/kiro2cc-proxy
+git pull
+docker compose pull
+docker compose down && docker compose up -d
+```
+
+> Each time a new tag (e.g. `v1.x.x`) is pushed, GitHub Actions automatically builds and pushes a new image to `ghcr.io`. `docker compose pull` fetches the latest `latest` image.
 
 ### Option 2: systemd One-Click Install
 
@@ -691,7 +704,16 @@ Output truncated due to excessive length. Lower the `max_tokens` limit in your c
 
 Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the port.
 
-**Q: How to update to the latest version**
+**Q: How to update to the latest version (Docker deployment)**
+
+```bash
+cd /opt/kiro2cc-proxy
+git pull
+docker compose pull
+docker compose down && docker compose up -d
+```
+
+**Q: How to update to the latest version (local deployment)**
 
 ```bash
 git pull

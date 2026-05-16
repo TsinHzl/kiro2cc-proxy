@@ -267,7 +267,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
 cd /opt/kiro2cc-proxy
 
-# 2. 创建数据目录和配置文件
+# 2. 创建配置文件（注意：配置文件在 data/ 目录下，不是 data/config/）
 mkdir -p data
 cp config.example.json data/config.json
 nano data/config.json   # 填入 apiKey 和 adminApiKey
@@ -285,10 +285,11 @@ nano data/config.json   # 填入 apiKey 和 adminApiKey
 }
 ```
 
+> ⚠️ **【重要】`port` 字段必须是整数**，不能填写 Docker 端口映射格式（如 `"0.0.0.0:5678:5678"`），否则服务启动失败。正确写法：`"port": 5678`。
+
 ```bash
 # 3. 创建凭据文件（也可启动后在管理面板添加）
-# 参考下方"获取 Kiro 凭据"章节
-nano data/credentials.json
+echo "[]" > data/credentials.json
 
 # 4. 启动
 docker compose up -d
@@ -302,7 +303,18 @@ docker compose down
 
 服务启动后访问 `http://服务器IP:5678/admin` 进入管理面板。
 
-> **注意**：Docker Compose 默认只监听 `127.0.0.1:5678`，如需外网访问，修改 `docker-compose.yml` 中的 `ports` 为 `"0.0.0.0:5678:5678"`，并确保防火墙已开放该端口。
+> **注意**：`docker-compose.yml` 中 `ports` 默认为 `"5678:5678"`，监听所有网卡。如需限制只允许本机访问，可改为 `"127.0.0.1:5678:5678"`。同时确保云服务商安全组（腾讯云/阿里云等）已开放 5678 端口的入站规则，否则外网无法访问。
+
+### 更新到最新版本
+
+```bash
+cd /opt/kiro2cc-proxy
+git pull
+docker compose pull
+docker compose down && docker compose up -d
+```
+
+> **说明**：每次推送新 tag（如 `v1.x.x`）后，GitHub Actions 会自动构建并推送新镜像到 `ghcr.io`。`docker compose pull` 会拉取最新的 `latest` 镜像。
 
 ### 方式二：systemd 一键安装
 
@@ -692,7 +704,16 @@ lsof -ti:5678 | xargs kill -9
 
 将 `config.json` 中的 `host` 改为 `0.0.0.0`，确认防火墙已开放对应端口。
 
-**Q：如何更新到最新版本**
+**Q：如何更新到最新版本（Docker 部署）**
+
+```bash
+cd /opt/kiro2cc-proxy
+git pull
+docker compose pull
+docker compose down && docker compose up -d
+```
+
+**Q：如何更新到最新版本（本地部署）**
 
 ```bash
 git pull

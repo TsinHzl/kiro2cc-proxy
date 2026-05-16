@@ -246,6 +246,9 @@ pub struct CreateApiKeyRequest {
     /// 有效期天数（懒激活模式）
     #[serde(default)]
     pub duration_days: Option<f64>,
+    /// 绑定的凭据 ID 列表
+    #[serde(default)]
+    pub bound_credential_ids: Option<Vec<u64>>,
 }
 
 /// 更新 API Key 请求
@@ -267,6 +270,9 @@ pub struct UpdateApiKeyRequest {
     /// 有效期天数（懒激活模式）
     #[serde(default, deserialize_with = "deserialize_optional_f64")]
     pub duration_days: Option<Option<f64>>,
+    /// 绑定的凭据 ID 列表（null 表示清除绑定）
+    #[serde(default)]
+    pub bound_credential_ids: Option<Option<Vec<u64>>>,
 }
 
 /// 区分 JSON 中"字段缺失"与"字段为 null"

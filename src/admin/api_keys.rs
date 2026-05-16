@@ -49,7 +49,7 @@ pub async fn create_api_key(
         return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
     };
 
-    match manager.create(payload.name, payload.expires_at, payload.spending_limit, payload.duration_days) {
+    match manager.create(payload.name, payload.expires_at, payload.spending_limit, payload.duration_days, payload.bound_credential_ids) {
         Ok(api_key) => (StatusCode::CREATED, Json(api_key)).into_response(),
         Err(e) => {
             let error = AdminErrorResponse::internal_error(e.to_string());
@@ -70,7 +70,7 @@ pub async fn update_api_key(
         return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
     };
 
-    match manager.update(id, payload.name, payload.enabled, payload.expires_at, payload.spending_limit, payload.duration_days) {
+    match manager.update(id, payload.name, payload.enabled, payload.expires_at, payload.spending_limit, payload.duration_days, payload.bound_credential_ids) {
         Ok(Some(api_key)) => Json(api_key).into_response(),
         Ok(None) => {
             let error = AdminErrorResponse::not_found(format!("API Key #{} 不存在", id));

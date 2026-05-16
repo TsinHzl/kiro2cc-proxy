@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useQueryClient } from '@tanstack/react-query'
-import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm } from '@/hooks/use-credentials'
+import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm, useCredentials } from '@/hooks/use-credentials'
 import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
@@ -28,10 +28,12 @@ export function ApiKeysPanel() {
   const [newDuration, setNewDuration] = useState<number | null>(1) // 数值，null 表示永不过期
   const [newDurationUnit, setNewDurationUnit] = useState<'days' | 'hours'>('days')
   const [newSpendingLimit, setNewSpendingLimit] = useState(100)
+  const [newBoundCredentialIds, setNewBoundCredentialIds] = useState<number[]>([])
   const [editName, setEditName] = useState('')
   const [editMode, setEditMode] = useState<'date' | 'quota'>('date')
   const [editDuration, setEditDuration] = useState<number | null | string>(1)
   const [editDurationUnit, setEditDurationUnit] = useState<'days' | 'hours'>('days')
+  const [editBoundCredentialIds, setEditBoundCredentialIds] = useState<number[]>([])
   const [editSpendingLimit, setEditSpendingLimit] = useState(50)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [copiedMaster, setCopiedMaster] = useState(false)
@@ -61,6 +63,7 @@ export function ApiKeysPanel() {
     return `${days} 天`
   }
 
+  const { data: credentials } = useCredentials()
   const { data: apiKeys, isLoading } = useApiKeys()
   const { data: serverInfo } = useServerInfo()
   const { data: usageData, dataUpdatedAt } = useAllUsage()
@@ -148,6 +151,7 @@ export function ApiKeysPanel() {
             ? { durationDays: toDays(newDuration, newDurationUnit) }
             : {}
           : { spendingLimit: newSpendingLimit }),
+        boundCredentialIds: newBoundCredentialIds.length > 0 ? newBoundCredentialIds : null,
       },
       {
         onSuccess: () => {
@@ -158,6 +162,7 @@ export function ApiKeysPanel() {
           setNewDuration(1)
           setNewDurationUnit('days')
           setNewSpendingLimit(100)
+          setNewBoundCredentialIds([])
         },
         onError: (err) => toast.error(`创建失败: ${extractErrorMessage(err)}`),
       }
@@ -185,6 +190,7 @@ export function ApiKeysPanel() {
       data.expiresAt = null // 清除过期时间
       data.durationDays = null // 清除懒激活
     }
+    data.boundCredentialIds = editBoundCredentialIds.length > 0 ? editBoundCredentialIds : null
     updateKey(
       { id: editingKey.id, data },
       {
@@ -234,6 +240,7 @@ export function ApiKeysPanel() {
         setEditDurationUnit('days')
       }
     }
+    setEditBoundCredentialIds(key.boundCredentialIds ?? [])
   }
 
   const maskKey = (key: string) => key.slice(0, 7) + '...' + key.slice(-4)
@@ -507,6 +514,11 @@ export function ApiKeysPanel() {
                             </span>
                           )}
                         </div>
+                        {apiKey.boundCredentialIds && apiKey.boundCredentialIds.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            绑定: {apiKey.boundCredentialIds.map(id => `#${id}`).join(', ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
@@ -650,6 +662,34 @@ export function ApiKeysPanel() {
                 </div>
               </div>
             )}
+            {credentials && credentials.credentials && credentials.credentials.length > 0 && (
+              <div>
+                <label className="text-sm font-medium">绑定凭据</label>
+                <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
+                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
+                  {credentials.credentials.map((cred) => (
+                    <label key={cred.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={newBoundCredentialIds.includes(cred.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewBoundCredentialIds((prev) => [...prev, cred.id])
+                          } else {
+                            setNewBoundCredentialIds((prev) => prev.filter((id) => id !== cred.id))
+                          }
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">
+                        #{cred.id}{cred.email ? ` · ${cred.email}` : ''}
+                        {cred.disabled && <span className="text-xs text-muted-foreground ml-1">（已禁用）</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
@@ -780,6 +820,34 @@ export function ApiKeysPanel() {
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
                   累计用量达到 ${editSpendingLimit} 后自动停用
+                </div>
+              </div>
+            )}
+            {credentials && credentials.credentials && credentials.credentials.length > 0 && (
+              <div>
+                <label className="text-sm font-medium">绑定凭据</label>
+                <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
+                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
+                  {credentials.credentials.map((cred) => (
+                    <label key={cred.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={editBoundCredentialIds.includes(cred.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditBoundCredentialIds((prev) => [...prev, cred.id])
+                          } else {
+                            setEditBoundCredentialIds((prev) => prev.filter((id) => id !== cred.id))
+                          }
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">
+                        #{cred.id}{cred.email ? ` · ${cred.email}` : ''}
+                        {cred.disabled && <span className="text-xs text-muted-foreground ml-1">（已禁用）</span>}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
             )}

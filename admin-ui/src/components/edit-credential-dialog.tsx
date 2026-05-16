@@ -22,6 +22,7 @@ interface EditCredentialDialogProps {
 export function EditCredentialDialog({ open, onOpenChange, credential }: EditCredentialDialogProps) {
   const [authRegion, setAuthRegion] = useState('')
   const [apiRegion, setApiRegion] = useState('')
+  const [email, setEmail] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [machineId, setMachineId] = useState('')
@@ -36,6 +37,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (open) {
       setAuthRegion('')
       setApiRegion('')
+      setEmail(credential.email || '')
       setClientId('')
       setClientSecret('')
       setMachineId('')
@@ -52,6 +54,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     const data: Record<string, string> = {}
     if (authRegion !== '') data.authRegion = authRegion
     if (apiRegion !== '') data.apiRegion = apiRegion
+    if (email !== (credential.email || '')) data.email = email
     if (clientId !== '') data.clientId = clientId
     if (clientSecret !== '') data.clientSecret = clientSecret
     if (machineId !== '') data.machineId = machineId
@@ -92,6 +95,17 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
             <p className="text-xs text-muted-foreground">
               只填写需要修改的字段，留空的字段不会被更改。
             </p>
+
+            {/* 用户名/邮箱 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">用户名 / 邮箱</label>
+              <Input
+                placeholder="账号邮箱（用于标识凭据）"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
 
             {/* Region 配置 */}
             <div className="space-y-2">

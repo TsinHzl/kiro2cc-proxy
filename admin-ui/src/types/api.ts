@@ -62,6 +62,7 @@ export interface SetPriorityRequest {
 export interface AddCredentialRequest {
   refreshToken: string
   authMethod?: 'social' | 'idc'
+  email?: string
   clientId?: string
   clientSecret?: string
   priority?: number
@@ -77,6 +78,7 @@ export interface AddCredentialRequest {
 export interface UpdateCredentialRequest {
   refreshToken?: string
   authMethod?: string
+  email?: string
   clientId?: string
   clientSecret?: string
   authRegion?: string

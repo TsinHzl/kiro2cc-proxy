@@ -161,6 +161,9 @@ pub struct UpdateCredentialRequest {
     /// 凭据级 Machine ID（可选）
     pub machine_id: Option<String>,
 
+    /// 用户邮箱（可选，用于前端显示）
+    pub email: Option<String>,
+
     /// 凭据级代理 URL（可选）
     pub proxy_url: Option<String>,
 

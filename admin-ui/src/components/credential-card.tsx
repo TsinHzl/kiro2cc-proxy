@@ -165,6 +165,12 @@ export function CredentialCard({
         <CardContent className="space-y-4">
           {/* 信息网格 */}
           <div className="grid grid-cols-2 gap-4 text-sm">
+            {credential.email && (
+              <div className="col-span-2">
+                <span className="text-muted-foreground">账号：</span>
+                <span className="font-medium">{credential.email}</span>
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground">优先级：</span>
               {editingPriority ? (

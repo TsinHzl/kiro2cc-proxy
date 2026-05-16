@@ -1785,6 +1785,9 @@ impl MultiTokenManager {
         if let Some(ref mi) = update.machine_id {
             cred.machine_id = if mi.is_empty() { None } else { Some(mi.clone()) };
         }
+        if let Some(ref em) = update.email {
+            cred.email = if em.is_empty() { None } else { Some(em.clone()) };
+        }
         if let Some(ref pu) = update.proxy_url {
             cred.proxy_url = if pu.is_empty() { None } else { Some(pu.clone()) };
         }

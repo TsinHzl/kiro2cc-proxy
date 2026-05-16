@@ -20,6 +20,7 @@ interface BatchImportDialogProps {
 
 interface CredentialInput {
   refreshToken: string
+  email?: string
   clientId?: string
   clientSecret?: string
   region?: string
@@ -176,6 +177,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
           const addedCred = await addCredential({
             refreshToken: token,
             authMethod,
+            email: cred.email?.trim() || undefined,
             authRegion: cred.authRegion?.trim() || cred.region?.trim() || undefined,
             apiRegion: cred.apiRegion?.trim() || undefined,
             clientId,

@@ -21,6 +21,7 @@ type AuthMethod = 'social' | 'idc'
 
 export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogProps) {
   const [refreshToken, setRefreshToken] = useState('')
+  const [email, setEmail] = useState('')
   const [authMethod, setAuthMethod] = useState<AuthMethod>('social')
   const [authRegion, setAuthRegion] = useState('')
   const [apiRegion, setApiRegion] = useState('')
@@ -36,6 +37,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
   const resetForm = () => {
     setRefreshToken('')
+    setEmail('')
     setAuthMethod('social')
     setAuthRegion('')
     setApiRegion('')
@@ -67,6 +69,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
       {
         refreshToken: refreshToken.trim(),
         authMethod,
+        email: email.trim() || undefined,
         authRegion: authRegion.trim() || undefined,
         apiRegion: apiRegion.trim() || undefined,
         clientId: clientId.trim() || undefined,
@@ -110,6 +113,21 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 placeholder="请输入 Refresh Token"
                 value={refreshToken}
                 onChange={(e) => setRefreshToken(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+
+            {/* 用户名/邮箱 */}
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium">
+                用户名 / 邮箱
+              </label>
+              <Input
+                id="email"
+                type="text"
+                placeholder="请输入账号邮箱（用于标识凭据）"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}
               />
             </div>

@@ -113,7 +113,12 @@ fn generate_api_key() -> String {
 /// API Key 认证结果
 pub enum ApiKeyAuthResult {
     /// 认证通过，携带 key ID 和名称
-    Valid { id: u32, name: String, spending_limit: Option<f64> },
+    Valid {
+        id: u32,
+        name: String,
+        spending_limit: Option<f64>,
+        bound_credential_ids: Option<Vec<u64>>,
+    },
     /// Key 已被禁用
     Disabled,
     /// Key 已过期
@@ -173,6 +178,7 @@ impl ApiKeyManager {
                         id: api_key.id,
                         name: api_key.name.clone(),
                         spending_limit: api_key.spending_limit,
+                        bound_credential_ids: api_key.bound_credential_ids.clone(),
                     }
                 }
             }
@@ -189,6 +195,7 @@ impl ApiKeyManager {
                 id: api_key.id,
                 name: api_key.name.clone(),
                 spending_limit: api_key.spending_limit,
+                bound_credential_ids: api_key.bound_credential_ids.clone(),
             },
             None => ApiKeyAuthResult::NotFound,
         }

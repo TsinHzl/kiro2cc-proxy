@@ -403,6 +403,11 @@ pub async fn post_messages(
         rpm_tracker.record_request(api_key_id);
     }
 
+    let bound_ids: Vec<u64> = identity
+        .as_ref()
+        .and_then(|ext| ext.0.bound_credential_ids.clone())
+        .unwrap_or_default();
+
     // 检查 KiroProvider 是否可用
     let provider = match &state.kiro_provider {
         Some(p) => p.clone(),
@@ -434,7 +439,7 @@ pub async fn post_messages(
             payload.tools.clone(),
         ) as i32;
 
-        return websearch::handle_websearch_request(provider, &payload, input_tokens).await;
+        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids).await;
     }
 
     // 转换请求
@@ -518,6 +523,7 @@ pub async fn post_messages(
             usage_tracker,
             api_key_id,
             prompt_cache_usage,
+            bound_ids,
         )
         .await
     } else {
@@ -530,6 +536,7 @@ pub async fn post_messages(
             usage_tracker,
             api_key_id,
             prompt_cache_usage,
+            bound_ids,
         )
         .await
     }
@@ -545,9 +552,10 @@ async fn handle_stream_request(
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
+    bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api_stream(request_body).await {
+    let response = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
@@ -685,9 +693,10 @@ async fn handle_non_stream_request(
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
+    bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api(request_body).await {
+    let response = match provider.call_api(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
@@ -953,6 +962,11 @@ pub async fn post_messages_cc(
     // 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
     override_thinking_from_model_name(&mut payload);
 
+    let bound_ids: Vec<u64> = identity
+        .as_ref()
+        .and_then(|ext| ext.0.bound_credential_ids.clone())
+        .unwrap_or_default();
+
     // 检查是否为 WebSearch 请求
     if websearch::has_web_search_tool(&payload) {
         tracing::info!("检测到 WebSearch 工具，路由到 WebSearch 处理");
@@ -965,7 +979,7 @@ pub async fn post_messages_cc(
             payload.tools.clone(),
         ) as i32;
 
-        return websearch::handle_websearch_request(provider, &payload, input_tokens).await;
+        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids).await;
     }
 
     // 转换请求
@@ -1049,6 +1063,7 @@ pub async fn post_messages_cc(
             usage_tracker.clone(),
             api_key_id,
             prompt_cache_usage,
+            bound_ids,
         )
         .await
     } else {
@@ -1061,6 +1076,7 @@ pub async fn post_messages_cc(
             usage_tracker,
             api_key_id,
             prompt_cache_usage,
+            bound_ids,
         )
         .await
     }
@@ -1079,9 +1095,10 @@ async fn handle_stream_request_buffered(
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
+    bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api_stream(request_body).await {
+    let response = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, estimated_input_tokens),
     };

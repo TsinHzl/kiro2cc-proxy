@@ -29,6 +29,10 @@ pub struct ApiKey {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activated_at: Option<DateTime<Utc>>,
+    /// 绑定的凭据 ID 列表，None 或空列表表示不限制（使用全局策略）
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bound_credential_ids: Option<Vec<u64>>,
 }
 
 fn default_enabled() -> bool {
@@ -43,6 +47,7 @@ impl ApiKey {
         expires_at: Option<DateTime<Utc>>,
         spending_limit: Option<f64>,
         duration_days: Option<f64>,
+        bound_credential_ids: Option<Vec<u64>>,
     ) -> Self {
         Self {
             id,
@@ -54,6 +59,7 @@ impl ApiKey {
             spending_limit,
             duration_days,
             activated_at: None,
+            bound_credential_ids,
         }
     }
 
@@ -193,10 +199,17 @@ impl ApiKeyManager {
     }
 
     /// 创建新 key
-    pub fn create(&self, name: String, expires_at: Option<DateTime<Utc>>, spending_limit: Option<f64>, duration_days: Option<f64>) -> anyhow::Result<ApiKey> {
+    pub fn create(
+        &self,
+        name: String,
+        expires_at: Option<DateTime<Utc>>,
+        spending_limit: Option<f64>,
+        duration_days: Option<f64>,
+        bound_credential_ids: Option<Vec<u64>>,
+    ) -> anyhow::Result<ApiKey> {
         let mut keys = self.keys.write();
         let next_id = keys.iter().map(|k| k.id).max().unwrap_or(0) + 1;
-        let api_key = ApiKey::new(next_id, name, expires_at, spending_limit, duration_days);
+        let api_key = ApiKey::new(next_id, name, expires_at, spending_limit, duration_days, bound_credential_ids);
         keys.push(api_key.clone());
         drop(keys);
         self.save()?;
@@ -212,6 +225,7 @@ impl ApiKeyManager {
         expires_at: Option<Option<DateTime<Utc>>>,
         spending_limit: Option<Option<f64>>,
         duration_days: Option<Option<f64>>,
+        bound_credential_ids: Option<Option<Vec<u64>>>,
     ) -> anyhow::Result<Option<ApiKey>> {
         let mut keys = self.keys.write();
         let Some(api_key) = keys.iter_mut().find(|k| k.id == id) else {
@@ -253,6 +267,9 @@ impl ApiKeyManager {
                     api_key.activated_at = None;
                 }
             }
+        }
+        if let Some(ids) = bound_credential_ids {
+            api_key.bound_credential_ids = ids;
         }
         let updated = api_key.clone();
         drop(keys);

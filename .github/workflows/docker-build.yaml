@@ -69,6 +69,9 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
+      - name: Lowercase owner
+        run: echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -79,8 +82,8 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/${{ github.repository_owner }}/kiro-rs-commercial:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/kiro-rs-commercial:${{ steps.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
+            ghcr.io/${{ env.IMAGE_OWNER }}/kiro-rs-commercial:${{ steps.version.outputs.version }}
+            ghcr.io/${{ env.IMAGE_OWNER }}/kiro-rs-commercial:${{ steps.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Kiro.rs Commercial Docker Image

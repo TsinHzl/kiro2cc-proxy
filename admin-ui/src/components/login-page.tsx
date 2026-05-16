@@ -35,7 +35,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <KeyRound className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Kiro Admin</CardTitle>
+          <CardTitle className="text-2xl">Kiro2CCProxy Admin</CardTitle>
           <CardDescription>
             请输入 Admin API Key 以访问管理面板
           </CardDescription>

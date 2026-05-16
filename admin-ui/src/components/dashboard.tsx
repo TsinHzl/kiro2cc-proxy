@@ -495,7 +495,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
               <Server className="h-5 w-5" />
-              <span className="font-semibold hidden sm:inline">Kiro Admin</span>
+              <span className="font-semibold hidden sm:inline">Kiro2CCProxy Admin</span>
             </div>
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
               <Button

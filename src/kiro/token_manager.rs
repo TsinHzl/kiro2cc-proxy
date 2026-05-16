@@ -486,6 +486,8 @@ pub struct CredentialEntrySnapshot {
     pub refresh_token_hash: Option<String>,
     /// 用户邮箱（用于前端显示）
     pub email: Option<String>,
+    /// 用户昵称/备注名（用于前端显示）
+    pub nickname: Option<String>,
     /// API 调用成功次数
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
@@ -1405,6 +1407,7 @@ impl MultiTokenManager {
                     expires_at: e.credentials.expires_at.clone(),
                     refresh_token_hash: e.credentials.refresh_token.as_deref().map(sha256_hex),
                     email: e.credentials.email.clone(),
+                    nickname: e.credentials.nickname.clone(),
                     success_count: e.success_count,
                     last_used_at: e.last_used_at.clone(),
                     has_proxy: e.credentials.proxy_url.is_some(),
@@ -1642,6 +1645,7 @@ impl MultiTokenManager {
         validated_cred.api_region = new_cred.api_region;
         validated_cred.machine_id = new_cred.machine_id;
         validated_cred.email = new_cred.email;
+        validated_cred.nickname = new_cred.nickname;
         validated_cred.proxy_url = new_cred.proxy_url;
         validated_cred.proxy_username = new_cred.proxy_username;
         validated_cred.proxy_password = new_cred.proxy_password;
@@ -1787,6 +1791,9 @@ impl MultiTokenManager {
         }
         if let Some(ref em) = update.email {
             cred.email = if em.is_empty() { None } else { Some(em.clone()) };
+        }
+        if let Some(ref nn) = update.nickname {
+            cred.nickname = if nn.is_empty() { None } else { Some(nn.clone()) };
         }
         if let Some(ref pu) = update.proxy_url {
             cred.proxy_url = if pu.is_empty() { None } else { Some(pu.clone()) };

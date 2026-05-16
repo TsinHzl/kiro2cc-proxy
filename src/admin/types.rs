@@ -42,7 +42,8 @@ pub struct CredentialStatusItem {
     pub refresh_token_hash: Option<String>,
     /// 用户邮箱（用于前端显示）
     pub email: Option<String>,
-    /// API 调用成功次数
+    /// 用户昵称/备注名（用于前端显示）
+    pub nickname: Option<String>,
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
     pub last_used_at: Option<String>,
@@ -109,6 +110,9 @@ pub struct AddCredentialRequest {
     /// 用户邮箱（可选，用于前端显示）
     pub email: Option<String>,
 
+    /// 用户昵称/备注名（可选，用于前端显示）
+    pub nickname: Option<String>,
+
     /// 凭据级代理 URL（可选，特殊值 "direct" 表示不使用代理）
     pub proxy_url: Option<String>,
 
@@ -163,6 +167,9 @@ pub struct UpdateCredentialRequest {
 
     /// 用户邮箱（可选，用于前端显示）
     pub email: Option<String>,
+
+    /// 用户昵称/备注名（可选，用于前端显示）
+    pub nickname: Option<String>,
 
     /// 凭据级代理 URL（可选）
     pub proxy_url: Option<String>,

@@ -17,6 +17,7 @@ export interface CredentialStatusItem {
   authMethod: string | null
   hasProfileArn: boolean
   email?: string
+  nickname?: string
   refreshTokenHash?: string
   successCount: number
   lastUsedAt: string | null
@@ -63,6 +64,7 @@ export interface AddCredentialRequest {
   refreshToken: string
   authMethod?: 'social' | 'idc'
   email?: string
+  nickname?: string
   clientId?: string
   clientSecret?: string
   priority?: number
@@ -79,6 +81,7 @@ export interface UpdateCredentialRequest {
   refreshToken?: string
   authMethod?: string
   email?: string
+  nickname?: string
   clientId?: string
   clientSecret?: string
   authRegion?: string

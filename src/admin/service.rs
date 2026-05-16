@@ -72,6 +72,7 @@ impl AdminService {
                 has_profile_arn: entry.has_profile_arn,
                 refresh_token_hash: entry.refresh_token_hash,
                 email: entry.email,
+                nickname: entry.nickname,
                 success_count: entry.success_count,
                 last_used_at: entry.last_used_at.clone(),
                 has_proxy: entry.has_proxy,
@@ -204,6 +205,7 @@ impl AdminService {
             api_region: req.api_region,
             machine_id: req.machine_id,
             email: req.email,
+            nickname: req.nickname,
             subscription_title: None, // 将在首次获取使用额度时自动更新
             proxy_url: req.proxy_url,
             proxy_username: req.proxy_username,

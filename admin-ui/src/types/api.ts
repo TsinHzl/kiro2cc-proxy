@@ -155,3 +155,21 @@ export interface RpmSnapshot {
   byCredential: Record<string, number>
   byApiKey: Record<string, number>
 }
+
+// 单条原始请求记录
+export interface UsageRecord {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  createdAt: string
+}
+
+// 分页原始记录响应
+export interface UsageRecordsResponse {
+  records: UsageRecord[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

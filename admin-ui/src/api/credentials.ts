@@ -14,6 +14,7 @@ import type {
   UpdateApiKeyRequest,
   UsageSummary,
   RpmSnapshot,
+  UsageRecordsResponse,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -160,6 +161,19 @@ export async function getKeyUsage(id: number): Promise<UsageSummary> {
 // 重置单个 API Key 用量
 export async function resetKeyUsage(id: number): Promise<SuccessResponse> {
   const { data } = await api.delete<SuccessResponse>(`/api-keys/${id}/usage`)
+  return data
+}
+
+// 分页获取单个 API Key 的原始请求记录
+export async function getKeyUsageRecords(
+  id: number,
+  page: number,
+  pageSize: number
+): Promise<UsageRecordsResponse> {
+  const { data } = await api.get<UsageRecordsResponse>(
+    `/api-keys/${id}/usage/records`,
+    { params: { page, page_size: pageSize } }
+  )
   return data
 }
 

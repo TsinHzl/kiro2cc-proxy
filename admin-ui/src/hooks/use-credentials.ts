@@ -20,6 +20,7 @@ import {
   getRpm,
   getAuthKeys,
   setAuthKeys,
+  getKeyUsageRecords,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -218,6 +219,15 @@ export function useResetKeyUsage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKeyUsage'] })
     },
+  })
+}
+
+// 查询单个 API Key 的分页原始记录
+export function useKeyUsageRecords(id: number, page: number, pageSize = 50) {
+  return useQuery({
+    queryKey: ['apiKeyUsageRecords', id, page, pageSize],
+    queryFn: () => getKeyUsageRecords(id, page, pageSize),
+    enabled: id > 0,
   })
 }
 

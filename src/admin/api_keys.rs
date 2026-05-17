@@ -161,7 +161,7 @@ pub async fn get_key_usage_records(
         return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
     };
     let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
-    let page_size = params.get("page_size").and_then(|v| v.parse::<usize>().ok()).unwrap_or(50);
+    let page_size = params.get("page_size").and_then(|v| v.parse::<usize>().ok()).unwrap_or(50).min(500);
     Json(tracker.get_records_paged(id, page, page_size)).into_response()
 }
 

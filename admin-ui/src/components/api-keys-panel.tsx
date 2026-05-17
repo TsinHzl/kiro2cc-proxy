@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2, Link2, Globe, ChevronDown, X } from 'lucide-react'
+import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2, Link2, Globe, ChevronDown, X, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,11 @@ import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
-export function ApiKeysPanel() {
+interface ApiKeysPanelProps {
+  onViewDetail: (key: ApiKeyItem) => void
+}
+
+export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<ApiKeyItem | null>(null)
   const [newName, setNewName] = useState('')
@@ -570,6 +574,9 @@ export function ApiKeysPanel() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
+                    <Button variant="ghost" size="sm" onClick={() => onViewDetail(apiKey)} title="查看日志">
+                      <FileText className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`订单编号: ${apiKey.name}\nBase URL: ${window.location.origin}\nAPI Key: ${apiKey.key}`, apiKey.id)} title="复制 URL 和 Key">
                       {copiedId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>

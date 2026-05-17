@@ -218,4 +218,65 @@ impl UsageTracker {
             .map(|r| r.estimated_cost)
             .sum()
     }
+
+    /// 分页查询指定 API Key 的原始请求记录（按 created_at 降序）
+    pub fn get_records_paged(&self, api_key_id: u32, page: usize, page_size: usize) -> UsageRecordsPage {
+        let records = self.records.read();
+        let mut filtered: Vec<&UsageRecord> = records
+            .iter()
+            .filter(|r| r.api_key_id == api_key_id)
+            .collect();
+        filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        let total = filtered.len();
+        let total_pages = if page_size == 0 || total == 0 {
+            1
+        } else {
+            (total + page_size - 1) / page_size
+        };
+        let page = page.max(1).min(total_pages);
+        let start = (page - 1) * page_size;
+        let items: Vec<UsageRecordItem> = filtered
+            .into_iter()
+            .skip(start)
+            .take(page_size)
+            .map(|r| UsageRecordItem {
+                model: r.model.clone(),
+                input_tokens: r.input_tokens,
+                output_tokens: r.output_tokens,
+                estimated_cost: r.estimated_cost,
+                created_at: r.created_at,
+            })
+            .collect();
+
+        UsageRecordsPage {
+            records: items,
+            total,
+            page,
+            page_size,
+            total_pages,
+        }
+    }
+}
+
+/// 分页查询结果
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageRecordsPage {
+    pub records: Vec<UsageRecordItem>,
+    pub total: usize,
+    pub page: usize,
+    pub page_size: usize,
+    pub total_pages: usize,
+}
+
+/// 对外暴露的单条记录（不含 api_key_id）
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageRecordItem {
+    pub model: String,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub estimated_cost: f64,
+    pub created_at: DateTime<Utc>,
 }

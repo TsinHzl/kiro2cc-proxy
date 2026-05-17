@@ -220,28 +220,53 @@ impl UsageTracker {
     }
 
     /// 分页查询指定 API Key 的原始请求记录（按 created_at 降序）
+    /// page 从 1 开始，小于 1 的值视为 1
     pub fn get_records_paged(&self, api_key_id: u32, page: usize, page_size: usize) -> UsageRecordsPage {
-        let records = self.records.read();
-        let mut filtered: Vec<&UsageRecord> = records
-            .iter()
-            .filter(|r| r.api_key_id == api_key_id)
-            .collect();
-        filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        if page_size == 0 {
+            return UsageRecordsPage {
+                records: vec![],
+                total: 0,
+                page: 1,
+                page_size: 0,
+                total_pages: 0,
+            };
+        }
 
-        let total = filtered.len();
-        let total_pages = if page_size == 0 || total == 0 {
-            1
-        } else {
-            (total + page_size - 1) / page_size
+        // 在锁内只做过滤和克隆，不做排序
+        let owned: Vec<UsageRecord> = {
+            let records = self.records.read();
+            records
+                .iter()
+                .filter(|r| r.api_key_id == api_key_id)
+                .cloned()
+                .collect()
         };
+
+        let total = owned.len();
+        if total == 0 {
+            return UsageRecordsPage {
+                records: vec![],
+                total: 0,
+                page: 1,
+                page_size,
+                total_pages: 0,
+            };
+        }
+
+        // 锁已释放，在锁外排序
+        let mut sorted = owned;
+        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        let total_pages = (total + page_size - 1) / page_size;
         let page = page.max(1).min(total_pages);
         let start = (page - 1) * page_size;
-        let items: Vec<UsageRecordItem> = filtered
+
+        let items: Vec<UsageRecordItem> = sorted
             .into_iter()
             .skip(start)
             .take(page_size)
             .map(|r| UsageRecordItem {
-                model: r.model.clone(),
+                model: r.model,
                 input_tokens: r.input_tokens,
                 output_tokens: r.output_tokens,
                 estimated_cost: r.estimated_cost,
@@ -260,7 +285,7 @@ impl UsageTracker {
 }
 
 /// 分页查询结果
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageRecordsPage {
     pub records: Vec<UsageRecordItem>,
@@ -271,7 +296,7 @@ pub struct UsageRecordsPage {
 }
 
 /// 对外暴露的单条记录（不含 api_key_id）
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageRecordItem {
     pub model: String,

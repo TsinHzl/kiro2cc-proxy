@@ -13,11 +13,12 @@ import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { KamImportDialog } from '@/components/kam-import-dialog'
 import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-dialog'
 import { ApiKeysPanel } from '@/components/api-keys-panel'
+import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm } from '@/hooks/use-credentials'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
-import type { BalanceResponse } from '@/types/api'
+import type { BalanceResponse, ApiKeyItem } from '@/types/api'
 
 interface DashboardProps {
   onLogout: () => void
@@ -25,6 +26,7 @@ interface DashboardProps {
 
 export function Dashboard({ onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings'>('credentials')
+  const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [selectedCredentialId, setSelectedCredentialId] = useState<number | null>(null)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -501,7 +503,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'credentials' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveTab('credentials')}
+                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Server className="h-3 w-3 sm:mr-1" />
@@ -510,7 +512,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'apikeys' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveTab('apikeys')}
+                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Key className="h-3 w-3 sm:mr-1" />
@@ -519,7 +521,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'settings' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => setActiveTab('settings')}
+                onClick={() => { setActiveTab('settings'); setDetailKeyId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Settings className="h-3 w-3 sm:mr-1" />
@@ -546,7 +548,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {activeTab === 'settings' ? (
           <SettingsPanel />
         ) : activeTab === 'apikeys' ? (
-          <ApiKeysPanel />
+          detailKeyId !== null ? (
+            <ApiKeyDetailPage
+              keyId={detailKeyId}
+              onBack={() => setDetailKeyId(null)}
+            />
+          ) : (
+            <ApiKeysPanel onViewDetail={(key: ApiKeyItem) => setDetailKeyId(key.id)} />
+          )
         ) : (
         <>
         {/* 统计卡片 */}

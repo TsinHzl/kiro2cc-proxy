@@ -7,8 +7,8 @@ use axum::{
 
 use super::{
     api_keys::{
-        create_api_key, delete_api_key, get_all_usage, get_key_usage, get_rpm, get_server_info,
-        list_api_keys, reset_key_usage, update_api_key,
+        create_api_key, delete_api_key, get_all_usage, get_key_usage, get_key_usage_records,
+        get_rpm, get_server_info, list_api_keys, reset_key_usage, update_api_key,
     },
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_auth_keys,
@@ -46,6 +46,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/api-keys/usage", get(get_all_usage))
         .route("/api-keys/{id}", put(update_api_key).delete(delete_api_key))
         .route("/api-keys/{id}/usage", get(get_key_usage).delete(reset_key_usage))
+        .route("/api-keys/{id}/usage/records", get(get_key_usage_records))
         // RPM 监控
         .route("/rpm", get(get_rpm))
         .layer(middleware::from_fn_with_state(

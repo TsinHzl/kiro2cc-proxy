@@ -47,7 +47,9 @@
 
 **这个项目是什么？**
 
-kiro2cc-proxy 是一个本地代理服务。它把标准的 Anthropic Claude API 请求转发给 Kiro（AWS 的 AI 编程工具），让你可以用 Kiro 账号免费使用 Claude 模型。
+kiro2cc-proxy 是一个代理服务。它把标准的 Anthropic Claude API 请求转发给 Kiro（AWS 的 AI 编程工具），让你可以用 Claude Code使用Kiro账号的模型。
+
+>  一句话说明白，就是：它能把登录的Kiro账号上的模型代理到claude code上进行使用。否则的话就只能在Kiro IDE或者Kiro Cli上使用。
 
 **使用前提：**
 
@@ -138,16 +140,24 @@ run_kiro2cc_proxy     # 等同于 ./run-local-service-mac.sh
 **首次启动**会进入配置向导：
 
 ```
-  API Key（访问此代理的密钥，自定义即可）: sk-my-proxy-key
-  Admin API Key（管理后台密码，直接回车跳过）: my-admin-pass
-  端口 [默认: 5678]:
-  Region [默认: us-east-1]:
-  本地 HTTP 代理端口（直接回车跳过，例如: 7890 / 10089）: 7890
+API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
+Admin API Key（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+端口 [默认: 5678]:
+Region [默认: us-east-1]:
+本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
 ```
 
-- **API Key**：自己随便设一个，客户端连接时用这个 Key 认证
-- **Admin API Key**：管理面板的登录密码，建议设置
-- > ⚠️ **【重要】代理端口（国内用户必须配置）**：不配置代理将无法访问任何 Claude 模型，请填写本地代理软件（Clash/V2Ray/Shadowsocks 等）的 HTTP 监听端口，例如 `7890` 或 `10089`。不知道端口号请查看代理软件的设置页面。
+- **⚠️【重要】本地 HTTP 代理端口**：也就是开魔法的端口。注意：**本地搭建的话，不配置将无法访问 Claude 模型，如Claude4.6和Claude4.7模型**
+
+- > ⚠️ **【重要】代理端口（国内用户必须配置）**
+  >
+  > 常在终端上使用的命令如：export http_proxy=http://127.0.0.1:10089; export https_proxy=http://127.0.0.1:10089;
+  >
+  > 这里的10089就是你开魔法的端口
+  >
+  > 不知道端口号请查看代理软件的设置页面
+
+- **Admin API Key**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
 
 配置完成后自动生成 `app/config/config.json`，服务启动，浏览器自动打开管理面板。
 
@@ -233,16 +243,26 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 **首次启动**会进入配置向导：
 
 ```
-  API Key（访问此代理的密钥，自定义即可）: sk-my-proxy-key
-  Admin API Key（管理后台密码，直接回车跳过）: my-admin-pass
-  端口 [默认: 5678]:
-  Region [默认: us-east-1]:
-  本地 HTTP 代理端口（直接回车跳过，例如: 7890 / 10089）: 7890
+API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
+Admin API Key（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+端口 [默认: 5678]:
+Region [默认: us-east-1]:
+本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
 ```
 
-- > ⚠️ **【重要】代理端口（国内用户必须配置）**：不配置代理将无法访问任何 Claude 模型，请填写本地代理软件（Clash/V2Ray/Shadowsocks 等）的 HTTP 监听端口，例如 `7890` 或 `10089`。
+- **⚠️【重要】本地 HTTP 代理端口**：也就是开魔法的端口。注意：**本地搭建的话，不配置将无法访问 Claude 模型，如Claude4.6和Claude4.7模型**
 
-配置完成后自动生成 `app\config\config.json`，服务启动，浏览器自动打开管理面板。
+- > ⚠️ **【重要】代理端口（国内用户必须配置）**
+  >
+  > 常在终端上使用的命令如：export http_proxy=http://127.0.0.1:10089; export https_proxy=http://127.0.0.1:10089;
+  >
+  > 这里的10089就是你开魔法的端口
+  >
+  > 不知道端口号请查看代理软件的设置页面
+
+- **Admin API Key**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
+
+配置完成后自动生成 `app/config/config.json`，服务启动，浏览器自动打开管理面板。
 
 **后续启动**直接读取已有配置，无需重新填写。
 
@@ -383,8 +403,8 @@ bash start_server.sh restart   # 重启
 
 **第三步：通过管理面板导入凭据（推荐）**
 
-1. 打开管理面板：`http://127.0.0.1:5678/admin`（服务器部署则替换为对应 IP）
-2. 输入 `config.json` 中配置的 `adminApiKey` 登录
+1. 打开管理面板：`http://127.0.0.1:5678/admin`（**服务器部署则替换为对应 IP**）
+2. **输入 `config.json` 中配置的 `adminApiKey` 登录**
 3. 进入凭据管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
 5. 管理面板自动识别账号信息并显示，确认后保存即可

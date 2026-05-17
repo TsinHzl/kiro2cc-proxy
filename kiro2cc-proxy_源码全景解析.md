@@ -22,6 +22,7 @@
 - [项目概述与技术栈](#项目概述与技术栈)
 - [目录结构](#目录结构)
 - [架构全景（附生活类比）](#架构全景附生活类比)
+  - [负载均衡模式：priority vs balanced](#负载均衡模式priority-vs-balanced)
 - [入口与初始化流程](#入口与初始化流程)
 - [关键业务流程图解](#关键业务流程图解)
 - [核心源码剥洋葱（三层深度）](#核心源码剥洋葱三层深度)
@@ -540,6 +541,118 @@ pub async fn try_ensure_token(&self) -> Result<String, Error> {
 }
 ```
 
+### 负载均衡模式：priority vs balanced
+
+**大白话**：priority 是"让最强的人先上"，balanced 是"大家轮流上"。
+
+#### priority 模式（默认）
+
+每次请求都优先使用 `priority` 数值最小的凭据（数字越小优先级越高）。只有当该凭据失败、被禁用或 Token 刷新失败时，才切换到下一个优先级最高的可用凭据。
+
+**核心逻辑（`select_next_credential`，`token_manager.rs:746`）：**
+
+```rust
+// priority 模式（默认）：选择优先级最高的
+let entry = available.iter().min_by_key(|e| e.credentials.priority)?;
+Some((entry.id, entry.credentials.clone()))
+```
+
+**`acquire_context` 中的 priority 路径（`token_manager.rs:779`）：**
+
+```rust
+// priority 模式：优先使用 current_id 指向的凭据（不重新选择）
+let current_hit = if is_balanced {
+    None  // balanced 模式跳过此路径
+} else {
+    entries.iter()
+        .find(|e| e.id == current_id && !e.disabled)
+        .map(|e| (e.id, e.credentials.clone()))
+};
+```
+
+**行为特征：**
+- 正常情况下 100% 流量打到优先级最高的凭据
+- 该凭据连续失败 3 次 → 自动禁用 → 切换到次优先级凭据
+- 适合"主备"场景：主账号用完配额前不动用备用账号
+
+#### balanced 模式（Round-Robin）
+
+每次请求通过原子计数器 `rr_counter` 轮转选择凭据，所有可用凭据均匀分摊流量。
+
+**核心逻辑（`select_next_credential`，`token_manager.rs:737`）：**
+
+```rust
+"balanced" => {
+    // Round-Robin：原子递增计数器，对可用凭据数取模
+    let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
+    let entry = &available[idx % available.len()];
+    Some((entry.id, entry.credentials.clone()))
+}
+```
+
+**`acquire_context` 中的 balanced 路径（`token_manager.rs:776`）：**
+
+```rust
+// balanced 模式：每次请求都重新轮询，不固定 current_id
+let is_balanced = self.load_balancing_mode.lock().as_str() == "balanced";
+let current_hit = if is_balanced {
+    None  // 强制走 select_next_credential，触发 Round-Robin
+} else {
+    // priority 模式：复用 current_id
+    ...
+};
+```
+
+**429 限流时的 balanced 联动（`provider.rs:599`）：**
+
+```rust
+// 429 Too Many Requests：调用 report_success() 递增 success_count
+// 使 balanced 模式下一次 acquire_context 自然轮转到其他凭据
+self.token_manager.report_success(ctx.id);
+```
+
+**行为特征：**
+- 流量均匀分散到所有可用凭据，延长单账号配额寿命
+- 遇到 429 限流时，下一次请求自动轮转到其他凭据
+- 适合"多账号均摊"场景：多个同等级账号共同承载流量
+
+#### 两种模式对比
+
+| 维度 | priority 模式 | balanced 模式 |
+|---|---|---|
+| 凭据选择算法 | `min_by_key(priority)` | `rr_counter % available.len()` |
+| 正常流量分布 | 100% 打到最高优先级凭据 | 均匀分散到所有可用凭据 |
+| 故障切换触发 | 连续失败 3 次 / Token 刷新失败 | 同上（故障切换逻辑相同） |
+| 429 限流响应 | 不主动切换（等下次重试） | `report_success()` 推进 rr_counter |
+| `current_id` 使用 | 复用，减少重新选择开销 | 每次请求忽略，强制重新选择 |
+| 适用场景 | 主备账号、有明确主力账号 | 多账号均摊、延长配额寿命 |
+| 默认值 | ✅ 是 | 否 |
+
+#### 配置方式
+
+**config.json（持久化，重启后生效）：**
+
+```json
+{
+  "loadBalancingMode": "priority"
+}
+```
+
+**环境变量（容器部署）：**
+
+```bash
+LOAD_BALANCING_MODE=balanced
+```
+
+**Admin API（运行时热切换，同时持久化到 config.json）：**
+
+```bash
+POST /api/admin/settings/load-balancing-mode
+{"mode": "balanced"}
+```
+
+---
+
 ### KiroProvider — 上游 HTTP 客户端与故障转移引擎
 
 **大白话**：就像你有多张信用卡，刷第一张被拒了立刻换第二张；配额用完的卡扔一边不再用。
@@ -552,7 +665,7 @@ flowchart TD
     D --> E{响应码}
     E -->|200| F["返回 EventStream 字节流"]
     E -->|401/403| G["report_failure() → 换下一凭据"]
-    E -->|429| H["report_success()→Least-Used轮换"]
+    E -->|429| H["report_success()→balanced模式轮换"]
     E -->|402 MONTHLY| I["report_quota_exhausted() → 永久禁用"]
     E -->|5xx/408| J["指数退避重试（不切换凭据）"]
     G --> B

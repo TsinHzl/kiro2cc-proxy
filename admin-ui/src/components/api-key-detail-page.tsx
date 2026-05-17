@@ -183,8 +183,9 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                     </tr>
                   </thead>
                   <tbody>
+                    {/* records are returned newest-first by the API */}
                     {recordsData.records.map((record, idx) => (
-                      <tr key={idx} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(record.createdAt)}
                         </td>

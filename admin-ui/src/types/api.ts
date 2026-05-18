@@ -23,6 +23,8 @@ export interface CredentialStatusItem {
   lastUsedAt: string | null
   hasProxy: boolean
   proxyUrl?: string
+  healthStatus: 'healthy' | 'warning' | 'degraded' | 'unhealthy' | 'disabled'
+  throttleCount: number
 }
 
 // 余额响应

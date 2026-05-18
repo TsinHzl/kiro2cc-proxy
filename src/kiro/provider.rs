@@ -402,6 +402,7 @@ impl KiroProvider {
                     status,
                     body
                 );
+                self.token_manager.report_throttled(ctx.id);
                 self.token_manager.report_success(ctx.id);
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
@@ -596,6 +597,7 @@ impl KiroProvider {
                     status,
                     body
                 );
+                self.token_manager.report_throttled(ctx.id);
                 // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他凭据
                 self.token_manager.report_success(ctx.id);
                 last_error = Some(anyhow::anyhow!(

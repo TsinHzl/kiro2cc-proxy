@@ -99,6 +99,9 @@ fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32) -> f64 {
     input_cost + output_cost
 }
 
+/// 每个 API Key / 凭据的最大日志条数，超出时删除最老的记录
+const MAX_RECORDS_PER_KEY: usize = 10_000;
+
 /// 用量追踪器（线程安全）
 pub struct UsageTracker {
     records: RwLock<Vec<UsageRecord>>,
@@ -154,7 +157,42 @@ impl UsageTracker {
             estimated_cost: cost,
             created_at: Utc::now(),
         };
-        self.records.write().push(record);
+        {
+            let mut records = self.records.write();
+            records.push(record);
+
+            // 按 api_key_id 裁剪：保留最新的 MAX_RECORDS_PER_KEY 条
+            let key_count = records.iter().filter(|r| r.api_key_id == api_key_id).count();
+            if key_count > MAX_RECORDS_PER_KEY {
+                let excess = key_count - MAX_RECORDS_PER_KEY;
+                let mut removed = 0;
+                records.retain(|r| {
+                    if removed < excess && r.api_key_id == api_key_id {
+                        removed += 1;
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+
+            // 按 credential_id 裁剪
+            if let Some(cid) = credential_id {
+                let cred_count = records.iter().filter(|r| r.credential_id == Some(cid)).count();
+                if cred_count > MAX_RECORDS_PER_KEY {
+                    let excess = cred_count - MAX_RECORDS_PER_KEY;
+                    let mut removed = 0;
+                    records.retain(|r| {
+                        if removed < excess && r.credential_id == Some(cid) {
+                            removed += 1;
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+        }
         if let Err(e) = self.save() {
             tracing::warn!("保存用量记录失败: {}", e);
         }

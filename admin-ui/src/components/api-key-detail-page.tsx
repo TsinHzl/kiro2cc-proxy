@@ -203,7 +203,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                           {formatCost(record.estimatedCost)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                          {record.estimatedCost.toFixed(6)}
+                          {(record.estimatedCost / 0.04).toFixed(4)}
                         </td>
                       </tr>
                     ))}

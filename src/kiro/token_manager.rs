@@ -742,9 +742,19 @@ impl MultiTokenManager {
                 Some((entry.id, entry.credentials.clone()))
             }
             _ => {
-                // priority 模式（默认）：选择优先级最高的
-                let entry = available.iter().min_by_key(|e| e.credentials.priority)?;
-                Some((entry.id, entry.credentials.clone()))
+                // priority 模式（默认）：选择优先级最高的，同优先级时 round-robin
+                let min_priority = available.iter().map(|e| e.credentials.priority).min()?;
+                let top_tier: Vec<_> = available
+                    .iter()
+                    .filter(|e| e.credentials.priority == min_priority)
+                    .collect();
+                if top_tier.len() == 1 {
+                    Some((top_tier[0].id, top_tier[0].credentials.clone()))
+                } else {
+                    let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
+                    let entry = top_tier[idx % top_tier.len()];
+                    Some((entry.id, entry.credentials.clone()))
+                }
             }
         }
     }
@@ -878,35 +888,10 @@ impl MultiTokenManager {
                 .collect();
 
             let (id, credentials) = {
-                let is_balanced = self.load_balancing_mode.lock().as_str() == "balanced";
-
-                let current_hit = if is_balanced {
-                    None
-                } else {
-                    let entries = self.entries.lock();
-                    let current_id = *self.current_id.lock();
-                    entries
-                        .iter()
-                        .find(|e| {
-                            e.id == current_id
-                                && !e.disabled
-                                && effective_ids.contains(&e.id)
-                        })
-                        .map(|e| (e.id, e.credentials.clone()))
-                };
-
-                if let Some(hit) = current_hit {
-                    hit
-                } else {
-                    match self.select_next_credential(model, &effective_ids) {
-                        Some((new_id, new_creds)) => {
-                            (new_id, new_creds)
-                            // Note: intentionally NOT updating current_id here
-                            // to avoid polluting shared state for unfiltered calls
-                        }
-                        None => {
-                            anyhow::bail!("绑定的凭据均已禁用（共 {} 个）", allowed_ids.len());
-                        }
+                match self.select_next_credential(model, &effective_ids) {
+                    Some((new_id, new_creds)) => (new_id, new_creds),
+                    None => {
+                        anyhow::bail!("绑定的凭据均已禁用（共 {} 个）", allowed_ids.len());
                     }
                 }
             };

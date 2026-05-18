@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { RefreshCw, ChevronUp, ChevronDown, Wallet, Trash2, Loader2, Pencil } from 'lucide-react'
+import { RefreshCw, ChevronUp, ChevronDown, Wallet, Trash2, Loader2, Pencil, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +27,7 @@ import { EditCredentialDialog } from './edit-credential-dialog'
 interface CredentialCardProps {
   credential: CredentialStatusItem
   onViewBalance: (id: number) => void
+  onViewDetail: (id: number) => void
   selected: boolean
   onToggleSelect: () => void
   balance: BalanceResponse | null
@@ -53,6 +54,7 @@ function formatLastUsed(lastUsedAt: string | null): string {
 export function CredentialCard({
   credential,
   onViewBalance,
+  onViewDetail,
   selected,
   onToggleSelect,
   balance,
@@ -323,6 +325,14 @@ export function CredentialCard({
             >
               <Wallet className="h-4 w-4 mr-1" />
               查看余额
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onViewDetail(credential.id)}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              查看日志
             </Button>
             <Button
               size="sm"

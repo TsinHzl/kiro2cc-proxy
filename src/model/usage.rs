@@ -16,6 +16,9 @@ use std::path::{Path, PathBuf};
 pub struct UsageRecord {
     /// API Key ID（0 = 主密钥）
     pub api_key_id: u32,
+    /// 凭据 ID（None 表示旧数据或未知）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential_id: Option<u64>,
     /// 模型名称
     pub model: String,
     /// 输入 tokens
@@ -136,6 +139,7 @@ impl UsageTracker {
     pub fn record(
         &self,
         api_key_id: u32,
+        credential_id: Option<u64>,
         model: String,
         input_tokens: i32,
         output_tokens: i32,
@@ -143,6 +147,7 @@ impl UsageTracker {
         let cost = calculate_cost(&model, input_tokens, output_tokens);
         let record = UsageRecord {
             api_key_id,
+            credential_id,
             model,
             input_tokens,
             output_tokens,
@@ -295,7 +300,7 @@ pub struct UsageRecordsPage {
     pub total_pages: usize,
 }
 
-/// 对外暴露的单条记录（不含 api_key_id）
+/// 对外暴露的单条记录
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageRecordItem {
@@ -304,4 +309,67 @@ pub struct UsageRecordItem {
     pub output_tokens: i32,
     pub estimated_cost: f64,
     pub created_at: DateTime<Utc>,
+}
+
+impl UsageTracker {
+    /// 分页查询指定凭据的原始请求记录（按 created_at 降序）
+    pub fn get_records_paged_by_credential(&self, credential_id: u64, page: usize, page_size: usize) -> UsageRecordsPage {
+        if page_size == 0 {
+            return UsageRecordsPage {
+                records: vec![],
+                total: 0,
+                page: 1,
+                page_size: 0,
+                total_pages: 0,
+            };
+        }
+
+        let owned: Vec<UsageRecord> = {
+            let records = self.records.read();
+            records
+                .iter()
+                .filter(|r| r.credential_id == Some(credential_id))
+                .cloned()
+                .collect()
+        };
+
+        let total = owned.len();
+        if total == 0 {
+            return UsageRecordsPage {
+                records: vec![],
+                total: 0,
+                page: 1,
+                page_size,
+                total_pages: 0,
+            };
+        }
+
+        let mut sorted = owned;
+        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+        let total_pages = (total + page_size - 1) / page_size;
+        let page = page.max(1).min(total_pages);
+        let start = (page - 1) * page_size;
+
+        let items: Vec<UsageRecordItem> = sorted
+            .into_iter()
+            .skip(start)
+            .take(page_size)
+            .map(|r| UsageRecordItem {
+                model: r.model,
+                input_tokens: r.input_tokens,
+                output_tokens: r.output_tokens,
+                estimated_cost: r.estimated_cost,
+                created_at: r.created_at,
+            })
+            .collect();
+
+        UsageRecordsPage {
+            records: items,
+            total,
+            page,
+            page_size,
+            total_pages,
+        }
+    }
 }

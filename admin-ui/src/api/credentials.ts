@@ -177,6 +177,18 @@ export async function getKeyUsageRecords(
   return data
 }
 
+export async function getCredentialUsageRecords(
+  id: number,
+  page: number,
+  pageSize: number
+): Promise<UsageRecordsResponse> {
+  const { data } = await api.get<UsageRecordsResponse>(
+    `/credentials/${id}/usage/records`,
+    { params: { page, page_size: pageSize } }
+  )
+  return data
+}
+
 // ============ RPM 监控 ============
 
 // 获取实时 RPM 数据

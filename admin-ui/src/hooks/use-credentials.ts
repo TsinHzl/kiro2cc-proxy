@@ -21,6 +21,7 @@ import {
   getAuthKeys,
   setAuthKeys,
   getKeyUsageRecords,
+  getCredentialUsageRecords,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -227,6 +228,15 @@ export function useKeyUsageRecords(id: number, page: number, pageSize = 50) {
   return useQuery({
     queryKey: ['apiKeyUsageRecords', id, page, pageSize],
     queryFn: () => getKeyUsageRecords(id, page, pageSize),
+    enabled: id > 0,
+  })
+}
+
+// 查询单个凭据的分页原始记录
+export function useCredentialUsageRecords(id: number, page: number, pageSize = 50) {
+  return useQuery({
+    queryKey: ['credentialUsageRecords', id, page, pageSize],
+    queryFn: () => getCredentialUsageRecords(id, page, pageSize),
     enabled: id > 0,
   })
 }

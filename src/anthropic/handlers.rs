@@ -555,14 +555,14 @@ async fn handle_stream_request(
     bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api_stream(request_body, &bound_ids).await {
+    let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
 
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id)
+        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id))
         .with_prompt_cache_usage(prompt_cache_usage);
 
     // 生成初始事件
@@ -696,7 +696,7 @@ async fn handle_non_stream_request(
     bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api(request_body, &bound_ids).await {
+    let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
@@ -839,7 +839,7 @@ async fn handle_non_stream_request(
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
-        tracker.record(key_id, model.to_string(), final_input_tokens, output_tokens);
+        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens);
     }
 
     // 构建 Anthropic 响应
@@ -1098,14 +1098,14 @@ async fn handle_stream_request_buffered(
     bound_ids: Vec<u64>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
-    let response = match provider.call_api_stream(request_body, &bound_ids).await {
+    let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, estimated_input_tokens),
     };
 
     // 创建缓冲流处理上下文
     let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id)
+        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id))
         .with_prompt_cache_usage(prompt_cache_usage);
 
     // 创建缓冲 SSE 流

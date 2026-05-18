@@ -165,6 +165,22 @@ pub async fn get_key_usage_records(
     Json(tracker.get_records_paged(id, page, page_size)).into_response()
 }
 
+/// GET /api/admin/credentials/:id/usage/records?page=1&page_size=50
+/// 分页获取单个凭据的原始请求记录
+pub async fn get_credential_usage_records(
+    State(state): State<AdminState>,
+    Path(id): Path<u64>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
+    let page_size = params.get("page_size").and_then(|v| v.parse::<usize>().ok()).unwrap_or(50).min(500);
+    Json(tracker.get_records_paged_by_credential(id, page, page_size)).into_response()
+}
+
 /// GET /api/admin/rpm
 /// 获取实时 RPM 数据
 pub async fn get_rpm(State(state): State<AdminState>) -> impl IntoResponse {

@@ -14,6 +14,7 @@ import { KamImportDialog } from '@/components/kam-import-dialog'
 import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-dialog'
 import { ApiKeysPanel } from '@/components/api-keys-panel'
 import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
+import { CredentialDetailPage } from '@/components/credential-detail-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm } from '@/hooks/use-credentials'
 import { getCredentialBalance } from '@/api/credentials'
@@ -27,6 +28,7 @@ interface DashboardProps {
 export function Dashboard({ onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
+  const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [selectedCredentialId, setSelectedCredentialId] = useState<number | null>(null)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -503,7 +505,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'credentials' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null) }}
+                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Server className="h-3 w-3 sm:mr-1" />
@@ -512,7 +514,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'apikeys' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null) }}
+                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Key className="h-3 w-3 sm:mr-1" />
@@ -521,7 +523,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'settings' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('settings'); setDetailKeyId(null) }}
+                onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Settings className="h-3 w-3 sm:mr-1" />
@@ -556,6 +558,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
           ) : (
             <ApiKeysPanel onViewDetail={(key: ApiKeyItem) => setDetailKeyId(key.id)} />
           )
+        ) : detailCredentialId !== null ? (
+          <CredentialDetailPage
+            credentialId={detailCredentialId}
+            onBack={() => setDetailCredentialId(null)}
+          />
         ) : (
         <>
         {/* 统计卡片 */}
@@ -714,6 +721,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     key={credential.id}
                     credential={credential}
                     onViewBalance={handleViewBalance}
+                    onViewDetail={(id) => setDetailCredentialId(id)}
                     selected={selectedIds.has(credential.id)}
                     onToggleSelect={() => toggleSelect(credential.id)}
                     balance={balanceMap.get(credential.id) || null}

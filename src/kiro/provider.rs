@@ -268,7 +268,7 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
-    pub async fn call_api(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<reqwest::Response> {
+    pub async fn call_api(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
         self.call_api_with_retry(request_body, false, bound_ids).await
     }
 
@@ -285,7 +285,7 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
-    pub async fn call_api_stream(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<reqwest::Response> {
+    pub async fn call_api_stream(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
         self.call_api_with_retry(request_body, true, bound_ids).await
     }
 
@@ -298,12 +298,12 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response
-    pub async fn call_mcp(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<reqwest::Response> {
+    pub async fn call_mcp(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
         self.call_mcp_with_retry(request_body, bound_ids).await
     }
 
     /// 内部方法：带重试逻辑的 MCP API 调用
-    async fn call_mcp_with_retry(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<reqwest::Response> {
+    async fn call_mcp_with_retry(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
         let total_credentials = self.token_manager.total_count();
         let max_retries = (total_credentials * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
@@ -362,7 +362,7 @@ impl KiroProvider {
                 if let Some(rpm) = &self.rpm_tracker {
                     rpm.record_credential(ctx.id);
                 }
-                return Ok(response);
+                return Ok((response, ctx.id));
             }
 
             // 失败响应
@@ -454,7 +454,7 @@ impl KiroProvider {
         request_body: &str,
         is_stream: bool,
         bound_ids: &[u64],
-    ) -> anyhow::Result<reqwest::Response> {
+    ) -> anyhow::Result<(reqwest::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
         let total_credentials = self.token_manager.total_count();
         let max_retries = (total_credentials * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
@@ -518,7 +518,7 @@ impl KiroProvider {
                 if let Some(rpm) = &self.rpm_tracker {
                     rpm.record_credential(ctx.id);
                 }
-                return Ok(response);
+                return Ok((response, ctx.id));
             }
 
             // 失败响应：读取 body 用于日志/错误信息

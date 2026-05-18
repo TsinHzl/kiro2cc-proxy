@@ -498,7 +498,7 @@ async fn call_mcp_api(
 
     tracing::debug!("MCP request: {}", request_body);
 
-    let response = provider.call_mcp(&request_body, bound_ids).await?;
+    let (response, _credential_id) = provider.call_mcp(&request_body, bound_ids).await?;
 
     let body = response.text().await?;
     tracing::debug!("MCP response: {}", body);

@@ -264,7 +264,14 @@ impl UsageTracker {
 
     /// 分页查询指定 API Key 的原始请求记录（按 created_at 降序）
     /// page 从 1 开始，小于 1 的值视为 1
-    pub fn get_records_paged(&self, api_key_id: u32, page: usize, page_size: usize) -> UsageRecordsPage {
+    /// credential_labels: 凭据 ID -> 显示标签（email 或 nickname）
+    pub fn get_records_paged(
+        &self,
+        api_key_id: u32,
+        page: usize,
+        page_size: usize,
+        credential_labels: &HashMap<u64, String>,
+    ) -> UsageRecordsPage {
         if page_size == 0 {
             return UsageRecordsPage {
                 records: vec![],
@@ -308,12 +315,17 @@ impl UsageTracker {
             .into_iter()
             .skip(start)
             .take(page_size)
-            .map(|r| UsageRecordItem {
-                model: r.model,
-                input_tokens: r.input_tokens,
-                output_tokens: r.output_tokens,
-                estimated_cost: r.estimated_cost,
-                created_at: r.created_at,
+            .map(|r| {
+                let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
+                UsageRecordItem {
+                    model: r.model,
+                    input_tokens: r.input_tokens,
+                    output_tokens: r.output_tokens,
+                    estimated_cost: r.estimated_cost,
+                    created_at: r.created_at,
+                    credential_id: r.credential_id,
+                    credential_label,
+                }
             })
             .collect();
 
@@ -347,11 +359,23 @@ pub struct UsageRecordItem {
     pub output_tokens: i32,
     pub estimated_cost: f64,
     pub created_at: DateTime<Utc>,
+    /// 使用的凭据 ID（None 表示旧数据或主密钥请求）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential_id: Option<u64>,
+    /// 凭据账号（email 或 nickname，用于前端显示）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential_label: Option<String>,
 }
 
 impl UsageTracker {
     /// 分页查询指定凭据的原始请求记录（按 created_at 降序）
-    pub fn get_records_paged_by_credential(&self, credential_id: u64, page: usize, page_size: usize) -> UsageRecordsPage {
+    pub fn get_records_paged_by_credential(
+        &self,
+        credential_id: u64,
+        page: usize,
+        page_size: usize,
+        credential_labels: &HashMap<u64, String>,
+    ) -> UsageRecordsPage {
         if page_size == 0 {
             return UsageRecordsPage {
                 records: vec![],
@@ -393,12 +417,17 @@ impl UsageTracker {
             .into_iter()
             .skip(start)
             .take(page_size)
-            .map(|r| UsageRecordItem {
-                model: r.model,
-                input_tokens: r.input_tokens,
-                output_tokens: r.output_tokens,
-                estimated_cost: r.estimated_cost,
-                created_at: r.created_at,
+            .map(|r| {
+                let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
+                UsageRecordItem {
+                    model: r.model,
+                    input_tokens: r.input_tokens,
+                    output_tokens: r.output_tokens,
+                    estimated_cost: r.estimated_cost,
+                    created_at: r.created_at,
+                    credential_id: r.credential_id,
+                    credential_label,
+                }
             })
             .collect();
 

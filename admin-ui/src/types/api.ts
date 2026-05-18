@@ -163,6 +163,8 @@ export interface UsageRecord {
   outputTokens: number
   estimatedCost: number
   createdAt: string
+  credentialId?: number
+  credentialLabel?: string
 }
 
 // 分页原始记录响应

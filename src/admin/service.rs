@@ -273,6 +273,18 @@ impl AdminService {
         Ok(())
     }
 
+    /// 构建凭据 ID -> 显示标签（nickname 优先，其次 email，都没有则用 #id）的映射
+    pub fn credential_labels(&self) -> std::collections::HashMap<u64, String> {
+        let snapshot = self.token_manager.snapshot();
+        snapshot.entries.into_iter().map(|e| {
+            let label = e.nickname
+                .filter(|s| !s.is_empty())
+                .or_else(|| e.email.filter(|s| !s.is_empty()))
+                .unwrap_or_else(|| format!("#{}", e.id));
+            (e.id, label)
+        }).collect()
+    }
+
     /// 获取负载均衡模式
     pub fn get_load_balancing_mode(&self) -> LoadBalancingModeResponse {
         LoadBalancingModeResponse {

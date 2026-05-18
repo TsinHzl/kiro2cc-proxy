@@ -170,6 +170,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>
@@ -183,6 +184,9 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                       <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(record.createdAt)}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
+                          {record.credentialLabel ?? '—'}
                         </td>
                         <td className={`px-4 py-2 font-mono text-xs ${getModelColor(record.model)}`}>
                           {record.model}

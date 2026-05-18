@@ -93,7 +93,7 @@ pub async fn get_usage_records(
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(50)
         .min(500);
-    Json(state.usage_tracker.get_records_paged(ctx.key_id, page, page_size))
+    Json(state.usage_tracker.get_records_paged(ctx.key_id, page, page_size, &std::collections::HashMap::new()))
 }
 
 #[derive(Deserialize)]

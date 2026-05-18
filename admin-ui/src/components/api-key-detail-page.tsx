@@ -176,6 +176,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>
@@ -190,6 +191,9 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(record.createdAt)}
                         </td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
+                          {record.credentialLabel ?? '—'}
+                        </td>
                         <td className={`px-4 py-2 font-mono text-xs ${getModelColor(record.model)}`}>
                           {record.model}
                         </td>
@@ -199,7 +203,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                         <td className="px-4 py-2 text-right tabular-nums">
                           {formatTokens(record.outputTokens)}
                         </td>
-<td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
+                        <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(record.estimatedCost)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">

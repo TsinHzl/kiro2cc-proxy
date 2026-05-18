@@ -162,7 +162,8 @@ pub async fn get_key_usage_records(
     };
     let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
     let page_size = params.get("page_size").and_then(|v| v.parse::<usize>().ok()).unwrap_or(50).min(500);
-    Json(tracker.get_records_paged(id, page, page_size)).into_response()
+    let labels = state.service.credential_labels();
+    Json(tracker.get_records_paged(id, page, page_size, &labels)).into_response()
 }
 
 /// GET /api/admin/credentials/:id/usage/records?page=1&page_size=50
@@ -178,7 +179,8 @@ pub async fn get_credential_usage_records(
     };
     let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
     let page_size = params.get("page_size").and_then(|v| v.parse::<usize>().ok()).unwrap_or(50).min(500);
-    Json(tracker.get_records_paged_by_credential(id, page, page_size)).into_response()
+    let labels = state.service.credential_labels();
+    Json(tracker.get_records_paged_by_credential(id, page, page_size, &labels)).into_response()
 }
 
 /// GET /api/admin/rpm

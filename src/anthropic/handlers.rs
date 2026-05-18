@@ -387,6 +387,7 @@ pub async fn get_model(
 pub async fn post_messages(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
+    headers: axum::http::HeaderMap,
     JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
 ) -> Response {
     tracing::info!(
@@ -504,6 +505,7 @@ pub async fn post_messages(
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
     let usage_tracker = state.usage_tracker.clone();
+    let client_ip = extract_client_ip(&headers);
 
     // 计算 prompt cache 模拟 usage
     let prompt_cache_usage = crate::cache::PromptCacheUsage::from_ratio_config(
@@ -524,6 +526,7 @@ pub async fn post_messages(
             api_key_id,
             prompt_cache_usage,
             bound_ids,
+            client_ip,
         )
         .await
     } else {
@@ -537,6 +540,7 @@ pub async fn post_messages(
             api_key_id,
             prompt_cache_usage,
             bound_ids,
+            client_ip,
         )
         .await
     }
@@ -553,6 +557,7 @@ async fn handle_stream_request(
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
+    client_ip: Option<String>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
@@ -562,7 +567,7 @@ async fn handle_stream_request(
 
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id))
+        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
         .with_prompt_cache_usage(prompt_cache_usage);
 
     // 生成初始事件
@@ -694,6 +699,7 @@ async fn handle_non_stream_request(
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
+    client_ip: Option<String>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
     let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
@@ -839,7 +845,7 @@ async fn handle_non_stream_request(
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
-        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens);
+        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip);
     }
 
     // 构建 Anthropic 响应
@@ -860,6 +866,27 @@ async fn handle_non_stream_request(
     });
 
     (StatusCode::OK, Json(response_body)).into_response()
+}
+
+/// 从请求头提取客户端真实 IP
+fn extract_client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
+    if let Some(val) = headers.get("x-forwarded-for") {
+        if let Ok(s) = val.to_str() {
+            let ip = s.split(',').next().unwrap_or("").trim();
+            if !ip.is_empty() {
+                return Some(ip.to_string());
+            }
+        }
+    }
+    if let Some(val) = headers.get("x-real-ip") {
+        if let Ok(s) = val.to_str() {
+            let ip = s.trim();
+            if !ip.is_empty() {
+                return Some(ip.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
@@ -933,6 +960,7 @@ pub async fn count_tokens(
 pub async fn post_messages_cc(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
+    headers: axum::http::HeaderMap,
     JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
 ) -> Response {
     tracing::info!(
@@ -1044,6 +1072,7 @@ pub async fn post_messages_cc(
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
     let usage_tracker = state.usage_tracker.clone();
+    let client_ip = extract_client_ip(&headers);
 
     // 计算 prompt cache 模拟 usage
     let prompt_cache_usage = crate::cache::PromptCacheUsage::from_ratio_config(
@@ -1064,6 +1093,7 @@ pub async fn post_messages_cc(
             api_key_id,
             prompt_cache_usage,
             bound_ids,
+            client_ip,
         )
         .await
     } else {
@@ -1077,6 +1107,7 @@ pub async fn post_messages_cc(
             api_key_id,
             prompt_cache_usage,
             bound_ids,
+            client_ip,
         )
         .await
     }
@@ -1096,6 +1127,7 @@ async fn handle_stream_request_buffered(
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
+    client_ip: Option<String>,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
@@ -1105,7 +1137,7 @@ async fn handle_stream_request_buffered(
 
     // 创建缓冲流处理上下文
     let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id))
+        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
         .with_prompt_cache_usage(prompt_cache_usage);
 
     // 创建缓冲 SSE 流

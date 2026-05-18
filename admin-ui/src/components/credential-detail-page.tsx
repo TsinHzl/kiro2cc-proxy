@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useCredentials, useCredentialUsageRecords } from '@/hooks/use-credentials'
+import { useIpGeo } from '@/hooks/use-ip-geo'
 
 interface CredentialDetailPageProps {
   credentialId: number
@@ -51,8 +52,9 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
 
   const credential = credentialsData?.credentials.find((c) => c.id === credentialId)
 
-  // Compute summary from records (no dedicated summary endpoint for credentials)
   const allRecords = recordsData?.records ?? []
+  const pageIps = allRecords.map((r) => r.clientIp).filter((ip): ip is string => !!ip)
+  const geoMap = useIpGeo(pageIps)
   const totalRequests = recordsData?.total ?? 0
 
   // Per-model aggregation from current page (approximate — full aggregation would need all pages)
@@ -180,6 +182,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">IP</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
@@ -190,10 +193,20 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                   </thead>
                   <tbody>
                     {/* records are returned newest-first by the API */}
-                    {recordsData.records.map((record, idx) => (
+                    {recordsData.records.map((record, idx) => {
+                      const geo = record.clientIp ? geoMap.get(record.clientIp) : undefined
+                      return (
                       <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(record.createdAt)}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {record.clientIp ? (
+                            <span title={record.clientIp}>
+                              <span className="font-mono">{record.clientIp}</span>
+                              {geo && <span className="ml-1 text-muted-foreground/60">{geo.country}·{geo.city}</span>}
+                            </span>
+                          ) : '—'}
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
                           {record.credentialLabel ?? '—'}
@@ -214,7 +227,8 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                           {(record.estimatedCost / 0.72).toFixed(4)}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

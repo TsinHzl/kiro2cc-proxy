@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
+import { useIpGeo } from '@/hooks/use-ip-geo'
 import type { ApiKeyItem } from '@/types/api'
 
 interface ApiKeyDetailPageProps {
@@ -60,8 +61,10 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
 
   const apiKey = apiKeys?.find((k) => k.id === keyId)
   const summary = allUsage?.find((u) => u.apiKeyId === keyId)
-
   const status = apiKey ? getKeyStatus(apiKey) : null
+
+  const pageIps = (recordsData?.records ?? []).map((r) => r.clientIp).filter((ip): ip is string => !!ip)
+  const geoMap = useIpGeo(pageIps)
 
   return (
     <div className="space-y-4">
@@ -186,6 +189,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">IP</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
@@ -196,10 +200,20 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                   </thead>
                   <tbody>
                     {/* records are returned newest-first by the API */}
-                    {recordsData.records.map((record, idx) => (
+                    {recordsData.records.map((record, idx) => {
+                      const geo = record.clientIp ? geoMap.get(record.clientIp) : undefined
+                      return (
                       <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(record.createdAt)}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {record.clientIp ? (
+                            <span title={record.clientIp}>
+                              <span className="font-mono">{record.clientIp}</span>
+                              {geo && <span className="ml-1 text-muted-foreground/60">{geo.country}·{geo.city}</span>}
+                            </span>
+                          ) : '—'}
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
                           {record.credentialLabel ?? '—'}
@@ -220,7 +234,8 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                           {(record.estimatedCost / 0.72).toFixed(4)}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

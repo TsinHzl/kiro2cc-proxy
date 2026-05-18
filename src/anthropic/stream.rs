@@ -532,6 +532,8 @@ pub struct StreamContext {
     api_key_id: Option<u32>,
     /// 凭据 ID（用于用量记录）
     credential_id: Option<u64>,
+    /// 客户端 IP（用于用量记录）
+    client_ip: Option<String>,
     /// 模拟出的 prompt cache usage
     prompt_cache_usage: PromptCacheUsage,
 }
@@ -561,6 +563,7 @@ impl StreamContext {
             usage_tracker: None,
             api_key_id: None,
             credential_id: None,
+            client_ip: None,
             prompt_cache_usage: PromptCacheUsage::uncached(input_tokens),
         }
     }
@@ -577,10 +580,12 @@ impl StreamContext {
         tracker: Option<Arc<UsageTracker>>,
         api_key_id: Option<u32>,
         credential_id: Option<u64>,
+        client_ip: Option<String>,
     ) -> Self {
         self.usage_tracker = tracker;
         self.api_key_id = api_key_id;
         self.credential_id = credential_id;
+        self.client_ip = client_ip;
         self
     }
 
@@ -1174,7 +1179,7 @@ impl StreamContext {
 
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
-            tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens);
+            tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone());
         }
 
         // 注入 signature_delta 事件（伪造模型签名以通过检测）
@@ -1236,8 +1241,9 @@ impl BufferedStreamContext {
         tracker: Option<Arc<UsageTracker>>,
         api_key_id: Option<u32>,
         credential_id: Option<u64>,
+        client_ip: Option<String>,
     ) -> Self {
-        self.inner = self.inner.with_usage_tracking(tracker, api_key_id, credential_id);
+        self.inner = self.inner.with_usage_tracking(tracker, api_key_id, credential_id, client_ip);
         self
     }
 

@@ -86,7 +86,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
       </div>
 
       {/* 汇总卡片 */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
@@ -119,6 +119,16 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
           <CardContent>
             <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCost(allRecords.reduce((s, r) => s + r.estimatedCost, 0))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">本页 Credits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {(allRecords.reduce((s, r) => s + r.estimatedCost, 0) / 0.72).toFixed(4)}
             </div>
           </CardContent>
         </Card>

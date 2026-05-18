@@ -87,7 +87,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
       </div>
 
       {/* 汇总卡片 */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
@@ -125,6 +125,16 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCost(summary?.totalCost ?? 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">总 Credits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {((summary?.totalCost ?? 0) / 0.72).toFixed(4)}
             </div>
           </CardContent>
         </Card>

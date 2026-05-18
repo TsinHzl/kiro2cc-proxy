@@ -387,6 +387,7 @@ pub async fn get_model(
 pub async fn post_messages(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     headers: axum::http::HeaderMap,
     JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
 ) -> Response {
@@ -505,7 +506,7 @@ pub async fn post_messages(
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
     let usage_tracker = state.usage_tracker.clone();
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = extract_client_ip(&headers, Some(&addr));
 
     // 计算 prompt cache 模拟 usage
     let prompt_cache_usage = crate::cache::PromptCacheUsage::from_ratio_config(
@@ -868,8 +869,8 @@ async fn handle_non_stream_request(
     (StatusCode::OK, Json(response_body)).into_response()
 }
 
-/// 从请求头提取客户端真实 IP
-fn extract_client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
+/// 从请求头或连接信息提取客户端真实 IP
+fn extract_client_ip(headers: &axum::http::HeaderMap, connect_info: Option<&std::net::SocketAddr>) -> Option<String> {
     if let Some(val) = headers.get("x-forwarded-for") {
         if let Ok(s) = val.to_str() {
             let ip = s.split(',').next().unwrap_or("").trim();
@@ -886,7 +887,7 @@ fn extract_client_ip(headers: &axum::http::HeaderMap) -> Option<String> {
             }
         }
     }
-    None
+    connect_info.map(|addr| addr.ip().to_string())
 }
 
 /// 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
@@ -960,6 +961,7 @@ pub async fn count_tokens(
 pub async fn post_messages_cc(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     headers: axum::http::HeaderMap,
     JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
 ) -> Response {
@@ -1072,7 +1074,7 @@ pub async fn post_messages_cc(
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
     let usage_tracker = state.usage_tracker.clone();
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = extract_client_ip(&headers, Some(&addr));
 
     // 计算 prompt cache 模拟 usage
     let prompt_cache_usage = crate::cache::PromptCacheUsage::from_ratio_config(

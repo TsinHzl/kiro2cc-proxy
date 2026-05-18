@@ -203,8 +203,8 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {record.clientIp ? (
                             <span title={record.clientIp}>
-                              <span className="font-mono">{record.clientIp}</span>
-                              {geo && <span className="ml-1 text-muted-foreground/60">{geo.country}·{geo.city}</span>}
+                              <span className="font-mono">{geo?.displayIp ?? record.clientIp}</span>
+                              {geo && geo.country && <span className="ml-1 text-muted-foreground/60">{geo.country}·{geo.city}</span>}
                             </span>
                           ) : '—'}
                         </td>

@@ -180,6 +180,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">费用</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">Kiro Credits</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -200,6 +201,9 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                         </td>
 <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(record.estimatedCost)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
+                          {record.estimatedCost.toFixed(6)}
                         </td>
                       </tr>
                     ))}

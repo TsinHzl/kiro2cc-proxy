@@ -141,7 +141,7 @@ run_kiro2cc_proxy     # 等同于 ./run-local-service-mac.sh
 
 ```
 API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
-Admin API Key（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+Admin Password（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
 端口 [默认: 5678]:
 Region [默认: us-east-1]:
 本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
@@ -157,7 +157,7 @@ Region [默认: us-east-1]:
   >
   > 不知道端口号请查看代理软件的设置页面
 
-- **Admin API Key**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
+- **Admin Password**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
 
 配置完成后自动生成 `app/config/config.json`，服务启动，浏览器自动打开管理面板。
 
@@ -244,7 +244,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ```
 API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
-Admin API Key（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+Admin Password（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
 端口 [默认: 5678]:
 Region [默认: us-east-1]:
 本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
@@ -260,7 +260,7 @@ Region [默认: us-east-1]:
   >
   > 不知道端口号请查看代理软件的设置页面
 
-- **Admin API Key**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
+- **Admin Password**：**管理面板的登录密码(http://ip:端口/admin页面)，建议设置**
 
 配置完成后自动生成 `app/config/config.json`，服务启动，浏览器自动打开管理面板。
 
@@ -404,7 +404,7 @@ bash start_server.sh restart   # 重启
 **第三步：通过管理面板导入凭据（推荐）**
 
 1. 打开管理面板：`http://127.0.0.1:5678/admin`（**服务器部署则替换为对应 IP**）
-2. **输入 `config.json` 中配置的 `adminApiKey` 登录**
+2. **输入 `config.json` 中配置的 `adminApiKey`（Admin Password）登录**
 3. 进入凭据管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
 5. 管理面板自动识别账号信息并显示，确认后保存即可
@@ -489,7 +489,7 @@ bash start_server.sh restart   # 重启
 | `region` | 否 | `us-east-1` | AWS 区域 |
 | `authRegion` | 否 | 同 `region` | Token 刷新使用的区域 |
 | `apiRegion` | 否 | 同 `region` | API 请求使用的区域 |
-| `adminApiKey` | 否 | — | 管理面板登录密码，不填则不启用管理面板 |
+| `adminApiKey` | 否 | — | Admin Password（管理面板登录密码），不填则不启用管理面板 |
 | `proxyUrl` | 否 | — | HTTP/SOCKS5 代理，如 `http://127.0.0.1:7890` |
 | `proxyUsername` | 否 | — | 代理用户名 |
 | `proxyPassword` | 否 | — | 代理密码 |
@@ -662,7 +662,7 @@ Authorization: Bearer your-api-key
 
 ## Admin 管理面板
 
-配置了 `adminApiKey` 后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
+配置了 `adminApiKey`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
 
 功能：
 - 查看所有凭据状态（是否有效、失败次数等）

@@ -175,7 +175,7 @@ pub async fn set_auth_keys(
     }
     if let Some(ref key) = payload.admin_api_key {
         if key.trim().is_empty() {
-            let error = super::types::AdminErrorResponse::invalid_request("adminApiKey 不能为空");
+            let error = super::types::AdminErrorResponse::invalid_request("adminApiKey 不能为空（Admin Password）");
             return (axum::http::StatusCode::BAD_REQUEST, Json(serde_json::json!(error))).into_response();
         }
     }

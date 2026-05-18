@@ -141,7 +141,7 @@ In Finder, navigate to the project directory and double-click `run-local-service
 
 ```
 API Key (access key for this proxy, set anything you like, optional): [default: sk-my-proxy-key]
-Admin API Key (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
+Admin Password (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
 Port [default: 5678]:
 Region [default: us-east-1]:
 Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
@@ -155,7 +155,7 @@ Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
   >
   > If you don't know the port number, check the settings page of your proxy software.
 
-- **Admin API Key**: **The login password for the admin panel (http://ip:port/admin). Setting this is recommended.**
+- **Admin Password**: **The login password for the admin panel (http://ip:port/admin). Setting this is recommended.**
 
 After setup, `app/config/config.json` is generated, the service starts, and the admin panel opens in your browser automatically.
 
@@ -242,7 +242,7 @@ This script builds the admin-ui frontend, user-ui frontend, and then compiles th
 
 ```
 API Key (access key for this proxy, set anything you like, optional): [default: sk-my-proxy-key]
-Admin API Key (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
+Admin Password (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
 Port [default: 5678]:
 Region [default: us-east-1]:
 Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
@@ -256,7 +256,7 @@ Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
   >
   > If you don't know the port number, check the settings page of your proxy software.
 
-- **Admin API Key**: **The login password for the admin panel (http://ip:port/admin). Setting this is recommended.**
+- **Admin Password**: **The login password for the admin panel (http://ip:port/admin). Setting this is recommended.**
 
 After setup, `app\config\config.json` is generated, the service starts, and the admin panel opens in your browser automatically.
 
@@ -400,7 +400,7 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 **Step 3: Import credentials via the Admin Panel (recommended)**
 
 1. Open the admin panel: `http://127.0.0.1:5678/admin` (**replace with your server IP for server deployments**)
-2. **Log in with the `adminApiKey` configured in `config.json`**
+2. **Log in with the `adminApiKey` (Admin Password) configured in `config.json`**
 3. Go to the credentials management page
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
 5. The panel automatically recognizes the account info and displays it — confirm to save
@@ -485,7 +485,7 @@ Lower `priority` value = higher priority. Up to 3 retries per credential, 9 per 
 | `region` | No | `us-east-1` | AWS region |
 | `authRegion` | No | same as `region` | Region used for token refresh |
 | `apiRegion` | No | same as `region` | Region used for API requests |
-| `adminApiKey` | No | — | Admin panel password; omit to disable admin panel |
+| `adminApiKey` | No | — | Admin Password (admin panel login password); omit to disable admin panel |
 | `proxyUrl` | No | — | HTTP/SOCKS5 proxy, e.g. `http://127.0.0.1:7890` |
 | `proxyUsername` | No | — | Proxy username |
 | `proxyPassword` | No | — | Proxy password |

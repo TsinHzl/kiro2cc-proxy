@@ -20,7 +20,7 @@
 ```
 1. 首次使用：运行 ./build-mac.sh 构建二进制
 2. 启动服务：运行 ./run-local-service-mac.command
-3. 按提示输入 API Key 和 Admin API Key
+3. 按提示输入 API Key 和 Admin Password
 4. 浏览器自动打开管理面板，添加凭据即可使用
 ```
 
@@ -63,7 +63,7 @@
 
 ```
   API Key（号池 apiKey，不要泄露给他人）:
-  Admin API Key（号池后台管理登录密码）:
+  Admin Password（号池后台管理登录密码）:
   端口 [默认: 5678]:
   Region [默认: us-east-1]:
 ```
@@ -96,7 +96,7 @@
 | 字段 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `apiKey` | **是** | — | 号池 apiKey，客户端连接时使用，不要泄露给他人 |
-| `adminApiKey` | **是** | — | 号池后台管理面板登录密码 |
+| `adminApiKey` | **是** | — | Admin Password（号池后台管理面板登录密码） |
 | `host` | 否 | `0.0.0.0` | 监听地址，`0.0.0.0` 允许局域网访问 |
 | `port` | 否 | `5678` | 监听端口 |
 | `region` | 否 | `us-east-1` | AWS 区域 |
@@ -177,7 +177,7 @@
 
 服务启动后访问：`http://127.0.0.1:5678/admin`
 
-访问时需要输入 `config.json` 中配置的 `adminApiKey`。
+访问时需要输入 `config.json` 中配置的 `adminApiKey`（Admin Password）。
 
 管理面板功能：
 - 查看已加载的凭据列表及状态

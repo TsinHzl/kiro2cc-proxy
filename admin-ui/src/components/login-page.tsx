@@ -37,7 +37,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
           <CardTitle className="text-2xl">Kiro2CCProxy Admin</CardTitle>
           <CardDescription>
-            请输入 Admin API Key 以访问管理面板
+            请输入 Admin Password 以访问管理面板
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -45,7 +45,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <div className="space-y-2">
               <Input
                 type="password"
-                placeholder="Admin API Key"
+                placeholder="Admin Password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="text-center"

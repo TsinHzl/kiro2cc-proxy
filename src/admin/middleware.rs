@@ -22,7 +22,7 @@ use crate::model::usage::UsageTracker;
 /// Admin API 共享状态
 #[derive(Clone)]
 pub struct AdminState {
-    /// Admin API 密钥（运行时可修改）
+    /// Admin Password（运行时可修改）
     pub admin_api_key: Arc<RwLock<String>>,
     /// 主 API 密钥（用于前端展示，运行时可修改）
     pub master_api_key: Option<Arc<RwLock<String>>>,

@@ -81,7 +81,7 @@ export function SettingsPanel() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Admin API Key</span>
+                <span className="text-sm font-medium">Admin Password</span>
                 {!editingAdminApiKey && (
                   <Button
                     variant="outline"
@@ -97,7 +97,7 @@ export function SettingsPanel() {
                 <div className="flex gap-2">
                   <Input
                     type="text"
-                    placeholder="输入新的 Admin API Key"
+                    placeholder="输入新的 Admin Password"
                     value={adminApiKeyDraft}
                     onChange={(e) => setAdminApiKeyDraft(e.target.value)}
                     className="text-sm"
@@ -108,7 +108,7 @@ export function SettingsPanel() {
                     onClick={() => {
                       setAuthKeysMut({ adminApiKey: adminApiKeyDraft.trim() }, {
                         onSuccess: () => {
-                          toast.success('Admin API Key 已更新，请使用新密钥重新登录')
+                          toast.success('Admin Password 已更新，请使用新密码重新登录')
                           setEditingAdminApiKey(false)
                           setAdminApiKeyDraft('')
                         },
@@ -129,7 +129,7 @@ export function SettingsPanel() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              修改后立即生效，旧密钥将失效。修改 Admin API Key 后需要用新密钥重新登录。
+              修改后立即生效，旧密码将失效。修改 Admin Password 后需要用新密码重新登录。
             </p>
           </CardContent>
         </Card>

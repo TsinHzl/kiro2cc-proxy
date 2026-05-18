@@ -40,6 +40,8 @@ export interface UsageRecordItem {
   outputTokens: number
   estimatedCost: number
   createdAt: string
+  clientIp?: string
+  credentialLabel?: string
 }
 
 export interface UsageRecordsPage {

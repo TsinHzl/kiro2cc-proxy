@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, LogOut, Moon, Sun, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings } from 'lucide-react'
+import kiroIcon from '@/assets/kiro-icon.svg'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { storage } from '@/lib/storage'
@@ -498,7 +499,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         <div className="container flex h-14 items-center justify-between px-3 sm:px-4 md:px-8">
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
-              <Server className="h-5 w-5" />
+              <img src={kiroIcon} alt="Kiro" className="h-5 w-5" />
               <span className="font-semibold hidden sm:inline">Kiro2CCProxy Admin</span>
             </div>
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1">

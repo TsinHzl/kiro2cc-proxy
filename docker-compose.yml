@@ -1,7 +1,7 @@
 services:
   kiro-rs:
     # 使用国内镜像
-    image: ghcr.io/${IMAGE_OWNER:-tsinhzl}/kiro-rs-commercial:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-tsinhzl}/kiro-rs-custom:${IMAGE_TAG:-latest}
     container_name: kiro-rs
     extra_hosts:
       - "host.docker.internal:host-gateway"

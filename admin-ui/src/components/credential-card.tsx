@@ -51,6 +51,26 @@ function formatLastUsed(lastUsedAt: string | null): string {
   return `${days} 天前`
 }
 
+type HealthStatus = CredentialStatusItem['healthStatus']
+
+const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string }> = {
+  healthy:   { label: '健康',   className: 'bg-green-100 text-green-800 border-green-300' },
+  warning:   { label: '警告',   className: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  degraded:  { label: '降级',   className: 'bg-orange-100 text-orange-800 border-orange-300' },
+  unhealthy: { label: '不健康', className: 'bg-red-100 text-red-800 border-red-300' },
+  disabled:  { label: '已禁用', className: 'bg-gray-100 text-gray-600 border-gray-300' },
+}
+
+function HealthBadge({ status }: { status: HealthStatus }) {
+  const cfg = HEALTH_CONFIG[status] ?? HEALTH_CONFIG.disabled
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+      {cfg.label}
+    </span>
+  )
+}
+
 export function CredentialCard({
   credential,
   onViewBalance,
@@ -146,6 +166,7 @@ export function CredentialCard({
               />
               <CardTitle className="text-lg flex items-center gap-2">
                 {credential.nickname || `凭据 #${credential.id}`}
+                <HealthBadge status={credential.healthStatus} />
                 {credential.isCurrent && (
                   <Badge variant="success">当前</Badge>
                 )}
@@ -236,6 +257,12 @@ export function CredentialCard({
             <div>
               <span className="text-muted-foreground">RPM：</span>
               <span className="font-medium text-blue-600">{rpm}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">限流次数：</span>
+              <span className={credential.throttleCount > 0 ? 'font-medium text-orange-500' : 'font-medium'}>
+                {credential.throttleCount}
+              </span>
             </div>
             <div className="col-span-2">
               <span className="text-muted-foreground">最后调用：</span>

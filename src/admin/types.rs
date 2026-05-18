@@ -52,6 +52,10 @@ pub struct CredentialStatusItem {
     /// 代理 URL（用于前端展示）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
+    /// 健康状态
+    pub health_status: crate::kiro::token_manager::HealthStatus,
+    /// 被限流次数（429 响应，累计）
+    pub throttle_count: u64,
 }
 
 // ============ 操作请求 ============

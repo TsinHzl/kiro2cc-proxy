@@ -165,6 +165,7 @@ export interface UsageRecord {
   createdAt: string
   credentialId?: number
   credentialLabel?: string
+  clientIp?: string
 }
 
 // 分页原始记录响应

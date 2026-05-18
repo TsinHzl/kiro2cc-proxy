@@ -29,6 +29,9 @@ pub struct UsageRecord {
     pub estimated_cost: f64,
     /// 记录时间
     pub created_at: DateTime<Utc>,
+    /// 客户端 IP（None 表示旧数据或未知）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_ip: Option<String>,
 }
 
 /// 单个 API Key 的用量汇总
@@ -146,6 +149,7 @@ impl UsageTracker {
         model: String,
         input_tokens: i32,
         output_tokens: i32,
+        client_ip: Option<String>,
     ) {
         let cost = calculate_cost(&model, input_tokens, output_tokens);
         let record = UsageRecord {
@@ -156,6 +160,7 @@ impl UsageTracker {
             output_tokens,
             estimated_cost: cost,
             created_at: Utc::now(),
+            client_ip,
         };
         {
             let mut records = self.records.write();
@@ -325,6 +330,7 @@ impl UsageTracker {
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
+                    client_ip: r.client_ip,
                 }
             })
             .collect();
@@ -365,6 +371,9 @@ pub struct UsageRecordItem {
     /// 凭据账号（email 或 nickname，用于前端显示）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_label: Option<String>,
+    /// 客户端 IP（None 表示旧数据或未知）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_ip: Option<String>,
 }
 
 impl UsageTracker {
@@ -427,6 +436,7 @@ impl UsageTracker {
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
+                    client_ip: r.client_ip,
                 }
             })
             .collect();

@@ -6,7 +6,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:5678:5678"
+      - "0.0.0.0:5678:5678"
     volumes:
       - ./data:/app/config
     restart: unless-stopped

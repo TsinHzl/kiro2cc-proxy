@@ -440,6 +440,10 @@ struct CredentialEntry {
     success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
     last_used_at: Option<String>,
+    /// 被限流次数（429 响应，累计）
+    throttle_count: u64,
+    /// 最后一次被限流时间（内存中，不持久化）
+    last_throttled_at: Option<Instant>,
 }
 
 /// 禁用原因
@@ -453,11 +457,53 @@ enum DisabledReason {
     QuotaExceeded,
 }
 
+/// 凭据健康状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HealthStatus {
+    /// 正常，无失败无限流
+    Healthy,
+    /// 轻微问题，有少量历史限流或 1 次失败
+    Warning,
+    /// 降级，近期频繁限流或 2 次连续失败
+    Degraded,
+    /// 不健康，极近期高频限流或即将被禁用
+    Unhealthy,
+    /// 已禁用（手动或自动）
+    Disabled,
+}
+
+impl HealthStatus {
+    /// 返回前端展示用的颜色标识
+    pub fn color(&self) -> &'static str {
+        match self {
+            HealthStatus::Healthy => "green",
+            HealthStatus::Warning => "yellow",
+            HealthStatus::Degraded => "orange",
+            HealthStatus::Unhealthy => "red",
+            HealthStatus::Disabled => "gray",
+        }
+    }
+
+    /// 返回中文标签
+    pub fn label(&self) -> &'static str {
+        match self {
+            HealthStatus::Healthy => "健康",
+            HealthStatus::Warning => "警告",
+            HealthStatus::Degraded => "降级",
+            HealthStatus::Unhealthy => "不健康",
+            HealthStatus::Disabled => "已禁用",
+        }
+    }
+}
+
 /// 统计数据持久化条目
 #[derive(Serialize, Deserialize)]
 struct StatsEntry {
     success_count: u64,
     last_used_at: Option<String>,
+    #[serde(default)]
+    throttle_count: u64,
 }
 
 // ============================================================================
@@ -497,6 +543,10 @@ pub struct CredentialEntrySnapshot {
     /// 代理 URL（用于前端展示）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
+    /// 健康状态
+    pub health_status: HealthStatus,
+    /// 被限流次数（429 响应，累计）
+    pub throttle_count: u64,
 }
 
 /// 凭据管理器状态快照
@@ -613,6 +663,8 @@ impl MultiTokenManager {
                     },
                     success_count: 0,
                     last_used_at: None,
+                    throttle_count: 0,
+                    last_throttled_at: None,
                 }
             })
             .collect();
@@ -1135,6 +1187,7 @@ impl MultiTokenManager {
             if let Some(s) = stats.get(&entry.id.to_string()) {
                 entry.success_count = s.success_count;
                 entry.last_used_at = s.last_used_at.clone();
+                entry.throttle_count = s.throttle_count;
             }
         }
         *self.last_stats_save_at.lock() = Some(Instant::now());
@@ -1159,6 +1212,7 @@ impl MultiTokenManager {
                         StatsEntry {
                             success_count: e.success_count,
                             last_used_at: e.last_used_at.clone(),
+                            throttle_count: e.throttle_count,
                         },
                     )
                 })
@@ -1193,6 +1247,59 @@ impl MultiTokenManager {
         if should_flush {
             self.save_stats();
         }
+    }
+
+    /// 根据凭据条目计算健康状态
+    fn compute_health(entry: &CredentialEntry) -> HealthStatus {
+        if entry.disabled {
+            return HealthStatus::Disabled;
+        }
+
+        let very_recently_throttled = entry
+            .last_throttled_at
+            .map(|t| t.elapsed() < StdDuration::from_secs(120))
+            .unwrap_or(false);
+        let recently_throttled = entry
+            .last_throttled_at
+            .map(|t| t.elapsed() < StdDuration::from_secs(600))
+            .unwrap_or(false);
+
+        // 只有样本足够时才计算限流率，避免少量请求时误判
+        let total_calls = entry.success_count + entry.throttle_count;
+        let throttle_rate = if total_calls >= 10 {
+            entry.throttle_count as f64 / total_calls as f64
+        } else {
+            0.0
+        };
+
+        if entry.failure_count >= 2 || (very_recently_throttled && throttle_rate > 0.4) {
+            HealthStatus::Unhealthy
+        } else if entry.failure_count >= 1
+            || (recently_throttled && throttle_rate > 0.2)
+            || throttle_rate > 0.3
+        {
+            HealthStatus::Degraded
+        } else if entry.throttle_count > 0 || entry.failure_count > 0 {
+            HealthStatus::Warning
+        } else {
+            HealthStatus::Healthy
+        }
+    }
+
+    /// 报告指定凭据被限流（429 响应）
+    pub fn report_throttled(&self, id: u64) {
+        let mut entries = self.entries.lock();
+        if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+            entry.throttle_count += 1;
+            entry.last_throttled_at = Some(Instant::now());
+            tracing::debug!(
+                "凭据 #{} 被限流（累计 {} 次）",
+                id,
+                entry.throttle_count
+            );
+        }
+        // throttle_count 在下次 success/failure 时随 debounce 一起落盘
+        self.stats_dirty.store(true, Ordering::Relaxed);
     }
 
     /// 报告指定凭据 API 调用成功
@@ -1397,6 +1504,8 @@ impl MultiTokenManager {
                     last_used_at: e.last_used_at.clone(),
                     has_proxy: e.credentials.proxy_url.is_some(),
                     proxy_url: e.credentials.proxy_url.clone(),
+                    health_status: Self::compute_health(e),
+                    throttle_count: e.throttle_count,
                 })
                 .collect(),
             current_id,
@@ -1645,6 +1754,8 @@ impl MultiTokenManager {
                 disabled_reason: None,
                 success_count: 0,
                 last_used_at: None,
+                throttle_count: 0,
+                last_throttled_at: None,
             });
         }
 

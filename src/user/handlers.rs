@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::middleware::{UserContext, UserErrorResponse, UserState};
@@ -77,6 +78,22 @@ pub async fn get_usage(
         by_model: summary.by_model,
     };
     Json(response)
+}
+
+/// GET /api/user/usage/records?page=1&page_size=50
+/// 获取当前用户的分页请求日志
+pub async fn get_usage_records(
+    State(state): State<UserState>,
+    Extension(ctx): Extension<UserContext>,
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(50)
+        .min(500);
+    Json(state.usage_tracker.get_records_paged(ctx.key_id, page, page_size))
 }
 
 #[derive(Deserialize)]

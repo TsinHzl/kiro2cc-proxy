@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   LogOut, RefreshCw, Activity, Zap, DollarSign, Clock,
-  ArrowUpFromLine, ArrowDownToLine,
+  ArrowUpFromLine, ArrowDownToLine, FileText,
 } from 'lucide-react'
 import { getUsage } from '@/api/user'
 import { storage } from '@/lib/storage'
@@ -9,12 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { UsageLogPage } from '@/components/usage-log-page'
 
 interface DashboardProps {
   onLogout: () => void
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
+  const [showLog, setShowLog] = useState(false)
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['usage'],
     queryFn: getUsage,
@@ -67,6 +70,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
     )
   }
 
+  if (showLog) {
+    return <UsageLogPage onBack={() => setShowLog(false)} />
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -77,6 +84,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
             {getStatusBadge()}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowLog(true)}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              查看日志
+            </Button>
             <Button
               variant="ghost"
               size="icon"

@@ -33,3 +33,19 @@ export interface UsageResponse {
   totalCost: number
   byModel: ModelUsage[]
 }
+
+export interface UsageRecordItem {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  estimatedCost: number
+  createdAt: string
+}
+
+export interface UsageRecordsPage {
+  records: UsageRecordItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

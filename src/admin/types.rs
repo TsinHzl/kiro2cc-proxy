@@ -281,7 +281,7 @@ pub struct UpdateApiKeyRequest {
     #[serde(default, deserialize_with = "deserialize_optional_f64")]
     pub duration_days: Option<Option<f64>>,
     /// 绑定的凭据 ID 列表（null 表示清除绑定）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_vec_u64")]
     pub bound_credential_ids: Option<Option<Vec<u64>>>,
 }
 
@@ -290,6 +290,17 @@ pub struct UpdateApiKeyRequest {
 fn deserialize_optional_datetime<'de, D>(
     deserializer: D,
 ) -> Result<Option<Option<chrono::DateTime<chrono::Utc>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::deserialize(deserializer).map(Some)
+}
+
+/// 区分 JSON 中"字段缺失"与"字段为 null"（Vec<u64> 版本）
+/// 缺失 → None（不更新），null → Some(None)（清除绑定），有值 → Some(Some(ids))
+fn deserialize_optional_vec_u64<'de, D>(
+    deserializer: D,
+) -> Result<Option<Option<Vec<u64>>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

@@ -47,6 +47,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [liveCreditsTotal, setLiveCreditsTotal] = useState<number | null>(null)
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
   const cancelVerifyRef = useRef(false)
+  const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
   const [darkMode, setDarkMode] = useState(() => {
@@ -111,6 +112,32 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return next.size === prev.size ? prev : next
     })
   }, [data?.credentials])
+
+  // 切换到凭据管理页时静默刷新所有余额
+  useEffect(() => {
+    if (prevTabRef.current !== null && prevTabRef.current !== 'credentials' && activeTab === 'credentials') {
+      refetch()
+      const ids = (data?.credentials || []).filter(c => !c.disabled).map(c => c.id)
+      if (ids.length === 0) {
+        prevTabRef.current = activeTab
+        return
+      }
+      ;(async () => {
+        for (const id of ids) {
+          setLoadingBalanceIds(prev => { const next = new Set(prev); next.add(id); return next })
+          try {
+            const balance = await getCredentialBalance(id)
+            setBalanceMap(prev => { const next = new Map(prev); next.set(id, balance); return next })
+          } catch (_) {
+            // 静默失败
+          } finally {
+            setLoadingBalanceIds(prev => { const next = new Set(prev); next.delete(id); return next })
+          }
+        }
+      })()
+    }
+    prevTabRef.current = activeTab
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode)

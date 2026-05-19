@@ -841,7 +841,7 @@ async fn handle_non_stream_request(
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
-        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip);
+        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, None);
     }
 
     // 构建 Anthropic 响应

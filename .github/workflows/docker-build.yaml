@@ -82,8 +82,8 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/${{ env.IMAGE_OWNER }}/kiro-rs-custom:${{ steps.version.outputs.version }}
-            ghcr.io/${{ env.IMAGE_OWNER }}/kiro-rs-custom:${{ steps.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
+            ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy:${{ steps.version.outputs.version }}
+            ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy:${{ steps.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Kiro.rs Commercial Docker Image
+            org.opencontainers.image.description=kiro2cc-proxy Docker Image

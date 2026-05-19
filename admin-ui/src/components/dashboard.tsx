@@ -59,6 +59,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch } = useCredentials()
+  const credentialsRef = useRef(data?.credentials)
   const { data: rpmData } = useRpm()
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
@@ -113,11 +114,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
   }, [data?.credentials])
 
+  // 始终保持 ref 与最新 credentials 同步
+  useEffect(() => {
+    credentialsRef.current = data?.credentials
+  })
+
   // 切换到凭据管理页时静默刷新所有余额
   useEffect(() => {
     if (prevTabRef.current !== null && prevTabRef.current !== 'credentials' && activeTab === 'credentials') {
       refetch()
-      const ids = (data?.credentials || []).filter(c => !c.disabled).map(c => c.id)
+      const ids = (credentialsRef.current || []).filter(c => !c.disabled).map(c => c.id)
       if (ids.length === 0) {
         prevTabRef.current = activeTab
         return

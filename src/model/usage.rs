@@ -27,6 +27,9 @@ pub struct UsageRecord {
     pub output_tokens: i32,
     /// 估算费用（美元）
     pub estimated_cost: f64,
+    /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits_used: Option<f64>,
     /// 记录时间
     pub created_at: DateTime<Utc>,
     /// 客户端 IP（None 表示旧数据或未知）
@@ -150,6 +153,7 @@ impl UsageTracker {
         input_tokens: i32,
         output_tokens: i32,
         client_ip: Option<String>,
+        credits_used: Option<f64>,
     ) {
         let cost = calculate_cost(&model, input_tokens, output_tokens);
         let record = UsageRecord {
@@ -159,6 +163,7 @@ impl UsageTracker {
             input_tokens,
             output_tokens,
             estimated_cost: cost,
+            credits_used,
             created_at: Utc::now(),
             client_ip,
         };
@@ -327,6 +332,7 @@ impl UsageTracker {
                     input_tokens: r.input_tokens,
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
+                    credits_used: r.credits_used,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -364,6 +370,9 @@ pub struct UsageRecordItem {
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub estimated_cost: f64,
+    /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits_used: Option<f64>,
     pub created_at: DateTime<Utc>,
     /// 使用的凭据 ID（None 表示旧数据或主密钥请求）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -433,6 +442,7 @@ impl UsageTracker {
                     input_tokens: r.input_tokens,
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
+                    credits_used: r.credits_used,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,

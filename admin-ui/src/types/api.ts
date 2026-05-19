@@ -164,6 +164,7 @@ export interface UsageRecord {
   inputTokens: number
   outputTokens: number
   estimatedCost: number
+  creditsUsed?: number
   createdAt: string
   credentialId?: number
   credentialLabel?: string

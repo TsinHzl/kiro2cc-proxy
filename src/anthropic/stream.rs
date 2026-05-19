@@ -536,6 +536,8 @@ pub struct StreamContext {
     client_ip: Option<String>,
     /// 模拟出的 prompt cache usage
     prompt_cache_usage: PromptCacheUsage,
+    /// 从 meteringEvent 获取的真实 credits 消耗
+    pub metering_usage: Option<f64>,
 }
 
 impl StreamContext {
@@ -565,6 +567,7 @@ impl StreamContext {
             credential_id: None,
             client_ip: None,
             prompt_cache_usage: PromptCacheUsage::uncached(input_tokens),
+            metering_usage: None,
         }
     }
 
@@ -673,6 +676,11 @@ impl StreamContext {
                     context_usage.context_usage_percentage,
                     actual_input_tokens
                 );
+                Vec::new()
+            }
+            Event::Metering(metering) => {
+                self.metering_usage = Some(metering.usage);
+                tracing::debug!("收到 meteringEvent: {} {}", metering.usage, metering.unit_plural);
                 Vec::new()
             }
             Event::Error {
@@ -1179,7 +1187,7 @@ impl StreamContext {
 
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
-            tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone());
+            tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone(), self.metering_usage);
         }
 
         // 注入 signature_delta 事件（伪造模型签名以通过检测）

@@ -224,7 +224,8 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                           {formatCost(record.estimatedCost)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                          {(record.estimatedCost / 0.72).toFixed(4)}
+                          {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost / 0.72).toFixed(4)}
+                          {record.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
                         </td>
                       </tr>
                       )

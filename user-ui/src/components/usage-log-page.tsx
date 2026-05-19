@@ -216,7 +216,8 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                               {formatCost(r.estimatedCost)}
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                              {(r.estimatedCost / 0.72).toFixed(4)}
+                              {r.creditsUsed != null ? r.creditsUsed.toFixed(4) : (r.estimatedCost / 0.72).toFixed(4)}
+                              {r.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
                             </td>
                           </tr>
                         )

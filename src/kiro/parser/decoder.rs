@@ -107,6 +107,7 @@ impl Default for EventStreamDecoder {
     }
 }
 
+#[allow(dead_code)]
 impl EventStreamDecoder {
     /// 创建新的解码器
     pub fn new() -> Self {

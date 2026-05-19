@@ -133,6 +133,7 @@ pub struct MessagesRequest {
     #[serde(default, deserialize_with = "deserialize_system")]
     pub system: Option<Vec<SystemMessage>>,
     pub tools: Option<Vec<Tool>>,
+    #[allow(dead_code)]
     pub tool_choice: Option<serde_json::Value>,
     pub thinking: Option<Thinking>,
     pub output_config: Option<OutputConfig>,
@@ -145,8 +146,6 @@ fn deserialize_system<'de, D>(deserializer: D) -> Result<Option<Vec<SystemMessag
 where
     D: serde::Deserializer<'de>,
 {
-    use serde::de::Error;
-
     // 创建一个 visitor 来处理 string 或 array
     struct SystemVisitor;
 
@@ -237,14 +236,6 @@ pub struct Tool {
     pub max_uses: Option<i32>,
 }
 
-impl Tool {
-    /// 检查是否为 WebSearch 工具
-    pub fn is_web_search(&self) -> bool {
-        self.tool_type
-            .as_ref()
-            .is_some_and(|t| t.starts_with("web_search"))
-    }
-}
 
 /// 内容块
 #[derive(Debug, Deserialize, Serialize)]

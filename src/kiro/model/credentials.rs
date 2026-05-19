@@ -173,6 +173,7 @@ impl CredentialsConfig {
     }
 
     /// 获取凭据数量
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         match self {
             CredentialsConfig::Single(_) => 1,
@@ -181,6 +182,7 @@ impl CredentialsConfig {
     }
 
     /// 判断是否为空
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         match self {
             CredentialsConfig::Single(_) => false,
@@ -240,11 +242,13 @@ impl KiroCredentials {
     }
 
     /// 从 JSON 字符串解析凭证
+    #[allow(dead_code)]
     pub fn from_json(json_string: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json_string)
     }
 
     /// 从文件加载凭证
+    #[allow(dead_code)]
     pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let content = fs::read_to_string(path.as_ref())?;
         if content.is_empty() {
@@ -255,6 +259,7 @@ impl KiroCredentials {
     }
 
     /// 序列化为格式化的 JSON 字符串
+    #[allow(dead_code)]
     pub fn to_pretty_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }

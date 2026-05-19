@@ -49,6 +49,7 @@ pub struct KiroProvider {
     rpm_tracker: Option<Arc<RpmTracker>>,
 }
 
+#[allow(dead_code)]
 impl KiroProvider {
     /// 创建新的 KiroProvider 实例
     pub fn new(token_manager: Arc<MultiTokenManager>) -> Self {

@@ -27,12 +27,14 @@ use crate::model::config::Config;
 /// Token 管理器
 ///
 /// 负责管理凭据和 Token 的自动刷新
+#[allow(dead_code)]
 pub struct TokenManager {
     config: Config,
     credentials: KiroCredentials,
     proxy: Option<ProxyConfig>,
 }
 
+#[allow(dead_code)]
 impl TokenManager {
     /// 创建新的 TokenManager 实例
     pub fn new(config: Config, credentials: KiroCredentials, proxy: Option<ProxyConfig>) -> Self {
@@ -473,6 +475,7 @@ pub enum HealthStatus {
     Disabled,
 }
 
+#[allow(dead_code)]
 impl HealthStatus {
     /// 返回前端展示用的颜色标识
     pub fn color(&self) -> &'static str {
@@ -724,6 +727,7 @@ impl MultiTokenManager {
     }
 
     /// 获取当前活动凭据的克隆
+    #[allow(dead_code)]
     pub fn credentials(&self) -> KiroCredentials {
         let entries = self.entries.lock();
         let current_id = *self.current_id.lock();
@@ -1458,6 +1462,7 @@ impl MultiTokenManager {
     }
 
     /// 获取使用额度信息
+    #[allow(dead_code)]
     pub async fn get_usage_limits(&self) -> anyhow::Result<UsageLimitsResponse> {
         let ctx = self.acquire_context(None).await?;
         let effective_proxy = ctx.credentials.effective_proxy(self.proxy.as_ref());

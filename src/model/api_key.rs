@@ -64,6 +64,7 @@ impl ApiKey {
     }
 
     /// 检查 key 是否有效（启用且未过期）
+    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         if !self.enabled {
             return false;
@@ -298,6 +299,7 @@ impl ApiKeyManager {
     }
 
     /// 获取文件路径
+    #[allow(dead_code)]
     pub fn file_path(&self) -> &Path {
         &self.file_path
     }

@@ -1,0 +1,2 @@
+[profile.release]
+split-debuginfo = "off"

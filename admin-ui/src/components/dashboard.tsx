@@ -123,15 +123,22 @@ export function Dashboard({ onLogout }: DashboardProps) {
         return
       }
       ;(async () => {
+        let runningTotal = 0
+        let queried = 0
+        setLiveCreditsTotal(0)
+        setLiveCreditsQueried(0)
         for (const id of ids) {
           setLoadingBalanceIds(prev => { const next = new Set(prev); next.add(id); return next })
           try {
             const balance = await getCredentialBalance(id)
+            runningTotal += balance.remaining
             setBalanceMap(prev => { const next = new Map(prev); next.set(id, balance); return next })
+            setLiveCreditsTotal(runningTotal)
           } catch (_) {
             // 静默失败
           } finally {
             setLoadingBalanceIds(prev => { const next = new Set(prev); next.delete(id); return next })
+            setLiveCreditsQueried(++queried)
           }
         }
       })()

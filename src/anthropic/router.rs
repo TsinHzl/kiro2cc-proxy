@@ -1,14 +1,11 @@
 //! Anthropic API 路由配置
 
-use std::sync::Arc;
-
 use axum::{
     Router,
     extract::DefaultBodyLimit,
     middleware,
     routing::{get, post},
 };
-use parking_lot::RwLock;
 use tower_http::trace::TraceLayer;
 
 use crate::kiro::provider::KiroProvider;
@@ -36,22 +33,6 @@ const MAX_BODY_SIZE: usize = 200 * 1024 * 1024;
 /// # 参数
 /// - `api_key`: API 密钥，用于验证客户端请求
 /// - `kiro_provider`: 可选的 KiroProvider，用于调用上游 API
-
-/// 创建带有 KiroProvider 的 Anthropic API 路由
-pub fn create_router_with_provider(
-    api_key: Arc<RwLock<String>>,
-    kiro_provider: Option<KiroProvider>,
-    profile_arn: Option<String>,
-) -> Router {
-    let mut state = AppState::new(api_key);
-    if let Some(provider) = kiro_provider {
-        state = state.with_kiro_provider(provider);
-    }
-    if let Some(arn) = profile_arn {
-        state = state.with_profile_arn(arn);
-    }
-    build_router(state)
-}
 
 /// 创建带有预构建 AppState 的 Anthropic API 路由
 pub fn create_router_with_provider_and_state(

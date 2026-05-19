@@ -24,8 +24,6 @@ use super::types::ErrorResponse;
 pub struct ApiKeyContext {
     /// API Key ID（0 = 主密钥）
     pub id: u32,
-    /// 额度限制（美元），None 表示不限额
-    pub spending_limit: Option<f64>,
     /// 绑定的凭据 ID 列表，None 表示不限制
     pub bound_credential_ids: Option<Vec<u64>>,
 }
@@ -111,7 +109,6 @@ pub async fn auth_middleware(
     if auth::constant_time_eq(&key, &state.api_key.read()) {
         request.extensions_mut().insert(ApiKeyContext {
             id: 0,
-            spending_limit: None,
             bound_credential_ids: None,
         });
         return next.run(request).await;
@@ -151,7 +148,6 @@ pub async fn auth_middleware(
                 tracing::debug!(api_key_id = id, api_key_name = %name, "子 API Key 认证通过");
                 request.extensions_mut().insert(ApiKeyContext {
                     id,
-                    spending_limit,
                     bound_credential_ids,
                 });
                 return next.run(request).await;

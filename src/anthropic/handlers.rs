@@ -60,11 +60,6 @@ pub async fn ping(request: axum::http::Request<Body>) -> impl IntoResponse {
     }))
 }
 
-/// 将 KiroProvider 错误映射为 HTTP 响应
-fn map_provider_error(err: Error) -> Response {
-    map_provider_error_with_context(err, "", 0)
-}
-
 fn map_provider_error_with_context(err: Error, model: &str, estimated_input_tokens: i32) -> Response {
     let err_str = err.to_string();
 

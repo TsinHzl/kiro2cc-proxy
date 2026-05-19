@@ -51,7 +51,7 @@ log "user-ui 构建完成 ✓"
 echo ""
 echo "[3/3] 编译 Rust 二进制..."
 log "cargo build --release 开始..."
-cargo build --release
+cargo build --release --verbose 2>&1
 log "编译完成 ✓"
 
 echo ""

@@ -68,8 +68,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const { mutate: resetFailure } = useResetFailure()
   const { data: dailyUsageData } = useDailyUsage()
 
-  const todayUtc = new Date().toISOString().slice(0, 10)
-  const todayStats = dailyUsageData?.find((d) => d.date === todayUtc) ?? null
+  const todayLocal = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const todayStats = dailyUsageData?.find((d) => d.date === todayLocal) ?? null
 
   // 计算分页
   const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)

@@ -3,7 +3,7 @@
 //! 记录每个 API Key 的请求用量（input/output tokens），并根据模型定价估算费用。
 //! 数据持久化到 `api_key_usage.json`。
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -472,13 +472,14 @@ pub struct DailySummary {
 }
 
 impl UsageTracker {
-    /// 按 UTC 日期聚合所有记录，返回按日期降序的汇总列表
+    /// 按 CST（UTC+8）日期聚合所有记录，返回按日期降序的汇总列表
     pub fn get_daily_summaries(&self) -> Vec<DailySummary> {
         use std::collections::BTreeMap;
+        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
         let records = self.records.read();
         let mut map: BTreeMap<String, (u64, f64, f64)> = BTreeMap::new();
         for r in records.iter() {
-            let date = r.created_at.format("%Y-%m-%d").to_string();
+            let date = r.created_at.with_timezone(&cst).format("%Y-%m-%d").to_string();
             let entry = map.entry(date).or_default();
             entry.0 += 1;
             entry.1 += r.estimated_cost;
@@ -497,7 +498,7 @@ impl UsageTracker {
         result
     }
 
-    /// 分页查询指定 UTC 日期的原始记录，硬限总量 2000 条
+    /// 分页查询指定 CST（UTC+8）日期的原始记录，硬限总量 2000 条
     pub fn get_records_paged_by_date(
         &self,
         date: &str,
@@ -507,12 +508,13 @@ impl UsageTracker {
     ) -> UsageRecordsPage {
         const MAX_TOTAL: usize = 2000;
         let page_size = page_size.min(500).max(1);
+        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
 
         let owned: Vec<UsageRecord> = {
             let records = self.records.read();
             records
                 .iter()
-                .filter(|r| r.created_at.format("%Y-%m-%d").to_string() == date)
+                .filter(|r| r.created_at.with_timezone(&cst).format("%Y-%m-%d").to_string() == date)
                 .cloned()
                 .collect()
         };

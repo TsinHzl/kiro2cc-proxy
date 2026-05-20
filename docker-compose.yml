@@ -2,7 +2,7 @@ services:
   kiro-rs:
     # 使用国内镜像
     image: ghcr.io/${IMAGE_OWNER:-tsinhzl}/kiro2cc-proxy:${IMAGE_TAG:-latest}
-    container_name: kiro-rs
+    container_name: kiro2cc-proxy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

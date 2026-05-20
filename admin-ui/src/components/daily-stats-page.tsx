@@ -9,8 +9,8 @@ interface DailyStatsPageProps {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00Z').toLocaleDateString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC',
+  return new Date(dateStr + 'T00:00:00+08:00').toLocaleDateString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Shanghai',
   })
 }
 

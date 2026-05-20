@@ -65,7 +65,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
   }, {})
 
   const pageCost = allRecords.reduce((s, r) => s + r.estimatedCost, 0)
-  const pageCredits = allRecords.reduce((s, r) => s + r.estimatedCost / 0.72, 0)
+  const pageCredits = allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0)
 
   return (
     <div className="min-h-screen bg-background">

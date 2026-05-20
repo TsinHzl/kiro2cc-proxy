@@ -130,7 +130,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {allRecords.reduce((s, r) => s + r.estimatedCost / 0.72, 0).toFixed(4)}
+              {allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0).toFixed(4)}
             </div>
           </CardContent>
         </Card>

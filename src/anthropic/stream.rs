@@ -679,8 +679,19 @@ impl StreamContext {
                 Vec::new()
             }
             Event::Metering(metering) => {
+                let prev = self.metering_usage;
                 self.metering_usage = Some(metering.usage);
-                tracing::debug!("收到 meteringEvent: {} {}", metering.usage, metering.unit_plural);
+                if let Some(prev_val) = prev {
+                    tracing::warn!(
+                        "[metering] 同一请求收到第2次 meteringEvent: new={} {} prev={} model={}",
+                        metering.usage, metering.unit_plural, prev_val, self.model
+                    );
+                } else {
+                    tracing::info!(
+                        "[metering] meteringEvent: usage={} {} model={}",
+                        metering.usage, metering.unit_plural, self.model
+                    );
+                }
                 Vec::new()
             }
             Event::Error {
@@ -1187,6 +1198,10 @@ impl StreamContext {
 
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
+            tracing::info!(
+                "[usage] 入库: model={} input={} output={} metering_credits={:?} api_key={} credential={:?}",
+                self.model, final_input_tokens, self.output_tokens, self.metering_usage, key_id, self.credential_id
+            );
             tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone(), self.metering_usage);
         }
 

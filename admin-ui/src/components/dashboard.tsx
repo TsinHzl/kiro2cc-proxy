@@ -17,7 +17,9 @@ import { ApiKeysPanel } from '@/components/api-keys-panel'
 import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { CredentialDetailPage } from '@/components/credential-detail-page'
 import { SettingsPanel } from '@/components/settings-panel'
-import { useCredentials, useDeleteCredential, useResetFailure, useRpm } from '@/hooks/use-credentials'
+import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage } from '@/hooks/use-credentials'
+import { DailyStatsPage } from '@/components/daily-stats-page'
+import { DailyDetailPage } from '@/components/daily-detail-page'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { BalanceResponse, ApiKeyItem } from '@/types/api'
@@ -46,6 +48,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [queryInfoProgress, setQueryInfoProgress] = useState({ current: 0, total: 0 })
   const [liveCreditsTotal, setLiveCreditsTotal] = useState<number | null>(null)
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
+  const [dailyView, setDailyView] = useState<string | null>(null)
   const cancelVerifyRef = useRef(false)
   const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -63,6 +66,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const { data: rpmData } = useRpm()
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
+  const { data: dailyUsageData } = useDailyUsage()
+
+  const todayUtc = new Date().toISOString().slice(0, 10)
+  const todayStats = dailyUsageData?.find((d) => d.date === todayUtc) ?? null
 
   // 计算分页
   const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)
@@ -546,7 +553,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'credentials' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null) }}
+                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Server className="h-3 w-3 sm:mr-1" />
@@ -555,7 +562,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'apikeys' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null) }}
+                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Key className="h-3 w-3 sm:mr-1" />
@@ -564,7 +571,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Button
                 variant={activeTab === 'settings' ? 'default' : 'ghost'}
                 size="sm"
-                onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null) }}
+                onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
                 className="h-7 px-2 sm:px-3 text-xs"
               >
                 <Settings className="h-3 w-3 sm:mr-1" />
@@ -599,6 +606,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
           ) : (
             <ApiKeysPanel onViewDetail={(key: ApiKeyItem) => setDetailKeyId(key.id)} />
           )
+        ) : dailyView === 'list' ? (
+          <DailyStatsPage
+            onBack={() => setDailyView(null)}
+            onViewDay={(date) => setDailyView(date)}
+          />
+        ) : dailyView !== null ? (
+          <DailyDetailPage
+            date={dailyView}
+            onBack={() => setDailyView('list')}
+          />
         ) : detailCredentialId !== null ? (
           <CredentialDetailPage
             credentialId={detailCredentialId}
@@ -607,7 +624,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         ) : (
         <>
         {/* 统计卡片 */}
-        <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-5 mb-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -652,6 +669,30 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                   )}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card
+            className="cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => setDailyView('list')}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                今日用量
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {todayStats ? (
+                <div>
+                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                    {todayStats.totalCredits.toFixed(2)} Credits
+                  </div>
+                  <div className="text-sm text-orange-600 dark:text-orange-400 font-medium mt-0.5">
+                    ${todayStats.totalCost.toFixed(4)}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold text-muted-foreground">—</div>
               )}
             </CardContent>
           </Card>

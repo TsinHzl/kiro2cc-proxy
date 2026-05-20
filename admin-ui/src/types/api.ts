@@ -179,3 +179,11 @@ export interface UsageRecordsResponse {
   pageSize: number
   totalPages: number
 }
+
+// 每日用量汇总
+export interface DailySummary {
+  date: string          // "2026-05-21" UTC
+  totalRequests: number
+  totalCost: number
+  totalCredits: number
+}

@@ -15,6 +15,7 @@ import type {
   UsageSummary,
   RpmSnapshot,
   UsageRecordsResponse,
+  DailySummary,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -206,5 +207,24 @@ export async function getAuthKeys(): Promise<{ apiKey: string; adminApiKey: stri
 
 export async function setAuthKeys(payload: { apiKey?: string; adminApiKey?: string }): Promise<{ success: boolean; message: string }> {
   const { data } = await api.put<{ success: boolean; message: string }>('/config/auth-keys', payload)
+  return data
+}
+
+// ============ 每日用量统计 ============
+
+export async function getDailyUsage(): Promise<DailySummary[]> {
+  const { data } = await api.get<DailySummary[]>('/usage/daily')
+  return data
+}
+
+export async function getDailyUsageRecords(
+  date: string,
+  page: number,
+  pageSize: number
+): Promise<UsageRecordsResponse> {
+  const { data } = await api.get<UsageRecordsResponse>(
+    `/usage/daily/${date}/records`,
+    { params: { page, page_size: pageSize } }
+  )
   return data
 }

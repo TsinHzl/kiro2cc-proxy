@@ -22,6 +22,8 @@ import {
   setAuthKeys,
   getKeyUsageRecords,
   getCredentialUsageRecords,
+  getDailyUsage,
+  getDailyUsageRecords,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -268,5 +270,23 @@ export function useSetAuthKeys() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth-keys'] })
     },
+  })
+}
+
+// ============ 每日用量统计 Hooks ============
+
+export function useDailyUsage() {
+  return useQuery({
+    queryKey: ['dailyUsage'],
+    queryFn: getDailyUsage,
+    refetchInterval: 60000,
+  })
+}
+
+export function useDailyUsageRecords(date: string, page: number, pageSize = 50) {
+  return useQuery({
+    queryKey: ['dailyUsageRecords', date, page, pageSize],
+    queryFn: () => getDailyUsageRecords(date, page, pageSize),
+    enabled: !!date,
   })
 }

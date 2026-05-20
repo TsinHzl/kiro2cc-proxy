@@ -65,6 +65,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
   }, {})
 
   const pageCost = allRecords.reduce((s, r) => s + r.estimatedCost, 0)
+  const pageCredits = allRecords.reduce((s, r) => s + r.estimatedCost / 0.72, 0)
 
   return (
     <div className="min-h-screen bg-background">
@@ -141,7 +142,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {(pageCost / 0.72).toFixed(4)}
+                    {pageCredits.toFixed(4)}
                   </div>
                 </CardContent>
               </Card>

@@ -133,6 +133,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   useEffect(() => {
     if (prevTabRef.current !== null && prevTabRef.current !== 'credentials' && activeTab === 'credentials') {
       refetch()
+      queryClient.invalidateQueries({ queryKey: ['dailyUsage'] })
       const ids = (credentialsRef.current || []).filter(c => !c.disabled).map(c => c.id)
       if (ids.length === 0) {
         prevTabRef.current = activeTab

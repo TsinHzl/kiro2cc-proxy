@@ -388,6 +388,10 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     // agentContinuationId 基于 conversationId 派生，保持同一会话内稳定
     // 这样 Kiro 后端能识别连续请求，对历史消息做跨请求 prompt caching
     let agent_continuation_id = derive_agent_continuation_id(&conversation_id);
+    tracing::info!(
+        "[session] conversationId={} agentContinuationId={} (同一会话的连续请求这两个值应保持不变)",
+        conversation_id, agent_continuation_id
+    );
 
     // 4. 确定触发类型
     let chat_trigger_type = determine_chat_trigger_type(req);

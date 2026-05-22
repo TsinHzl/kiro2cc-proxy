@@ -788,8 +788,8 @@ async fn handle_non_stream_request(
                             if context_usage.context_usage_percentage >= 100.0 {
                                 stop_reason = "model_context_window_exceeded".to_string();
                             }
-                            tracing::debug!(
-                                "收到 contextUsageEvent: {}%, 计算 input_tokens: {}",
+                            tracing::info!(
+                                "[P0] contextUsageEvent: {:.2}% → input_tokens={} (200K窗口)",
                                 context_usage.context_usage_percentage,
                                 actual_input_tokens
                             );
@@ -832,6 +832,10 @@ async fn handle_non_stream_request(
     // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
     let raw_final_input_tokens = context_input_tokens.unwrap_or(input_tokens);
     let final_input_tokens = super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens);
+    tracing::info!(
+        "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
+        context_input_tokens, input_tokens, final_input_tokens
+    );
 
     // 对外报告的 output_tokens 限制在安全范围
     let reported_output_tokens = output_tokens.min(380);

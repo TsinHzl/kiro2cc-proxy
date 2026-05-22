@@ -845,6 +845,10 @@ async fn handle_non_stream_request(
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
+        tracing::info!(
+            "[usage] 入库: model={} input={} output={} metering_credits=None credits_per_ktok=None effective_rate=None cache_read=None cache_creation=None api_key={} credential=Some({})",
+            model, final_input_tokens, output_tokens, key_id, credential_id
+        );
         tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, None);
     }
 

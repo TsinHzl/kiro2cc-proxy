@@ -20,7 +20,7 @@ PAYLOAD=$(cat <<EOF
   "max_tokens": 64,
   "messages": [{"role": "user", "content": "Reply with exactly one word: pong"}],
   "metadata": {"user_id": "${USER_ID}"},
-  "stream": false
+  "stream": true
 }
 EOF
 )

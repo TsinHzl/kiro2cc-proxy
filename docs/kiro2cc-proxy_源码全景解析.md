@@ -729,6 +729,73 @@ R2 cache read tokens ≈ 417 / 822 = 51%
 
 **局限性**：Kiro 系统提示中未加 `cache_control` 标记的部分（约 49%）仍按全价计费，proxy 层无法干预。
 
+#### cch= 规范化 — 稳定 history[0] hash（v2.1.0）
+
+**问题根因**：Claude Code 在每条请求的 system prompt 第一行注入如下 header：
+
+```
+x-anthropic-billing-header: cc_version=2.1.128.138; cc_entrypoint=cli; cch=f90c2;
+```
+
+其中 `cch=` 是一个**每次请求都不同的计费哈希**，但长度固定（5 字符）。这导致 `history[0]` 的内容每次都变，Kiro 无法复用 KV cache，即使 `len` 不变，hash 也每次不同。
+
+**诊断过程**：在 `build_history()` 中加入 `[exp2] h0_diff` 日志，对比相邻两次请求的 `history[0]` 逐行差异，第一条 diff 日志立即定位到：
+
+```
+prev="...cch=f90c2;..."  cur="...cch=ed40f;..."
+```
+
+只有 `cch` 值不同，其余内容完全一致。
+
+**修复方案**：`normalize_billing_header()` 函数在构建 `history[0]` 时将 `cch=<任意值>` 替换为固定的 `cch=0`：
+
+```rust
+// file: src/anthropic/converter.rs — normalize_billing_header()
+fn normalize_billing_header(content: String) -> String {
+    const PREFIX: &str = "cch=";
+    let Some(cch_pos) = content.find(PREFIX) else {
+        return content;
+    };
+    let value_start = cch_pos + PREFIX.len();
+    let value_end = content[value_start..]
+        .find(|c: char| c == ';' || c == '\n')
+        .map(|i| value_start + i)
+        .unwrap_or(content.len());
+    let mut result = content;
+    result.replace_range(value_start..value_end, "0");
+    result
+}
+```
+
+`cch` 字段对 Kiro 后端无任何语义，固定为 `"0"` 不影响功能。
+
+**效果**：`history[0] hash` 从每次请求都不同，变为同一会话内完全稳定（实测 `hash=4e40dd51` 连续 20+ 次请求不变），`effective_rate` 从冷启动的 `0.0207` 下降至 `0.011~0.012`，降幅约 **47%**。
+
+#### 多凭据轮换时的缓存隔离与预热
+
+Kiro 的 prompt cache 是**按账号（credential）隔离**的。多凭据轮换使用时，每个 credential 需要独立预热一次：
+
+| 阶段 | 行为 |
+|---|---|
+| credential 首次被使用 | cache 冷启动，`effective_rate` 偏高（约 `0.013~0.015`） |
+| 同一 credential 第二次起 | cache 命中，`effective_rate` 降至 `0.011~0.012` |
+| 多 credential 轮换后再切回 | 各自 cache 独立保留，切回后直接命中，无需重新预热 |
+
+**实测数据（v2.1.0，claude-sonnet-4-6，双凭据轮换）**：
+
+```
+# credential=4（先使用，已预热）
+effective_rate: 0.0112 ~ 0.0127（低，cache 命中）
+
+# credential=2（首次切入，冷启动）
+effective_rate: 0.0131 ~ 0.0145（高，output 多时拉高整体费率）
+
+# credential=2（再次使用，已预热）
+effective_rate: 0.0119 ~ 0.0122（与 credential=4 持平）
+```
+
+**结论**：两个 credential 各自预热一次后，轮换使用不会有额外 cache 损耗。`effective_rate` 偏高的轮次通常对应 output token 较多（141~370 tokens），是 output 单价拉高了整体费率，不是 cache 未命中。
+
 ---
 
 ### KiroProvider — 上游 HTTP 客户端与故障转移引擎
@@ -1641,6 +1708,47 @@ fn derive_agent_continuation_id(conversation_id: &str) -> String {
 **实测验证**：受控实验（同 session 发两条相同请求）显示 R2 比 R1 便宜 45.1%（0.017537 → 0.009628 credits），约 51% 的 input tokens 命中 cache read（详见"Prompt Caching — Cache 命中验证方案"章节）。
 
 **副作用修复**：caching 生效后 `contextUsageEvent` 值合理低于本地估算，旧的 `cap_input_tokens` 有 `.max(local_estimate)` 下限兜底，会强制用本地估算覆盖 Kiro 数据，导致 input_tokens 虚高约 4 倍。同步移除该下限逻辑。
+
+---
+
+### 难点 6：history[0] hash 不稳定导致 cache 失效
+
+**难在哪里**：`history[0]` 的 `len` 每次请求完全相同（如 `26455`），但 hash 每次都变（`0838d7f3 → e3d454b7 → 3f003e57`），说明内容有细微差异，但肉眼看不出来。
+
+**诊断方法**：在 `build_history()` 中引入 `PREV_H0`（`OnceLock<Mutex<HashMap<String, String>>>`），按 `session_id` 存储上一轮的 `history[0]` 内容，每次请求时逐行对比并打印差异：
+
+```rust
+// file: src/anthropic/converter.rs — [exp2] h0_diff 日志块
+static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+// build_history() 末尾
+{
+    let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache.lock().unwrap();
+    if let Some(prev) = map.get(session_id) {
+        if prev != &final_content {
+            // 逐行对比，打印前 5 处差异及上下文
+        }
+    }
+    map.insert(session_id.to_string(), final_content.clone());
+}
+```
+
+**第一条 diff 日志立即定位根因**：
+
+```
+[exp2] h0_diff line=0
+  prev="...cch=f90c2;..."
+  cur ="...cch=ed40f;..."
+```
+
+只有 `cch=` 后面的 5 字符不同，其余内容完全一致。
+
+**根因**：Claude Code 在 system prompt 第一行注入 `x-anthropic-billing-header`，其中 `cch=` 是每次请求独立生成的计费哈希，长度固定但值不同。Kiro 对 `history[0]` 做内容哈希，`cch` 变化 → hash 变化 → cache miss。
+
+**修复**：`normalize_billing_header()` 在写入 `history[0]` 前将 `cch=<任意值>` 替换为 `cch=0`（详见"Prompt Caching — cch= 规范化"章节）。`cch` 对 Kiro 无语义，固定值不影响功能。
+
+**验证**：修复后 `history[0] hash=4e40dd51` 在整个会话内保持不变，`effective_rate` 下降约 47%。
 
 ---
 

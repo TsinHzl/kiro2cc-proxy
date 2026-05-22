@@ -14,6 +14,8 @@ pub struct MeteringEvent {
     #[serde(default)]
     pub unit_plural: String,
     pub usage: f64,
+    pub cache_read_input_tokens: Option<i32>,
+    pub cache_creation_input_tokens: Option<i32>,
 }
 
 impl EventPayload for MeteringEvent {

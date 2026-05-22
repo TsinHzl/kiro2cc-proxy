@@ -530,6 +530,10 @@ pub struct StreamContext {
     prompt_cache_usage: PromptCacheUsage,
     /// 从 meteringEvent 获取的真实 credits 消耗
     pub metering_usage: Option<f64>,
+    /// 从 meteringEvent 获取的 cache read tokens（Kiro 透传时有值）
+    metering_cache_read_tokens: Option<i32>,
+    /// 从 meteringEvent 获取的 cache creation tokens（Kiro 透传时有值）
+    metering_cache_creation_tokens: Option<i32>,
 }
 
 impl StreamContext {
@@ -560,6 +564,8 @@ impl StreamContext {
             client_ip: None,
             prompt_cache_usage: PromptCacheUsage::uncached(input_tokens),
             metering_usage: None,
+            metering_cache_read_tokens: None,
+            metering_cache_creation_tokens: None,
         }
     }
 
@@ -673,6 +679,8 @@ impl StreamContext {
             Event::Metering(metering) => {
                 let prev = self.metering_usage;
                 self.metering_usage = Some(metering.usage);
+                self.metering_cache_read_tokens = metering.cache_read_input_tokens;
+                self.metering_cache_creation_tokens = metering.cache_creation_input_tokens;
                 if let Some(prev_val) = prev {
                     tracing::warn!(
                         "[metering] 同一请求收到第2次 meteringEvent: new={} {} prev={} model={}",
@@ -680,8 +688,9 @@ impl StreamContext {
                     );
                 } else {
                     tracing::info!(
-                        "[metering] meteringEvent: usage={} {} model={}",
-                        metering.usage, metering.unit_plural, self.model
+                        "[metering] meteringEvent: usage={} {} model={} cache_read={:?} cache_creation={:?}",
+                        metering.usage, metering.unit_plural, self.model,
+                        metering.cache_read_input_tokens, metering.cache_creation_input_tokens
                     );
                 }
                 Vec::new()
@@ -1206,9 +1215,16 @@ impl StreamContext {
             let credits_per_ktok = self.metering_usage.map(|c| {
                 if final_input_tokens > 0 { c / (final_input_tokens as f64) * 1000.0 } else { 0.0 }
             });
+            let effective_rate = self.metering_usage.map(|c| {
+                let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
+                if denom > 0.0 { c / denom * 1000.0 } else { 0.0 }
+            });
             tracing::info!(
-                "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} api_key={} credential={:?}",
-                self.model, final_input_tokens, self.output_tokens, self.metering_usage, credits_per_ktok, key_id, self.credential_id
+                "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
+                self.model, final_input_tokens, self.output_tokens, self.metering_usage,
+                credits_per_ktok, effective_rate,
+                self.metering_cache_read_tokens, self.metering_cache_creation_tokens,
+                key_id, self.credential_id
             );
             tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone(), self.metering_usage);
         }

@@ -682,8 +682,8 @@ fn create_sse_stream(
     initial_stream.chain(processing_stream)
 }
 
-/// 上下文窗口大小（1M tokens）
-const CONTEXT_WINDOW_SIZE: i32 = 1_000_000;
+/// 上下文窗口大小（200K tokens）
+const CONTEXT_WINDOW_SIZE: i32 = 200_000;
 
 /// 处理非流式请求
 async fn handle_non_stream_request(
@@ -778,7 +778,7 @@ async fn handle_non_stream_request(
                         }
                         Event::ContextUsage(context_usage) => {
                             // 从上下文使用百分比计算实际的 input_tokens
-                            // 公式: percentage * 200000 / 100 = percentage * 2000
+                            // 公式: percentage * 200_000 / 100 = percentage * 2000
                             let actual_input_tokens = (context_usage.context_usage_percentage
                                 * (CONTEXT_WINDOW_SIZE as f64)
                                 / 100.0)

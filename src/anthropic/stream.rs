@@ -468,9 +468,6 @@ impl SseStateManager {
 /// 上下文窗口大小（200K tokens）
 const CONTEXT_WINDOW_SIZE: i32 = 200_000;
 
-/// input_tokens 上报的最大合理倍率（相对于本地估算值）
-const INPUT_TOKENS_MAX_MULTIPLIER: f64 = 1.15;
-
 /// input_tokens 上报的最大绝对上限
 const INPUT_TOKENS_ABSOLUTE_CAP: i32 = 200_000;
 
@@ -480,15 +477,10 @@ const INPUT_TOKENS_ABSOLUTE_CAP: i32 = 200_000;
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 
-fn cap_input_tokens(context_input_tokens: i32, local_estimate: i32) -> i32 {
-    if local_estimate <= 0 {
-        return context_input_tokens.min(INPUT_TOKENS_ABSOLUTE_CAP);
-    }
-    let multiplier_cap = ((local_estimate as f64) * INPUT_TOKENS_MAX_MULTIPLIER) as i32;
-    context_input_tokens
-        .min(multiplier_cap)
-        .min(INPUT_TOKENS_ABSOLUTE_CAP)
-        .max(local_estimate)
+fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32) -> i32 {
+    // context_input_tokens 来自 Kiro 的 contextUsageEvent（有值时）或本地估算（无值时，由调用方 unwrap_or 传入）
+    // 只截绝对上限，不做下限兜底：Kiro 数据在 prompt caching 生效后会远低于本地估算，这是正常现象
+    context_input_tokens.min(INPUT_TOKENS_ABSOLUTE_CAP).max(1)
 }
 
 pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32) -> i32 {
@@ -671,8 +663,8 @@ impl StreamContext {
                     self.state_manager
                         .set_stop_reason("model_context_window_exceeded");
                 }
-                tracing::debug!(
-                    "收到 contextUsageEvent: {}%, 计算 input_tokens: {}",
+                tracing::info!(
+                    "[P0] contextUsageEvent: {:.2}% → input_tokens={} (200K窗口)",
                     context_usage.context_usage_percentage,
                     actual_input_tokens
                 );
@@ -1192,6 +1184,10 @@ impl StreamContext {
         // 约束到合理范围，避免 Kiro 后端的系统提示导致值远超预期
         let raw_final_input_tokens = self.context_input_tokens.unwrap_or(self.input_tokens);
         let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.input_tokens);
+        tracing::info!(
+            "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
+            self.context_input_tokens, self.input_tokens, final_input_tokens
+        );
 
         // 对外报告的 output_tokens 需要限制在合理范围
         let reported_output_tokens = self.output_tokens.min(OUTPUT_TOKENS_REPORT_CAP);

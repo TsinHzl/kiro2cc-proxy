@@ -79,6 +79,7 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
 {
   "conversationState": {
     "conversationId": "8bb5523b-ec7c-4540-a9ca-beb6d79f1552",
+    "agentContinuationId": "3f7a2b1c-d4e5-6f78-9a0b-1c2d3e4f5a6b",
     "agentTaskType": "vibe",
     "chatTriggerType": "MANUAL",
     "history": [
@@ -112,6 +113,7 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
 3. `messages` 数组 → 拆分成 `history`（历史）+ `currentMessage`（最后一条）
 4. 顶层 `Authorization` 的 Bearer → 换成 Kiro 的 access_token
 5. 加上 Kiro IDE 特有的 Header（`x-amzn-kiro-agent-mode`、`x-amz-user-agent` 等）
+6. `agentContinuationId` 由 `conversationId` SHA-256 派生（稳定值），让 Kiro 后端识别同一会话的连续请求，启用跨请求 prompt caching
 
 ### 3. 完整响应变换过程
 
@@ -653,6 +655,20 @@ POST /api/admin/settings/load-balancing-mode
 
 ---
 
+### Prompt Caching — 跨请求 KV Cache
+
+**大白话**：就像老师批改作业，第一次要从头读题目，第二次只需看新增的答案——历史消息已经"记住"了，不用重新处理。
+
+**实现原理**：
+- `conversationId` 从 `metadata.user_id` 的 `session_UUID` 提取，同一 CC 会话内稳定
+- `agentContinuationId = SHA-256("agent-continuation:" + conversationId)` 前16字节格式化为 UUID
+- Kiro 后端检测到相同 `agentContinuationId` → 复用历史消息的 KV cache
+- `contextUsageEvent` 上报的百分比反映实际 context 占用（含 cache 命中后的折扣）
+
+**无 metadata 时的降级**：`conversationId` 随机生成，`agentContinuationId` 也随机，每次请求对 Kiro 来说是全新会话，prompt caching 不生效。
+
+---
+
 ### KiroProvider — 上游 HTTP 客户端与故障转移引擎
 
 **大白话**：就像你有多张信用卡，刷第一张被拒了立刻换第二张；配额用完的卡扔一边不再用。
@@ -816,9 +832,11 @@ history[1] = {"assistantResponseMessage": {"content": "I will follow these instr
   Kiro frame → 先缓冲到内存
   ...等待...
   Kiro contextUsageEvent {conversationContextPercentage: 5.2}
-  → input_tokens = 5.2% × 200000 = 10400（精确！）
+  → input_tokens = 5.2% × 200000 = 10400（来自 Kiro 的精确值）
   → 把所有缓冲的 SSE 事件重新发出，usage 字段用精确值
 ```
+
+**注意**：prompt caching 生效后，`contextUsageEvent` 上报的百分比会远低于本地估算（历史消息被 Kiro 缓存，不重复计入 context 占用）。`cap_input_tokens` 只做绝对上限截断（200K），不再强制下限兜底，避免用本地估算覆盖 Kiro 的真实数据。
 
 **为什么 Claude Code 需要精确 input_tokens**：Claude Code 根据 input_tokens 判断 context 窗口是否快满了，误差过大会导致它提前"压缩上下文"或错误告警。
 
@@ -1178,7 +1196,10 @@ ConversationState
 │     固定值 "MANUAL"，表示用户手动触发
 │
 ├── agent_continuation_id: Option<String>
-│     代理延续 ID，当前版本不使用（None）
+│     ★ 跨请求 prompt caching 的关键字段
+│     由 SHA-256("agent-continuation:" + conversationId) 前16字节格式化为 UUID
+│     同一 conversationId 始终产生相同值，让 Kiro 后端识别连续请求并复用 KV cache
+│     无 metadata 时 conversationId 随机，agentContinuationId 也随机（无法 caching）
 │
 ├── current_message: CurrentMessage
 │     当前用户消息（见 2.3）
@@ -1529,6 +1550,33 @@ anyOf/oneOf/allOf → 直接删除（Kiro 不支持组合 schema）
 "properties": null → "properties": {}
 保留字段白名单：type/properties/required/items/additionalProperties/description/enum
 ```
+
+### 难点 5：跨请求 Prompt Caching
+
+**难在哪里**：Kiro 后端支持对历史消息做 KV cache（类似 Anthropic 的 prompt caching），但前提是同一会话的连续请求必须携带相同的 `agentContinuationId`。原实现每次请求生成随机 UUID，Kiro 无法识别连续性，每次都全量重算，caching 完全失效。
+
+**根因**：`agentContinuationId` 之前用 `Uuid::new_v4()` 生成，每次请求不同。
+
+**修复方案**：用 `conversationId` 的 SHA-256 哈希前16字节派生稳定值：
+
+```rust
+// file: src/anthropic/converter.rs:303 — derive_agent_continuation_id()
+fn derive_agent_continuation_id(conversation_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"agent-continuation:");
+    hasher.update(conversation_id.as_bytes());
+    let result = hasher.finalize();
+    // 取前16字节格式化为 UUID 形式，同一 conversationId 始终产生相同值
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        result[0], result[1], result[2], result[3], ...
+    )
+}
+```
+
+**效果**：同一 Claude Code 会话（相同 `session_UUID`）的所有请求，`agentContinuationId` 始终相同，Kiro 后端识别后对历史消息做 KV cache，`contextUsageEvent` 上报的百分比显著低于本地估算（约 22~30%），实际 input_tokens 大幅减少。
+
+**副作用修复**：caching 生效后 `contextUsageEvent` 值合理低于本地估算，旧的 `cap_input_tokens` 有 `.max(local_estimate)` 下限兜底，会强制用本地估算覆盖 Kiro 数据，导致 input_tokens 虚高约 4 倍。同步移除该下限逻辑。
 
 ---
 

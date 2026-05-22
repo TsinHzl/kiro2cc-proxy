@@ -686,6 +686,15 @@ impl StreamContext {
                 }
                 Vec::new()
             }
+            Event::CodeReference(code_ref) => {
+                for r in &code_ref.references {
+                    tracing::debug!(
+                        "[code_reference] license={} repo={} url={}",
+                        r.license_name, r.repository, r.url
+                    );
+                }
+                Vec::new()
+            }
             Event::Error {
                 error_code,
                 error_message,
@@ -1194,9 +1203,12 @@ impl StreamContext {
 
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
+            let credits_per_ktok = self.metering_usage.map(|c| {
+                if final_input_tokens > 0 { c / (final_input_tokens as f64) * 1000.0 } else { 0.0 }
+            });
             tracing::info!(
-                "[usage] 入库: model={} input={} output={} metering_credits={:?} api_key={} credential={:?}",
-                self.model, final_input_tokens, self.output_tokens, self.metering_usage, key_id, self.credential_id
+                "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} api_key={} credential={:?}",
+                self.model, final_input_tokens, self.output_tokens, self.metering_usage, credits_per_ktok, key_id, self.credential_id
             );
             tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone(), self.metering_usage);
         }

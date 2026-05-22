@@ -4,12 +4,14 @@
 
 mod assistant;
 mod base;
+mod code_reference;
 mod context_usage;
 mod metering;
 mod tool_use;
 
 pub use assistant::AssistantResponseEvent;
 pub use base::Event;
+pub use code_reference::CodeReferenceEvent;
 pub use context_usage::ContextUsageEvent;
 pub use metering::MeteringEvent;
 pub use tool_use::ToolUseEvent;

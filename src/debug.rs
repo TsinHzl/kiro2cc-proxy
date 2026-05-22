@@ -145,6 +145,12 @@ pub fn print_event_verbose(event: &Event) {
             println!("\n[事件] ContextUsage");
             println!("  context_usage_percentage: {}", e.context_usage_percentage);
         }
+        Event::CodeReference(e) => {
+            println!("\n[事件] CodeReference");
+            for r in &e.references {
+                println!("  license={} repo={} url={}", r.license_name, r.repository, r.url);
+            }
+        }
         Event::Unknown { event_type, payload } => {
             println!("\n[事件] Unknown");
             println!("  event_type: {:?}", event_type);

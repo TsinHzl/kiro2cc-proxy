@@ -160,11 +160,29 @@ impl KiroProvider {
             .map(|s| s.to_string())
     }
 
+    /// 从请求体中提取 agentTaskType
+    ///
+    /// 提取 conversationState.agentTaskType，用于设置 x-amzn-kiro-agent-mode 请求头
+    fn extract_agent_task_type_from_request(request_body: &str) -> &'static str {
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(request_body) else {
+            return "vibe";
+        };
+        match json
+            .get("conversationState")
+            .and_then(|s| s.get("agentTaskType"))
+            .and_then(|v| v.as_str())
+        {
+            Some("spectask") => "spectask",
+            _ => "vibe",
+        }
+    }
+
     /// 构建请求头
     ///
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含凭据和 token
-    fn build_headers(&self, ctx: &CallContext) -> anyhow::Result<HeaderMap> {
+    /// * `request_body` - 请求体，用于提取 agentTaskType
+    fn build_headers(&self, ctx: &CallContext, request_body: &str) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
@@ -181,6 +199,8 @@ impl KiroProvider {
             os_name, node_version, kiro_version, machine_id
         );
 
+        let agent_mode = Self::extract_agent_task_type_from_request(request_body);
+
         let mut headers = HeaderMap::new();
 
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -188,7 +208,7 @@ impl KiroProvider {
             "x-amzn-codewhisperer-optout",
             HeaderValue::from_static("true"),
         );
-        headers.insert("x-amzn-kiro-agent-mode", HeaderValue::from_static("vibe"));
+        headers.insert("x-amzn-kiro-agent-mode", HeaderValue::from_static(agent_mode));
         headers.insert(
             "x-amz-user-agent",
             HeaderValue::from_str(&x_amz_user_agent).unwrap(),
@@ -477,7 +497,7 @@ impl KiroProvider {
             };
 
             let url = self.base_url_for(&ctx.credentials);
-            let headers = match self.build_headers(&ctx) {
+            let headers = match self.build_headers(&ctx, request_body) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -749,7 +769,7 @@ mod tests {
             credentials,
             token: "test_token".to_string(),
         };
-        let headers = provider.build_headers(&ctx).unwrap();
+        let headers = provider.build_headers(&ctx, "{}").unwrap();
 
         assert_eq!(headers.get(CONTENT_TYPE).unwrap(), "application/json");
         assert_eq!(headers.get("x-amzn-codewhisperer-optout").unwrap(), "true");
@@ -782,5 +802,44 @@ mod tests {
     fn test_is_monthly_request_limit_false() {
         let body = r#"{"message":"nope","reason":"DAILY_REQUEST_COUNT"}"#;
         assert!(!KiroProvider::is_monthly_request_limit(body));
+    }
+
+    #[test]
+    fn test_extract_agent_task_type_vibe_default() {
+        assert_eq!(KiroProvider::extract_agent_task_type_from_request("{}"), "vibe");
+        assert_eq!(KiroProvider::extract_agent_task_type_from_request("invalid json"), "vibe");
+    }
+
+    #[test]
+    fn test_extract_agent_task_type_spectask() {
+        let body = r#"{"conversationState":{"agentTaskType":"spectask","conversationId":"abc"}}"#;
+        assert_eq!(KiroProvider::extract_agent_task_type_from_request(body), "spectask");
+    }
+
+    #[test]
+    fn test_extract_agent_task_type_vibe_explicit() {
+        let body = r#"{"conversationState":{"agentTaskType":"vibe","conversationId":"abc"}}"#;
+        assert_eq!(KiroProvider::extract_agent_task_type_from_request(body), "vibe");
+    }
+
+    #[test]
+    fn test_build_headers_spectask_mode() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        config.kiro_version = "0.8.0".to_string();
+
+        let mut credentials = KiroCredentials::default();
+        credentials.profile_arn = Some("arn:aws:sso::123456789:profile/test".to_string());
+        credentials.refresh_token = Some("a".repeat(150));
+
+        let provider = create_test_provider(config, credentials.clone());
+        let ctx = CallContext {
+            id: 1,
+            credentials,
+            token: "test_token".to_string(),
+        };
+        let spectask_body = r#"{"conversationState":{"agentTaskType":"spectask"}}"#;
+        let headers = provider.build_headers(&ctx, spectask_body).unwrap();
+        assert_eq!(headers.get("x-amzn-kiro-agent-mode").unwrap(), "spectask");
     }
 }

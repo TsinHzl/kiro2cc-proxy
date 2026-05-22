@@ -2275,6 +2275,10 @@ mod tests {
         let result2 = convert_request(&make_req()).unwrap();
 
         assert_ne!(
+            result1.conversation_state.conversation_id,
+            result2.conversation_state.conversation_id,
+        );
+        assert_ne!(
             result1.conversation_state.agent_continuation_id,
             result2.conversation_state.agent_continuation_id,
             "无 metadata 时 agentContinuationId 应该随机（每次不同）"

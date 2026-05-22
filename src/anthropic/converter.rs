@@ -3,6 +3,7 @@
 //! 负责将 Anthropic API 请求格式转换为 Kiro API 请求格式
 
 use base64::Engine;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::kiro::model::requests::conversation::{
@@ -294,6 +295,26 @@ fn extract_session_id(user_id: &str) -> Option<String> {
     None
 }
 
+/// 从 conversationId 派生稳定的 agentContinuationId
+///
+/// 使用 conversationId 的 SHA-256 哈希前 16 字节，格式化为 UUID 形式。
+/// 同一 conversationId 始终产生相同的 agentContinuationId，
+/// 让 Kiro 后端能识别同一会话的连续请求，启用跨请求 prompt caching。
+fn derive_agent_continuation_id(conversation_id: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"agent-continuation:");
+    hasher.update(conversation_id.as_bytes());
+    let result = hasher.finalize();
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        result[0], result[1], result[2], result[3],
+        result[4], result[5],
+        result[6], result[7],
+        result[8], result[9],
+        result[10], result[11], result[12], result[13], result[14], result[15]
+    )
+}
+
 /// 收集历史消息中使用的所有工具名称
 fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
     let mut tool_names = Vec::new();
@@ -364,7 +385,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         .and_then(|m| m.user_id.as_ref())
         .and_then(|user_id| extract_session_id(user_id))
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    let agent_continuation_id = Uuid::new_v4().to_string();
+    // agentContinuationId 基于 conversationId 派生，保持同一会话内稳定
+    // 这样 Kiro 后端能识别连续请求，对历史消息做跨请求 prompt caching
+    let agent_continuation_id = derive_agent_continuation_id(&conversation_id);
 
     // 4. 确定触发类型
     let chat_trigger_type = determine_chat_trigger_type(req);
@@ -2145,5 +2168,116 @@ mod tests {
             }
         }
         assert!(found_tool_use, "合并后的 assistant 消息应包含 tool_use");
+    }
+
+    #[test]
+    fn test_agent_continuation_id_stable_within_session() {
+        use super::super::types::{Message as AnthropicMessage, Metadata};
+
+        let session_uuid = "a0662283-7fd3-4399-a7eb-52b9a717ae88";
+        let user_id = format!(
+            "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_{}",
+            session_uuid
+        );
+
+        let make_req = || MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: Some(Metadata {
+                user_id: Some(user_id.clone()),
+            }),
+        };
+
+        let result1 = convert_request(&make_req()).unwrap();
+        let result2 = convert_request(&make_req()).unwrap();
+
+        assert_eq!(
+            result1.conversation_state.agent_continuation_id,
+            result2.conversation_state.agent_continuation_id,
+            "同一 session 的 agentContinuationId 应该稳定"
+        );
+
+        assert_eq!(
+            result1.conversation_state.conversation_id,
+            result2.conversation_state.conversation_id,
+        );
+    }
+
+    #[test]
+    fn test_agent_continuation_id_differs_across_sessions() {
+        use super::super::types::{Message as AnthropicMessage, Metadata};
+
+        let make_req = |session_uuid: &str| {
+            let user_id = format!(
+                "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_{}",
+                session_uuid
+            );
+            MessagesRequest {
+                model: "claude-sonnet-4".to_string(),
+                max_tokens: 1024,
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: None,
+                tools: None,
+                tool_choice: None,
+                thinking: None,
+                output_config: None,
+                metadata: Some(Metadata {
+                    user_id: Some(user_id),
+                }),
+            }
+        };
+
+        let result1 = convert_request(&make_req("a0662283-7fd3-4399-a7eb-52b9a717ae88")).unwrap();
+        let result2 = convert_request(&make_req("b1773394-8ge4-4400-b8fc-63c0b828bf99")).unwrap();
+
+        assert_ne!(
+            result1.conversation_state.agent_continuation_id,
+            result2.conversation_state.agent_continuation_id,
+            "不同 session 的 agentContinuationId 应该不同"
+        );
+    }
+
+    #[test]
+    fn test_agent_continuation_id_random_when_no_metadata() {
+        use super::super::types::Message as AnthropicMessage;
+
+        let make_req = || MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        };
+
+        let result1 = convert_request(&make_req()).unwrap();
+        let result2 = convert_request(&make_req()).unwrap();
+
+        assert_ne!(
+            result1.conversation_state.agent_continuation_id,
+            result2.conversation_state.agent_continuation_id,
+            "无 metadata 时 agentContinuationId 应该随机（每次不同）"
+        );
     }
 }

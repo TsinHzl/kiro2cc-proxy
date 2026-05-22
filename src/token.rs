@@ -5,7 +5,7 @@
 //! # 计算规则
 //! - 非西文字符：每个计 4.5 个字符单位
 //! - 西文字符：每个计 1 个字符单位
-//! - 4 个字符单位 = 1 token（四舍五入）
+//! - 4 个字符单位 = 1 token（向上取整）
 
 use crate::anthropic::types::{
     CountTokensRequest, CountTokensResponse, Message, SystemMessage, Tool,
@@ -74,7 +74,7 @@ fn is_non_western_char(c: char) -> bool {
 /// # 计算规则
 /// - 非西文字符：每个计 4.5 个字符单位
 /// - 西文字符：每个计 1 个字符单位
-/// - 4 个字符单位 = 1 token（四舍五入）
+/// - 4 个字符单位 = 1 token（向上取整）
 /// ```
 pub fn count_tokens(text: &str) -> u64 {
     // println!("text: {}", text);
@@ -84,22 +84,8 @@ pub fn count_tokens(text: &str) -> u64 {
         .map(|c| if is_non_western_char(c) { 4.0 } else { 1.0 })
         .sum();
 
-    let tokens = char_units / 4.0;
-
-    let acc_token = if tokens < 100.0 {
-        tokens * 1.5
-    } else if tokens < 200.0 {
-        tokens * 1.3
-    } else if tokens < 300.0 {
-        tokens * 1.25
-    } else if tokens < 800.0 {
-        tokens * 1.2
-    } else {
-        tokens * 1.0
-    } as u64;
-
-    // println!("tokens: {}, acc_tokens: {}", tokens, acc_token);
-    acc_token
+    // 4 个字符单位 = 1 token，向上取整，最少 1 token
+    ((char_units / 4.0).ceil() as u64).max(1)
 }
 
 /// 估算请求的输入 tokens
@@ -222,6 +208,47 @@ fn count_all_tokens_local(
     }
 
     total.max(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_count_tokens_no_inflation() {
+        // 短文本（< 100 tokens 区间）不应该有膨胀系数
+        // "Hello world" 约 3 个 token（11 chars / 4 = 2.75，向上取整 = 3）
+        // "Hello world" = 11 chars, 11 / 4.0 = 2.75, ceil = 3
+        assert_eq!(count_tokens("Hello world"), 3, "11 chars should be 3 tokens");
+    }
+
+    #[test]
+    fn test_count_tokens_medium_text_no_inflation() {
+        // 中等长度文本（100-800 tokens 区间）
+        let text = "a".repeat(400); // 400 chars = 100 tokens
+        let result = count_tokens(&text);
+        // 400 chars / 4.0 = 100.0, ceil = 100
+        assert_eq!(result, 100, "400 chars should be exactly 100 tokens");
+    }
+
+    #[test]
+    fn test_count_tokens_large_text_no_inflation() {
+        // 大文本（>= 800 tokens）原本就没有膨胀，修复后应保持一致
+        let text = "a".repeat(4000); // 4000 chars = 1000 tokens
+        let result = count_tokens(&text);
+        // 4000 chars / 4.0 = 1000.0, ceil = 1000
+        assert_eq!(result, 1000, "4000 chars should be exactly 1000 tokens");
+    }
+
+    #[test]
+    fn test_count_tokens_chinese_no_inflation() {
+        // 中文字符：每个计 4.0 字符单位，4 单位 = 1 token
+        // 4 个中文字符 = 4 * 4.0 / 4 = 4 tokens
+        let text = "你好世界"; // 4 个中文字符
+        let result = count_tokens(text);
+        // 4 Chinese chars × 4.0 units = 16.0 / 4.0 = 4.0, ceil = 4
+        assert_eq!(result, 4, "4 Chinese chars should be exactly 4 tokens");
+    }
 }
 
 /// 估算输出 tokens

@@ -697,6 +697,22 @@ effective_rate = metering_credits / (input_tokens + 5 × output_tokens) × 1000
 | effective_rate | 0.021078 | 0.011573 |
 | agentContinuationId | 27c06e4c | 27c06e4c（相同）|
 
+原始日志（session 62c79ff4，`curl/8.7.1`）：
+
+```
+# R1
+2026-05-22T08:28:33 [session] conversationId=62c79ff4-bde5-4b8f-a6a9-997af965a804 agentContinuationId=27c06e4c-9996-a0e1-b956-3b37ffade646
+2026-05-22T08:28:35 [P0] contextUsageEvent: 0.41% → input_tokens=822 (200K窗口)
+2026-05-22T08:28:35 [metering] meteringEvent: usage=0.01753706144278607 credits model=claude-sonnet-4-6 cache_read=None cache_creation=None
+2026-05-22T08:28:35 [usage] 入库: model=claude-sonnet-4-6 input=822 output=2 metering_credits=Some(0.01753706144278607) credits_per_ktok=Some(0.021334624626260425) effective_rate=Some(0.021078198849502492) cache_read=None cache_creation=None api_key=2 credential=Some(4)
+
+# R2（紧接 R1，相同内容）
+2026-05-22T08:28:36 [session] conversationId=62c79ff4-bde5-4b8f-a6a9-997af965a804 agentContinuationId=27c06e4c-9996-a0e1-b956-3b37ffade646
+2026-05-22T08:28:38 [P0] contextUsageEvent: 0.41% → input_tokens=822 (200K窗口)
+2026-05-22T08:28:38 [metering] meteringEvent: usage=0.00962840472636816 credits model=claude-sonnet-4-6 cache_read=None cache_creation=None
+2026-05-22T08:28:38 [usage] 入库: model=claude-sonnet-4-6 input=822 output=2 metering_credits=Some(0.00962840472636816) credits_per_ktok=Some(0.01171338774497343) effective_rate=Some(0.011572601834577116) cache_read=None cache_creation=None api_key=2 credential=Some(4)
+```
+
 R1 与无缓存理论值完全吻合（k=7.026），用于标定 k 值：
 
 ```

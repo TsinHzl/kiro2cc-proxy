@@ -1172,7 +1172,18 @@ fn build_history(
 
         if !system_content.is_empty() {
             // 只将静态部分放入 history[0]，动态部分（gitStatus、currentDate）已前置到 currentMessage
-            let (static_part, _) = split_system_content(&system_content);
+            let (static_part, dynamic_part) = split_system_content(&system_content);
+            let section_heads: Vec<String> = system_content
+                .lines()
+                .filter(|l| l.starts_with("# "))
+                .map(|l| l[..l.len().min(40)].to_string())
+                .collect();
+            tracing::info!(
+                "[exp2] split: static_len={} dynamic_len={} sections={:?}",
+                static_part.len(),
+                dynamic_part.len(),
+                section_heads
+            );
             let static_content = format!("{}\n{}", static_part, SYSTEM_CHUNKED_POLICY);
 
             // 注入thinking标签到系统消息最前面（如果需要且不存在）

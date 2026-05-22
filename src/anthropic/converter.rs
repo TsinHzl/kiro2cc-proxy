@@ -206,24 +206,23 @@ Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
 
 static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
-static SESSION_CCH: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 
-/// 将系统提示词中 `x-anthropic-billing-header` 行的 `cch=<value>` 替换为指定值。
-/// 返回 (规范化后的内容, 原始 cch 值)。若未找到 cch 字段则原样返回。
-fn normalize_billing_header(content: String, canonical: &str) -> (String, Option<String>) {
+/// 将系统提示词中 `x-anthropic-billing-header` 行的 `cch=<value>` 替换为固定值 `0`。
+/// cch 是 Claude Code 每轮注入的计费哈希，对 Kiro 无意义，固定后 history[0] 跨请求稳定，
+/// 使 Kiro 能命中 prompt cache。
+fn normalize_billing_header(content: String) -> String {
     const PREFIX: &str = "cch=";
     let Some(cch_pos) = content.find(PREFIX) else {
-        return (content, None);
+        return content;
     };
     let value_start = cch_pos + PREFIX.len();
     let value_end = content[value_start..]
         .find(|c: char| c == ';' || c == '\n')
         .map(|i| value_start + i)
         .unwrap_or(content.len());
-    let original = content[value_start..value_end].to_string();
     let mut result = content;
-    result.replace_range(value_start..value_end, canonical);
-    (result, Some(original))
+    result.replace_range(value_start..value_end, "0");
+    result
 }
 
 /// Claude Code 每轮请求都会更新的动态 section 名称，需从 history[0] 剥离
@@ -1221,33 +1220,8 @@ fn build_history(
                 static_content
             };
 
-            // 规范化 x-anthropic-billing-header 中的 cch= 字段：
-            // 同一 session 始终使用第一轮的 cch 值，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
-            let (final_content, original_cch) = {
-                let cch_cache = SESSION_CCH.get_or_init(|| Mutex::new(HashMap::new()));
-                let mut cch_map = cch_cache.lock().unwrap();
-                let canonical = cch_map
-                    .entry(session_id.to_string())
-                    .or_insert_with(|| {
-                        // 首次：提取当前 cch 值作为该 session 的固定值
-                        const PREFIX: &str = "cch=";
-                        if let Some(pos) = final_content.find(PREFIX) {
-                            let start = pos + PREFIX.len();
-                            let end = final_content[start..]
-                                .find(|c: char| c == ';' || c == '\n')
-                                .map(|i| start + i)
-                                .unwrap_or(final_content.len());
-                            final_content[start..end].to_string()
-                        } else {
-                            String::new()
-                        }
-                    })
-                    .clone();
-                normalize_billing_header(final_content, &canonical)
-            };
-            if let Some(ref cch) = original_cch {
-                tracing::info!("[billing] cch={}", cch);
-            }
+            // 将 cch= 固定为 0，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
+            let final_content = normalize_billing_header(final_content);
 
             // 打印 history[0] 内容的 hash，用于验证跨请求稳定性
             let h0_hash = {

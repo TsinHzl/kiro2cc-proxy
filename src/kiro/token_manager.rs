@@ -786,6 +786,14 @@ impl MultiTokenManager {
             return None;
         }
 
+        // 优先选择健康状态不为 Unhealthy 的凭据；全部不健康时才 fallback 避免完全不可用
+        let preferred: Vec<_> = available
+            .iter()
+            .filter(|e| Self::compute_health(e) != HealthStatus::Unhealthy)
+            .copied()
+            .collect();
+        let pool: &[&CredentialEntry] = if preferred.is_empty() { &available } else { &preferred };
+
         let mode = self.load_balancing_mode.lock().clone();
         let mode = mode.as_str();
 
@@ -793,14 +801,13 @@ impl MultiTokenManager {
             "balanced" => {
                 // Round-Robin 策略：均匀轮转所有可用凭据
                 let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
-                let entry = &available[idx % available.len()];
-
+                let entry = &pool[idx % pool.len()];
                 Some((entry.id, entry.credentials.clone()))
             }
             _ => {
                 // priority 模式（默认）：选择优先级最高的，同优先级时 round-robin
-                let min_priority = available.iter().map(|e| e.credentials.priority).min()?;
-                let top_tier: Vec<_> = available
+                let min_priority = pool.iter().map(|e| e.credentials.priority).min()?;
+                let top_tier: Vec<_> = pool
                     .iter()
                     .filter(|e| e.credentials.priority == min_priority)
                     .collect();
@@ -850,7 +857,7 @@ impl MultiTokenManager {
                     let current_id = *self.current_id.lock();
                     entries
                         .iter()
-                        .find(|e| e.id == current_id && !e.disabled)
+                        .find(|e| e.id == current_id && !e.disabled && Self::compute_health(e) != HealthStatus::Unhealthy)
                         .map(|e| (e.id, e.credentials.clone()))
                 };
 

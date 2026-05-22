@@ -1238,7 +1238,7 @@ fn build_history(
             // diff：与上一轮 history[0] 对比，找出变化的行
             {
                 let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
-                let mut map = cache.lock().unwrap();
+                let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(prev) = map.get(session_id) {
                     if prev != &final_content {
                         let prev_lines: Vec<&str> = prev.lines().collect();
@@ -1250,7 +1250,7 @@ fn build_history(
                             let cl = cur_lines.get(i).copied().unwrap_or("");
                             if pl != cl {
                                 let ctx_start = i.saturating_sub(3);
-                                let ctx_end = (i + 4).min(max);
+                                let ctx_end = (i + 4).min(cur_lines.len());
                                 tracing::info!(
                                     "[exp2] h0_diff line={} prev={:?} cur={:?} context={:?}",
                                     i,

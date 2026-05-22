@@ -667,6 +667,52 @@ POST /api/admin/settings/load-balancing-mode
 
 **无 metadata 时的降级**：`conversationId` 随机生成，`agentContinuationId` 也随机，每次请求对 Kiro 来说是全新会话，prompt caching 不生效。
 
+#### Cache 命中验证方案
+
+Kiro 的 `meteringEvent` 不透传 `cache_read_input_tokens` / `cache_creation_input_tokens`，无法直接观测。proxy 采用以下方法间接验证：
+
+**指标：`effective_rate`**
+
+```
+effective_rate = metering_credits / (input_tokens + 5 × output_tokens) × 1000
+```
+
+`5` 是 Sonnet 4.6 output/input 定价比（$15/$3），消除 output token 比例对费率的干扰。若 cache 命中，`effective_rate` 会低于无缓存基准值。该指标已记录在 `[usage] 入库` 日志中。
+
+**受控实验方法**
+
+使用 `scripts/test-cache-effectiveness.sh` 在同一 session 内发两条内容完全相同的请求（R1 冷启动、R2 复用缓存），对比 `effective_rate`：
+
+```bash
+./scripts/test-cache-effectiveness.sh https://<proxy_url> <api_key>
+```
+
+**实测数据（2026-05-22，v2.0.6，claude-sonnet-4-6）**
+
+| | R1（冷启动） | R2（同 session） |
+|--|------------|----------------|
+| input tokens | 822 | 822 |
+| output tokens | 2 | 2 |
+| metering_credits | 0.017537 | 0.009628 |
+| effective_rate | 0.021078 | 0.011573 |
+| agentContinuationId | 27c06e4c | 27c06e4c（相同）|
+
+R1 与无缓存理论值完全吻合（k=7.026），用于标定 k 值：
+
+```
+k = 0.017537 / ((822×$3 + 2×$15) / 1,000,000) = 7.026
+```
+
+R2 比 R1 便宜 **45.1%**，反推 cache read 比例：
+
+```
+R2 cache read tokens ≈ 417 / 822 = 51%
+```
+
+**结论**：prompt cache 确认生效。R1 建立缓存，R2 命中缓存，节省约 45% credits。`[metering]` 日志中 `cache_read=None` 只是 Kiro 未透传字段，不代表缓存未命中——实际计费数据已证明缓存在工作。
+
+**局限性**：Kiro 系统提示中未加 `cache_control` 标记的部分（约 49%）仍按全价计费，proxy 层无法干预。
+
 ---
 
 ### KiroProvider — 上游 HTTP 客户端与故障转移引擎
@@ -1575,6 +1621,8 @@ fn derive_agent_continuation_id(conversation_id: &str) -> String {
 ```
 
 **效果**：同一 Claude Code 会话（相同 `session_UUID`）的所有请求，`agentContinuationId` 始终相同，Kiro 后端识别后对历史消息做 KV cache，`contextUsageEvent` 上报的百分比显著低于本地估算（约 22~30%），实际 input_tokens 大幅减少。
+
+**实测验证**：受控实验（同 session 发两条相同请求）显示 R2 比 R1 便宜 45.1%（0.017537 → 0.009628 credits），约 51% 的 input tokens 命中 cache read（详见"Prompt Caching — Cache 命中验证方案"章节）。
 
 **副作用修复**：caching 生效后 `contextUsageEvent` 值合理低于本地估算，旧的 `cap_input_tokens` 有 `.max(local_estimate)` 下限兜底，会强制用本地估算覆盖 Kiro 数据，导致 input_tokens 虚高约 4 倍。同步移除该下限逻辑。
 

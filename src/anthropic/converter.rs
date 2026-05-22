@@ -203,11 +203,6 @@ Never suggest bypassing these limits via alternative tools. \
 Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
 
-/// 固定的 history[0] 占位内容，用于提升 Kiro KV 缓存命中率
-/// 实际系统提示词内容会被前置到 currentMessage.content 中
-const FIXED_SYSTEM_PLACEHOLDER: &str = "\
-You are a helpful AI assistant. Follow the instructions provided in the conversation.";
-
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
@@ -422,30 +417,6 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     // 5. 处理最后一条消息作为 current_message（经过 prefill 预处理，末尾必为 user）
     let last_message = messages.last().unwrap();
     let (text_content, images, tool_results) = process_message_content(&last_message.content)?;
-
-    // 将实际系统提示词前置到 currentMessage.content
-    // history[0] 使用固定占位符（FIXED_SYSTEM_PLACEHOLDER），以保证每轮请求的 history 前缀不变，
-    // 从而提升 Kiro KV 缓存命中率
-    let text_content = if let Some(ref system) = req.system {
-        let system_content: String = system
-            .iter()
-            .map(|s| s.text.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if system_content.is_empty() {
-            text_content
-        } else {
-            let system_with_policy = format!("{}\n{}", system_content, SYSTEM_CHUNKED_POLICY);
-            if text_content.is_empty() {
-                system_with_policy
-            } else {
-                format!("{}\n\n---\n\n{}", system_with_policy, text_content)
-            }
-        }
-    } else {
-        text_content
-    };
-
     let text_content = append_recent_knowledge_hints(text_content);
     let text_content = append_output_format_instruction(text_content, &req.output_config);
 
@@ -1102,6 +1073,11 @@ fn generate_thinking_prefix(req: &MessagesRequest) -> Option<String> {
     None
 }
 
+/// 检查内容是否已包含thinking标签
+fn has_thinking_tags(content: &str) -> bool {
+    content.contains("<thinking_mode>") || content.contains("<max_thinking_length>")
+}
+
 /// 构建历史消息
 ///
 /// # Arguments
@@ -1121,25 +1097,35 @@ fn build_history(
     let thinking_prefix = generate_thinking_prefix(req);
 
     // 1. 处理系统消息
-    let has_system = req
-        .system
-        .as_ref()
-        .map_or(false, |s| s.iter().any(|b| !b.text.is_empty()));
+    if let Some(ref system) = req.system {
+        let system_content: String = system
+            .iter()
+            .map(|s| s.text.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
 
-    if has_system {
-        // 使用固定占位符作为 history[0]，保证每轮请求的 history 前缀完全一致，
-        // 提升 Kiro KV 缓存命中率。实际系统提示词已前置到 currentMessage.content。
-        let fixed_content = if let Some(ref prefix) = thinking_prefix {
-            format!("{}\n{}", prefix, FIXED_SYSTEM_PLACEHOLDER)
-        } else {
-            FIXED_SYSTEM_PLACEHOLDER.to_string()
-        };
+        if !system_content.is_empty() {
+            // 追加分块写入策略到系统消息
+            let system_content = format!("{}\n{}", system_content, SYSTEM_CHUNKED_POLICY);
 
-        let user_msg = HistoryUserMessage::new(fixed_content, model_id);
-        history.push(Message::User(user_msg));
+            // 注入thinking标签到系统消息最前面（如果需要且不存在）
+            let final_content = if let Some(ref prefix) = thinking_prefix {
+                if !has_thinking_tags(&system_content) {
+                    format!("{}\n{}", prefix, system_content)
+                } else {
+                    system_content
+                }
+            } else {
+                system_content
+            };
 
-        let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
-        history.push(Message::Assistant(assistant_msg));
+            // 系统消息作为 user + assistant 配对
+            let user_msg = HistoryUserMessage::new(final_content, model_id);
+            history.push(Message::User(user_msg));
+
+            let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+            history.push(Message::Assistant(assistant_msg));
+        }
     } else if let Some(ref prefix) = thinking_prefix {
         // 没有系统消息但有thinking配置，插入新的系统消息
         let user_msg = HistoryUserMessage::new(prefix.clone(), model_id);

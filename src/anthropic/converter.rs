@@ -274,20 +274,38 @@ impl std::fmt::Display for ConversionError {
 
 impl std::error::Error for ConversionError {}
 
+/// 验证字符串是否为合法 UUID 格式（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）
+pub(super) fn is_valid_uuid(s: &str) -> bool {
+    s.len() == 36
+        && s.chars().filter(|c| *c == '-').count() == 4
+        && s.chars().all(|c| c == '-' || c.is_ascii_hexdigit())
+}
+
 /// 从 metadata.user_id 中提取 session UUID
 ///
-/// user_id 格式: user_xxx_account__session_0b4445e1-f5be-49e1-87ce-62bbc28ad705
-/// 提取 session_ 后面的 UUID 作为 conversationId
+/// 支持两种格式：
+/// 1. 标准格式: user_xxx_account__session_0b4445e1-f5be-49e1-87ce-62bbc28ad705
+/// 2. JSON 格式: {"session_id":"UUID"} 或 {"id":"UUID"}（Claude Code 2.1.128+）
 fn extract_session_id(user_id: &str) -> Option<String> {
-    // 查找 "session_" 后面的内容
+    // 尝试 JSON 格式解析（Claude Code 新版本发送 JSON 字符串作为 user_id）
+    if user_id.trim_start().starts_with('{') {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id) {
+            for key in &["session_id", "id"] {
+                if let Some(id) = v.get(key).and_then(|v| v.as_str()) {
+                    if is_valid_uuid(id) {
+                        return Some(id.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // 标准格式: 查找 "session_" 后面的 UUID
     if let Some(pos) = user_id.find("session_") {
         let session_part = &user_id[pos + 8..]; // "session_" 长度为 8
-        // session_part 应该是 UUID 格式: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-        // 验证是否是有效的 UUID 格式（36 字符，包含 4 个连字符）
         if session_part.len() >= 36 {
             let uuid_str = &session_part[..36];
-            // 简单验证 UUID 格式
-            if uuid_str.chars().filter(|c| *c == '-').count() == 4 {
+            // 严格验证：UUID 只能包含 hex 字符和连字符，排除 JSON 污染值如 id":"xxx
+            if is_valid_uuid(uuid_str) {
                 return Some(uuid_str.to_string());
             }
         }
@@ -1745,7 +1763,7 @@ mod tests {
 
     #[test]
     fn test_extract_session_id_valid() {
-        // 测试有效的 user_id 格式
+        // 标准格式: user_xxx_account__session_UUID
         let user_id = "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_8bb5523b-ec7c-4540-a9ca-beb6d79f1552";
         let session_id = extract_session_id(user_id);
         assert_eq!(
@@ -1755,8 +1773,45 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_session_id_json_format() {
+        // JSON 格式: {"session_id":"UUID"} — Claude Code 2.1.128+ 实际发送的格式
+        let user_id = r#"{"session_id":"3d69af26-0a80-483f-baa0-b4ccaaa07e81"}"#;
+        let session_id = extract_session_id(user_id);
+        assert_eq!(
+            session_id,
+            Some("3d69af26-0a80-483f-baa0-b4ccaaa07e81".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_session_id_json_id_field() {
+        // JSON 格式: {"id":"UUID"} — 备用字段名
+        let user_id = r#"{"id":"3d69af26-0a80-483f-baa0-b4ccaaa07e81"}"#;
+        let session_id = extract_session_id(user_id);
+        assert_eq!(
+            session_id,
+            Some("3d69af26-0a80-483f-baa0-b4ccaaa07e81".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_session_id_json_pollution_rejected() {
+        // 旧版 bug：session_id":"xxx 被误识别为合法 UUID，现在应该被拒绝
+        // 因为 "id\":" 包含非 hex 字符 '"' 和 ':'
+        let user_id = r#"{"session_id":"3d69af26-0a80-483f-baa0-b4ccaaa07e81"}"#;
+        let result = extract_session_id(user_id);
+        // 应该通过 JSON 路径正确提取，而不是通过污染路径
+        assert_eq!(
+            result,
+            Some("3d69af26-0a80-483f-baa0-b4ccaaa07e81".to_string())
+        );
+        // 验证污染值本身不是合法 UUID
+        assert!(!super::is_valid_uuid(r#"id":"3d69af26-0a80-483f-baa0-b4ccaaa"#));
+    }
+
+    #[test]
     fn test_extract_session_id_no_session() {
-        // 测试没有 session 的 user_id
+        // 没有 session 的 user_id
         let user_id = "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd";
         let session_id = extract_session_id(user_id);
         assert_eq!(session_id, None);
@@ -1764,7 +1819,7 @@ mod tests {
 
     #[test]
     fn test_extract_session_id_invalid_uuid() {
-        // 测试无效的 UUID 格式
+        // 无效的 UUID 格式
         let user_id = "user_xxx_session_invalid-uuid";
         let session_id = extract_session_id(user_id);
         assert_eq!(session_id, None);

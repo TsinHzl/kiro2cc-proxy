@@ -203,68 +203,10 @@ Never suggest bypassing these limits via alternative tools. \
 Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
 
-/// 固定的 history[0] 兜底占位内容（当系统提示词静态部分为空时使用）
+/// 固定的 history[0] 占位内容，用于提升 Kiro KV 缓存命中率
+/// 实际系统提示词内容会被前置到 currentMessage.content 中
 const FIXED_SYSTEM_PLACEHOLDER: &str = "\
 You are a helpful AI assistant. Follow the instructions provided in the conversation.";
-
-/// Claude Code 每轮请求都会更新的动态 section 名称
-/// 这些 section 会被剥离出 history[0]，改为前置到 currentMessage.content
-/// 目的：让 history[0] 内容保持稳定，提升 Kiro KV 缓存命中率
-const DYNAMIC_SECTIONS: &[&str] = &["gitStatus", "currentDate"];
-
-/// 将系统提示词拆分为静态部分和动态部分
-///
-/// Claude Code 以 `# SectionName\n内容` 格式注入各 section。
-/// 返回 `(static_part, dynamic_part)`：
-/// - static_part  → 放入 history[0]，每轮不变，可被 Kiro KV 缓存
-/// - dynamic_part → 前置到 currentMessage.content，不影响缓存
-fn split_system_content(system: &str) -> (String, String) {
-    let mut static_parts: Vec<&str> = Vec::new();
-    let mut dynamic_parts: Vec<&str> = Vec::new();
-
-    // 按行首 "# " 切割 section 边界
-    let mut section_starts: Vec<usize> = Vec::new();
-    let mut at_line_start = true;
-    for (i, ch) in system.char_indices() {
-        if at_line_start && system[i..].starts_with("# ") {
-            section_starts.push(i);
-        }
-        at_line_start = ch == '\n';
-    }
-
-    // 根据切割点提取各 section 文本
-    let sections: Vec<&str> = if section_starts.is_empty() {
-        vec![system]
-    } else {
-        let mut segs = Vec::new();
-        // 第一个 section 之前可能有前导内容
-        if section_starts[0] > 0 {
-            segs.push(&system[..section_starts[0]]);
-        }
-        for (idx, &start) in section_starts.iter().enumerate() {
-            let end = section_starts.get(idx + 1).copied().unwrap_or(system.len());
-            segs.push(&system[start..end]);
-        }
-        segs
-    };
-
-    for section in sections {
-        let trimmed = section.trim_start();
-        let is_dynamic = DYNAMIC_SECTIONS
-            .iter()
-            .any(|name| trimmed.starts_with(&format!("# {}", name)));
-        if is_dynamic {
-            dynamic_parts.push(section);
-        } else {
-            static_parts.push(section);
-        }
-    }
-
-    (
-        static_parts.join("").trim().to_string(),
-        dynamic_parts.join("").trim().to_string(),
-    )
-}
 
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
@@ -481,21 +423,24 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let last_message = messages.last().unwrap();
     let (text_content, images, tool_results) = process_message_content(&last_message.content)?;
 
-    // 将系统提示词的动态部分（gitStatus、currentDate 等）前置到 currentMessage.content
-    // 静态部分已放入 history[0]，每轮不变，可被 Kiro KV 缓存
+    // 将实际系统提示词前置到 currentMessage.content
+    // history[0] 使用固定占位符（FIXED_SYSTEM_PLACEHOLDER），以保证每轮请求的 history 前缀不变，
+    // 从而提升 Kiro KV 缓存命中率
     let text_content = if let Some(ref system) = req.system {
         let system_content: String = system
             .iter()
             .map(|s| s.text.clone())
             .collect::<Vec<_>>()
             .join("\n");
-        let (_, dynamic_part) = split_system_content(&system_content);
-        if dynamic_part.is_empty() {
+        if system_content.is_empty() {
             text_content
-        } else if text_content.is_empty() {
-            dynamic_part
         } else {
-            format!("{}\n\n---\n\n{}", dynamic_part, text_content)
+            let system_with_policy = format!("{}\n{}", system_content, SYSTEM_CHUNKED_POLICY);
+            if text_content.is_empty() {
+                system_with_policy
+            } else {
+                format!("{}\n\n---\n\n{}", system_with_policy, text_content)
+            }
         }
     } else {
         text_content
@@ -1182,29 +1127,15 @@ fn build_history(
         .map_or(false, |s| s.iter().any(|b| !b.text.is_empty()));
 
     if has_system {
-        // history[0] 只放系统提示词的静态部分，保证每轮内容一致，提升 Kiro KV 缓存命中率
-        // 动态部分（gitStatus、currentDate 等）已前置到 currentMessage.content
-        let system_content: String = req
-            .system
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|s| s.text.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let (static_part, _) = split_system_content(&system_content);
-        let static_content = if static_part.is_empty() {
+        // 使用固定占位符作为 history[0]，保证每轮请求的 history 前缀完全一致，
+        // 提升 Kiro KV 缓存命中率。实际系统提示词已前置到 currentMessage.content。
+        let fixed_content = if let Some(ref prefix) = thinking_prefix {
+            format!("{}\n{}", prefix, FIXED_SYSTEM_PLACEHOLDER)
+        } else {
             FIXED_SYSTEM_PLACEHOLDER.to_string()
-        } else {
-            format!("{}\n{}", static_part, SYSTEM_CHUNKED_POLICY)
-        };
-        let history0_content = if let Some(ref prefix) = thinking_prefix {
-            format!("{}\n{}", prefix, static_content)
-        } else {
-            static_content
         };
 
-        let user_msg = HistoryUserMessage::new(history0_content, model_id);
+        let user_msg = HistoryUserMessage::new(fixed_content, model_id);
         history.push(Message::User(user_msg));
 
         let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
@@ -1422,44 +1353,6 @@ fn merge_assistant_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_split_system_content_extracts_dynamic_sections() {
-        let system = "# claudeMd\nYou are helpful.\n\n# gitStatus\nOn branch main\n\n# currentDate\nToday is 2026-05-22.\n";
-        let (static_part, dynamic_part) = split_system_content(system);
-        assert!(static_part.contains("claudeMd"), "static should contain claudeMd");
-        assert!(!static_part.contains("gitStatus"), "static should not contain gitStatus");
-        assert!(!static_part.contains("currentDate"), "static should not contain currentDate");
-        assert!(dynamic_part.contains("gitStatus"), "dynamic should contain gitStatus");
-        assert!(dynamic_part.contains("currentDate"), "dynamic should contain currentDate");
-        assert!(!dynamic_part.contains("claudeMd"), "dynamic should not contain claudeMd");
-    }
-
-    #[test]
-    fn test_split_system_content_no_dynamic_sections() {
-        let system = "# claudeMd\nYou are helpful.\n\n# userRules\nBe concise.\n";
-        let (static_part, dynamic_part) = split_system_content(system);
-        assert!(static_part.contains("claudeMd"));
-        assert!(static_part.contains("userRules"));
-        assert!(dynamic_part.is_empty());
-    }
-
-    #[test]
-    fn test_split_system_content_only_dynamic() {
-        let system = "# gitStatus\nOn branch main\n\n# currentDate\nToday is 2026-05-22.\n";
-        let (static_part, dynamic_part) = split_system_content(system);
-        assert!(static_part.is_empty());
-        assert!(dynamic_part.contains("gitStatus"));
-        assert!(dynamic_part.contains("currentDate"));
-    }
-
-    #[test]
-    fn test_split_system_content_no_sections() {
-        let system = "You are a helpful assistant.";
-        let (static_part, dynamic_part) = split_system_content(system);
-        assert_eq!(static_part, "You are a helpful assistant.");
-        assert!(dynamic_part.is_empty());
-    }
 
     #[test]
     fn test_map_model_sonnet() {

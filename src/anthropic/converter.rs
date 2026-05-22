@@ -4,6 +4,8 @@
 
 use base64::Engine;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 use crate::kiro::model::requests::conversation::{
@@ -202,6 +204,27 @@ When the Write or Edit tool has content size limits, always comply silently. \
 Never suggest bypassing these limits via alternative tools. \
 Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
+
+static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+static SESSION_CCH: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+/// 将系统提示词中 `x-anthropic-billing-header` 行的 `cch=<value>` 替换为指定值。
+/// 返回 (规范化后的内容, 原始 cch 值)。若未找到 cch 字段则原样返回。
+fn normalize_billing_header(content: String, canonical: &str) -> (String, Option<String>) {
+    const PREFIX: &str = "cch=";
+    let Some(cch_pos) = content.find(PREFIX) else {
+        return (content, None);
+    };
+    let value_start = cch_pos + PREFIX.len();
+    let value_end = content[value_start..]
+        .find(|c: char| c == ';' || c == '\n')
+        .map(|i| value_start + i)
+        .unwrap_or(content.len());
+    let original = content[value_start..value_end].to_string();
+    let mut result = content;
+    result.replace_range(value_start..value_end, canonical);
+    (result, Some(original))
+}
 
 /// Claude Code 每轮请求都会更新的动态 section 名称，需从 history[0] 剥离
 const DYNAMIC_SECTIONS: &[&str] = &["gitStatus", "currentDate"];
@@ -490,7 +513,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let mut tools = convert_tools(&req.tools);
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）
-    let mut history = build_history(req, messages, &model_id)?;
+    let mut history = build_history(req, messages, &model_id, &conversation_id)?;
 
     // 8. 验证并过滤 tool_use/tool_result 配对
     // 移除孤立的 tool_result（没有对应的 tool_use）
@@ -1156,6 +1179,7 @@ fn build_history(
     req: &MessagesRequest,
     messages: &[super::types::Message],
     model_id: &str,
+    session_id: &str,
 ) -> Result<Vec<Message>, ConversionError> {
     let mut history = Vec::new();
 
@@ -1197,6 +1221,34 @@ fn build_history(
                 static_content
             };
 
+            // 规范化 x-anthropic-billing-header 中的 cch= 字段：
+            // 同一 session 始终使用第一轮的 cch 值，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
+            let (final_content, original_cch) = {
+                let cch_cache = SESSION_CCH.get_or_init(|| Mutex::new(HashMap::new()));
+                let mut cch_map = cch_cache.lock().unwrap();
+                let canonical = cch_map
+                    .entry(session_id.to_string())
+                    .or_insert_with(|| {
+                        // 首次：提取当前 cch 值作为该 session 的固定值
+                        const PREFIX: &str = "cch=";
+                        if let Some(pos) = final_content.find(PREFIX) {
+                            let start = pos + PREFIX.len();
+                            let end = final_content[start..]
+                                .find(|c: char| c == ';' || c == '\n')
+                                .map(|i| start + i)
+                                .unwrap_or(final_content.len());
+                            final_content[start..end].to_string()
+                        } else {
+                            String::new()
+                        }
+                    })
+                    .clone();
+                normalize_billing_header(final_content, &canonical)
+            };
+            if let Some(ref cch) = original_cch {
+                tracing::info!("[billing] cch={}", cch);
+            }
+
             // 打印 history[0] 内容的 hash，用于验证跨请求稳定性
             let h0_hash = {
                 let mut hasher = Sha256::new();
@@ -1208,6 +1260,40 @@ fn build_history(
                 h0_hash,
                 final_content.len()
             );
+
+            // diff：与上一轮 history[0] 对比，找出变化的行
+            {
+                let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
+                let mut map = cache.lock().unwrap();
+                if let Some(prev) = map.get(session_id) {
+                    if prev != &final_content {
+                        let prev_lines: Vec<&str> = prev.lines().collect();
+                        let cur_lines: Vec<&str> = final_content.lines().collect();
+                        let max = prev_lines.len().max(cur_lines.len());
+                        let mut printed = 0;
+                        for i in 0..max {
+                            let pl = prev_lines.get(i).copied().unwrap_or("");
+                            let cl = cur_lines.get(i).copied().unwrap_or("");
+                            if pl != cl {
+                                let ctx_start = i.saturating_sub(3);
+                                let ctx_end = (i + 4).min(max);
+                                tracing::info!(
+                                    "[exp2] h0_diff line={} prev={:?} cur={:?} context={:?}",
+                                    i,
+                                    pl,
+                                    cl,
+                                    &cur_lines[ctx_start..ctx_end]
+                                );
+                                printed += 1;
+                                if printed >= 5 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                map.insert(session_id.to_string(), final_content.clone());
+            }
 
             // 系统消息作为 user + assistant 配对
             let user_msg = HistoryUserMessage::new(final_content, model_id);

@@ -465,8 +465,8 @@ impl SseStateManager {
     }
 }
 
-/// 上下文窗口大小（1M tokens）
-const CONTEXT_WINDOW_SIZE: i32 = 1_000_000;
+/// 上下文窗口大小（200K tokens）
+const CONTEXT_WINDOW_SIZE: i32 = 200_000;
 
 /// input_tokens 上报的最大合理倍率（相对于本地估算值）
 const INPUT_TOKENS_MAX_MULTIPLIER: f64 = 1.15;
@@ -661,7 +661,7 @@ impl StreamContext {
             Event::ToolUse(tool_use) => self.process_tool_use(tool_use),
             Event::ContextUsage(context_usage) => {
                 // 从上下文使用百分比计算实际的 input_tokens
-                // 公式: percentage * 200000 / 100 = percentage * 2000
+                // 公式: percentage * 200_000 / 100 = percentage * 2000
                 let actual_input_tokens = (context_usage.context_usage_percentage
                     * (CONTEXT_WINDOW_SIZE as f64)
                     / 100.0) as i32;

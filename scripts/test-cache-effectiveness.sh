@@ -29,12 +29,17 @@ echo "Session UUID : ${SESSION_UUID}"
 echo "Proxy        : ${PROXY_URL}"
 echo ""
 
+# 从 SSE 流中提取 message_start 事件的 usage 字段
+extract_usage() {
+  grep "^data:" | grep "message_start" | head -1 | sed 's/^data: //' | jq '.message.usage // empty' 2>/dev/null || echo "(no usage found)"
+}
+
 echo "=== R1 (cold — no cache) ==="
 R1=$(curl -s -X POST "${PROXY_URL}/v1/messages" \
   -H "Content-Type: application/json" \
   -H "x-api-key: ${API_KEY}" \
   -d "${PAYLOAD}")
-echo "${R1}" | jq '{usage: .usage}'
+echo "${R1}" | extract_usage
 
 echo ""
 echo "=== R2 (same session — cache should hit) ==="
@@ -42,7 +47,7 @@ R2=$(curl -s -X POST "${PROXY_URL}/v1/messages" \
   -H "Content-Type: application/json" \
   -H "x-api-key: ${API_KEY}" \
   -d "${PAYLOAD}")
-echo "${R2}" | jq '{usage: .usage}'
+echo "${R2}" | extract_usage
 
 echo ""
 echo "=== 如何判断结果 ==="

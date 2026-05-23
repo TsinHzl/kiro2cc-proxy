@@ -51,6 +51,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [dailyView, setDailyView] = useState<string | null>(null)
   const cancelVerifyRef = useRef(false)
   const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | null>(null)
+  const prevDetailCredentialId = useRef<number | null>(null)
+  const prevDailyView = useRef<string | null>(null)
+  const initialBalanceFetchDone = useRef(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
   const [darkMode, setDarkMode] = useState(() => {
@@ -128,6 +131,46 @@ export function Dashboard({ onLogout }: DashboardProps) {
   useEffect(() => {
     credentialsRef.current = data?.credentials
   })
+
+  // 启动时首次加载凭据后自动拉取余额
+  useEffect(() => {
+    if (!data?.credentials || initialBalanceFetchDone.current) return
+    initialBalanceFetchDone.current = true
+    const ids = data.credentials.filter(c => !c.disabled).map(c => c.id)
+    if (ids.length === 0) return
+    ;(async () => {
+      let runningTotal = 0
+      let queried = 0
+      setLiveCreditsTotal(0)
+      setLiveCreditsQueried(0)
+      for (const id of ids) {
+        setLoadingBalanceIds(prev => { const next = new Set(prev); next.add(id); return next })
+        try {
+          const balance = await getCredentialBalance(id)
+          runningTotal += balance.remaining
+          setBalanceMap(prev => { const next = new Map(prev); next.set(id, balance); return next })
+          setLiveCreditsTotal(runningTotal)
+        } catch (_) {
+          // 静默失败
+        } finally {
+          setLoadingBalanceIds(prev => { const next = new Set(prev); next.delete(id); return next })
+          setLiveCreditsQueried(++queried)
+        }
+      }
+    })()
+  }, [data?.credentials]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 从详情页/日志页返回主视图时刷新数据
+  useEffect(() => {
+    const returningFromDetail = prevDetailCredentialId.current !== null && detailCredentialId === null
+    const returningFromDaily = prevDailyView.current !== null && dailyView === null
+    if (returningFromDetail || returningFromDaily) {
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['dailyUsage'] })
+    }
+    prevDetailCredentialId.current = detailCredentialId
+    prevDailyView.current = dailyView
+  }, [detailCredentialId, dailyView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 切换到凭据管理页时静默刷新所有余额
   useEffect(() => {

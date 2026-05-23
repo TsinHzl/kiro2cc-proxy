@@ -1993,11 +1993,13 @@ impl MultiTokenManager {
             }
         };
 
-        let mut config = Config::load(&config_path)
-            .with_context(|| format!("重新加载配置失败: {}", config_path.display()))?;
-        config.load_balancing_mode = mode.to_string();
-        config
-            .save()
+        let content = std::fs::read_to_string(&config_path)
+            .with_context(|| format!("读取配置文件失败: {}", config_path.display()))?;
+        let mut json: serde_json::Value = serde_json::from_str(&content)
+            .with_context(|| format!("解析配置文件失败: {}", config_path.display()))?;
+        json["loadBalancingMode"] = serde_json::Value::String(mode.to_string());
+        let output = serde_json::to_string_pretty(&json)?;
+        std::fs::write(&config_path, output)
             .with_context(|| format!("持久化负载均衡模式失败: {}", config_path.display()))?;
 
         Ok(())

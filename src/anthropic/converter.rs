@@ -225,52 +225,6 @@ fn normalize_billing_header(content: String) -> String {
     result
 }
 
-/// Claude Code 每轮请求都会更新的动态 section 名称，需从 history[0] 剥离
-const DYNAMIC_SECTIONS: &[&str] = &["gitStatus", "currentDate"];
-
-/// 按 `# SectionName` 行边界拆分系统提示词为静态和动态两部分。
-/// 静态部分放入 history[0]（跨请求不变，可被 Kiro 缓存）；
-/// 动态部分前置到 currentMessage.content（每轮变化，不影响缓存）。
-fn split_system_content(system: &str) -> (String, String) {
-    let mut section_starts: Vec<usize> = Vec::new();
-    let mut at_line_start = true;
-    for (i, ch) in system.char_indices() {
-        if at_line_start && system[i..].starts_with("# ") {
-            section_starts.push(i);
-        }
-        at_line_start = ch == '\n';
-    }
-    let sections: Vec<&str> = if section_starts.is_empty() {
-        vec![system]
-    } else {
-        let mut segs = Vec::new();
-        if section_starts[0] > 0 {
-            segs.push(&system[..section_starts[0]]);
-        }
-        for (idx, &start) in section_starts.iter().enumerate() {
-            let end = section_starts.get(idx + 1).copied().unwrap_or(system.len());
-            segs.push(&system[start..end]);
-        }
-        segs
-    };
-    let mut static_parts: Vec<&str> = Vec::new();
-    let mut dynamic_parts: Vec<&str> = Vec::new();
-    for section in sections {
-        if DYNAMIC_SECTIONS
-            .iter()
-            .any(|n| section.trim_start().starts_with(&format!("# {}", n)))
-        {
-            dynamic_parts.push(section);
-        } else {
-            static_parts.push(section);
-        }
-    }
-    (
-        static_parts.join("").trim().to_string(),
-        dynamic_parts.join("").trim().to_string(),
-    )
-}
-
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
@@ -487,26 +441,6 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let (text_content, images, tool_results) = process_message_content(&last_message.content)?;
     let text_content = append_recent_knowledge_hints(text_content);
     let text_content = append_output_format_instruction(text_content, &req.output_config);
-
-    // 将动态 section（gitStatus、currentDate）前置到 currentMessage
-    // 静态部分已放入 history[0]，每轮不变，可被 Kiro 缓存
-    let text_content = if let Some(ref system) = req.system {
-        let sys = system
-            .iter()
-            .map(|s| s.text.clone())
-            .collect::<Vec<_>>()
-            .join("\n");
-        let (_, dynamic_part) = split_system_content(&sys);
-        if dynamic_part.is_empty() {
-            text_content
-        } else if text_content.is_empty() {
-            dynamic_part
-        } else {
-            format!("{}\n\n---\n\n{}", dynamic_part, text_content)
-        }
-    } else {
-        text_content
-    };
 
     // 6. 转换工具定义
     let mut tools = convert_tools(&req.tools);
@@ -1194,20 +1128,7 @@ fn build_history(
             .join("\n");
 
         if !system_content.is_empty() {
-            // 只将静态部分放入 history[0]，动态部分（gitStatus、currentDate）已前置到 currentMessage
-            let (static_part, dynamic_part) = split_system_content(&system_content);
-            let section_heads: Vec<String> = system_content
-                .lines()
-                .filter(|l| l.starts_with("# "))
-                .map(|l| l[..l.len().min(40)].to_string())
-                .collect();
-            tracing::info!(
-                "[exp2] split: static_len={} dynamic_len={} sections={:?}",
-                static_part.len(),
-                dynamic_part.len(),
-                section_heads
-            );
-            let static_content = format!("{}\n{}", static_part, SYSTEM_CHUNKED_POLICY);
+            let static_content = format!("{}\n{}", system_content, SYSTEM_CHUNKED_POLICY);
 
             // 注入thinking标签到系统消息最前面（如果需要且不存在）
             let final_content = if let Some(ref prefix) = thinking_prefix {

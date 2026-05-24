@@ -410,6 +410,7 @@ impl SseStateManager {
         output_tokens: i32,
         cache_creation_input_tokens: Option<i32>,
         cache_read_input_tokens: Option<i32>,
+        context_usage_percentage: Option<f64>,
     ) -> Vec<SseEvent> {
         let mut events = Vec::new();
 
@@ -438,6 +439,9 @@ impl SseStateManager {
             }
             if let Some(v) = cache_read_input_tokens {
                 usage.insert("cache_read_input_tokens".into(), json!(v));
+            }
+            if let Some(p) = context_usage_percentage {
+                usage.insert("contextUsagePercentage".into(), json!(p));
             }
             events.push(SseEvent::new(
                 "message_delta",
@@ -534,6 +538,8 @@ pub struct StreamContext {
     metering_cache_read_tokens: Option<i32>,
     /// 从 meteringEvent 获取的 cache creation tokens（Kiro 透传时有值）
     metering_cache_creation_tokens: Option<i32>,
+    /// 从 contextUsageEvent 获取的上下文使用百分比（0-100）
+    context_usage_percentage: Option<f64>,
 }
 
 impl StreamContext {
@@ -566,6 +572,7 @@ impl StreamContext {
             metering_usage: None,
             metering_cache_read_tokens: None,
             metering_cache_creation_tokens: None,
+            context_usage_percentage: None,
         }
     }
 
@@ -664,6 +671,7 @@ impl StreamContext {
                     * (CONTEXT_WINDOW_SIZE as f64)
                     / 100.0) as i32;
                 self.context_input_tokens = Some(actual_input_tokens);
+                self.context_usage_percentage = Some(context_usage.context_usage_percentage);
                 // 上下文使用量达到 100% 时，设置 stop_reason 为 model_context_window_exceeded
                 if context_usage.context_usage_percentage >= 100.0 {
                     self.state_manager
@@ -1239,6 +1247,7 @@ impl StreamContext {
             reported_output_tokens,
             Some(usage.cache_creation_input_tokens),
             Some(usage.cache_read_input_tokens),
+            self.context_usage_percentage,
         ));
         events
     }

@@ -130,7 +130,7 @@ fn default_tls_backend() -> TlsBackend {
 }
 
 fn default_load_balancing_mode() -> String {
-    "balanced".to_string()
+    "priority".to_string()
 }
 
 impl Default for Config {

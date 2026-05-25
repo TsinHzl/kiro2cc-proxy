@@ -423,6 +423,11 @@ pub async fn post_messages(
 
     // 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
     override_thinking_from_model_name(&mut payload);
+    tracing::info!(
+        thinking_type = ?payload.thinking.as_ref().map(|t| t.thinking_type.as_str()),
+        budget_tokens = ?payload.thinking.as_ref().map(|t| t.budget_tokens),
+        "[thinking] 配置"
+    );
 
     // 检查是否为 WebSearch 请求
     if websearch::has_web_search_tool(&payload) {
@@ -1007,6 +1012,11 @@ pub async fn post_messages_cc(
 
     // 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
     override_thinking_from_model_name(&mut payload);
+    tracing::info!(
+        thinking_type = ?payload.thinking.as_ref().map(|t| t.thinking_type.as_str()),
+        budget_tokens = ?payload.thinking.as_ref().map(|t| t.budget_tokens),
+        "[thinking] 配置"
+    );
 
     let bound_ids: Vec<u64> = identity
         .as_ref()

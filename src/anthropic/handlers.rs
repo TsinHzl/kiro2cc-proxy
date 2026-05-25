@@ -731,6 +731,8 @@ async fn handle_non_stream_request(
     let mut stop_reason = "end_turn".to_string();
     // 从 contextUsageEvent 计算的实际输入 tokens
     let mut context_input_tokens: Option<i32> = None;
+    let mut metering_cache_read_tokens: Option<i32> = None;
+    let mut metering_cache_creation_tokens: Option<i32> = None;
 
     // 收集工具调用的增量 JSON
     let mut tool_json_buffers: std::collections::HashMap<String, String> =
@@ -794,6 +796,10 @@ async fn handle_non_stream_request(
                                 actual_input_tokens
                             );
                         }
+                        Event::Metering(metering) => {
+                            metering_cache_read_tokens = metering.cache_read_input_tokens;
+                            metering_cache_creation_tokens = metering.cache_creation_input_tokens;
+                        }
                         Event::Exception { exception_type, .. } => {
                             if exception_type == "ContentLengthExceededException" {
                                 stop_reason = "max_tokens".to_string();
@@ -840,8 +846,15 @@ async fn handle_non_stream_request(
     // 对外报告的 output_tokens 限制在安全范围
     let reported_output_tokens = output_tokens.min(380);
 
-    // 缩放 cache usage 到最终 input_tokens
-    let usage = prompt_cache_usage.scale_to(final_input_tokens);
+    // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+    let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
+    let (report_input, report_cache_creation, report_cache_read) =
+        if let (Some(read), Some(creation)) = (metering_cache_read_tokens, metering_cache_creation_tokens) {
+            let non_cached = final_input_tokens.saturating_sub(read).saturating_sub(creation);
+            (non_cached, creation, read)
+        } else {
+            (sim_usage.input_tokens, sim_usage.cache_creation_input_tokens, sim_usage.cache_read_input_tokens)
+        };
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
@@ -862,10 +875,10 @@ async fn handle_non_stream_request(
         "stop_reason": stop_reason,
         "stop_sequence": null,
         "usage": {
-            "input_tokens": usage.input_tokens,
+            "input_tokens": report_input,
             "output_tokens": reported_output_tokens,
-            "cache_creation_input_tokens": usage.cache_creation_input_tokens,
-            "cache_read_input_tokens": usage.cache_read_input_tokens
+            "cache_creation_input_tokens": report_cache_creation,
+            "cache_read_input_tokens": report_cache_read
         }
     });
 

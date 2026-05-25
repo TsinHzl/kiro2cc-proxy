@@ -1240,13 +1240,29 @@ impl StreamContext {
         // 注入 signature_delta 事件（伪造模型签名以通过检测）
         events.extend(self.generate_signature_events());
 
-        // 生成最终事件（含修正后的缓存模拟字段）
-        let usage = self.prompt_cache_usage.scale_to(final_input_tokens);
+        // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+        let sim_usage = self.prompt_cache_usage.scale_to(final_input_tokens);
+        let (report_input, report_cache_creation, report_cache_read) =
+            if let (Some(read), Some(creation)) = (
+                self.metering_cache_read_tokens,
+                self.metering_cache_creation_tokens,
+            ) {
+                let non_cached = final_input_tokens
+                    .saturating_sub(read)
+                    .saturating_sub(creation);
+                (non_cached, Some(creation), Some(read))
+            } else {
+                (
+                    sim_usage.input_tokens,
+                    Some(sim_usage.cache_creation_input_tokens),
+                    Some(sim_usage.cache_read_input_tokens),
+                )
+            };
         events.extend(self.state_manager.generate_final_events(
-            usage.input_tokens,
+            report_input,
             reported_output_tokens,
-            Some(usage.cache_creation_input_tokens),
-            Some(usage.cache_read_input_tokens),
+            report_cache_creation,
+            report_cache_read,
             self.context_usage_percentage,
         ));
         events
@@ -1349,19 +1365,35 @@ impl BufferedStreamContext {
             .unwrap_or(self.estimated_input_tokens);
         let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens);
 
-        // 缩放 cache usage 到最终 input_tokens
-        let cache_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);
+        // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+        let sim_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);
+        let (report_input, report_cache_creation, report_cache_read) =
+            if let (Some(read), Some(creation)) = (
+                self.inner.metering_cache_read_tokens,
+                self.inner.metering_cache_creation_tokens,
+            ) {
+                let non_cached = final_input_tokens
+                    .saturating_sub(read)
+                    .saturating_sub(creation);
+                (non_cached, creation, read)
+            } else {
+                (
+                    sim_usage.input_tokens,
+                    sim_usage.cache_creation_input_tokens,
+                    sim_usage.cache_read_input_tokens,
+                )
+            };
 
         // 更正 message_start 事件中的 usage 字段
         for event in &mut self.event_buffer {
             if event.event == "message_start" {
                 if let Some(message) = event.data.get_mut("message") {
                     if let Some(usage) = message.get_mut("usage") {
-                        usage["input_tokens"] = serde_json::json!(cache_usage.input_tokens);
+                        usage["input_tokens"] = serde_json::json!(report_input);
                         usage["cache_creation_input_tokens"] =
-                            serde_json::json!(cache_usage.cache_creation_input_tokens);
+                            serde_json::json!(report_cache_creation);
                         usage["cache_read_input_tokens"] =
-                            serde_json::json!(cache_usage.cache_read_input_tokens);
+                            serde_json::json!(report_cache_read);
                     }
                 }
             }

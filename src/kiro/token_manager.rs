@@ -2675,6 +2675,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sticky_cache_balanced_mode_bypasses_round_robin() {
+        let mut config = Config::default();
+        config.load_balancing_mode = "balanced".to_string();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // balanced 模式下，无 sticky cache 时 round-robin 会轮转 t1→t2→t1→t2
+        // 有 sticky cache 时，同一 continuation_id 应始终返回同一凭据
+        let ctx1 = manager
+            .acquire_context_sticky(None, &[], Some("session-balanced"))
+            .await
+            .unwrap();
+        let expected_id = ctx1.id;
+
+        for _ in 0..5 {
+            let ctx = manager
+                .acquire_context_sticky(None, &[], Some("session-balanced"))
+                .await
+                .unwrap();
+            assert_eq!(
+                ctx.id, expected_id,
+                "balanced 模式下 sticky cache 应固定路由到同一凭据"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_sticky_cache_disabled_credential_evicted() {
         let config = Config::default();
         let cred1 = make_valid_cred("t1");

@@ -1,9 +1,10 @@
 {
-  "host": "0.0.0.0",
-  "port": 5678,
-  "apiKey": "",
-  "tlsBackend": "rustls",
-  "region": "us-east-1",
   "adminApiKey": "Hackair007!",
-  "proxyUrl": "http://127.0.0.1:10089"
+  "apiKey": "",
+  "host": "0.0.0.0",
+  "loadBalancingMode": "priority",
+  "port": 5678,
+  "proxyUrl": "http://127.0.0.1:10089",
+  "region": "us-east-1",
+  "tlsBackend": "rustls"
 }

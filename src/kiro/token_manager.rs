@@ -591,12 +591,23 @@ pub struct MultiTokenManager {
     stats_dirty: AtomicBool,
     /// Round-Robin 计数器（balanced 模式下用于均匀轮转凭据）
     rr_counter: AtomicU64,
+    /// Sticky cache：agentContinuationId → 凭据绑定关系
+    sticky_cache: Mutex<HashMap<String, StickyCacheEntry>>,
 }
 
 /// 每个凭据最大 API 调用失败次数
 const MAX_FAILURES_PER_CREDENTIAL: u32 = 3;
 /// 统计数据持久化防抖间隔
 const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
+/// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
+const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60);
+
+/// Sticky cache 条目：记录会话到凭据的绑定关系
+struct StickyCacheEntry {
+    credential_id: u64,
+    /// 最后一次命中/写入时间，用于 TTL 计算
+    inserted_at: Instant,
+}
 
 /// API 调用上下文
 ///
@@ -704,6 +715,7 @@ impl MultiTokenManager {
             last_stats_save_at: Mutex::new(None),
             stats_dirty: AtomicBool::new(false),
             rr_counter: AtomicU64::new(0),
+            sticky_cache: Mutex::new(HashMap::new()),
         };
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
@@ -967,6 +979,84 @@ impl MultiTokenManager {
                 }
             }
         }
+    }
+
+    /// 基于 agentContinuationId 的 sticky 路由
+    ///
+    /// 同一会话优先路由到缓存中的同一凭据，保证 Kiro prompt cache 命中率。
+    /// 缓存条目 TTL 30 分钟（每次命中续期），不健康时自动驱逐并重选。
+    pub async fn acquire_context_sticky(
+        &self,
+        model: Option<&str>,
+        allowed_ids: &[u64],
+        continuation_id: Option<&str>,
+    ) -> anyhow::Result<CallContext> {
+        let Some(cid) = continuation_id else {
+            return self.acquire_context_filtered(model, allowed_ids).await;
+        };
+
+        // 步骤 ①②：从 sticky_cache 查找，验证 TTL + 健康状态
+        let cached = {
+            let cache = self.sticky_cache.lock();
+            if let Some(entry) = cache.get(cid) {
+                if entry.inserted_at.elapsed() < STICKY_CACHE_TTL {
+                    // TTL 未过期，检查凭据健康状态
+                    let entries = self.entries.lock();
+                    entries
+                        .iter()
+                        .find(|e| {
+                            e.id == entry.credential_id
+                                && !e.disabled
+                                && Self::compute_health(e) != HealthStatus::Unhealthy
+                                && (allowed_ids.is_empty() || allowed_ids.contains(&e.id))
+                        })
+                        .map(|e| (e.id, e.credentials.clone()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        // 步骤 ③：尝试使用缓存凭据
+        if let Some((id, credentials)) = cached {
+            match self.try_ensure_token(id, &credentials).await {
+                Ok(ctx) => {
+                    // 命中成功，续期
+                    self.sticky_cache.lock().entry(cid.to_string()).and_modify(|e| {
+                        e.inserted_at = Instant::now();
+                    });
+                    return Ok(ctx);
+                }
+                Err(e) => {
+                    tracing::warn!("sticky cache 凭据 #{} token 刷新失败，驱逐并重选: {}", id, e);
+                    self.sticky_cache.lock().remove(cid);
+                }
+            }
+        } else {
+            // TTL 过期或不健康，清理旧条目
+            self.sticky_cache.lock().remove(cid);
+        }
+
+        // 步骤 ④：走原有选择逻辑
+        let ctx = self.acquire_context_filtered(model, allowed_ids).await?;
+
+        // 步骤 ⑤⑥：写入 sticky_cache，懒惰 GC
+        {
+            let mut cache = self.sticky_cache.lock();
+            cache.insert(
+                cid.to_string(),
+                StickyCacheEntry {
+                    credential_id: ctx.id,
+                    inserted_at: Instant::now(),
+                },
+            );
+            // 懒惰 GC：清理所有过期条目
+            cache.retain(|_, v| v.inserted_at.elapsed() < STICKY_CACHE_TTL);
+        }
+
+        Ok(ctx)
     }
 
     /// 切换到下一个优先级最高的可用凭据（内部方法）
@@ -2026,6 +2116,19 @@ impl MultiTokenManager {
         tracing::info!("负载均衡模式已设置为: {}", mode);
         Ok(())
     }
+
+    /// 测试辅助：向 sticky_cache 写入一条已过期的条目（模拟 TTL 已超出）
+    #[cfg(test)]
+    fn insert_expired_sticky_entry(&self, key: &str, credential_id: u64) {
+        let mut cache = self.sticky_cache.lock();
+        cache.insert(
+            key.to_string(),
+            StickyCacheEntry {
+                credential_id,
+                inserted_at: Instant::now() - STICKY_CACHE_TTL - StdDuration::from_secs(1),
+            },
+        );
+    }
 }
 
 impl Drop for MultiTokenManager {
@@ -2500,5 +2603,101 @@ mod tests {
 
         assert_eq!(credentials.effective_auth_region(&config), "auth-only");
         assert_eq!(credentials.effective_api_region(&config), "api-only");
+    }
+
+    // ============ sticky cache 测试 ============
+
+    fn make_valid_cred(token: &str) -> KiroCredentials {
+        let mut c = KiroCredentials::default();
+        c.access_token = Some(token.to_string());
+        c.expires_at = Some((Utc::now() + Duration::hours(1)).to_rfc3339());
+        c
+    }
+
+    #[tokio::test]
+    async fn test_sticky_cache_no_continuation_id_falls_back() {
+        let config = Config::default();
+        let manager =
+            MultiTokenManager::new(config, vec![make_valid_cred("t1")], None, None, false).unwrap();
+
+        // continuation_id = None 时正常返回凭据
+        let ctx = manager
+            .acquire_context_sticky(None, &[], None)
+            .await
+            .unwrap();
+        assert_eq!(ctx.token, "t1");
+    }
+
+    #[tokio::test]
+    async fn test_sticky_cache_same_id_returns_same_credential() {
+        let config = Config::default();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 首次调用选定某凭据
+        let ctx1 = manager
+            .acquire_context_sticky(None, &[], Some("session-abc"))
+            .await
+            .unwrap();
+        // 再次调用同一 continuation_id，应返回同一凭据
+        let ctx2 = manager
+            .acquire_context_sticky(None, &[], Some("session-abc"))
+            .await
+            .unwrap();
+        assert_eq!(ctx1.id, ctx2.id);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_cache_ttl_expired_reselects() {
+        let config = Config::default();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 手动写入一条已过期的条目，指向凭据 #1
+        manager.insert_expired_sticky_entry("session-xyz", 1);
+
+        // 过期后应重新选择（不一定是 #1）
+        let ctx = manager
+            .acquire_context_sticky(None, &[], Some("session-xyz"))
+            .await
+            .unwrap();
+        // 只要能正常返回凭据即可；过期条目已被替换
+        assert!(ctx.token == "t1" || ctx.token == "t2");
+
+        // 新写入的条目应未过期
+        let cache = manager.sticky_cache.lock();
+        let entry = cache.get("session-xyz").unwrap();
+        assert!(entry.inserted_at.elapsed() < STICKY_CACHE_TTL);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_cache_disabled_credential_evicted() {
+        let config = Config::default();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 首次调用建立绑定
+        let ctx1 = manager
+            .acquire_context_sticky(None, &[], Some("session-dis"))
+            .await
+            .unwrap();
+        let bound_id = ctx1.id;
+
+        // 禁用已绑定的凭据
+        manager.report_quota_exhausted(bound_id);
+
+        // 再次调用同一 continuation_id：缓存命中但凭据已禁用，应驱逐并重选
+        let ctx2 = manager
+            .acquire_context_sticky(None, &[], Some("session-dis"))
+            .await
+            .unwrap();
+        // 返回另一个凭据
+        assert_ne!(ctx2.id, bound_id);
     }
 }

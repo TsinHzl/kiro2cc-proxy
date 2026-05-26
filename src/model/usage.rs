@@ -475,6 +475,8 @@ pub struct DailySummary {
     pub total_requests: u64,
     pub total_cost: f64,
     pub total_credits: f64,
+    /// 节省的 credits 总量（仅含有 credits_used 的记录）
+    pub total_credits_saved: f64,
 }
 
 impl UsageTracker {
@@ -483,21 +485,25 @@ impl UsageTracker {
         use std::collections::BTreeMap;
         let cst = FixedOffset::east_opt(8 * 3600).unwrap();
         let records = self.records.read();
-        let mut map: BTreeMap<String, (u64, f64, f64)> = BTreeMap::new();
+        let mut map: BTreeMap<String, (u64, f64, f64, f64)> = BTreeMap::new();
         for r in records.iter() {
             let date = r.created_at.with_timezone(&cst).format("%Y-%m-%d").to_string();
             let entry = map.entry(date).or_default();
             entry.0 += 1;
             entry.1 += r.estimated_cost;
             entry.2 += r.credits_used.unwrap_or(r.estimated_cost / 0.72);
+            if let Some(cu) = r.credits_used {
+                entry.3 += (r.estimated_cost / 0.72) - cu;
+            }
         }
         let mut result: Vec<DailySummary> = map
             .into_iter()
-            .map(|(date, (reqs, cost, credits))| DailySummary {
+            .map(|(date, (reqs, cost, credits, saved))| DailySummary {
                 date,
                 total_requests: reqs,
                 total_cost: cost,
                 total_credits: credits,
+                total_credits_saved: saved,
             })
             .collect();
         result.sort_by(|a, b| b.date.cmp(&a.date));

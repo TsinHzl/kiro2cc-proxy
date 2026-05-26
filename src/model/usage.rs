@@ -99,6 +99,21 @@ fn get_model_pricing(model: &str) -> ModelPricing {
     }
 }
 
+/// 无缓存基准换算率（credits/$），按模型实测值
+/// sonnet: 7.06，opus-4-6: 7.13，opus-4-7: 7.30，其余默认 7.06
+fn get_k_ref(model: &str) -> f64 {
+    let lower = model.to_lowercase();
+    if lower.contains("opus") {
+        if lower.contains("4-7") || lower.contains("4.7") {
+            7.30
+        } else {
+            7.13
+        }
+    } else {
+        7.06
+    }
+}
+
 /// 计算单次请求的估算费用
 fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32) -> f64 {
     let pricing = get_model_pricing(model);
@@ -228,7 +243,7 @@ impl UsageTracker {
 
         let total_credits_saved: f64 = filtered
             .iter()
-            .filter_map(|r| r.credits_used.map(|cu| r.estimated_cost * 7.06 - cu))
+            .filter_map(|r| r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu))
             .sum();
 
         UsageSummary {
@@ -335,13 +350,14 @@ impl UsageTracker {
             .take(page_size)
             .map(|r| {
                 let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
+                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
-                    credits_saved: r.credits_used.map(|cu| r.estimated_cost * 7.06 - cu),
+                    credits_saved,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -382,7 +398,7 @@ pub struct UsageRecordItem {
     /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_used: Option<f64>,
-    /// 节省的 credits（与无缓存对比）= estimated_cost * 7.06 - credits_used
+    /// 节省的 credits（与无缓存对比）= estimated_cost * get_k_ref(model) - credits_used
     /// 仅当 credits_used 有值时才有值
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_saved: Option<f64>,
@@ -450,13 +466,14 @@ impl UsageTracker {
             .take(page_size)
             .map(|r| {
                 let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
+                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
-                    credits_saved: r.credits_used.map(|cu| r.estimated_cost * 7.06 - cu),
+                    credits_saved,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -501,7 +518,7 @@ impl UsageTracker {
             entry.1 += r.estimated_cost;
             entry.2 += r.credits_used.unwrap_or(r.estimated_cost / 0.72);
             if let Some(cu) = r.credits_used {
-                entry.3 += r.estimated_cost * 7.06 - cu;
+                entry.3 += r.estimated_cost * get_k_ref(&r.model) - cu;
             }
         }
         let mut result: Vec<DailySummary> = map
@@ -566,13 +583,14 @@ impl UsageTracker {
                 let credential_label = r
                     .credential_id
                     .and_then(|cid| credential_labels.get(&cid).cloned());
+                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
-                    credits_saved: r.credits_used.map(|cu| r.estimated_cost * 7.06 - cu),
+                    credits_saved,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,

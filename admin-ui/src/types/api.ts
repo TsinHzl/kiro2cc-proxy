@@ -140,6 +140,7 @@ export interface UsageSummary {
   totalInputTokens: number
   totalOutputTokens: number
   totalCost: number
+  totalCreditsSaved?: number
   byModel: ModelUsage[]
 }
 
@@ -165,6 +166,7 @@ export interface UsageRecord {
   outputTokens: number
   estimatedCost: number
   creditsUsed?: number
+  creditsSaved?: number
   createdAt: string
   credentialId?: number
   credentialLabel?: string
@@ -186,4 +188,5 @@ export interface DailySummary {
   totalRequests: number
   totalCost: number
   totalCredits: number
+  totalCreditsSaved?: number
 }

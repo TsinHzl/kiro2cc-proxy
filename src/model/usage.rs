@@ -333,6 +333,7 @@ impl UsageTracker {
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
+                    credits_saved: r.credits_used.map(|cu| (r.estimated_cost / 0.72) - cu),
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -373,6 +374,10 @@ pub struct UsageRecordItem {
     /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_used: Option<f64>,
+    /// 节省的 credits（与无缓存对比）= (estimated_cost / 0.72) - credits_used
+    /// 仅当 credits_used 有值时才有值
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits_saved: Option<f64>,
     pub created_at: DateTime<Utc>,
     /// 使用的凭据 ID（None 表示旧数据或主密钥请求）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -443,6 +448,7 @@ impl UsageTracker {
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
+                    credits_saved: r.credits_used.map(|cu| (r.estimated_cost / 0.72) - cu),
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -552,6 +558,7 @@ impl UsageTracker {
                     output_tokens: r.output_tokens,
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
+                    credits_saved: r.credits_used.map(|cu| (r.estimated_cost / 0.72) - cu),
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,

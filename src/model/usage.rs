@@ -51,6 +51,8 @@ pub struct UsageSummary {
     pub total_output_tokens: i64,
     /// 总估算费用（美元）
     pub total_cost: f64,
+    /// 节省的 credits 总量（仅含有 credits_used 的记录）
+    pub total_credits_saved: f64,
     /// 按模型分组的用量
     pub by_model: Vec<ModelUsage>,
 }
@@ -224,12 +226,18 @@ impl UsageTracker {
             entry.3 += r.estimated_cost;
         }
 
+        let total_credits_saved: f64 = filtered
+            .iter()
+            .filter_map(|r| r.credits_used.map(|cu| (r.estimated_cost / 0.72) - cu))
+            .sum();
+
         UsageSummary {
             api_key_id,
             total_requests: filtered.len() as u64,
             total_input_tokens: filtered.iter().map(|r| r.input_tokens as i64).sum(),
             total_output_tokens: filtered.iter().map(|r| r.output_tokens as i64).sum(),
             total_cost: filtered.iter().map(|r| r.estimated_cost).sum(),
+            total_credits_saved,
             by_model: by_model
                 .into_iter()
                 .map(|(model, (requests, input, output, cost))| ModelUsage {

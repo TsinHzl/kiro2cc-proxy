@@ -188,7 +188,7 @@ serde_json::to_string(conversation_state)   ← 序列化为 JSON 字符串
   │
   ▼
 KiroProvider.call_api_stream (provider.rs)  ← 发出 HTTP 请求
-  │  1. acquire_context_filtered(model, bound_ids) → 选凭据
+  │  1. acquire_context_sticky(model, bound_ids, continuation_id) → sticky 路由 + 选凭据
   │  2. try_ensure_token() → 获取/刷新 access_token（双重检查锁）
   │  3. build_headers() → 注入 Kiro IDE 伪装 Headers
   │  4. client.post(url).headers().body().send() → 真正发出 HTTP
@@ -337,8 +337,8 @@ UserInputMessage { model_id: "claude-sonnet-4.6", ... }
 json["conversationState"]["currentMessage"]["userInputMessage"]["modelId"]
 = "claude-sonnet-4.6"  // 读回来用于凭据过滤
   │
-  ▼ provider.rs:469 — acquire_context_filtered(model, bound_ids)
-选择支持该模型的凭据（如有凭据绑定模型约束的话）
+  ▼ provider.rs:502 — acquire_context_sticky(model, bound_ids, continuation_id)
+按 agentContinuationId 查 sticky_cache，命中则复用缓存凭据，未命中则按模式选凭据并写缓存
   │
   ▼ 序列化后发出 HTTP POST
 body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-sonnet-4.6",...}}}}"#
@@ -653,6 +653,66 @@ POST /api/admin/settings/load-balancing-mode
 {"mode": "balanced"}
 ```
 
+#### Sticky Cache — 会话级粘性路由
+
+**大白话**：同一个 Claude Code 会话的所有请求，不管负载均衡怎么选，都会"锁"在第一次选中的那个 Kiro 账号上。因为 Kiro 的 prompt cache 是按账号隔离的，中途切换账号就等于 cache 全失效。
+
+**数据结构：**
+
+```rust
+// file: src/kiro/token_manager.rs:603
+const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60); // 60 分钟
+
+struct StickyCacheEntry {
+    credential_id: u64,
+    inserted_at: Instant, // 每次命中都会重置（活跃续期）
+}
+
+// HashMap<agentContinuationId, StickyCacheEntry>
+sticky_cache: Mutex<HashMap<String, StickyCacheEntry>>
+```
+
+**完整路由流程（`acquire_context_sticky`，`token_manager.rs:988`）：**
+
+```
+请求携带 agentContinuationId（由 conversationId SHA-256 派生，同会话固定不变）
+    ↓
+① 查 sticky_cache
+    ├── 命中 → ② 检查 TTL（60 分钟，每次命中重置计时）
+    │               ├── 未过期 → ③ 检查凭据健康（未禁用 & 非 Unhealthy）
+    │               │               ├── 健康 → ④ 刷新 token → 续期 inserted_at → 直接返回
+    │               │               └── 不健康 → 驱逐条目，走重选逻辑
+    │               └── 已过期 → 驱逐条目，走重选逻辑
+    └── 未命中 → 走重选逻辑
+
+重选逻辑（acquire_context_filtered）：
+    按 priority/balanced 模式选一个健康凭据
+    → 写入 sticky_cache（agentContinuationId → 凭据 ID）
+    → 懒惰 GC：顺手清理所有已过期条目
+```
+
+**与负载均衡模式的交互：**
+
+| | priority 模式 | balanced 模式 |
+|---|---|---|
+| 会话首次请求 | 选优先级最高的凭据 | 轮询选一个凭据 |
+| 同会话后续请求 | **绑定到首次选的凭据** | **同样绑定到首次选的凭据** |
+| 新会话 | 选同一个最高优先级 | 轮询到下一个凭据 |
+
+Sticky Cache **包裹在**负载均衡之外：命中缓存时完全绕过模式选择；只有首次请求或缓存失效时才触发模式选择。balanced 模式的轮询因此是**会话粒度**的分散，而非请求粒度。
+
+**懒惰 GC：**
+
+TTL 过期的条目不靠后台任务清理，而是在每次写入新条目时顺带 `retain`：
+
+```rust
+cache.retain(|_, v| v.inserted_at.elapsed() < STICKY_CACHE_TTL);
+```
+
+**前提：agentContinuationId 必须稳定**
+
+若 `metadata.user_id` 中无 `session_UUID`（如 curl 直调），`conversationId` 随机生成，`agentContinuationId` 也随机，sticky 路由退化为每次请求重新选凭据，prompt cache 同时失效。
+
 ---
 
 ### Prompt Caching — 跨请求 KV Cache
@@ -804,8 +864,12 @@ effective_rate: 0.0119 ~ 0.0122（与 credential=4 持平）
 
 ```mermaid
 flowchart TD
-    A["请求进入 call_api_with_retry()"] --> B["acquire_context_filtered(model)"]
-    B --> C["try_ensure_token()"]
+    A["请求进入 call_api_with_retry()"] --> B["acquire_context_sticky(model, continuation_id)"]
+    B --> B1{sticky_cache 命中且凭据健康?}
+    B1 -->|是| C
+    B1 -->|否/过期/不健康| B2["acquire_context_filtered → 写入 sticky_cache"]
+    B2 --> C
+    C["try_ensure_token()"]
     C --> D["POST /generateAssistantResponse"]
     D --> E{响应码}
     E -->|200| F["返回 EventStream 字节流"]

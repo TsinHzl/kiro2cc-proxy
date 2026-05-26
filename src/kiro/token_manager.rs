@@ -984,7 +984,7 @@ impl MultiTokenManager {
     /// 基于 agentContinuationId 的 sticky 路由
     ///
     /// 同一会话优先路由到缓存中的同一凭据，保证 Kiro prompt cache 命中率。
-    /// 缓存条目 TTL 30 分钟（每次命中续期），不健康时自动驱逐并重选。
+    /// 缓存条目 TTL 60 分钟（每次命中续期），不健康时自动驱逐并重选。
     pub async fn acquire_context_sticky(
         &self,
         model: Option<&str>,

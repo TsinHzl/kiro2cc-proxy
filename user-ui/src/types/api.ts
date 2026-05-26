@@ -40,6 +40,7 @@ export interface UsageRecordItem {
   outputTokens: number
   estimatedCost: number
   creditsUsed?: number
+  creditsSaved?: number
   createdAt: string
   clientIp?: string
   credentialLabel?: string

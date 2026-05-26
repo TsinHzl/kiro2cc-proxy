@@ -1144,51 +1144,41 @@ fn build_history(
             // 将 cch= 固定为 0，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
             let final_content = normalize_billing_header(final_content);
 
-            // 打印 history[0] 内容的 hash，用于验证跨请求稳定性
-            let h0_hash = {
-                let mut hasher = Sha256::new();
-                hasher.update(final_content.as_bytes());
-                format!("{:x}", hasher.finalize())[..8].to_string()
-            };
-            tracing::info!(
-                "[exp2] history[0] hash={} len={}",
-                h0_hash,
-                final_content.len()
-            );
-
-            // diff：与上一轮 history[0] 对比，找出变化的行
-            {
+            // 同一会话复用首轮 history[0]，冻结 cc_version/gitStatus/currentDate 等易变字段，
+            // 确保 Kiro 服务端跨轮次缓存命中。首轮写入，后续轮次直接返回首轮内容。
+            let final_content = {
                 let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
                 let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(prev) = map.get(session_id) {
-                    if prev != &final_content {
-                        let prev_lines: Vec<&str> = prev.lines().collect();
-                        let cur_lines: Vec<&str> = final_content.lines().collect();
-                        let max = prev_lines.len().max(cur_lines.len());
-                        let mut printed = 0;
-                        for i in 0..max {
-                            let pl = prev_lines.get(i).copied().unwrap_or("");
-                            let cl = cur_lines.get(i).copied().unwrap_or("");
-                            if pl != cl {
-                                let ctx_start = i.saturating_sub(3);
-                                let ctx_end = (i + 4).min(cur_lines.len());
-                                tracing::info!(
-                                    "[exp2] h0_diff line={} prev={:?} cur={:?} context={:?}",
-                                    i,
-                                    pl,
-                                    cl,
-                                    &cur_lines[ctx_start..ctx_end]
-                                );
-                                printed += 1;
-                                if printed >= 5 {
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    let frozen = prev.clone();
+                    let h0_hash = {
+                        let mut hasher = Sha256::new();
+                        hasher.update(frozen.as_bytes());
+                        format!("{:x}", hasher.finalize())[..8].to_string()
+                    };
+                    tracing::info!(
+                        "[exp2] history[0] frozen hash={} len={} session={}",
+                        h0_hash,
+                        frozen.len(),
+                        session_id
+                    );
+                    frozen
+                } else {
+                    let h0_hash = {
+                        let mut hasher = Sha256::new();
+                        hasher.update(final_content.as_bytes());
+                        format!("{:x}", hasher.finalize())[..8].to_string()
+                    };
+                    tracing::info!(
+                        "[exp2] history[0] first hash={} len={} session={}",
+                        h0_hash,
+                        final_content.len(),
+                        session_id
+                    );
+                    map.insert(session_id.to_string(), final_content.clone());
+                    final_content
                 }
-                map.insert(session_id.to_string(), final_content.clone());
-            }
+            };
 
             // 系统消息作为 user + assistant 配对
             let user_msg = HistoryUserMessage::new(final_content, model_id);

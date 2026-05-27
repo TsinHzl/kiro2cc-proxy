@@ -132,6 +132,14 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0).toFixed(4)}
             </div>
+            {(() => {
+              const savedTotal = allRecords.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
+              return savedTotal > 0 ? (
+                <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                  省 {savedTotal.toFixed(4)}
+                </div>
+              ) : null
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -226,6 +234,11 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
                           {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost / 0.72).toFixed(4)}
                           {record.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
+                          {record.creditsSaved != null && record.creditsSaved > 0 && (
+                            <span className="ml-1 text-xs text-green-600 dark:text-green-400">
+                              (省 {record.creditsSaved.toFixed(4)})
+                            </span>
+                          )}
                         </td>
                       </tr>
                       )

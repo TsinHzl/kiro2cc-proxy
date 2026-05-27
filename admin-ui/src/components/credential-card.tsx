@@ -54,11 +54,11 @@ function formatLastUsed(lastUsedAt: string | null): string {
 type HealthStatus = CredentialStatusItem['healthStatus']
 
 const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string }> = {
-  healthy:   { label: '健康',   className: 'bg-green-100 text-green-800 border-green-300' },
-  warning:   { label: '警告',   className: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
-  degraded:  { label: '降级',   className: 'bg-orange-100 text-orange-800 border-orange-300' },
-  unhealthy: { label: '不健康', className: 'bg-red-100 text-red-800 border-red-300' },
-  disabled:  { label: '已禁用', className: 'bg-gray-100 text-gray-600 border-gray-300' },
+  healthy:   { label: '健康',   className: 'bg-neon-green/10 text-neon-green border-neon-green/30' },
+  warning:   { label: '警告',   className: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/30' },
+  degraded:  { label: '降级',   className: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+  unhealthy: { label: '不健康', className: 'bg-neon-red/10 text-neon-red border-neon-red/30' },
+  disabled:  { label: '已禁用', className: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
 }
 
 function HealthBadge({ status }: { status: HealthStatus }) {

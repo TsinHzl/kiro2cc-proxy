@@ -22,7 +22,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         <div
           className={cn(
             'h-full transition-all',
-            percentage > 80 ? 'bg-red-500' : percentage > 60 ? 'bg-yellow-500' : 'bg-green-500'
+            percentage > 80 ? 'bg-neon-red' : percentage > 60 ? 'bg-neon-yellow' : 'bg-neon-green'
           )}
           style={{ width: `${percentage}%` }}
         />

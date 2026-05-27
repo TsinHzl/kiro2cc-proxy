@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Moon, Sun, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -56,13 +56,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const initialBalanceFetchDone = useRef(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 12
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return document.documentElement.classList.contains('dark')
-    }
-    return false
-  })
-
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch } = useCredentials()
   const credentialsRef = useRef(data?.credentials)
@@ -205,11 +198,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
     prevTabRef.current = activeTab
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode)
-    document.documentElement.classList.toggle('dark')
-  }
 
   const handleViewBalance = (id: number) => {
     setSelectedCredentialId(id)
@@ -627,9 +615,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <Button variant="ghost" size="icon" onClick={toggleDarkMode}>
-              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
             <Button variant="ghost" size="icon" onClick={handleRefresh}>
               <RefreshCw className="h-5 w-5" />
             </Button>

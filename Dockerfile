@@ -29,7 +29,7 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-COPY --from=builder /app/target/release/kiro-rs /app/kiro-rs
+COPY --from=builder /app/target/release/kiro2cc-proxy /app/kiro2cc-proxy
 
 EXPOSE 5678
 
@@ -40,4 +40,4 @@ CMD sh -c 'mkdir -p /app/config && \
   if [ ! -f /app/config/credentials.json ]; then \
     echo "[]" > /app/config/credentials.json; \
   fi && \
-  ./kiro-rs --config /app/config/config.json --credentials /app/config/credentials.json'
+  ./kiro2cc-proxy --config /app/config/config.json --credentials /app/config/credentials.json'

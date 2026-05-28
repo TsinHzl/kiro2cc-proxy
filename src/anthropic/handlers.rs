@@ -516,6 +516,13 @@ pub async fn post_messages(
         0.1,
     );
 
+    let json_schema_requested = payload
+        .output_config
+        .as_ref()
+        .and_then(|c| c.format.as_ref())
+        .map(|f| f.format_type == "json_schema")
+        .unwrap_or(false);
+
     if payload.stream {
         // 流式响应
         handle_stream_request(
@@ -543,6 +550,7 @@ pub async fn post_messages(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            json_schema_requested,
         )
         .await
     }
@@ -702,6 +710,7 @@ async fn handle_non_stream_request(
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
+    json_schema_requested: bool,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
     let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
@@ -826,35 +835,13 @@ async fn handle_non_stream_request(
         stop_reason = "tool_use".to_string();
     }
 
-    // 从文本中提取 <thinking>...</thinking>（Kiro 非流式响应含 XML 思维标签）
-    let mut thinking_for_response: Option<String> = None;
-    if let Some(think_start) = text_content.find("<thinking>") {
-        let content_start = think_start + "<thinking>".len();
-        if let Some(think_end_rel) = text_content[content_start..].find("</thinking>") {
-            let content_end = content_start + think_end_rel;
-            let thinking = text_content[content_start..content_end].to_string();
-            let after_end = content_end + "</thinking>".len();
-            let remaining = text_content[after_end..].trim_start_matches('\n').to_string();
-            thinking_for_response = Some(thinking);
-            text_content = remaining;
-        }
-    }
-
-    // 去除模型可能添加的 Markdown 代码围栏（strip_json_fences 内部已有前缀检查，不影响正常响应）
-    if !text_content.is_empty() {
+    // JSON schema 结构化输出：去除模型可能添加的 Markdown 代码围栏
+    if json_schema_requested && !text_content.is_empty() {
         text_content = strip_json_fences(text_content);
     }
 
     // 构建响应内容
     let mut content: Vec<serde_json::Value> = Vec::new();
-
-    if let Some(thinking) = thinking_for_response {
-        content.push(json!({
-            "type": "thinking",
-            "thinking": thinking,
-            "signature": generate_thinking_signature()
-        }));
-    }
 
     if !text_content.is_empty() {
         content.push(json!({
@@ -944,21 +931,6 @@ fn strip_json_fences(text: String) -> String {
         .or_else(|| after_fence.strip_suffix("```"))
         .unwrap_or(after_fence);
     result.to_string()
-}
-
-/// 为非流式 thinking block 生成伪造签名字段
-fn generate_thinking_signature() -> String {
-    // 前缀模拟真实 Anthropic thinking signature 的 protobuf 头部（0x12 0xB5 0x02 = field2 len-delimited）
-    const PREFIX: &str = "ErUCCQoH";
-    const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut sig = String::with_capacity(302);
-    sig.push_str(PREFIX);
-    for _ in 0..292 {
-        let idx = fastrand::usize(..BASE64_CHARS.len());
-        sig.push(BASE64_CHARS[idx] as char);
-    }
-    sig.push_str("==");
-    sig
 }
 
 /// 从请求头或连接信息提取客户端真实 IP
@@ -1180,6 +1152,13 @@ pub async fn post_messages_cc(
         0.1,
     );
 
+    let json_schema_requested = payload
+        .output_config
+        .as_ref()
+        .and_then(|c| c.format.as_ref())
+        .map(|f| f.format_type == "json_schema")
+        .unwrap_or(false);
+
     if payload.stream {
         // 流式响应（缓冲模式）
         handle_stream_request_buffered(
@@ -1207,6 +1186,7 @@ pub async fn post_messages_cc(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            json_schema_requested,
         )
         .await
     }

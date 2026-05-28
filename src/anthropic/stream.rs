@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 流式响应处理模块
 //!
 //! 实现 Kiro → Anthropic 流式响应转换和 SSE 状态管理
@@ -751,14 +752,15 @@ impl StreamContext {
         // 估算 tokens
         self.output_tokens += estimate_tokens(content);
 
-        // 如果启用了thinking，需要处理thinking块
-        if self.thinking_enabled {
-            return self.process_content_with_thinking(content);
+        // 如果已经过了 thinking 窗口（有 tool_use 或已提取过 thinking），直接输出文本。
+        // <thinking> 只出现在响应最开头，tool_use 或已提取后不可能再出现。
+        if self.state_manager.has_tool_use || self.thinking_extracted {
+            return self.create_text_delta_events(content);
         }
 
-        // 非 thinking 模式同样复用统一的 text_delta 发送逻辑，
-        // 以便在 tool_use 自动关闭文本块后能够自愈重建新的文本块，避免“吞字”。
-        self.create_text_delta_events(content)
+        // 始终走 thinking 路径：Kiro 对部分模型默认返回 <thinking>...</thinking> XML，
+        // 即使请求未显式启用 thinking 也需要正确提取并生成 thinking block + signature。
+        self.process_content_with_thinking(content)
     }
 
     /// 处理包含thinking块的内容
@@ -1155,7 +1157,7 @@ impl StreamContext {
         let mut events = Vec::new();
 
         // Flush thinking_buffer 中的剩余内容
-        if self.thinking_enabled && !self.thinking_buffer.is_empty() {
+        if !self.thinking_buffer.is_empty() {
             if self.in_thinking_block {
                 // 末尾可能残留 `</thinking>`（例如紧跟 tool_use 或流结束），需要在 flush 时过滤掉结束标签。
                 if let Some(end_pos) =
@@ -1223,10 +1225,7 @@ impl StreamContext {
         // 如果整个流中只产生了 thinking 块，没有 text 也没有 tool_use，
         // 则设置 stop_reason 为 max_tokens（表示模型耗尽了 token 预算在思考上），
         // 并补发一套完整的 text 事件（内容为一个空格），确保 content 数组中有 text 块
-        if self.thinking_enabled
-            && self.thinking_block_index.is_some()
-            && !self.state_manager.has_non_thinking_blocks()
-        {
+        if self.thinking_block_index.is_some() && !self.state_manager.has_non_thinking_blocks() {
             self.state_manager.set_stop_reason("max_tokens");
             events.extend(self.create_text_delta_events(" "));
         }

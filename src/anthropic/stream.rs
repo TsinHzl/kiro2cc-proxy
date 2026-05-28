@@ -637,30 +637,9 @@ impl StreamContext {
             events.push(event);
         }
 
-        // 如果启用了 thinking，不在这里创建文本块
+        // 如果启用了 thinking，或者始终走 thinking 路径（动态检测），不在这里创建文本块
         // thinking 块和文本块会在 process_content_with_thinking 中按正确顺序创建
-        if self.thinking_enabled {
-            return events;
-        }
-
-        // 创建初始文本块（仅在未启用 thinking 时）
-        let text_block_index = self.state_manager.next_block_index();
-        self.text_block_index = Some(text_block_index);
-        let text_block_events = self.state_manager.handle_content_block_start(
-            text_block_index,
-            "text",
-            json!({
-                "type": "content_block_start",
-                "index": text_block_index,
-                "content_block": {
-                    "type": "text",
-                    "text": ""
-                }
-            }),
-        );
-        events.extend(text_block_events);
-
-        events
+        return events;
     }
 
     /// 处理 Kiro 事件并转换为 Anthropic SSE 事件
@@ -999,7 +978,7 @@ impl StreamContext {
         // 但当 `</thinking>` 后面没有 `\n\n`（例如紧跟 tool_use 或流结束）时，
         // thinking 结束标签会滞留在 thinking_buffer，导致后续 flush 时把 `</thinking>` 当作内容输出。
         // 这里在开始 tool_use block 前做一次“边界场景”的结束标签识别与过滤。
-        if self.thinking_enabled && self.in_thinking_block {
+        if self.in_thinking_block {
             if let Some(end_pos) = find_real_thinking_end_tag_at_buffer_end(&self.thinking_buffer) {
                 let thinking_content = self.thinking_buffer[..end_pos].to_string();
                 if !thinking_content.is_empty() {
@@ -1040,11 +1019,7 @@ impl StreamContext {
         // thinking 模式下，process_content_with_thinking 可能会为了探测 `<thinking>` 而暂存一小段尾部文本。
         // 如果此时直接开始 tool_use，状态机会自动关闭 text block，导致这段"待输出文本"看起来被 tool_use 吞掉。
         // 约束：只在尚未进入 thinking block、且 thinking 尚未被提取时，将缓冲区当作普通文本 flush。
-        if self.thinking_enabled
-            && !self.in_thinking_block
-            && !self.thinking_extracted
-            && !self.thinking_buffer.is_empty()
-        {
+        if !self.in_thinking_block && !self.thinking_extracted && !self.thinking_buffer.is_empty() {
             let buffered = std::mem::take(&mut self.thinking_buffer);
             events.extend(self.create_text_delta_events(&buffered));
         }
@@ -1530,16 +1505,40 @@ mod tests {
         let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
 
         let initial_events = ctx.generate_initial_events();
+        // 现在始终走 thinking 路径，generate_initial_events 不再预创建文本块
         assert!(
-            initial_events
+            !initial_events
                 .iter()
                 .any(|e| e.event == "content_block_start"
-                    && e.data["content_block"]["type"] == "text")
+                    && e.data["content_block"]["type"] == "text"),
+            "generate_initial_events should NOT pre-create text block (lazy creation)"
         );
 
-        let initial_text_index = ctx
-            .text_block_index
-            .expect("initial text block index should exist");
+        // 先发送一段文本，触发文本块懒创建
+        let first_text_events = ctx.process_assistant_response("hello");
+        let first_text_index = first_text_events.iter().find_map(|e| {
+            if e.event == "content_block_start" && e.data["content_block"]["type"] == "text" {
+                e.data["index"].as_i64()
+            } else {
+                None
+            }
+        });
+        // 注意：短文本（< <thinking> 长度）会被缓冲，等待更多内容
+        // 发送足够长的文本确保触发输出
+        let more_text_events = ctx.process_assistant_response(" world and more text here");
+        let lazy_text_index = first_text_index.or_else(|| {
+            more_text_events.iter().find_map(|e| {
+                if e.event == "content_block_start" && e.data["content_block"]["type"] == "text" {
+                    e.data["index"].as_i64()
+                } else {
+                    None
+                }
+            })
+        });
+        assert!(
+            lazy_text_index.is_some(),
+            "text block should be lazily created"
+        );
 
         // tool_use 开始会自动关闭现有 text block
         let tool_events = ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
@@ -1550,8 +1549,7 @@ mod tests {
         });
         assert!(
             tool_events.iter().any(|e| {
-                e.event == "content_block_stop"
-                    && e.data["index"].as_i64() == Some(initial_text_index as i64)
+                e.event == "content_block_stop" && e.data["index"].as_i64() == lazy_text_index
             }),
             "tool_use should stop the previous text block"
         );
@@ -1571,7 +1569,7 @@ mod tests {
         );
         assert_ne!(
             new_text_start_index.unwrap(),
-            initial_text_index as i64,
+            lazy_text_index.unwrap(),
             "new text block index should differ from the stopped one"
         );
         assert!(

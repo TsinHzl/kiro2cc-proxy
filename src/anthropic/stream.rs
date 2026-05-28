@@ -522,6 +522,8 @@ pub struct StreamContext {
     /// 是否需要剥离 thinking 内容开头的换行符
     /// 模型输出 `<thinking>\n` 时，`\n` 可能与标签在同一 chunk 或下一 chunk
     strip_thinking_leading_newline: bool,
+    /// signature_delta 是否已发送（签名只能在 content_block_stop 之前发送一次）
+    signature_sent: bool,
     /// 用量追踪器（可选）
     usage_tracker: Option<Arc<UsageTracker>>,
     /// API Key ID（用于用量记录）
@@ -564,6 +566,7 @@ impl StreamContext {
             thinking_block_index: None,
             text_block_index: None,
             strip_thinking_leading_newline: false,
+            signature_sent: false,
             usage_tracker: None,
             api_key_id: None,
             credential_id: None,
@@ -692,7 +695,10 @@ impl StreamContext {
                 if let Some(prev_val) = prev {
                     tracing::warn!(
                         "[metering] 同一请求收到第2次 meteringEvent: new={} {} prev={} model={}",
-                        metering.usage, metering.unit_plural, prev_val, self.model
+                        metering.usage,
+                        metering.unit_plural,
+                        prev_val,
+                        self.model
                     );
                 } else {
                     tracing::info!(
@@ -707,7 +713,9 @@ impl StreamContext {
                 for r in &code_ref.references {
                     tracing::debug!(
                         "[code_reference] license={} repo={} url={}",
-                        r.license_name, r.repository, r.url
+                        r.license_name,
+                        r.repository,
+                        r.url
                     );
                 }
                 Vec::new()
@@ -849,6 +857,8 @@ impl StreamContext {
                     if let Some(thinking_index) = self.thinking_block_index {
                         // 先发送空的 thinking_delta
                         events.push(self.create_thinking_delta_event(thinking_index, ""));
+                        // 注入 signature_delta（必须在 content_block_stop 之前）
+                        events.extend(self.take_signature_events());
                         // 再发送 content_block_stop
                         if let Some(stop_event) =
                             self.state_manager.handle_content_block_stop(thinking_index)
@@ -1005,6 +1015,8 @@ impl StreamContext {
                 if let Some(thinking_index) = self.thinking_block_index {
                     // 先发送空的 thinking_delta
                     events.push(self.create_thinking_delta_event(thinking_index, ""));
+                    // 注入 signature_delta（必须在 content_block_stop 之前）
+                    events.extend(self.take_signature_events());
                     // 再发送 content_block_stop
                     if let Some(stop_event) =
                         self.state_manager.handle_content_block_stop(thinking_index)
@@ -1091,6 +1103,15 @@ impl StreamContext {
         events
     }
 
+    /// 首次调用时生成 signature_delta 事件，后续调用返回空（签名只能在 content_block_stop 之前发送一次）
+    fn take_signature_events(&mut self) -> Vec<SseEvent> {
+        if self.signature_sent {
+            return Vec::new();
+        }
+        self.signature_sent = true;
+        self.generate_signature_events()
+    }
+
     /// 生成伪造的 signature_delta 事件
     ///
     /// 检测工具要求 signature_delta 事件的 signature 字段总长度 >= 100 字符才能通过。
@@ -1152,6 +1173,8 @@ impl StreamContext {
                     // 关闭 thinking 块：先发送空的 thinking_delta，再发送 content_block_stop
                     if let Some(thinking_index) = self.thinking_block_index {
                         events.push(self.create_thinking_delta_event(thinking_index, ""));
+                        // 注入 signature_delta（必须在 content_block_stop 之前）
+                        events.extend(self.take_signature_events());
                         if let Some(stop_event) =
                             self.state_manager.handle_content_block_stop(thinking_index)
                         {
@@ -1179,6 +1202,8 @@ impl StreamContext {
                     if let Some(thinking_index) = self.thinking_block_index {
                         // 先发送空的 thinking_delta
                         events.push(self.create_thinking_delta_event(thinking_index, ""));
+                        // 注入 signature_delta（必须在 content_block_stop 之前）
+                        events.extend(self.take_signature_events());
                         // 再发送 content_block_stop
                         if let Some(stop_event) =
                             self.state_manager.handle_content_block_stop(thinking_index)
@@ -1221,11 +1246,19 @@ impl StreamContext {
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
             let credits_per_ktok = self.metering_usage.map(|c| {
-                if final_input_tokens > 0 { c / (final_input_tokens as f64) * 1000.0 } else { 0.0 }
+                if final_input_tokens > 0 {
+                    c / (final_input_tokens as f64) * 1000.0
+                } else {
+                    0.0
+                }
             });
             let effective_rate = self.metering_usage.map(|c| {
                 let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
-                if denom > 0.0 { c / denom * 1000.0 } else { 0.0 }
+                if denom > 0.0 {
+                    c / denom * 1000.0
+                } else {
+                    0.0
+                }
             });
             tracing::info!(
                 "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
@@ -1234,11 +1267,16 @@ impl StreamContext {
                 self.metering_cache_read_tokens, self.metering_cache_creation_tokens,
                 key_id, self.credential_id
             );
-            tracker.record(key_id, self.credential_id, self.model.clone(), final_input_tokens, self.output_tokens, self.client_ip.clone(), self.metering_usage);
+            tracker.record(
+                key_id,
+                self.credential_id,
+                self.model.clone(),
+                final_input_tokens,
+                self.output_tokens,
+                self.client_ip.clone(),
+                self.metering_usage,
+            );
         }
-
-        // 注入 signature_delta 事件（伪造模型签名以通过检测）
-        events.extend(self.generate_signature_events());
 
         // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
         let sim_usage = self.prompt_cache_usage.scale_to(final_input_tokens);
@@ -1315,7 +1353,9 @@ impl BufferedStreamContext {
         credential_id: Option<u64>,
         client_ip: Option<String>,
     ) -> Self {
-        self.inner = self.inner.with_usage_tracking(tracker, api_key_id, credential_id, client_ip);
+        self.inner = self
+            .inner
+            .with_usage_tracking(tracker, api_key_id, credential_id, client_ip);
         self
     }
 
@@ -1363,7 +1403,8 @@ impl BufferedStreamContext {
             .inner
             .context_input_tokens
             .unwrap_or(self.estimated_input_tokens);
-        let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens);
+        let final_input_tokens =
+            cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens);
 
         // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
         let sim_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);
@@ -1392,8 +1433,7 @@ impl BufferedStreamContext {
                         usage["input_tokens"] = serde_json::json!(report_input);
                         usage["cache_creation_input_tokens"] =
                             serde_json::json!(report_cache_creation);
-                        usage["cache_read_input_tokens"] =
-                            serde_json::json!(report_cache_read);
+                        usage["cache_read_input_tokens"] = serde_json::json!(report_cache_read);
                     }
                 }
             }
@@ -1902,7 +1942,12 @@ mod tests {
 
         let full_thinking: String = thinking_deltas
             .iter()
-            .filter(|e| !e.data["delta"]["thinking"].as_str().unwrap_or("").is_empty())
+            .filter(|e| {
+                !e.data["delta"]["thinking"]
+                    .as_str()
+                    .unwrap_or("")
+                    .is_empty()
+            })
             .map(|e| e.data["delta"]["thinking"].as_str().unwrap_or(""))
             .collect();
 
@@ -1915,14 +1960,11 @@ mod tests {
         let mut ctx = StreamContext::new_with_thinking("test-model", 1, true);
         let _initial_events = ctx.generate_initial_events();
 
-        let events =
-            ctx.process_assistant_response("<thinking>\nabc</thinking>\n\n你好");
+        let events = ctx.process_assistant_response("<thinking>\nabc</thinking>\n\n你好");
 
         let text_deltas: Vec<_> = events
             .iter()
-            .filter(|e| {
-                e.event == "content_block_delta" && e.data["delta"]["type"] == "text_delta"
-            })
+            .filter(|e| e.event == "content_block_delta" && e.data["delta"]["type"] == "text_delta")
             .collect();
 
         let full_text: String = text_deltas
@@ -1954,9 +1996,7 @@ mod tests {
     fn collect_text_content(events: &[SseEvent]) -> String {
         events
             .iter()
-            .filter(|e| {
-                e.event == "content_block_delta" && e.data["delta"]["type"] == "text_delta"
-            })
+            .filter(|e| e.event == "content_block_delta" && e.data["delta"]["type"] == "text_delta")
             .map(|e| e.data["delta"]["text"].as_str().unwrap_or(""))
             .collect()
     }
@@ -1975,7 +2015,11 @@ mod tests {
         all.extend(ctx.generate_final_events());
 
         let thinking = collect_thinking_content(&all);
-        assert_eq!(thinking, "abc", "thinking should be 'abc', got: {:?}", thinking);
+        assert_eq!(
+            thinking, "abc",
+            "thinking should be 'abc', got: {:?}",
+            thinking
+        );
 
         let text = collect_text_content(&all);
         assert_eq!(text, "你好", "text should be '你好', got: {:?}", text);
@@ -1993,7 +2037,11 @@ mod tests {
         all.extend(ctx.generate_final_events());
 
         let thinking = collect_thinking_content(&all);
-        assert_eq!(thinking, "abc", "thinking should be 'abc', got: {:?}", thinking);
+        assert_eq!(
+            thinking, "abc",
+            "thinking should be 'abc', got: {:?}",
+            thinking
+        );
 
         let text = collect_text_content(&all);
         assert_eq!(text, "你好", "text should be '你好', got: {:?}", text);
@@ -2013,7 +2061,11 @@ mod tests {
         all.extend(ctx.generate_final_events());
 
         let thinking = collect_thinking_content(&all);
-        assert_eq!(thinking, "abc", "thinking should be 'abc', got: {:?}", thinking);
+        assert_eq!(
+            thinking, "abc",
+            "thinking should be 'abc', got: {:?}",
+            thinking
+        );
 
         let text = collect_text_content(&all);
         assert_eq!(text, "text", "text should be 'text', got: {:?}", text);
@@ -2042,7 +2094,11 @@ mod tests {
         all.extend(ctx.generate_final_events());
 
         let thinking = collect_thinking_content(&all);
-        assert_eq!(thinking, "hello", "thinking should be 'hello', got: {:?}", thinking);
+        assert_eq!(
+            thinking, "hello",
+            "thinking should be 'hello', got: {:?}",
+            thinking
+        );
 
         let text = collect_text_content(&all);
         assert_eq!(text, "world", "text should be 'world', got: {:?}", text);
@@ -2132,12 +2188,14 @@ mod tests {
 
         let mut all_events = Vec::new();
         all_events.extend(ctx.process_assistant_response("<thinking>\nabc</thinking>"));
-        all_events.extend(ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
-            name: "test_tool".to_string(),
-            tool_use_id: "tool_1".to_string(),
-            input: "{}".to_string(),
-            stop: true,
-        }));
+        all_events.extend(
+            ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
+                name: "test_tool".to_string(),
+                tool_use_id: "tool_1".to_string(),
+                input: "{}".to_string(),
+                stop: true,
+            }),
+        );
         all_events.extend(ctx.generate_final_events());
 
         let message_delta = all_events

@@ -515,6 +515,13 @@ pub async fn post_messages(
         0.1,
     );
 
+    let json_schema_requested = payload
+        .output_config
+        .as_ref()
+        .and_then(|c| c.format.as_ref())
+        .map(|f| f.format_type == "json_schema")
+        .unwrap_or(false);
+
     if payload.stream {
         // 流式响应
         handle_stream_request(
@@ -542,6 +549,7 @@ pub async fn post_messages(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            json_schema_requested,
         )
         .await
     }
@@ -701,6 +709,7 @@ async fn handle_non_stream_request(
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
+    json_schema_requested: bool,
 ) -> Response {
     // 调用 Kiro API（支持多凭据故障转移）
     let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
@@ -825,6 +834,11 @@ async fn handle_non_stream_request(
         stop_reason = "tool_use".to_string();
     }
 
+    // JSON schema 结构化输出：去除模型可能添加的 Markdown 代码围栏
+    if json_schema_requested && !text_content.is_empty() {
+        text_content = strip_json_fences(text_content);
+    }
+
     // 构建响应内容
     let mut content: Vec<serde_json::Value> = Vec::new();
 
@@ -888,6 +902,34 @@ async fn handle_non_stream_request(
     });
 
     (StatusCode::OK, Json(response_body)).into_response()
+}
+
+/// 去除 JSON 响应中模型可能添加的 Markdown 代码围栏
+///
+/// 当请求 JSON schema 结构化输出时，部分模型仍会将结果包裹在 ```json...``` 中。
+/// 此函数识别并剥离这些围栏，返回纯 JSON 文本。
+fn strip_json_fences(text: String) -> String {
+    let trimmed = text.trim();
+    if !trimmed.starts_with("```") {
+        return text;
+    }
+    let after_fence = if let Some(rest) = trimmed.strip_prefix("```json\n") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("```json\r\n") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("```\n") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("```\r\n") {
+        rest
+    } else {
+        return text;
+    };
+    let result = after_fence
+        .strip_suffix("\n```")
+        .or_else(|| after_fence.strip_suffix("\r\n```"))
+        .or_else(|| after_fence.strip_suffix("```"))
+        .unwrap_or(after_fence);
+    result.to_string()
 }
 
 /// 从请求头或连接信息提取客户端真实 IP
@@ -1109,6 +1151,13 @@ pub async fn post_messages_cc(
         0.1,
     );
 
+    let json_schema_requested = payload
+        .output_config
+        .as_ref()
+        .and_then(|c| c.format.as_ref())
+        .map(|f| f.format_type == "json_schema")
+        .unwrap_or(false);
+
     if payload.stream {
         // 流式响应（缓冲模式）
         handle_stream_request_buffered(
@@ -1136,6 +1185,7 @@ pub async fn post_messages_cc(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            json_schema_requested,
         )
         .await
     }

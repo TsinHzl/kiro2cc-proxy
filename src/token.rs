@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Token 计算模块
 //!
 //! 提供文本 token 数量计算功能。

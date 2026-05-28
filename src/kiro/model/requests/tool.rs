@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 工具类型定义
 //!
 //! 定义 Kiro API 中工具相关的类型

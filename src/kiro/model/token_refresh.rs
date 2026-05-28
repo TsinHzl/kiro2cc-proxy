@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 use serde::{Deserialize, Serialize};
 
 /// 刷新 Token 的请求体 (Social 认证)

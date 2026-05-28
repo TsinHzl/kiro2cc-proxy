@@ -1,16 +1,16 @@
 #!/bin/bash
-# kiro-rs 服务器一键安装脚本
+# kiro2cc-proxy 服务器一键安装脚本
 # 适用于 Debian/Ubuntu/CentOS Linux
 # 用法: bash install_server.sh
 
 set -e
 
-INSTALL_DIR="/opt/kiro-rs"
-SERVICE_NAME="kiro-rs"
+INSTALL_DIR="/opt/kiro2cc-proxy"
+SERVICE_NAME="kiro2cc-proxy"
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "=================================================="
-echo "  kiro-rs 服务器安装脚本"
+echo "  kiro2cc-proxy 服务器安装脚本"
 echo "=================================================="
 
 # ── 检查 root ──────────────────────────────────────────
@@ -34,7 +34,7 @@ fi
 echo "[*] Rust 版本: $(rustc --version)"
 
 # ── 编译（以原始用户身份，避免 root 污染 cargo 缓存） ──
-echo "[*] 编译 kiro-rs（首次需要几分钟）..."
+echo "[*] 编译 kiro2cc-proxy（首次需要几分钟）..."
 cd "$REPO_DIR"
 if [ -n "$SUDO_USER" ]; then
     sudo -u "$SUDO_USER" cargo build --release
@@ -43,13 +43,13 @@ else
 fi
 echo "[*] 编译完成 ✓"
 
-# ── 安装到 /opt/kiro-rs（编译成功后再创建目录） ────────
+# ── 安装到 /opt/kiro2cc-proxy（编译成功后再创建目录） ────────
 echo "[*] 安装到 $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 
 # 复制二进制
-cp "$REPO_DIR/target/release/kiro-rs" "$INSTALL_DIR/kiro-rs"
-chmod +x "$INSTALL_DIR/kiro-rs"
+cp "$REPO_DIR/target/release/kiro2cc-proxy" "$INSTALL_DIR/kiro2cc-proxy"
+chmod +x "$INSTALL_DIR/kiro2cc-proxy"
 
 # 复制配置示例（不覆盖已有配置）
 if [ ! -f "$INSTALL_DIR/config.json" ]; then
@@ -72,7 +72,7 @@ echo "[*] 安装 systemd 服务..."
 # 生成服务文件（使用实际安装路径）
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
 [Unit]
-Description=kiro-rs Anthropic API Reverse Proxy
+Description=kiro2cc-proxy Anthropic API Reverse Proxy
 After=network.target
 
 [Service]
@@ -80,7 +80,7 @@ Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=-$INSTALL_DIR/.env
-ExecStart=$INSTALL_DIR/kiro-rs
+ExecStart=$INSTALL_DIR/kiro2cc-proxy
 Restart=always
 RestartSec=10
 StandardOutput=journal

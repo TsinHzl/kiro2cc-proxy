@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! User UI 路由配置
 
 use axum::{

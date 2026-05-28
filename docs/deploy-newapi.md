@@ -2,7 +2,7 @@
 
 ## 说明
 
-在已部署 kiro-rs 的 VPS 上，部署 New API 作为对外分发网关。kiro-rs 作为上游渠道，New API 负责用户管理、令牌分发和额度计费。
+在已部署 kiro2cc-proxy 的 VPS 上，部署 New API 作为对外分发网关。kiro2cc-proxy 作为上游渠道，New API 负责用户管理、令牌分发和额度计费。
 
 ## 部署步骤
 
@@ -83,7 +83,7 @@ curl http://localhost:3000/api/status
 
 ## 本地访问
 
-与 kiro-rs 相同，通过 SSH 隧道或 Termius 端口转发访问：
+与 kiro2cc-proxy 相同，通过 SSH 隧道或 Termius 端口转发访问：
 
 - Local port: `3000`
 - Destination address: `127.0.0.1`
@@ -91,14 +91,14 @@ curl http://localhost:3000/api/status
 
 隧道建立后打开 `http://localhost:3000` 注册管理员账号。
 
-## 对接 kiro-rs 上游渠道
+## 对接 kiro2cc-proxy 上游渠道
 
 在 New API 后台「渠道管理」中添加：
 
 - 类型：Anthropic Claude
-- 密钥：kiro-rs 的 apiKey
+- 密钥：kiro2cc-proxy 的 apiKey
 - API 地址：`http://host.docker.internal:5678`（不带 `/v1`）
-- 模型：选择 kiro-rs 支持的模型
+- 模型：选择 kiro2cc-proxy 支持的模型
 
 ## 用户分发流程
 

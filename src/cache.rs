@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Prompt Cache 模拟模块
 //!
 //! 实现比例模式的 prompt cache usage 模拟，使上报的 usage 字段

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 const API_KEY_STORAGE_KEY = 'adminApiKey'
 
 export const storage = {

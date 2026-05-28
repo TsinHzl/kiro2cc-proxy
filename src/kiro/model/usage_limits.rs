@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 使用额度查询数据模型
 //!
 //! 包含 getUsageLimits API 的响应类型定义

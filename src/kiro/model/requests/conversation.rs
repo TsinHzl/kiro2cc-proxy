@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 对话类型定义
 //!
 //! 定义 Kiro API 中对话相关的类型，包括消息、历史记录等

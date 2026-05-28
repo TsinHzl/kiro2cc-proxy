@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 const STORAGE_KEY = 'userApiKey'
 
 export const storage = {

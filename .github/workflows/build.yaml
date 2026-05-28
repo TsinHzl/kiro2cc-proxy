@@ -115,9 +115,9 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kiro-rs-${{ steps.version.outputs.version }}-${{ matrix.name }}
+          name: kiro2cc-proxy-${{ steps.version.outputs.version }}-${{ matrix.name }}
           if-no-files-found: error
           compression-level: 6
           path: |
-            target/${{ matrix.target }}/release/kiro-rs
-            target/${{ matrix.target }}/release/kiro-rs.exe
+            target/${{ matrix.target }}/release/kiro2cc-proxy
+            target/${{ matrix.target }}/release/kiro2cc-proxy.exe

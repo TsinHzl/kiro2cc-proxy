@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Kiro API Provider
 //!
 //! 核心组件，负责与 Kiro API 通信

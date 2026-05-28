@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 调试工具模块
 //!
 //! 提供 hex 打印和 CRC 调试等功能

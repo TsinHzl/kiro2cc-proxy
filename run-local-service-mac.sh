@@ -1,5 +1,5 @@
 #!/bin/bash
-# kiro-rs macOS 本地启动脚本
+# kiro2cc-proxy macOS 本地启动脚本
 # 双击即可启动，无需 Docker
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 # ============================================================
 # 可选：本地覆盖配置（取消注释并修改）
 # ============================================================
-# export API_KEY=sk-kiro-rs-your-key
+# export API_KEY=sk-kiro2cc-proxy-your-key
 # export ADMIN_API_KEY=sk-admin-your-key
 # export PORT=5678
 # export HOST=127.0.0.1
@@ -19,10 +19,10 @@ cd "$SCRIPT_DIR"
 CONFIG_DIR="$SCRIPT_DIR/app/config"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 CREDENTIALS_FILE="$CONFIG_DIR/credentials.json"
-BINARY="$SCRIPT_DIR/target/release/kiro-rs"
+BINARY="$SCRIPT_DIR/target/release/kiro2cc-proxy"
 
 echo "=================================================="
-echo "  kiro-rs 启动脚本"
+echo "  kiro2cc-proxy 启动脚本"
 echo "=================================================="
 
 # ── 检查二进制是否存在 ──────────────────────────────────
@@ -116,7 +116,7 @@ if [ -n "$OLD_PID" ] && [[ "$OLD_PID" =~ ^[0-9]+$ ]]; then
     fi
 fi
 
-echo "[*] 启动 kiro-rs，端口: $CONFIGURED_PORT"
+echo "[*] 启动 kiro2cc-proxy，端口: $CONFIGURED_PORT"
 echo "[*] API 端点: http://127.0.0.1:${CONFIGURED_PORT}/v1/messages"
 if grep -q '"adminApiKey"' "$CONFIG_FILE" 2>/dev/null; then
     echo "[*] 管理面板: http://127.0.0.1:${CONFIGURED_PORT}/admin"

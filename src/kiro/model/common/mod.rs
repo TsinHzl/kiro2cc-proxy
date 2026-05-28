@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 共享类型模块
 //!
 //! 此模块已简化，移除了未使用的类型定义。

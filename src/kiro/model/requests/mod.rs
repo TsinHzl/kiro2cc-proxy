@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 请求类型模块
 //!
 //! 包含 Kiro API 请求相关的类型定义

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! CRC32 校验实现
 //!
 //! AWS Event Stream 使用 CRC32 (ISO-HDLC/以太网/ZIP 标准)

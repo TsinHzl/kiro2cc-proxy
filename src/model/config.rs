@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::fs;

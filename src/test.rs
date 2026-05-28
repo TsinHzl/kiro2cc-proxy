@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 use futures::StreamExt;
 
 use crate::debug::{print_event, print_event_verbose, debug_crc, print_hex};

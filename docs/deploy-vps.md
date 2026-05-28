@@ -3,7 +3,7 @@
 ## 镜像地址
 
 ```
-ghcr.io/tsinhzl/kiro-rs-commercial:latest
+ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
 ```
 
 ## 前置要求
@@ -22,17 +22,17 @@ curl -fsSL https://get.docker.com | sh
 ### 1. 创建项目目录
 
 ```bash
-mkdir -p ~/kiro-rs/data
+mkdir -p ~/kiro2cc-proxy/data
 ```
 
 ### 2. 创建 docker-compose.yml
 
 ```bash
-cat > ~/kiro-rs/docker-compose.yml << 'EOF'
+cat > ~/kiro2cc-proxy/docker-compose.yml << 'EOF'
 services:
-  kiro-rs:
-    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
-    container_name: kiro-rs
+  kiro2cc-proxy:
+    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    container_name: kiro2cc-proxy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -48,7 +48,7 @@ EOF
 ### 3. 创建配置文件
 
 ```bash
-cat > ~/kiro-rs/data/config.json << 'EOF'
+cat > ~/kiro2cc-proxy/data/config.json << 'EOF'
 {
   "apiKey": "你的API密钥",
   "host": "0.0.0.0",
@@ -61,7 +61,7 @@ EOF
 ### 4. 拉取并启动
 
 ```bash
-cd ~/kiro-rs
+cd ~/kiro2cc-proxy
 docker compose pull
 docker compose up -d
 ```
@@ -112,7 +112,7 @@ ssh -L 5678:127.0.0.1:5678 -i /path/to/your/private-key root@服务器IP
 ## 更新到最新版本
 
 ```bash
-cd ~/kiro-rs
+cd ~/kiro2cc-proxy
 docker compose pull && docker compose up -d
 ```
 
@@ -135,10 +135,10 @@ docker compose up -d
 ### 架构
 
 ```
-用户 → New API (:3000) → kiro-rs-1 (:5678, 直连)
-                        → kiro-rs-2 (:8991, 代理 IP-A)
-                        → kiro-rs-3 (:8992, 代理 IP-B)
-                        → kiro-rs-4 (:8993, 代理 IP-C)
+用户 → New API (:3000) → kiro2cc-proxy-1 (:5678, 直连)
+                        → kiro2cc-proxy-2 (:8991, 代理 IP-A)
+                        → kiro2cc-proxy-3 (:8992, 代理 IP-B)
+                        → kiro2cc-proxy-4 (:8993, 代理 IP-C)
 ```
 
 New API 配 4 个渠道，自动负载均衡。50 并发分散到 4 个 IP，每个 ~12 个。
@@ -149,9 +149,9 @@ New API 配 4 个渠道，自动负载均衡。50 并发分散到 4 个 IP，每
 
 ```yaml
 services:
-  kiro-rs-1:
-    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
-    container_name: kiro-rs-1
+  kiro2cc-proxy-1:
+    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    container_name: kiro2cc-proxy-1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -160,9 +160,9 @@ services:
       - ./data:/app/config
     restart: unless-stopped
 
-  kiro-rs-2:
-    image: ghcr.io/tsinhzl/kiro-rs-commercial:latest
-    container_name: kiro-rs-2
+  kiro2cc-proxy-2:
+    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    container_name: kiro2cc-proxy-2
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -175,18 +175,18 @@ services:
       - PROXY_PASSWORD=密码
     restart: unless-stopped
 
-  # kiro-rs-3, kiro-rs-4 同理，端口递增 8992, 8993
+  # kiro2cc-proxy-3, kiro2cc-proxy-4 同理，端口递增 8992, 8993
 ```
 
 说明：
-- kiro-rs-1 保持直连（无代理），使用原有 `./data` 目录
-- kiro-rs-2/3/4 通过环境变量注入代理配置，会覆盖 config.json 中的值
+- kiro2cc-proxy-1 保持直连（无代理），使用原有 `./data` 目录
+- kiro2cc-proxy-2/3/4 通过环境变量注入代理配置，会覆盖 config.json 中的值
 - 每个实例需要独立的 data 目录（运行时会写入 token 缓存等）
 
 ### 2. 创建各实例配置目录
 
 ```bash
-cd ~/kiro-rs
+cd ~/kiro2cc-proxy
 for i in 2 3 4; do
   cp -r data "data-$i"
 done
@@ -214,7 +214,7 @@ docker compose logs -f
 ### 注意事项
 
 - 4 个实例共享同一批号，但 429 冷却状态各自独立
-- Admin UI 只需在 kiro-rs-1 (:5678) 上管理
+- Admin UI 只需在 kiro2cc-proxy-1 (:5678) 上管理
 - 某个代理 IP 不可用时，New API 会自动将流量分配到其他渠道
 - 回撤：`docker compose down` 后恢复单实例 docker-compose.yml 即可
 
@@ -240,7 +240,7 @@ docker compose pull && docker compose up -d
 docker ps --format "{{.Image}}"
 ```
 
-正确的镜像地址为 `ghcr.io/tsinhzl/kiro-rs-commercial:latest`。如果使用了其他 owner 的镜像（如 `dev-longshun`），拉取的是别人发布的版本，不会包含本项目的最新改动。
+正确的镜像地址为 `ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest`。如果使用了其他 owner 的镜像（如 `dev-longshun`），拉取的是别人发布的版本，不会包含本项目的最新改动。
 
 ### 服务器配置低，无法本地构建
 
@@ -251,4 +251,4 @@ docker compose pull
 docker compose up -d
 ```
 
-镜像在每次打 `v*` tag 时由 GitHub Actions 自动构建并推送到 `ghcr.io/tsinhzl/kiro-rs-commercial:latest`。
+镜像在每次打 `v*` tag 时由 GitHub Actions 自动构建并推送到 `ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest`。

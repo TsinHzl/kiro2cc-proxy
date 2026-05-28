@@ -3,7 +3,7 @@
 ## 镜像地址
 
 ```
-ghcr.io/tsinhzl/kiro-rs-commercial:latest
+ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
 ```
 
 ## 部署步骤

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Admin API HTTP 处理器
 
 use axum::{

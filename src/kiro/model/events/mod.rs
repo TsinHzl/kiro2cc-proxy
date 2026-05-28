@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 事件模型
 //!
 //! 定义 generateAssistantResponse 流式响应的事件类型

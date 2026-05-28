@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 // 凭据状态响应
 export interface CredentialsStatusResponse {
   total: number

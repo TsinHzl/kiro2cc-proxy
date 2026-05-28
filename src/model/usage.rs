@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! API Key 用量追踪模块
 //!
 //! 记录每个 API Key 的请求用量（input/output tokens），并根据模型定价估算费用。

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic API 中间件
 
 use std::sync::Arc;

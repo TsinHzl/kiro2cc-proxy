@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic API 类型定义
 
 use serde::{Deserialize, Serialize};

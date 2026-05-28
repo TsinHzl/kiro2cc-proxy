@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 工具使用事件
 //!
 //! 处理 toolUseEvent 类型的事件

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic API Handler 函数
 
 use std::convert::Infallible;

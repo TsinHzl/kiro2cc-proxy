@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Admin UI 静态文件服务模块
 //!
 //! 使用 rust-embed 嵌入前端构建产物

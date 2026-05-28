@@ -1,7 +1,9 @@
 [package]
-name = "kiro-rs"
-version = "2.1.9"
+name = "kiro2cc-proxy"
+version = "2.1.19"
 edition = "2024"
+license = "MIT"
+authors = ["Harllan He"]
 
 [profile.release]
 lto = "thin"

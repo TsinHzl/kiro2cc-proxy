@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! HTTP Client 构建模块
 //!
 //! 提供统一的 HTTP Client 构建功能，支持代理配置

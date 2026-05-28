@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 助手响应事件
 //!
 //! 处理 assistantResponseEvent 类型的事件

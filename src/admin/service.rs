@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Admin API 业务逻辑服务
 
 use std::collections::HashMap;

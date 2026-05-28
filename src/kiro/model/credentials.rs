@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Kiro OAuth 凭证数据模型
 //!
 //! 支持从 Kiro IDE 的凭证文件加载，使用 Social 认证方式

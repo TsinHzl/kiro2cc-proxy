@@ -1,5 +1,5 @@
 services:
-  kiro-rs:
+  kiro2cc-proxy:
     # 使用国内镜像
     image: ghcr.io/${IMAGE_OWNER:-tsinhzl}/kiro2cc-proxy:${IMAGE_TAG:-latest}
     container_name: kiro2cc-proxy

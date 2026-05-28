@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! AWS Event Stream 消息帧解析
 //!
 //! ## 消息格式

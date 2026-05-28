@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Admin API 模块
 //!
 //! 提供凭据管理和监控功能的 HTTP API

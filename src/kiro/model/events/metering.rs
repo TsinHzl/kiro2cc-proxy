@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 use serde::Deserialize;
 
 use crate::kiro::parser::error::ParseResult;

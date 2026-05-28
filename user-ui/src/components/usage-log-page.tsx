@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, RefreshCw, ChevronLeft, ChevronRight, BarChart3, DollarSign } from 'lucide-react'

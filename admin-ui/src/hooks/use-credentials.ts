@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getCredentials,

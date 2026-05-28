@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 事件基础定义
 //!
 //! 定义事件类型枚举、trait 和统一事件结构

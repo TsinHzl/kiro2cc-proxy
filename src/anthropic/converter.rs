@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic → Kiro 协议转换器
 //!
 //! 负责将 Anthropic API 请求格式转换为 Kiro API 请求格式

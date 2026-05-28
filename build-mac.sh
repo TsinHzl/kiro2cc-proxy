@@ -1,5 +1,5 @@
 #!/bin/bash
-# kiro-rs 一键构建脚本
+# kiro2cc-proxy 一键构建脚本
 # 依次构建 admin-ui、user-ui 前端，再编译 Rust 二进制
 
 set -eo pipefail
@@ -11,7 +11,7 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 cd "$(dirname "$0")"
 
 echo "=================================================="
-echo "  kiro-rs 构建脚本"
+echo "  kiro2cc-proxy 构建脚本"
 echo "=================================================="
 
 # 检测 npm
@@ -57,6 +57,6 @@ log "编译完成 ✓"
 echo ""
 echo "=================================================="
 echo "  构建成功！"
-echo "  二进制位置: ./target/release/kiro-rs"
+echo "  二进制位置: ./target/release/kiro2cc-proxy"
 echo "  运行: ./run-local-service-mac.command"
 echo "=================================================="

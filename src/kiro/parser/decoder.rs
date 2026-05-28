@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! AWS Event Stream 流式解码器
 //!
 //! 使用状态机处理流式数据，支持断点续传和容错处理

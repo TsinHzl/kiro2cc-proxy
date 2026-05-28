@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic API 兼容服务模块
 //!
 //! 提供与 Anthropic Claude API 兼容的 HTTP 服务端点。

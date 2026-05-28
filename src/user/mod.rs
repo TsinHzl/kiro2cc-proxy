@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! User API 模块
 //!
 //! 提供用户端用量查询功能的 HTTP API

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! RPM（Requests Per Minute）实时监控
 //!
 //! 使用滑动窗口统计最近 60 秒内的请求数量，

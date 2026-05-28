@@ -1,7 +1,7 @@
 {
   "host": "127.0.0.1",
   "port": 5678,
-  "apiKey": "sk-kiro-rs-qazWSXedcRFV123456",
+  "apiKey": "sk-kiro2cc-proxy-qazWSXedcRFV123456",
   "tlsBackend": "rustls",
   "region": "us-east-1",
   "adminApiKey": "sk-admin-your-secret-key"

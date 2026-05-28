@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! AWS Event Stream 解析错误定义
 
 use std::fmt;

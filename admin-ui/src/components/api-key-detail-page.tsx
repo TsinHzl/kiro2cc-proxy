@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { ArrowLeft, BarChart3, DollarSign, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'

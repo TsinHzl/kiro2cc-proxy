@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 import axios from 'axios'
 import { storage } from '@/lib/storage'
 import type {

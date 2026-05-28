@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! AWS Event Stream 头部解析
 //!
 //! 实现 AWS Event Stream 协议的头部解析功能

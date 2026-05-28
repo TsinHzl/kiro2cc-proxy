@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Kiro 数据模型
 //!
 //! 包含 Kiro API 的所有数据类型定义：

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 use clap::Parser;
 
 /// Anthropic <-> Kiro API 客户端

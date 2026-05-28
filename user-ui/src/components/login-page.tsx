@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { KeyRound, Loader2 } from 'lucide-react'
 import { storage } from '@/lib/storage'

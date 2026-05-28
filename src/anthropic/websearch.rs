@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! WebSearch 工具处理模块
 //!
 //! 实现 Anthropic WebSearch 请求到 Kiro MCP 的转换和响应生成

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! 上下文使用率事件
 //!
 //! 处理 contextUsageEvent 类型的事件

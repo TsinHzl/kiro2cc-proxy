@@ -1,15 +1,15 @@
 #!/bin/bash
-# kiro-rs Linux 服务器启动脚本
+# kiro2cc-proxy Linux 服务器启动脚本
 # 支持 start / stop / restart / status 子命令
 # 所有配置均可通过环境变量或 config.json 覆盖
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$SCRIPT_DIR/target/release/kiro-rs"
-PID_FILE="$SCRIPT_DIR/kiro-rs.pid"
+BINARY="$SCRIPT_DIR/target/release/kiro2cc-proxy"
+PID_FILE="$SCRIPT_DIR/kiro2cc-proxy.pid"
 LOG_DIR="${KIRO_LOG_DIR:-$SCRIPT_DIR/logs}"
-LOG_FILE="$LOG_DIR/kiro-rs.log"
+LOG_FILE="$LOG_DIR/kiro2cc-proxy.log"
 
 # ── 检查二进制 ──────────────────────────────────────────
 check_binary() {
@@ -26,7 +26,7 @@ do_start() {
     if [ -f "$PID_FILE" ]; then
         OLD_PID=$(cat "$PID_FILE")
         if kill -0 "$OLD_PID" 2>/dev/null; then
-            echo "[!] kiro-rs 已在运行 (PID $OLD_PID)"
+            echo "[!] kiro2cc-proxy 已在运行 (PID $OLD_PID)"
             exit 1
         fi
         rm -f "$PID_FILE"
@@ -34,7 +34,7 @@ do_start() {
 
     mkdir -p "$LOG_DIR"
 
-    echo "[*] 启动 kiro-rs，日志: $LOG_FILE"
+    echo "[*] 启动 kiro2cc-proxy，日志: $LOG_FILE"
     cd "$SCRIPT_DIR"
     nohup "$BINARY" >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
@@ -74,12 +74,12 @@ do_status() {
         PID=$(cat "$PID_FILE")
         if kill -0 "$PID" 2>/dev/null; then
             PORT=$(python3 -c "import json; c=json.load(open('$SCRIPT_DIR/config.json')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
-            echo "[*] kiro-rs 运行中 (PID $PID，端口 $PORT)"
+            echo "[*] kiro2cc-proxy 运行中 (PID $PID，端口 $PORT)"
         else
             echo "[!] PID 文件存在但进程已退出"
         fi
     else
-        echo "[*] kiro-rs 未运行"
+        echo "[*] kiro2cc-proxy 未运行"
     fi
 }
 
@@ -107,7 +107,7 @@ case "${1:-start}" in
         echo "  HOST=0.0.0.0"
         echo "  REGION=us-east-1"
         echo "  PROXY_URL=http://127.0.0.1:7890"
-        echo "  KIRO_LOG_DIR=/var/log/kiro-rs"
+        echo "  KIRO_LOG_DIR=/var/log/kiro2cc-proxy"
         exit 1
         ;;
 esac

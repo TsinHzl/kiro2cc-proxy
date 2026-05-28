@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Admin API 错误类型定义
 
 use std::fmt;

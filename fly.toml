@@ -1,4 +1,4 @@
-app = 'kiro-rs'
+app = 'kiro2cc-proxy'
 primary_region = 'sjc'
 
 [build]

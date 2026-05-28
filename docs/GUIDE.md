@@ -1,6 +1,6 @@
 > **注：** 本文档由 **claude-sonnet-4-6** 模型自动生成。
 
-# kiro-rs 使用指南
+# kiro2cc-proxy 使用指南
 
 ## 目录
 
@@ -38,7 +38,7 @@
 
 1. 安装并构建 `admin-ui` 前端
 2. 安装并构建 `user-ui` 前端
-3. 编译 Rust 二进制 `./target/release/kiro-rs`
+3. 编译 Rust 二进制 `./target/release/kiro2cc-proxy`
 
 **前置要求：**
 
@@ -47,7 +47,7 @@
 | Node.js / npm | `brew install node` |
 | Rust / cargo | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 
-构建完成后，二进制位于 `./target/release/kiro-rs`，后续无需重新构建（除非更新了代码）。
+构建完成后，二进制位于 `./target/release/kiro2cc-proxy`，后续无需重新构建（除非更新了代码）。
 
 ---
 

@@ -1444,15 +1444,16 @@ impl BufferedStreamContext {
 }
 
 fn generate_fake_signature() -> String {
+    // 前缀模拟真实 Anthropic thinking signature 的 protobuf 头部（0x12 0xB5 0x02 = field2 len-delimited）
+    const PREFIX: &str = "ErUCCQoH";
     const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let len = 160;
-    let mut sig = String::with_capacity(len + 2);
-    for _ in 0..len {
+    let mut sig = String::with_capacity(302);
+    sig.push_str(PREFIX);
+    for _ in 0..292 {
         let idx = fastrand::usize(..BASE64_CHARS.len());
         sig.push(BASE64_CHARS[idx] as char);
     }
-    sig.push('=');
-    sig.push('=');
+    sig.push_str("==");
     sig
 }
 

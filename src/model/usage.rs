@@ -101,12 +101,12 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 }
 
 /// 无缓存基准换算率（credits/$），按模型实测值
-/// sonnet: 7.06，opus-4-6: 7.13，opus-4-7: 7.30，其余默认 7.06
+/// sonnet: 7.06，opus-4-6: 7.13，opus-4-7: 7.30，opus-4-8: 7.24，其余默认 7.06
 fn get_k_ref(model: &str) -> f64 {
     let lower = model.to_lowercase();
     if lower.contains("opus") {
         if lower.contains("4-8") || lower.contains("4.8") {
-            7.30
+            7.24
         } else if lower.contains("4-7") || lower.contains("4.7") {
             7.30
         } else {

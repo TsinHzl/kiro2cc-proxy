@@ -105,7 +105,9 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 fn get_k_ref(model: &str) -> f64 {
     let lower = model.to_lowercase();
     if lower.contains("opus") {
-        if lower.contains("4-7") || lower.contains("4.7") {
+        if lower.contains("4-8") || lower.contains("4.8") {
+            7.30
+        } else if lower.contains("4-7") || lower.contains("4.7") {
             7.30
         } else {
             7.13

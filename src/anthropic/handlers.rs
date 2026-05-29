@@ -278,6 +278,24 @@ fn build_model_list() -> Vec<Model> {
             max_tokens: 32000,
         },
         Model {
+            id: "claude-opus-4-8".to_string(),
+            object: "model".to_string(),
+            created: 1775600000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Opus 4.8".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 32000,
+        },
+        Model {
+            id: "claude-opus-4-8-thinking".to_string(),
+            object: "model".to_string(),
+            created: 1775600000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Opus 4.8 (Thinking)".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 32000,
+        },
+        Model {
             id: "claude-haiku-4-5-20251001".to_string(),
             object: "model".to_string(),
             created: 1727740800,
@@ -965,10 +983,11 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
         return;
     }
 
-    let is_opus_4_6 =
-        model_lower.contains("opus") && (model_lower.contains("4-6") || model_lower.contains("4.6"));
+    let is_opus_adaptive = model_lower.contains("opus")
+        && (model_lower.contains("4-6") || model_lower.contains("4.6")
+            || model_lower.contains("4-8") || model_lower.contains("4.8"));
 
-    let thinking_type = if is_opus_4_6 {
+    let thinking_type = if is_opus_adaptive {
         "adaptive"
     } else {
         "enabled"
@@ -985,7 +1004,7 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
         budget_tokens: 20000,
     });
     
-    if is_opus_4_6 {
+    if is_opus_adaptive {
         payload.output_config = Some(OutputConfig {
             effort: "high".to_string(),
             format: None,

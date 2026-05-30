@@ -837,7 +837,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-2">
                 {currentCredentials.map((credential) => (
                   <CredentialCard
                     key={credential.id}

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { RefreshCw, ChevronUp, ChevronDown, Wallet, Trash2, Loader2, Pencil, FileText } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { RefreshCw, Wallet, Trash2, Loader2, Pencil, FileText } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -54,12 +54,12 @@ function formatLastUsed(lastUsedAt: string | null): string {
 
 type HealthStatus = CredentialStatusItem['healthStatus']
 
-const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string }> = {
-  healthy:   { label: '健康',   className: 'bg-neon-green/10 text-neon-green border-neon-green/30' },
-  warning:   { label: '警告',   className: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/30' },
-  degraded:  { label: '降级',   className: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
-  unhealthy: { label: '不健康', className: 'bg-neon-red/10 text-neon-red border-neon-red/30' },
-  disabled:  { label: '已禁用', className: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string; dotClass: string }> = {
+  healthy:   { label: '健康',   className: 'bg-neon-green/10 text-neon-green border-neon-green/30',     dotClass: 'bg-green-400' },
+  warning:   { label: '警告',   className: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/30', dotClass: 'bg-yellow-400' },
+  degraded:  { label: '降级',   className: 'bg-orange-500/10 text-orange-400 border-orange-500/30',    dotClass: 'bg-orange-400' },
+  unhealthy: { label: '不健康', className: 'bg-neon-red/10 text-neon-red border-neon-red/30',          dotClass: 'bg-red-400' },
+  disabled:  { label: '已禁用', className: 'bg-gray-500/10 text-gray-400 border-gray-500/30',          dotClass: 'bg-gray-400' },
 }
 
 function HealthBadge({ status }: { status: HealthStatus }) {
@@ -96,12 +96,8 @@ export function CredentialCard({
     setDisabled.mutate(
       { id: credential.id, disabled: !credential.disabled },
       {
-        onSuccess: (res) => {
-          toast.success(res.message)
-        },
-        onError: (err) => {
-          toast.error('操作失败: ' + (err as Error).message)
-        },
+        onSuccess: (res) => toast.success(res.message),
+        onError: (err) => toast.error('操作失败: ' + (err as Error).message),
       }
     )
   }
@@ -119,21 +115,15 @@ export function CredentialCard({
           toast.success(res.message)
           setEditingPriority(false)
         },
-        onError: (err) => {
-          toast.error('操作失败: ' + (err as Error).message)
-        },
+        onError: (err) => toast.error('操作失败: ' + (err as Error).message),
       }
     )
   }
 
   const handleReset = () => {
     resetFailure.mutate(credential.id, {
-      onSuccess: (res) => {
-        toast.success(res.message)
-      },
-      onError: (err) => {
-        toast.error('操作失败: ' + (err as Error).message)
-      },
+      onSuccess: (res) => toast.success(res.message),
+      onError: (err) => toast.error('操作失败: ' + (err as Error).message),
     })
   }
 
@@ -143,248 +133,168 @@ export function CredentialCard({
       setShowDeleteDialog(false)
       return
     }
-
     deleteCredential.mutate(credential.id, {
       onSuccess: (res) => {
         toast.success(res.message)
         setShowDeleteDialog(false)
       },
-      onError: (err) => {
-        toast.error('删除失败: ' + (err as Error).message)
-      },
+      onError: (err) => toast.error('删除失败: ' + (err as Error).message),
     })
   }
 
   return (
     <>
-      <Card className={credential.isCurrent ? 'ring-2 ring-primary' : ''}>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      <Card className={[
+        credential.isCurrent ? 'ring-2 ring-primary' : '',
+        credential.disabled ? 'opacity-60' : '',
+      ].filter(Boolean).join(' ')}>
+        <CardContent className="py-3 px-3 sm:px-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            {/* 左侧信息区 */}
+            <div className="flex items-start gap-2.5 min-w-0 flex-1">
               <Checkbox
                 checked={selected}
                 onCheckedChange={onToggleSelect}
+                className="mt-0.5 shrink-0"
               />
-              <CardTitle className="text-lg flex items-center gap-2">
-                {credential.nickname || `凭据 #${credential.id}`}
-                <HealthBadge status={credential.healthStatus} />
-                {credential.isCurrent && (
-                  <Badge variant="success">当前</Badge>
-                )}
-                {credential.disabled && (
-                  <Badge variant="destructive">已禁用</Badge>
-                )}
-              </CardTitle>
+              <div className="min-w-0 flex-1">
+                {/* 行1：标识 + 状态徽章 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <code className="text-xs text-muted-foreground font-mono">#{String(credential.id).padStart(3, '0')}</code>
+                  <span className="font-medium truncate">
+                    {credential.nickname || `凭据 #${credential.id}`}
+                  </span>
+                  <HealthBadge status={credential.healthStatus} />
+                  {credential.isCurrent && <Badge variant="success">当前</Badge>}
+                  {credential.disabled && <Badge variant="destructive">已禁用</Badge>}
+                </div>
+
+                {/* 行2：账号 + 最后调用 */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                  {credential.email && <span>{credential.email}</span>}
+                  <span>调用：{formatLastUsed(credential.lastUsedAt)}</span>
+                  {credential.hasProxy && credential.proxyUrl && (
+                    <span className="text-blue-500 truncate max-w-[200px]">代理：{credential.proxyUrl}</span>
+                  )}
+                  {credential.hasProfileArn && (
+                    <Badge variant="secondary" className="text-xs h-4">Profile ARN</Badge>
+                  )}
+                </div>
+
+                {/* 行3：数值统计 */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    优先级：
+                    {editingPriority ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={priorityValue}
+                          onChange={(e) => setPriorityValue(e.target.value)}
+                          className="w-14 h-6 text-xs px-1"
+                          min="0"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handlePriorityChange()
+                            if (e.key === 'Escape') { setEditingPriority(false); setPriorityValue(String(credential.priority)) }
+                          }}
+                        />
+                        <button className="text-green-500 hover:text-green-400" onClick={handlePriorityChange} disabled={setPriority.isPending}>✓</button>
+                        <button className="text-muted-foreground hover:text-foreground" onClick={() => { setEditingPriority(false); setPriorityValue(String(credential.priority)) }}>✕</button>
+                      </span>
+                    ) : (
+                      <span
+                        className="font-medium text-foreground cursor-pointer hover:underline"
+                        onClick={() => setEditingPriority(true)}
+                      >
+                        {credential.priority}
+                      </span>
+                    )}
+                  </span>
+                  <span className={credential.failureCount > 0 ? 'text-red-500 font-medium' : 'text-muted-foreground'}>
+                    失败：{credential.failureCount}
+                  </span>
+                  <span className="text-muted-foreground">成功：{credential.successCount}</span>
+                  <span className={credential.throttleCount > 0 ? 'text-orange-500 font-medium' : 'text-muted-foreground'}>
+                    限流：{credential.throttleCount}
+                  </span>
+                  <span className="text-blue-600 dark:text-blue-400 font-medium">RPM {rpm}</span>
+                  <span className="text-muted-foreground">
+                    剩余：
+                    {loadingBalance ? (
+                      <Loader2 className="inline w-3 h-3 animate-spin ml-1" />
+                    ) : balance ? (
+                      <span className="font-medium text-foreground">
+                        {balance.remaining.toFixed(1)}/{balance.usageLimit.toFixed(1)}
+                        <span className="text-muted-foreground ml-1">({(100 - balance.usagePercentage).toFixed(0)}%剩)</span>
+                      </span>
+                    ) : (
+                      <span>未知</span>
+                    )}
+                  </span>
+                  {balance && (
+                    <span className="text-muted-foreground/60 text-xs">
+                      {balance.subscriptionTitle}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">启用</span>
+
+            {/* 右侧操作区 */}
+            <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto shrink-0">
               <Switch
                 checked={!credential.disabled}
                 onCheckedChange={handleToggleDisabled}
                 disabled={setDisabled.isPending}
               />
+              <Button
+                variant="ghost" size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => onViewBalance(credential.id)}
+                title="查看余额"
+              >
+                <Wallet className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost" size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => onViewDetail(credential.id)}
+                title="查看日志"
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost" size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setShowEditDialog(true)}
+                title="编辑"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost" size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                onClick={handleReset}
+                disabled={resetFailure.isPending || credential.failureCount === 0}
+                title="重置失败计数"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost" size="sm"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={!credential.disabled}
+                title={!credential.disabled ? '需要先禁用凭据才能删除' : '删除'}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 信息网格 */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {credential.email && (
-              <div className="col-span-2">
-                <span className="text-muted-foreground">账号：</span>
-                <span className="font-medium">{credential.email}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-muted-foreground">优先级：</span>
-              {editingPriority ? (
-                <div className="inline-flex items-center gap-1 ml-1">
-                  <Input
-                    type="number"
-                    value={priorityValue}
-                    onChange={(e) => setPriorityValue(e.target.value)}
-                    className="w-16 h-7 text-sm"
-                    min="0"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0"
-                    onClick={handlePriorityChange}
-                    disabled={setPriority.isPending}
-                  >
-                    ✓
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0"
-                    onClick={() => {
-                      setEditingPriority(false)
-                      setPriorityValue(String(credential.priority))
-                    }}
-                  >
-                    ✕
-                  </Button>
-                </div>
-              ) : (
-                <span
-                  className="font-medium cursor-pointer hover:underline ml-1"
-                  onClick={() => setEditingPriority(true)}
-                >
-                  {credential.priority}
-                  <span className="text-xs text-muted-foreground ml-1">(点击编辑)</span>
-                </span>
-              )}
-            </div>
-            <div>
-              <span className="text-muted-foreground">失败次数：</span>
-              <span className={credential.failureCount > 0 ? 'text-red-500 font-medium' : ''}>
-                {credential.failureCount}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">订阅等级：</span>
-              <span className="font-medium">
-                {loadingBalance ? (
-                  <Loader2 className="inline w-3 h-3 animate-spin" />
-                ) : balance?.subscriptionTitle || '未知'}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">成功次数：</span>
-              <span className="font-medium">{credential.successCount}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">RPM：</span>
-              <span className="font-medium text-blue-600">{rpm}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">限流次数：</span>
-              <span className={credential.throttleCount > 0 ? 'font-medium text-orange-500' : 'font-medium'}>
-                {credential.throttleCount}
-              </span>
-            </div>
-            <div className="col-span-2">
-              <span className="text-muted-foreground">最后调用：</span>
-              <span className="font-medium">{formatLastUsed(credential.lastUsedAt)}</span>
-            </div>
-            <div className="col-span-2">
-              <span className="text-muted-foreground">剩余用量：</span>
-              {loadingBalance ? (
-                <span className="text-sm ml-1">
-                  <Loader2 className="inline w-3 h-3 animate-spin" /> 加载中...
-                </span>
-              ) : balance ? (
-                <span className="font-medium ml-1">
-                  {balance.remaining.toFixed(2)} / {balance.usageLimit.toFixed(2)}
-                  <span className="text-xs text-muted-foreground ml-1">
-                    ({(100 - balance.usagePercentage).toFixed(1)}% 剩余)
-                  </span>
-                </span>
-              ) : (
-                <span className="text-sm text-muted-foreground ml-1">未知</span>
-              )}
-            </div>
-            {credential.hasProxy && (
-              <div className="col-span-2">
-                <span className="text-muted-foreground">代理：</span>
-                <span className="font-medium">{credential.proxyUrl}</span>
-              </div>
-            )}
-            {credential.hasProfileArn && (
-              <div className="col-span-2">
-                <Badge variant="secondary">有 Profile ARN</Badge>
-              </div>
-            )}
-          </div>
-
-          {/* 操作按钮 */}
-          <div className="flex flex-wrap gap-2 pt-2 border-t">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleReset}
-              disabled={resetFailure.isPending || credential.failureCount === 0}
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              重置失败
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const newPriority = Math.max(0, credential.priority - 1)
-                setPriority.mutate(
-                  { id: credential.id, priority: newPriority },
-                  {
-                    onSuccess: (res) => toast.success(res.message),
-                    onError: (err) => toast.error('操作失败: ' + (err as Error).message),
-                  }
-                )
-              }}
-              disabled={setPriority.isPending || credential.priority === 0}
-            >
-              <ChevronUp className="h-4 w-4 mr-1" />
-              提高优先级
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const newPriority = credential.priority + 1
-                setPriority.mutate(
-                  { id: credential.id, priority: newPriority },
-                  {
-                    onSuccess: (res) => toast.success(res.message),
-                    onError: (err) => toast.error('操作失败: ' + (err as Error).message),
-                  }
-                )
-              }}
-              disabled={setPriority.isPending}
-            >
-              <ChevronDown className="h-4 w-4 mr-1" />
-              降低优先级
-            </Button>
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => onViewBalance(credential.id)}
-            >
-              <Wallet className="h-4 w-4 mr-1" />
-              查看余额
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onViewDetail(credential.id)}
-            >
-              <FileText className="h-4 w-4 mr-1" />
-              查看日志
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowEditDialog(true)}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              编辑
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={!credential.disabled}
-              title={!credential.disabled ? '需要先禁用凭据才能删除' : undefined}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              删除
-            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* 删除确认对话框 */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
@@ -394,25 +304,16 @@ export function CredentialCard({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={deleteCredential.isPending}
-            >
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteCredential.isPending}>
               取消
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteCredential.isPending || !credential.disabled}
-            >
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteCredential.isPending || !credential.disabled}>
               确认删除
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 编辑凭据对话框 */}
       <EditCredentialDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}

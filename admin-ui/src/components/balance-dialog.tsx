@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { useCredentialBalance } from '@/hooks/use-credentials'
-import { parseError } from '@/lib/utils'
+import { parseError, getSubscriptionColor } from '@/lib/utils'
 
 interface BalanceDialogProps {
   credentialId: number | null
@@ -65,7 +65,7 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
           <div className="space-y-4">
             {/* 订阅类型 */}
             <div className="text-center">
-              <span className="text-lg font-semibold">
+              <span className={`text-lg font-semibold ${balance.subscriptionTitle ? getSubscriptionColor(balance.subscriptionTitle) : 'text-muted-foreground'}`}>
                 {balance.subscriptionTitle || '未知订阅类型'}
               </span>
             </div>

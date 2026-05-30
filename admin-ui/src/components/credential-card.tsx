@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { CredentialStatusItem, BalanceResponse } from '@/types/api'
+import { getSubscriptionColor } from '@/lib/utils'
 import {
   useSetDisabled,
   useSetPriority,
@@ -232,8 +233,8 @@ export function CredentialCard({
                       <span>未知</span>
                     )}
                   </span>
-                  {balance && (
-                    <span className="text-muted-foreground/60 text-xs">
+                  {balance?.subscriptionTitle && (
+                    <span className={`text-xs font-medium ${getSubscriptionColor(balance.subscriptionTitle)}`}>
                       {balance.subscriptionTitle}
                     </span>
                   )}

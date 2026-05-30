@@ -223,7 +223,7 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
           const existingCred = existingCredentials?.credentials.find(c => c.refreshTokenHash === tokenHash)
           setResults(prev => {
             const next = [...prev]
-            next[i] = { ...next[i], status: 'duplicate', error: '该凭据已存在', email: existingCred?.email || account.email }
+            next[i] = { ...next[i], status: 'duplicate', error: '该账号已存在', email: existingCred?.email || account.email }
             return next
           })
           setProgress({ current: i + 1, total: validAccounts.length })
@@ -318,7 +318,7 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
       if (skippedCount > 0) parts.push(`跳过 ${skippedCount}`)
 
       if (failCount === 0 && duplicateCount === 0 && skippedCount === 0) {
-        toast.success(`成功导入并验活 ${successCount} 个凭据`)
+        toast.success(`成功导入并验活 ${successCount} 个账号`)
       } else {
         toast.info(`导入完成：${parts.join('，')}`)
       }
@@ -353,7 +353,7 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
       case 'checking': return '检查重复...'
       case 'verifying': return '验活中...'
       case 'verified': return '验活成功'
-      case 'duplicate': return '重复凭据'
+      case 'duplicate': return '重复账号'
       case 'skipped': return '已跳过（error 状态）'
       case 'failed':
         if (result.rollbackStatus === 'success') return '验活失败（已排除）'

@@ -201,6 +201,7 @@ impl Config {
     }
 
     /// 将当前配置写回原始配置文件
+    #[allow(dead_code)]
     pub fn save(&self) -> anyhow::Result<()> {
         let path = self
             .config_path

@@ -91,7 +91,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>编辑凭据 #{credential.id}</DialogTitle>
+          <DialogTitle>编辑账号 #{credential.id}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
@@ -115,7 +115,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
             <div className="space-y-2">
               <label className="text-sm font-medium">用户名 / 邮箱</label>
               <Input
-                placeholder="账号邮箱（用于标识凭据）"
+                placeholder="账号邮箱（用于标识账号）"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}

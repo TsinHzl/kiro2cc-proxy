@@ -88,7 +88,7 @@ export function BatchVerifyDialog({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">凭据 #{result.id}</span>
+                      <span className="font-medium">账号 #{result.id}</span>
                       {result.status === 'success' && result.usage && (
                         <Badge variant="secondary" className="text-xs">
                           {result.usage}

@@ -98,7 +98,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>添加凭据</DialogTitle>
+          <DialogTitle>添加账号</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
@@ -126,7 +126,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
               <Input
                 id="email"
                 type="text"
-                placeholder="请输入账号邮箱（用于标识凭据）"
+                placeholder="请输入账号邮箱（用于标识账号）"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}

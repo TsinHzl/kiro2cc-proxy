@@ -129,7 +129,7 @@ export function CredentialCard({
 
   const handleDelete = () => {
     if (!credential.disabled) {
-      toast.error('请先禁用凭据再删除')
+      toast.error('请先禁用账号再删除')
       setShowDeleteDialog(false)
       return
     }
@@ -162,7 +162,7 @@ export function CredentialCard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <code className="text-xs text-muted-foreground font-mono">#{String(credential.id).padStart(3, '0')}</code>
                   <span className="font-medium truncate">
-                    {credential.nickname || `凭据 #${credential.id}`}
+                    {credential.nickname || `账号 #${credential.id}`}
                   </span>
                   <HealthBadge status={credential.healthStatus} />
                   {credential.isCurrent && <Badge variant="success">当前</Badge>}
@@ -286,7 +286,7 @@ export function CredentialCard({
                 className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={!credential.disabled}
-                title={!credential.disabled ? '需要先禁用凭据才能删除' : '删除'}
+                title={!credential.disabled ? '需要先禁用账号才能删除' : '删除'}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -298,9 +298,9 @@ export function CredentialCard({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除凭据</DialogTitle>
+            <DialogTitle>确认删除账号</DialogTitle>
             <DialogDescription>
-              您确定要删除凭据 #{credential.id} 吗？此操作无法撤销。
+              您确定要删除账号 #{credential.id} 吗？此操作无法撤销。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

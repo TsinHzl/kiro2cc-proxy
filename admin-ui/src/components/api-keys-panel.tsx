@@ -601,7 +601,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-400">
                   <Link2 className="h-4 w-4" />
-                  绑定凭据
+                  绑定账号
                   <span className="text-xs font-normal text-muted-foreground">({boundKeys.length})</span>
                 </div>
                 <div className="grid gap-2">
@@ -748,7 +748,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             )}
             {credentials && credentials.credentials && credentials.credentials.length > 0 && (
               <div>
-                <label className="text-sm font-medium">绑定凭据</label>
+                <label className="text-sm font-medium">绑定账号</label>
                 <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
                 <CredentialMultiSelect
                   credentials={credentials.credentials}
@@ -898,7 +898,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             )}
             {credentials && credentials.credentials && credentials.credentials.length > 0 && (
               <div>
-                <label className="text-sm font-medium">绑定凭据</label>
+                <label className="text-sm font-medium">绑定账号</label>
                 <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
                 <CredentialMultiSelect
                   credentials={credentials.credentials}
@@ -1037,7 +1037,7 @@ function CredentialMultiSelect({
               <input
                 autoFocus
                 type="text"
-                placeholder="搜索用户名或凭据编号..."
+                placeholder="搜索用户名或账号编号..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="w-full rounded-sm border-0 bg-transparent pl-7 pr-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
@@ -1046,7 +1046,7 @@ function CredentialMultiSelect({
           </div>
           <div className="max-h-48 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-muted-foreground">无匹配凭据</div>
+              <div className="px-3 py-2 text-sm text-muted-foreground">无匹配账号</div>
             ) : (
               filtered.map((cred) => {
                 const bal = balanceMap.get(cred.id)
@@ -1063,7 +1063,7 @@ function CredentialMultiSelect({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium">{cred.email ?? `凭据 #${cred.id}`}</span>
+                        <span className="font-medium">{cred.email ?? `账号 #${cred.id}`}</span>
                         <span className="text-xs text-muted-foreground">#{cred.id}</span>
                         {cred.disabled && <span className="text-xs text-destructive">已禁用</span>}
                       </div>

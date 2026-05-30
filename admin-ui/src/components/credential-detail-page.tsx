@@ -80,7 +80,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
         {credential && (
           <div className="flex items-center gap-2 flex-wrap">
             <code className="text-xs text-muted-foreground font-mono">#{credential.id}</code>
-            <span className="font-semibold">{credential.nickname || credential.email || `凭据 #${credential.id}`}</span>
+            <span className="font-semibold">{credential.nickname || credential.email || `账号 #${credential.id}`}</span>
             <Badge variant={credential.disabled ? 'destructive' : 'success'}>
               {credential.disabled ? '已禁用' : '启用'}
             </Badge>
@@ -192,7 +192,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">IP</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">账号</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>

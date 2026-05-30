@@ -32,7 +32,7 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            凭据 #{credentialId} 余额信息
+            账号 #{credentialId} 余额信息
           </DialogTitle>
         </DialogHeader>
 

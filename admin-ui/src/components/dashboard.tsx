@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2 } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -576,58 +576,59 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* 顶部导航 */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between px-3 sm:px-4 md:px-8">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2">
-              <img src={kiroIcon} alt="Kiro" className="h-5 w-5" />
-              <span className="font-semibold hidden sm:inline">Kiro2CCProxy Admin</span>
-            </div>
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-              <Button
-                variant={activeTab === 'credentials' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-                className="h-7 px-2 sm:px-3 text-xs"
-              >
-                <Server className="h-3 w-3 sm:mr-1" />
-                <span className="hidden sm:inline">凭据管理</span>
-              </Button>
-              <Button
-                variant={activeTab === 'apikeys' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-                className="h-7 px-2 sm:px-3 text-xs"
-              >
-                <Key className="h-3 w-3 sm:mr-1" />
-                <span className="hidden sm:inline">API Keys</span>
-              </Button>
-              <Button
-                variant={activeTab === 'settings' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-                className="h-7 px-2 sm:px-3 text-xs"
-              >
-                <Settings className="h-3 w-3 sm:mr-1" />
-                <span className="hidden sm:inline">设置</span>
-              </Button>
-            </div>
+    <div className="flex min-h-screen bg-background">
+      {/* 左侧 Sidebar */}
+      <aside className="w-[232px] bg-card border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10">
+        <div className="px-[22px] py-5 flex items-center gap-2.5 border-b border-border">
+          <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
+          <div>
+            <div className="text-[15px] font-semibold tracking-[-0.01em]">Kiro2CCProxy</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button variant="ghost" size="icon" onClick={handleRefresh}>
-              <RefreshCw className="h-5 w-5" />
+        </div>
+        <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
+          <div className="mb-[18px]">
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground/70 px-3 pb-1.5 font-semibold">主要</div>
+            {[
+              { label: '凭据管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+              { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+              { label: '每日统计', icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list') } },
+            ].map(({ label, icon, active, onClick }) => (
+              <button key={label} onClick={onClick}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                style={active ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
+              >
+                {icon}{label}
+              </button>
+            ))}
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground/70 px-3 pb-1.5 font-semibold">系统</div>
+            <button
+              onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'settings' ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+              style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
+            >
+              <Settings className="w-4 h-4 shrink-0" />
+              <span>设置</span>
+            </button>
+          </div>
+        </nav>
+        <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
+          <span className="text-[11px] font-mono text-muted-foreground/50">kiro2cc-proxy</span>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh} title="刷新">
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
+              <LogOut className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
-      </header>
+      </aside>
 
       {/* 主内容 */}
-      <main className="container mx-auto px-3 sm:px-4 md:px-8 py-4 sm:py-6">
+      <main className="ml-[232px] flex-1 min-h-screen px-9 py-7">
         {activeTab === 'settings' ? (
           <SettingsPanel />
         ) : activeTab === 'apikeys' ? (
@@ -656,6 +657,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
           />
         ) : (
         <>
+        {/* Page Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-[22px] font-bold tracking-[-0.02em]">凭据管理</h1>
+            <p className="text-[13px] text-muted-foreground mt-0.5">管理 Kiro 账号凭据与负载均衡</p>
+          </div>
+        </div>
         {/* 统计卡片 */}
         <div className="grid gap-4 grid-cols-2 md:grid-cols-5 mb-6">
           <Card>
@@ -745,7 +753,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h2 className="text-xl font-semibold">凭据管理</h2>
               {selectedIds.size > 0 && (
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">已选择 {selectedIds.size} 个</Badge>

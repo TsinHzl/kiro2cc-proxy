@@ -138,7 +138,7 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
                     <tr className="border-b bg-muted/50">
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">IP</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">凭据</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">账号</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>

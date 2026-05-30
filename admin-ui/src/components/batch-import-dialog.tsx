@@ -113,7 +113,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
       }
 
       if (credentials.length === 0) {
-        toast.error('没有可导入的凭据')
+        toast.error('没有可导入的账号')
         return
       }
 
@@ -148,7 +148,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
         const tokenHash = await sha256Hex(token)
 
         // 更新状态为检查中
-        setCurrentProcessing(`正在处理凭据 ${i + 1}/${credentials.length}`)
+        setCurrentProcessing(`正在处理账号 ${i + 1}/${credentials.length}`)
         setResults(prev => {
           const newResults = [...prev]
           newResults[i] = { ...newResults[i], status: 'checking' }
@@ -164,7 +164,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             newResults[i] = {
               ...newResults[i],
               status: 'duplicate',
-              error: '该凭据已存在',
+              error: '该账号已存在',
               email: existingCred?.email || undefined
             }
             return newResults
@@ -216,7 +216,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
           // 验活成功
           successCount++
           existingTokenHashes.add(tokenHash)
-          setCurrentProcessing(addedCred.email ? `验活成功: ${addedCred.email}` : `验活成功: 凭据 ${i + 1}`)
+          setCurrentProcessing(addedCred.email ? `验活成功: ${addedCred.email}` : `验活成功: 账号 ${i + 1}`)
           setResults(prev => {
             const newResults = [...prev]
             newResults[i] = {
@@ -267,7 +267,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
 
       // 显示结果
       if (failCount === 0 && duplicateCount === 0) {
-        toast.success(`成功导入并验活 ${successCount} 个凭据`)
+        toast.success(`成功导入并验活 ${successCount} 个账号`)
       } else {
         const failureSummary = failCount > 0
           ? `，失败 ${failCount} 个（已排除 ${rollbackSuccessCount}，未排除 ${rollbackFailedCount}，无需排除 ${rollbackSkippedCount}）`
@@ -275,7 +275,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
         toast.info(`验活完成：成功 ${successCount} 个，重复 ${duplicateCount} 个${failureSummary}`)
 
         if (rollbackFailedCount > 0) {
-          toast.warning(`有 ${rollbackFailedCount} 个失败凭据回滚未完成，请手动禁用并删除`)
+          toast.warning(`有 ${rollbackFailedCount} 个失败账号回滚未完成，请手动禁用并删除`)
         }
       }
     } catch (error) {
@@ -312,7 +312,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
       case 'verified':
         return '验活成功'
       case 'duplicate':
-        return '重复凭据'
+        return '重复账号'
       case 'failed':
         if (result.rollbackStatus === 'success') return '验活失败（已排除）'
         if (result.rollbackStatus === 'failed') return '验活失败（未排除）'
@@ -333,23 +333,23 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     >
       <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>批量导入凭据（自动验活）</DialogTitle>
+          <DialogTitle>批量导入账号（自动验活）</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              JSON 格式凭据
+              JSON 格式账号
             </label>
             <textarea
-              placeholder={'粘贴 JSON 格式的凭据（支持单个对象或数组）\n例如: [{"refreshToken":"...","clientId":"...","clientSecret":"...","authRegion":"us-east-1","apiRegion":"us-west-2"}]\n支持 region 字段自动映射为 authRegion'}
+              placeholder={'粘贴 JSON 格式的账号（支持单个对象或数组）\n例如: [{"refreshToken":"...","clientId":"...","clientSecret":"...","authRegion":"us-east-1","apiRegion":"us-west-2"}]\n支持 region 字段自动映射为 authRegion'}
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
               disabled={importing}
               className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              💡 导入时自动验活，失败的凭据会被排除
+              💡 导入时自动验活，失败的账号会被排除
             </p>
           </div>
 
@@ -396,7 +396,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
-                            {result.email || `凭据 #${result.index}`}
+                            {result.email || `账号 #${result.index}`}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {getStatusText(result)}

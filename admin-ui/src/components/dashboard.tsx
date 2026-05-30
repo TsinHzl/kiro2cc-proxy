@@ -207,7 +207,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const handleRefresh = () => {
     refetch()
-    toast.success('已刷新凭据列表')
+    toast.success('已刷新账号列表')
   }
 
   const handleLogout = () => {
@@ -234,7 +234,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 批量删除（仅删除已禁用项）
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要删除的凭据')
+      toast.error('请先选择要删除的账号')
       return
     }
 
@@ -244,14 +244,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
 
     if (disabledIds.length === 0) {
-      toast.error('选中的凭据中没有已禁用项')
+      toast.error('选中的账号中没有已禁用项')
       return
     }
 
     const skippedCount = selectedIds.size - disabledIds.length
-    const skippedText = skippedCount > 0 ? `（将跳过 ${skippedCount} 个未禁用凭据）` : ''
+    const skippedText = skippedCount > 0 ? `（将跳过 ${skippedCount} 个未禁用账号）` : ''
 
-    if (!confirm(`确定要删除 ${disabledIds.length} 个已禁用凭据吗？此操作无法撤销。${skippedText}`)) {
+    if (!confirm(`确定要删除 ${disabledIds.length} 个已禁用账号吗？此操作无法撤销。${skippedText}`)) {
       return
     }
 
@@ -277,12 +277,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
       }
     }
 
-    const skippedResultText = skippedCount > 0 ? `，已跳过 ${skippedCount} 个未禁用凭据` : ''
+    const skippedResultText = skippedCount > 0 ? `，已跳过 ${skippedCount} 个未禁用账号` : ''
 
     if (failCount === 0) {
-      toast.success(`成功删除 ${successCount} 个已禁用凭据${skippedResultText}`)
+      toast.success(`成功删除 ${successCount} 个已禁用账号${skippedResultText}`)
     } else {
-      toast.warning(`删除已禁用凭据：成功 ${successCount} 个，失败 ${failCount} 个${skippedResultText}`)
+      toast.warning(`删除已禁用账号：成功 ${successCount} 个，失败 ${failCount} 个${skippedResultText}`)
     }
 
     deselectAll()
@@ -291,7 +291,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 批量恢复异常
   const handleBatchResetFailure = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要恢复的凭据')
+      toast.error('请先选择要恢复的账号')
       return
     }
 
@@ -301,7 +301,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
 
     if (failedIds.length === 0) {
-      toast.error('选中的凭据中没有失败的凭据')
+      toast.error('选中的账号中没有失败的账号')
       return
     }
 
@@ -328,7 +328,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (failCount === 0) {
-      toast.success(`成功恢复 ${successCount} 个凭据`)
+      toast.success(`成功恢复 ${successCount} 个账号`)
     } else {
       toast.warning(`成功 ${successCount} 个，失败 ${failCount} 个`)
     }
@@ -339,18 +339,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 一键清除所有已禁用凭据
   const handleClearAll = async () => {
     if (!data?.credentials || data.credentials.length === 0) {
-      toast.error('没有可清除的凭据')
+      toast.error('没有可清除的账号')
       return
     }
 
     const disabledCredentials = data.credentials.filter(credential => credential.disabled)
 
     if (disabledCredentials.length === 0) {
-      toast.error('没有可清除的已禁用凭据')
+      toast.error('没有可清除的已禁用账号')
       return
     }
 
-    if (!confirm(`确定要清除所有 ${disabledCredentials.length} 个已禁用凭据吗？此操作无法撤销。`)) {
+    if (!confirm(`确定要清除所有 ${disabledCredentials.length} 个已禁用账号吗？此操作无法撤销。`)) {
       return
     }
 
@@ -377,9 +377,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (failCount === 0) {
-      toast.success(`成功清除所有 ${successCount} 个已禁用凭据`)
+      toast.success(`成功清除所有 ${successCount} 个已禁用账号`)
     } else {
-      toast.warning(`清除已禁用凭据：成功 ${successCount} 个，失败 ${failCount} 个`)
+      toast.warning(`清除已禁用账号：成功 ${successCount} 个，失败 ${failCount} 个`)
     }
 
     deselectAll()
@@ -390,7 +390,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const allCredentials = data?.credentials || []
 
     if (allCredentials.length === 0) {
-      toast.error('没有可查询的凭据')
+      toast.error('没有可查询的账号')
       return
     }
 
@@ -399,7 +399,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       .map(credential => credential.id)
 
     if (ids.length === 0) {
-      toast.error('没有可查询的启用凭据')
+      toast.error('没有可查询的启用账号')
       return
     }
 
@@ -460,7 +460,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 批量验活
   const handleBatchVerify = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要验活的凭据')
+      toast.error('请先选择要验活的账号')
       return
     }
 
@@ -590,7 +590,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <div className="mb-[18px]">
             <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground/70 px-3 pb-1.5 font-semibold">主要</div>
             {[
-              { label: '凭据管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+              { label: '账号管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: '每日统计', icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list') } },
             ].map(({ label, icon, active, onClick }) => (
@@ -660,8 +660,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {/* Page Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-[22px] font-bold tracking-[-0.02em]">凭据管理</h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">管理 Kiro 账号凭据与负载均衡</p>
+            <h1 className="text-[22px] font-bold tracking-[-0.02em]">账号管理</h1>
+            <p className="text-[13px] text-muted-foreground mt-0.5">管理 Kiro 账号与负载均衡</p>
           </div>
         </div>
         {/* 统计卡片 */}
@@ -669,7 +669,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                凭据总数
+                账号总数
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -679,7 +679,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                可用凭据
+                可用账号
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -778,7 +778,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     size="sm"
                     variant="destructive"
                     disabled={selectedDisabledCount === 0}
-                    title={selectedDisabledCount === 0 ? '只能删除已禁用凭据' : undefined}
+                    title={selectedDisabledCount === 0 ? '只能删除已禁用账号' : undefined}
                   >
                     <Trash2 className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">批量删除</span>
@@ -809,7 +809,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   variant="outline"
                   className="text-destructive hover:text-destructive"
                   disabled={disabledCredentialCount === 0}
-                  title={disabledCredentialCount === 0 ? '没有可清除的已禁用凭据' : undefined}
+                  title={disabledCredentialCount === 0 ? '没有可清除的已禁用账号' : undefined}
                 >
                   <Trash2 className="h-4 w-4 sm:mr-2" />
                   <span className="hidden sm:inline">清除已禁用</span>
@@ -825,14 +825,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </Button>
               <Button onClick={() => setAddDialogOpen(true)} size="sm">
                 <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">添加凭据</span>
+                <span className="hidden sm:inline">添加账号</span>
               </Button>
             </div>
           </div>
           {data?.credentials.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                暂无凭据
+                暂无账号
               </CardContent>
             </Card>
           ) : (
@@ -866,7 +866,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   </Button>
                   <span className="text-sm text-muted-foreground">
                     <span className="sm:hidden">{currentPage}/{totalPages}</span>
-                    <span className="hidden sm:inline">第 {currentPage} / {totalPages} 页（共 {data?.credentials.length} 个凭据）</span>
+                    <span className="hidden sm:inline">第 {currentPage} / {totalPages} 页（共 {data?.credentials.length} 个账号）</span>
                   </span>
                   <Button
                     variant="outline"

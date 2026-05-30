@@ -35,6 +35,10 @@ pub struct AssistantResponseEvent {
     #[serde(default)]
     pub content: String,
 
+    /// 模型 ID（如 "claude-sonnet-4.6"、"deepseek-3.2"）
+    #[serde(default)]
+    pub model_id: String,
+
     /// 捕获其他未使用的字段，确保反序列化兼容性
     #[serde(flatten)]
     #[serde(skip_serializing)]
@@ -52,6 +56,7 @@ impl Default for AssistantResponseEvent {
     fn default() -> Self {
         Self {
             content: String::new(),
+            model_id: String::new(),
             extra: serde_json::Value::Null,
         }
     }
@@ -72,6 +77,15 @@ mod tests {
         let json = r#"{"content":"Hello, world!"}"#;
         let event: AssistantResponseEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event.content, "Hello, world!");
+        assert_eq!(event.model_id, "");
+    }
+
+    #[test]
+    fn test_deserialize_with_model_id() {
+        let json = r#"{"content":"你好","modelId":"claude-sonnet-4.6"}"#;
+        let event: AssistantResponseEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.content, "你好");
+        assert_eq!(event.model_id, "claude-sonnet-4.6");
     }
 
     #[test]
@@ -79,6 +93,7 @@ mod tests {
         // 确保包含额外字段时反序列化不会失败
         let json = r#"{
             "content": "Done",
+            "modelId": "deepseek-3.2",
             "conversationId": "conv-123",
             "messageId": "msg-456",
             "messageStatus": "COMPLETED",
@@ -89,6 +104,7 @@ mod tests {
         }"#;
         let event: AssistantResponseEvent = serde_json::from_str(json).unwrap();
         assert_eq!(event.content, "Done");
+        assert_eq!(event.model_id, "deepseek-3.2");
     }
 
     #[test]
@@ -96,11 +112,13 @@ mod tests {
         let event = AssistantResponseEvent::default();
         let event = AssistantResponseEvent {
             content: "Test".to_string(),
+            model_id: "claude-sonnet-4.6".to_string(),
             ..event
         };
 
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"content\":\"Test\""));
+        assert!(json.contains("\"modelId\":\"claude-sonnet-4.6\""));
         // extra 字段不应该被序列化
         assert!(!json.contains("extra"));
     }

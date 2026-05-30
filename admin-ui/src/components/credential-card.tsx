@@ -146,7 +146,6 @@ export function CredentialCard({
   return (
     <>
       <Card className={[
-        credential.isCurrent ? 'ring-2 ring-primary' : '',
         credential.disabled ? 'opacity-60' : '',
       ].filter(Boolean).join(' ')}>
         <CardContent className="py-3 px-3 sm:px-4">
@@ -166,7 +165,6 @@ export function CredentialCard({
                     {credential.nickname || `账号 #${credential.id}`}
                   </span>
                   <HealthBadge status={credential.healthStatus} />
-                  {credential.isCurrent && <Badge variant="success">当前</Badge>}
                   {credential.disabled && <Badge variant="destructive">已禁用</Badge>}
                 </div>
 

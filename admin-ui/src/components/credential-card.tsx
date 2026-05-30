@@ -223,9 +223,9 @@ export function CredentialCard({
                     {loadingBalance ? (
                       <Loader2 className="inline w-3 h-3 animate-spin ml-1" />
                     ) : balance ? (
-                      <span className="font-medium text-foreground">
+                      <span className={`font-medium ${(100 - balance.usagePercentage) >= 50 ? 'text-green-600' : (100 - balance.usagePercentage) >= 20 ? 'text-yellow-500' : 'text-red-500'}`}>
                         {balance.remaining.toFixed(1)}/{balance.usageLimit.toFixed(1)}
-                        <span className="text-muted-foreground ml-1">({(100 - balance.usagePercentage).toFixed(0)}%剩)</span>
+                        <span className="ml-1">({(100 - balance.usagePercentage).toFixed(0)}%剩)</span>
                       </span>
                     ) : (
                       <span>未知</span>

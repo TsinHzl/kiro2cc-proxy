@@ -122,6 +122,48 @@ fn map_provider_error_with_context(err: Error, model: &str, estimated_input_toke
         .into_response()
 }
 
+/// 从原始请求体反序列化 MessagesRequest，失败时记录详细的 serde 错误用于诊断。
+///
+/// 替代 axum 的 `Json<MessagesRequest>` 提取器——后者反序列化失败时直接返回 400
+/// 且不记录任何信息，导致无法定位是哪个字段/格式导致客户端请求被拒。
+/// 此函数在失败时打印 serde 错误（行列+字段路径）、body 长度、出错位置附近的片段。
+fn parse_messages_request(body: &[u8]) -> Result<MessagesRequest, Response> {
+    match serde_json::from_slice::<MessagesRequest>(body) {
+        Ok(req) => Ok(req),
+        Err(e) => {
+            // serde_json 错误自带行列号；定位出错字节附近的片段辅助判断
+            let line = e.line();
+            let col = e.column();
+            // 估算出错字节偏移附近的上下文（按行列粗略定位，取该行附近 200 字节）
+            let body_str = String::from_utf8_lossy(body);
+            let snippet: String = body_str
+                .lines()
+                .nth(line.saturating_sub(1))
+                .map(|l| {
+                    let start = col.saturating_sub(80);
+                    l.chars().skip(start).take(200).collect()
+                })
+                .unwrap_or_default();
+            tracing::error!(
+                error = %e,
+                serde_line = line,
+                serde_col = col,
+                body_len = body.len(),
+                snippet = %snippet,
+                "[REQ-DIAG] /v1/messages 请求体反序列化失败（导致 400，客户端那轮中断）"
+            );
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new(
+                    "invalid_request_error",
+                    format!("Request body could not be parsed: {}", e),
+                )),
+            )
+                .into_response())
+        }
+    }
+}
+
 /// GET /v1/models
 ///
 /// 返回可用的模型列表
@@ -420,8 +462,12 @@ pub async fn post_messages(
     identity: Option<Extension<ApiKeyContext>>,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     headers: axum::http::HeaderMap,
-    JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
+    body: Bytes,
 ) -> Response {
+    let mut payload = match parse_messages_request(&body) {
+        Ok(p) => p,
+        Err(resp) => return resp,
+    };
     tracing::info!(
         model = %payload.model,
         max_tokens = %payload.max_tokens,
@@ -1114,8 +1160,12 @@ pub async fn post_messages_cc(
     identity: Option<Extension<ApiKeyContext>>,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     headers: axum::http::HeaderMap,
-    JsonExtractor(mut payload): JsonExtractor<MessagesRequest>,
+    body: Bytes,
 ) -> Response {
+    let mut payload = match parse_messages_request(&body) {
+        Ok(p) => p,
+        Err(resp) => return resp,
+    };
     tracing::info!(
         model = %payload.model,
         max_tokens = %payload.max_tokens,

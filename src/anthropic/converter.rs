@@ -327,8 +327,7 @@ fn extract_session_id(user_id: &str) -> Option<String> {
     // 标准格式: 查找 "session_" 后面的 UUID
     if let Some(pos) = user_id.find("session_") {
         let session_part = &user_id[pos + 8..]; // "session_" 长度为 8
-        if session_part.len() >= 36 {
-            let uuid_str = &session_part[..36];
+        if let Some(uuid_str) = session_part.get(..36) {
             // 严格验证：UUID 只能包含 hex 字符和连字符，排除 JSON 污染值如 id":"xxx
             if is_valid_uuid(uuid_str) {
                 return Some(uuid_str.to_string());
@@ -799,8 +798,8 @@ fn extract_pdf_text_from_bytes(bytes: &[u8]) -> Option<String> {
         i = next;
 
         let lookahead_end = (i + 32).min(bytes.len());
-        let lookahead = &pdf[i..lookahead_end];
-        if lookahead.contains("Tj") || lookahead.contains("TJ") || lookahead.contains('\'') {
+        let lookahead = &bytes[i..lookahead_end];
+        if lookahead.windows(2).any(|w| w == b"Tj" || w == b"TJ") || lookahead.contains(&b'\'') {
             let text = raw.trim();
             if !text.is_empty() {
                 texts.push(text.to_string());
@@ -1887,6 +1886,29 @@ mod tests {
         let user_id = "user_xxx_session_invalid-uuid";
         let session_id = extract_session_id(user_id);
         assert_eq!(session_id, None);
+    }
+
+    #[test]
+    fn test_extract_session_id_non_ascii_no_panic() {
+        // 回归：session_ 之后第 36 字节落在多字节 UTF-8 字符中间，
+        // 旧实现 &session_part[..36] 会 panic，新实现应安全返回 None
+        let user_id = format!("session_{}", "中".repeat(20));
+        assert_eq!(extract_session_id(&user_id), None);
+
+        // session_ 后内容短于 36 字节也不应 panic
+        assert_eq!(extract_session_id("session_短"), None);
+    }
+
+    #[test]
+    fn test_extract_pdf_text_non_ascii_no_panic() {
+        use base64::Engine as _;
+
+        // 回归：'(' 字面量串内含多字节 UTF-8，lookahead 切片旧实现按字符串字节
+        // 切片可能落在字符中间 panic，新实现按字节数组匹配 ASCII，应安全
+        let pdf = "stream\nBT (你好世界测试内容) Tj ET\nendstream";
+        let data = base64::engine::general_purpose::STANDARD.encode(pdf);
+        // 不校验具体返回值，只要求不 panic
+        let _ = extract_pdf_text_from_base64(&data);
     }
 
     #[test]

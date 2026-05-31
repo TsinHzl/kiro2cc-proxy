@@ -141,8 +141,9 @@ pub async fn set_load_balancing_mode(
 
 /// 将 API Key 脱敏显示（保留前半部分 + ***）
 fn mask_key(key: &str) -> String {
-    let visible = key.len() / 2;
-    format!("{}***", &key[..visible])
+    let visible = key.chars().count() / 2;
+    let masked: String = key.chars().take(visible).collect();
+    format!("{}***", masked)
 }
 
 /// GET /api/admin/config/auth-keys

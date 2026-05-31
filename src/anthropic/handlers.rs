@@ -848,8 +848,10 @@ async fn handle_non_stream_request(
         }
     }
 
-    // 确定 stop_reason
-    if has_tool_use && stop_reason == "end_turn" {
+    // 确定 stop_reason：tool_use 优先级最高，存在工具调用时无条件覆盖
+    // max_tokens / model_context_window_exceeded（这些是下一轮才该报告的状态，
+    // 不能盖掉本轮的 tool_use，否则客户端只渲染工具块而不执行）。
+    if has_tool_use {
         stop_reason = "tool_use".to_string();
     }
 

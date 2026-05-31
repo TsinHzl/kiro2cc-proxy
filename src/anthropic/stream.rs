@@ -295,10 +295,13 @@ impl SseStateManager {
 
     /// 获取最终的 stop_reason
     pub fn get_stop_reason(&self) -> String {
-        if let Some(ref reason) = self.stop_reason {
-            reason.clone()
-        } else if self.has_tool_use {
+        // tool_use 优先级最高：只要本轮发起了工具调用，必须返回 tool_use，
+        // 否则客户端会把工具块当成纯文本展示而不执行（max_tokens / 上下文超限
+        // 是下一轮才该报告的状态，不能盖掉本轮的 tool_use）。
+        if self.has_tool_use {
             "tool_use".to_string()
+        } else if let Some(ref reason) = self.stop_reason {
+            reason.clone()
         } else {
             "end_turn".to_string()
         }
@@ -2206,6 +2209,57 @@ mod tests {
         assert_eq!(
             message_delta.data["delta"]["stop_reason"], "tool_use",
             "stop_reason should be tool_use when tool_use is present"
+        );
+    }
+
+    /// 复现 bug: max_tokens 先被设置，随后出现 tool_use。
+    /// 期望 stop_reason == "tool_use"（tool_use 优先级最高），
+    /// 当前实现会错误地保留 "max_tokens"，导致客户端只渲染不执行工具。
+    #[test]
+    fn repro_max_tokens_then_tool_use_must_be_tool_use() {
+        let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
+        let _ = ctx.generate_initial_events();
+
+        // 先收到 ContentLengthExceededException → 设 max_tokens
+        ctx.process_kiro_event(&crate::kiro::model::events::Event::Exception {
+            exception_type: "ContentLengthExceededException".to_string(),
+            message: "too long".to_string(),
+        });
+        // 随后模型仍发起了工具调用
+        ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
+            name: "Write".to_string(),
+            tool_use_id: "toolu_Z".to_string(),
+            input: r#"{"file_path":"/tmp/x.py","content":"print(1)"}"#.to_string(),
+            stop: true,
+        });
+        let finals = ctx.generate_final_events();
+        let md = finals.iter().find(|e| e.event == "message_delta").expect("message_delta");
+        assert_eq!(
+            md.data["delta"]["stop_reason"], "tool_use",
+            "存在 tool_use 时 stop_reason 必须是 tool_use，不能被 max_tokens 覆盖"
+        );
+    }
+
+    /// 复现 bug: context 100% 先被设置（model_context_window_exceeded），随后 tool_use。
+    #[test]
+    fn repro_context_exceeded_then_tool_use_must_be_tool_use() {
+        let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
+        let _ = ctx.generate_initial_events();
+
+        ctx.process_kiro_event(&crate::kiro::model::events::Event::ContextUsage(
+            crate::kiro::model::events::ContextUsageEvent { context_usage_percentage: 100.0 },
+        ));
+        ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
+            name: "Read".to_string(),
+            tool_use_id: "toolu_W".to_string(),
+            input: r#"{"file_path":"/a"}"#.to_string(),
+            stop: true,
+        });
+        let finals = ctx.generate_final_events();
+        let md = finals.iter().find(|e| e.event == "message_delta").expect("message_delta");
+        assert_eq!(
+            md.data["delta"]["stop_reason"], "tool_use",
+            "存在 tool_use 时 stop_reason 必须是 tool_use，不能被 model_context_window_exceeded 覆盖"
         );
     }
 }

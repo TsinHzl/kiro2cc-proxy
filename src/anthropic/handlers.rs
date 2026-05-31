@@ -94,6 +94,23 @@ fn map_provider_error_with_context(err: Error, model: &str, estimated_input_toke
         )
             .into_response();
     }
+    // 上游限流（429 Too Many Requests）：所有账号重试后仍被限流。
+    // 必须把 429 透传给客户端（而非转成 502），让 Claude Code 等客户端的
+    // 内置指数退避重试接管 —— 502 会被客户端判定为硬失败，导致"请求那一轮直接废掉"
+    // （表现为工具调用不执行 / 卡住），而 429 会触发客户端自动等待重试。
+    if err_str.contains("429") || err_str.contains("Too Many Requests") {
+        tracing::warn!(error = %err, "上游限流（所有账号 429 耗尽）：透传 429 给客户端以触发其退避重试");
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(header::RETRY_AFTER, "5")],
+            Json(ErrorResponse::new(
+                "rate_limit_error",
+                "Upstream rate limit reached on all accounts. Please retry shortly.",
+            )),
+        )
+            .into_response();
+    }
+
     tracing::error!("Kiro API 调用失败: {}", err);
     (
         StatusCode::BAD_GATEWAY,

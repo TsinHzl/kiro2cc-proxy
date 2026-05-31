@@ -581,11 +581,6 @@ pub struct StreamContext {
     metering_cache_creation_tokens: Option<i32>,
     /// 从 contextUsageEvent 获取的上下文使用百分比（0-100）
     context_usage_percentage: Option<f64>,
-    /// [TOOLUSE-DIAG 临时] 累积 Kiro 原始 assistantResponse 文本，
-    /// 用于定位"call 不执行/空响应"——看清模型究竟输出了什么。定位后移除。
-    diag_raw_content: String,
-    /// [TOOLUSE-DIAG 临时] 累积 Kiro 原始 toolUse 事件摘要（name/id/input 片段）。
-    diag_tool_raw: String,
 }
 
 impl StreamContext {
@@ -620,8 +615,6 @@ impl StreamContext {
             metering_cache_read_tokens: None,
             metering_cache_creation_tokens: None,
             context_usage_percentage: None,
-            diag_raw_content: String::new(),
-            diag_tool_raw: String::new(),
         }
     }
 
@@ -711,23 +704,8 @@ impl StreamContext {
     /// 处理 Kiro 事件并转换为 Anthropic SSE 事件
     pub fn process_kiro_event(&mut self, event: &Event) -> Vec<SseEvent> {
         match event {
-            Event::AssistantResponse(resp) => {
-                // [TOOLUSE-DIAG 临时] 累积原始文本，收尾时打印
-                if self.diag_raw_content.len() < 4000 {
-                    self.diag_raw_content.push_str(&resp.content);
-                }
-                self.process_assistant_response(&resp.content)
-            }
-            Event::ToolUse(tool_use) => {
-                // [TOOLUSE-DIAG 临时] 记录工具事件 name/id/input/stop
-                if self.diag_tool_raw.len() < 4000 {
-                    self.diag_tool_raw.push_str(&format!(
-                        "{{name={:?} id={:?} stop={} input={:?}}}",
-                        tool_use.name, tool_use.tool_use_id, tool_use.stop, tool_use.input
-                    ));
-                }
-                self.process_tool_use(tool_use)
-            }
+            Event::AssistantResponse(resp) => self.process_assistant_response(&resp.content),
+            Event::ToolUse(tool_use) => self.process_tool_use(tool_use),
             Event::ContextUsage(context_usage) => {
                 // 从上下文使用百分比计算实际的 input_tokens
                 // 公式: percentage * 200_000 / 100 = percentage * 2000
@@ -1364,20 +1342,6 @@ impl StreamContext {
             report_cache_read,
             self.context_usage_percentage,
         ));
-
-        // [TOOLUSE-DIAG 临时] 打印本轮响应的原始内容，用于定位 call 不执行/空响应。
-        // diag_raw_content = 模型输出的全部 assistantResponse 文本（含可能的工具调用文本泄漏）；
-        // diag_tool_raw = 收到的结构化 toolUse 事件。定位后整块移除。
-        let raw_preview: String = self.diag_raw_content.chars().take(2000).collect();
-        tracing::warn!(
-            "[TOOLUSE-DIAG-RAW] msg_id={} out_tokens={} thinking_enabled={} tool_raw=[{}] text_len={} text_content={:?}",
-            self.message_id,
-            self.output_tokens,
-            self.thinking_enabled,
-            self.diag_tool_raw,
-            self.diag_raw_content.chars().count(),
-            raw_preview,
-        );
 
         events
     }

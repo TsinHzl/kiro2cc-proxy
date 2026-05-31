@@ -5,7 +5,6 @@
 /credentials.json
 /.idea
 /test.json
-/Cargo.lock
 /admin-ui/node_modules/
 /admin-ui/dist/
 /admin-ui/pnpm-lock.yaml

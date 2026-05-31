@@ -852,6 +852,14 @@ async fn handle_non_stream_request(
     // max_tokens / model_context_window_exceeded（这些是下一轮才该报告的状态，
     // 不能盖掉本轮的 tool_use，否则客户端只渲染工具块而不执行）。
     if has_tool_use {
+        // [TOOLUSE-DIAG] 非流式工具调用收尾诊断：记录覆盖前的原始 stop_reason，
+        // 用于定位"客户端只显示 call 不执行"的根因。复现后离线分析。
+        tracing::warn!(
+            "[TOOLUSE-DIAG] non_stream has_tool_use=true raw_stop_reason={} \
+             tool_use_count={} final_stop_reason=tool_use",
+            stop_reason,
+            tool_uses.len(),
+        );
         stop_reason = "tool_use".to_string();
     }
 

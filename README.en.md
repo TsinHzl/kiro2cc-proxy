@@ -15,14 +15,14 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 - **Anthropic API Compatible**: Full support for the Anthropic Claude API format
 - **Streaming Responses**: SSE (Server-Sent Events) streaming support
 - **Auto Token Refresh**: Automatically manages and refreshes OAuth tokens
-- **Multi-Credential Support**: Configure multiple credentials with automatic priority-based failover
+- **Multi-Account Support**: Configure multiple accounts with automatic priority-based failover
 - **Load Balancing**: `priority` (by priority) and `balanced` (round-robin) modes
-- **Smart Retry**: Up to 3 retries per credential, up to 9 retries per request
+- **Smart Retry**: Up to 3 retries per account, up to 9 retries per request
 - **Thinking Mode**: Supports Claude's extended thinking feature
 - **Tool Use**: Full support for function calling / tool use
 - **WebSearch**: Built-in WebSearch tool conversion logic
-- **Admin Panel**: Optional web management UI for credential management, balance queries, etc.
-- **Per-Credential Proxy**: Configure HTTP/SOCKS5 proxy per credential
+- **Admin Panel**: Optional web management UI for account management, balance queries, etc.
+- **Per-Account Proxy**: Configure HTTP/SOCKS5 proxy per account
 
 ---
 
@@ -32,7 +32,7 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 - [Local Deployment (macOS)](#local-deployment-macos)
 - [Local Deployment (Windows)](#local-deployment-windows)
 - [Server Deployment (Linux)](#server-deployment-linux)
-- [Getting Kiro Credentials](#getting-kiro-credentials)
+- [Getting Kiro Accounts](#getting-kiro-accounts)
 - [Configuration Reference](#configuration-reference)
 - [Claude Code Integration](#claude-code-integration)
 - [API Endpoints](#api-endpoints)
@@ -54,13 +54,13 @@ kiro2cc-proxy is a proxy service. It forwards standard Anthropic Claude API requ
 **Prerequisites:**
 
 1. A Kiro account (register at [kiro.dev](https://kiro.dev), supports Social login)
-2. Credentials exported from Kiro IDE or account manager (`refreshToken` etc.)
+2. Accounts exported from Kiro IDE or account manager (`refreshToken` etc.)
 3. > ⚠️ **[CRITICAL] Users in mainland China**: A local HTTP/SOCKS5 proxy (Clash/V2Ray etc.) is mandatory. Without it, all Claude model requests will return `INVALID_MODEL_ID` and the service will be unusable.
 
 **Overall flow:**
 
 ```
-Install dependencies → Build project → Start service → Add credentials → Configure client
+Install dependencies → Build project → Start service → Add accounts → Configure client
 ```
 
 ---
@@ -161,11 +161,11 @@ After setup, `app/config/config.json` is generated, the service starts, and the 
 
 **Subsequent launches** read the existing config — no wizard needed.
 
-### Step 5: Add Kiro Credentials
+### Step 5: Add Kiro Accounts
 
-After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add credentials exported from Kiro.
+After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add accounts exported from Kiro.
 
-Alternatively, create `app/config/credentials.json` directly — see [Getting Kiro Credentials](#getting-kiro-credentials).
+Alternatively, create `app/config/credentials.json` directly — see [Getting Kiro Accounts](#getting-kiro-accounts).
 
 ### Stop the Service
 
@@ -262,9 +262,9 @@ After setup, `app\config\config.json` is generated, the service starts, and the 
 
 **Subsequent launches** read the existing config — no wizard needed.
 
-### Step 5: Add Kiro Credentials
+### Step 5: Add Kiro Accounts
 
-After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add credentials exported from Kiro.
+After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add accounts exported from Kiro.
 
 ### Stop the Service
 
@@ -304,7 +304,7 @@ Minimal `data/config.json`:
 > ⚠️ **`port` must be an integer**, not a Docker port-mapping string (e.g. `"0.0.0.0:5678:5678"`). Correct: `"port": 5678`. The service will fail to start if this is wrong.
 
 ```bash
-# 3. Create credentials file (or add via admin panel after startup)
+# 3. Create accounts file (or add via admin panel after startup)
 echo "[]" > data/credentials.json
 
 # 4. Start
@@ -382,7 +382,7 @@ Using an overseas server is recommended — no proxy needed.
 
 ---
 
-## Getting Kiro Credentials
+## Getting Kiro Accounts
 
 ### Full Flow: Export from Kiro Account Manager → Import via Admin Panel
 
@@ -397,15 +397,15 @@ Using an overseas server is recommended — no proxy needed.
 
 Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#server-deployment-linux) section to start the service and confirm it is running.
 
-**Step 3: Import credentials via the Admin Panel (recommended)**
+**Step 3: Import accounts via the Admin Panel (recommended)**
 
 1. Open the admin panel: `http://127.0.0.1:5678/admin` (**replace with your server IP for server deployments**)
 2. **Log in with the `adminApiKey` (Admin Password) configured in `config.json`**
-3. Go to the credentials management page
+3. Go to the accounts management page
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
 5. The panel automatically recognizes the account info and displays it — confirm to save
 
-> ⚠️ **[CRITICAL] Importing credentials fails when accessing the admin panel over HTTP**
+> ⚠️ **[CRITICAL] Importing accounts fails when accessing the admin panel over HTTP**
 >
 > If you access the admin panel via `http://server-ip:port/admin` (not HTTPS, not localhost), the browser's security policy disables the `crypto.subtle` encryption API, causing an error `Cannot read properties of undefined (reading 'digest')` during import. The backend will show no error logs.
 >
@@ -418,7 +418,7 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 >
 > Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box under "Insecure origins treated as secure", set the toggle to **Enabled**, then click **Relaunch** to restart the browser and retry.
 
-**Step 4 (optional): Create the credentials file manually**
+**Step 4 (optional): Create the accounts file manually**
 
 You can skip the admin panel and save the exported JSON directly as a file:
 - Local deployment: `app/config/credentials.json`
@@ -469,7 +469,7 @@ See the format reference below. Restart the service after saving.
 ]
 ```
 
-Lower `priority` value = higher priority. Up to 3 retries per credential, 9 per request, with automatic failover.
+Lower `priority` value = higher priority. Up to 3 retries per account, 9 per request, with automatic failover.
 
 ---
 
@@ -509,9 +509,9 @@ Full example:
 }
 ```
 
-### Per-Credential Proxy
+### Per-Account Proxy
 
-Override the global proxy for individual credentials:
+Override the global proxy for individual accounts:
 
 ```json
 [
@@ -528,13 +528,13 @@ Override the global proxy for individual credentials:
 ]
 ```
 
-`proxyUrl: "direct"` forces direct connection for that credential, ignoring any global proxy.
+`proxyUrl: "direct"` forces direct connection for that account, ignoring any global proxy.
 
 ### Region Priority
 
-**Auth Region** (token refresh): `credential.authRegion` > `credential.region` > `config.authRegion` > `config.region`
+**Auth Region** (token refresh): `account.authRegion` > `account.region` > `config.authRegion` > `config.region`
 
-**API Region** (API requests): `credential.apiRegion` > `config.apiRegion` > `config.region`
+**API Region** (API requests): `account.apiRegion` > `config.apiRegion` > `config.region`
 
 ---
 
@@ -662,29 +662,29 @@ Any model name containing the following keywords is automatically mapped to the 
 When `adminApiKey` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
 
 Features:
-- View all credential statuses (validity, failure count, etc.)
-- Add / delete credentials
-- Enable / disable individual credentials
-- Adjust credential priority
+- View all account statuses (validity, failure count, etc.)
+- Add / delete accounts
+- Enable / disable individual accounts
+- Adjust account priority
 - Check account balance
-- Reset credential failure state
+- Reset account failure state
 
 **Admin API** (requires `x-api-key` or `Authorization: Bearer` header):
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/admin/credentials` | GET | List all credentials |
-| `/api/admin/credentials` | POST | Add a credential |
-| `/api/admin/credentials/:id` | DELETE | Delete a credential |
+| `/api/admin/credentials` | GET | List all accounts |
+| `/api/admin/credentials` | POST | Add an account |
+| `/api/admin/credentials/:id` | DELETE | Delete an account |
 | `/api/admin/credentials/:id/balance` | GET | Query balance |
 
 ---
 
 ## FAQ
 
-**Q: Service starts but shows "0 credentials loaded"**
+**Q: Service starts but shows "0 accounts loaded"**
 
-Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker). See [Getting Kiro Credentials](#getting-kiro-credentials).
+Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker). See [Getting Kiro Accounts](#getting-kiro-accounts).
 
 **Q: Requests return `INVALID_MODEL_ID`**
 
@@ -698,7 +698,7 @@ The API key used by the client doesn't match `apiKey` in `config.json`. Check an
 
 Try changing `tlsBackend` to `native-tls` in `config.json` and restart the service.
 
-**Q: Importing credentials via the admin panel fails with `Cannot read properties of undefined (reading 'digest')`**
+**Q: Importing accounts via the admin panel fails with `Cannot read properties of undefined (reading 'digest')`**
 
 This is a browser security policy restriction. The `crypto.subtle` encryption API is only available in HTTPS or localhost environments. Accessing the admin panel via a public IP + HTTP triggers this error — the backend will show no logs.
 
@@ -744,7 +744,7 @@ git pull
 
 1. `credentials.json` contains sensitive tokens — never commit it to version control or share it
 2. The service auto-refreshes expired tokens — no manual intervention needed
-3. In multi-credential mode, refreshed tokens are automatically written back to the file
+3. In multi-account mode, refreshed tokens are automatically written back to the file
 4. Mainland China users must configure a proxy to access Claude models
 
 ---

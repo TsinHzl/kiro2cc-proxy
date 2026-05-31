@@ -3,27 +3,27 @@
 
 use serde::{Deserialize, Serialize};
 
-// ============ 凭据状态 ============
+// ============ 账号状态 ============
 
-/// 所有凭据状态响应
+/// 所有账号状态响应
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialsStatusResponse {
-    /// 凭据总数
+    /// 账号总数
     pub total: usize,
-    /// 可用凭据数量（未禁用）
+    /// 可用账号数量（未禁用）
     pub available: usize,
-    /// 当前活跃凭据 ID
+    /// 当前活跃账号 ID
     pub current_id: u64,
-    /// 各凭据状态列表
+    /// 各账号状态列表
     pub credentials: Vec<CredentialStatusItem>,
 }
 
-/// 单个凭据的状态信息
+/// 单个账号的状态信息
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialStatusItem {
-    /// 凭据唯一 ID
+    /// 账号唯一 ID
     pub id: u64,
     /// 优先级（数字越小优先级越高）
     pub priority: u32,
@@ -31,7 +31,7 @@ pub struct CredentialStatusItem {
     pub disabled: bool,
     /// 连续失败次数
     pub failure_count: u32,
-    /// 是否为当前活跃凭据
+    /// 是否为当前活跃账号
     pub is_current: bool,
     /// Token 过期时间（RFC3339 格式）
     pub expires_at: Option<String>,
@@ -48,7 +48,7 @@ pub struct CredentialStatusItem {
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
     pub last_used_at: Option<String>,
-    /// 是否配置了凭据级代理
+    /// 是否配置了账号级代理
     pub has_proxy: bool,
     /// 代理 URL（用于前端展示）
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -61,7 +61,7 @@ pub struct CredentialStatusItem {
 
 // ============ 操作请求 ============
 
-/// 启用/禁用凭据请求
+/// 启用/禁用账号请求
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetDisabledRequest {
@@ -77,7 +77,7 @@ pub struct SetPriorityRequest {
     pub priority: u32,
 }
 
-/// 添加凭据请求
+/// 添加账号请求
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddCredentialRequest {
@@ -98,17 +98,17 @@ pub struct AddCredentialRequest {
     #[serde(default)]
     pub priority: u32,
 
-    /// 凭据级 Region 配置（用于 OIDC token 刷新）
+    /// 账号级 Region 配置（用于 OIDC token 刷新）
     /// 未配置时回退到 config.json 的全局 region
     pub region: Option<String>,
 
-    /// 凭据级 Auth Region（用于 Token 刷新）
+    /// 账号级 Auth Region（用于 Token 刷新）
     pub auth_region: Option<String>,
 
-    /// 凭据级 API Region（用于 API 请求）
+    /// 账号级 API Region（用于 API 请求）
     pub api_region: Option<String>,
 
-    /// 凭据级 Machine ID（可选，64 位字符串）
+    /// 账号级 Machine ID（可选，64 位字符串）
     /// 未配置时回退到 config.json 的 machineId
     pub machine_id: Option<String>,
 
@@ -118,13 +118,13 @@ pub struct AddCredentialRequest {
     /// 用户昵称/备注名（可选，用于前端显示）
     pub nickname: Option<String>,
 
-    /// 凭据级代理 URL（可选，特殊值 "direct" 表示不使用代理）
+    /// 账号级代理 URL（可选，特殊值 "direct" 表示不使用代理）
     pub proxy_url: Option<String>,
 
-    /// 凭据级代理认证用户名（可选）
+    /// 账号级代理认证用户名（可选）
     pub proxy_username: Option<String>,
 
-    /// 凭据级代理认证密码（可选）
+    /// 账号级代理认证密码（可选）
     pub proxy_password: Option<String>,
 }
 
@@ -132,20 +132,20 @@ fn default_auth_method() -> String {
     "social".to_string()
 }
 
-/// 添加凭据成功响应
+/// 添加账号成功响应
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddCredentialResponse {
     pub success: bool,
     pub message: String,
-    /// 新添加的凭据 ID
+    /// 新添加的账号 ID
     pub credential_id: u64,
     /// 用户邮箱（如果获取成功）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
 }
 
-/// 更新凭据请求（所有字段可选，只更新提供的字段）
+/// 更新账号请求（所有字段可选，只更新提供的字段）
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCredentialRequest {
@@ -161,13 +161,13 @@ pub struct UpdateCredentialRequest {
     /// OIDC Client Secret（可选）
     pub client_secret: Option<String>,
 
-    /// 凭据级 Auth Region（用于 Token 刷新）
+    /// 账号级 Auth Region（用于 Token 刷新）
     pub auth_region: Option<String>,
 
-    /// 凭据级 API Region（用于 API 请求）
+    /// 账号级 API Region（用于 API 请求）
     pub api_region: Option<String>,
 
-    /// 凭据级 Machine ID（可选）
+    /// 账号级 Machine ID（可选）
     pub machine_id: Option<String>,
 
     /// 用户邮箱（可选，用于前端显示）
@@ -176,13 +176,13 @@ pub struct UpdateCredentialRequest {
     /// 用户昵称/备注名（可选，用于前端显示）
     pub nickname: Option<String>,
 
-    /// 凭据级代理 URL（可选）
+    /// 账号级代理 URL（可选）
     pub proxy_url: Option<String>,
 
-    /// 凭据级代理认证用户名（可选）
+    /// 账号级代理认证用户名（可选）
     pub proxy_username: Option<String>,
 
-    /// 凭据级代理认证密码（可选）
+    /// 账号级代理认证密码（可选）
     pub proxy_password: Option<String>,
 }
 
@@ -192,7 +192,7 @@ pub struct UpdateCredentialRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceResponse {
-    /// 凭据 ID
+    /// 账号 ID
     pub id: u64,
     /// 订阅类型
     pub subscription_title: Option<String>,
@@ -261,7 +261,7 @@ pub struct CreateApiKeyRequest {
     /// 有效期天数（懒激活模式）
     #[serde(default)]
     pub duration_days: Option<f64>,
-    /// 绑定的凭据 ID 列表
+    /// 绑定的账号 ID 列表
     #[serde(default)]
     pub bound_credential_ids: Option<Vec<u64>>,
 }
@@ -285,7 +285,7 @@ pub struct UpdateApiKeyRequest {
     /// 有效期天数（懒激活模式）
     #[serde(default, deserialize_with = "deserialize_optional_f64")]
     pub duration_days: Option<Option<f64>>,
-    /// 绑定的凭据 ID 列表（null 表示清除绑定）
+    /// 绑定的账号 ID 列表（null 表示清除绑定）
     #[serde(default, deserialize_with = "deserialize_optional_vec_u64")]
     pub bound_credential_ids: Option<Option<Vec<u64>>>,
 }

@@ -168,7 +168,7 @@ pub async fn get_key_usage_records(
 }
 
 /// GET /api/admin/credentials/:id/usage/records?page=1&page_size=50
-/// 分页获取单个凭据的原始请求记录
+/// 分页获取单个账号的原始请求记录
 pub async fn get_credential_usage_records(
     State(state): State<AdminState>,
     Path(id): Path<u64>,

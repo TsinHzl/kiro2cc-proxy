@@ -587,7 +587,7 @@ async fn handle_stream_request(
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
 ) -> Response {
-    // 调用 Kiro API（支持多凭据故障转移）
+    // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
@@ -730,7 +730,7 @@ async fn handle_non_stream_request(
     client_ip: Option<String>,
     json_schema_requested: bool,
 ) -> Response {
-    // 调用 Kiro API（支持多凭据故障转移）
+    // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
@@ -1227,7 +1227,7 @@ async fn handle_stream_request_buffered(
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
 ) -> Response {
-    // 调用 Kiro API（支持多凭据故障转移）
+    // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, estimated_input_tokens),

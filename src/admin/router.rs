@@ -24,7 +24,7 @@ use super::{
 /// 创建 Admin API 路由
 pub fn create_admin_router(state: AdminState) -> Router {
     Router::new()
-        // 凭据管理
+        // 账号管理
         .route(
             "/credentials",
             get(get_all_credentials).post(add_credential),

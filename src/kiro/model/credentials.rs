@@ -2,7 +2,7 @@
 //! Kiro OAuth 凭证数据模型
 //!
 //! 支持从 Kiro IDE 的凭证文件加载，使用 Social 认证方式
-//! 支持单凭据和多凭据配置格式
+//! 支持单账号和多账号配置格式
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -15,7 +15,7 @@ use crate::model::config::Config;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct KiroCredentials {
-    /// 凭据唯一标识符（自增 ID）
+    /// 账号唯一标识符（自增 ID）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u64>,
 
@@ -47,25 +47,25 @@ pub struct KiroCredentials {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_secret: Option<String>,
 
-    /// 凭据优先级（数字越小优先级越高，默认为 0）
+    /// 账号优先级（数字越小优先级越高，默认为 0）
     #[serde(default)]
     #[serde(skip_serializing_if = "is_zero")]
     pub priority: u32,
 
-    /// 凭据级 Region 配置（用于 OIDC token 刷新）
+    /// 账号级 Region 配置（用于 OIDC token 刷新）
     /// 未配置时回退到 config.json 的全局 region
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
 
-    /// 凭据级 Auth Region（用于 Token 刷新）
+    /// 账号级 Auth Region（用于 Token 刷新）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_region: Option<String>,
 
-    /// 凭据级 API Region（用于 API 请求）
+    /// 账号级 API Region（用于 API 请求）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_region: Option<String>,
 
-    /// 凭据级 Machine ID 配置（可选）
+    /// 账号级 Machine ID 配置（可选）
     /// 未配置时回退到 config.json 的 machineId；都未配置时由 refreshToken 派生
     #[serde(skip_serializing_if = "Option::is_none")]
     pub machine_id: Option<String>,
@@ -83,22 +83,22 @@ pub struct KiroCredentials {
     #[serde(default)]
     pub subscription_title: Option<String>,
 
-    /// 凭据级代理 URL（可选）
+    /// 账号级代理 URL（可选）
     /// 支持 http/https/socks5 协议
     /// 特殊值 "direct" 表示显式不使用代理（即使全局配置了代理）
     /// 未配置时回退到全局代理配置
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
 
-    /// 凭据级代理认证用户名（可选）
+    /// 账号级代理认证用户名（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_username: Option<String>,
 
-    /// 凭据级代理认证密码（可选）
+    /// 账号级代理认证密码（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_password: Option<String>,
 
-    /// 凭据是否被禁用（默认为 false）
+    /// 账号是否被禁用（默认为 false）
     #[serde(default)]
     pub disabled: bool,
 }
@@ -116,22 +116,22 @@ fn canonicalize_auth_method_value(value: &str) -> &str {
     }
 }
 
-/// 凭据配置（支持单对象或数组格式）
+/// 账号配置（支持单对象或数组格式）
 ///
 /// 自动识别配置文件格式：
 /// - 单对象格式（旧格式，向后兼容）
-/// - 数组格式（新格式，支持多凭据）
+/// - 数组格式（新格式，支持多账号）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CredentialsConfig {
-    /// 单个凭据（旧格式）
+    /// 单个账号（旧格式）
     Single(KiroCredentials),
-    /// 多凭据数组（新格式）
+    /// 多账号数组（新格式）
     Multiple(Vec<KiroCredentials>),
 }
 
 impl CredentialsConfig {
-    /// 从文件加载凭据配置
+    /// 从文件加载账号配置
     ///
     /// - 如果文件不存在，返回空数组
     /// - 如果文件内容为空，返回空数组
@@ -155,7 +155,7 @@ impl CredentialsConfig {
         Ok(config)
     }
 
-    /// 转换为按优先级排序的凭据列表
+    /// 转换为按优先级排序的账号列表
     pub fn into_sorted_credentials(self) -> Vec<KiroCredentials> {
         match self {
             CredentialsConfig::Single(mut cred) => {
@@ -173,7 +173,7 @@ impl CredentialsConfig {
         }
     }
 
-    /// 获取凭据数量
+    /// 获取账号数量
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         match self {
@@ -191,7 +191,7 @@ impl CredentialsConfig {
         }
     }
 
-    /// 判断是否为多凭据格式（数组格式）
+    /// 判断是否为多账号格式（数组格式）
     pub fn is_multiple(&self) -> bool {
         matches!(self, CredentialsConfig::Multiple(_))
     }
@@ -207,7 +207,7 @@ impl KiroCredentials {
     }
 
     /// 获取有效的 Auth Region（用于 Token 刷新）
-    /// 优先级：凭据.auth_region > 凭据.region > config.auth_region > config.region
+    /// 优先级：账号.auth_region > 账号.region > config.auth_region > config.region
     pub fn effective_auth_region<'a>(&'a self, config: &'a Config) -> &'a str {
         self.auth_region
             .as_deref()
@@ -216,7 +216,7 @@ impl KiroCredentials {
     }
 
     /// 获取有效的 API Region（用于 API 请求）
-    /// 优先级：凭据.api_region > config.api_region > config.region
+    /// 优先级：账号.api_region > config.api_region > config.region
     pub fn effective_api_region<'a>(&'a self, config: &'a Config) -> &'a str {
         self.api_region
             .as_deref()
@@ -224,7 +224,7 @@ impl KiroCredentials {
     }
 
     /// 获取有效的代理配置
-    /// 优先级：凭据代理 > 全局代理 > 无代理
+    /// 优先级：账号代理 > 全局代理 > 无代理
     /// 特殊值 "direct" 表示显式不使用代理（即使全局配置了代理）
     pub fn effective_proxy(&self, global_proxy: Option<&ProxyConfig>) -> Option<ProxyConfig> {
         match self.proxy_url.as_deref() {
@@ -277,7 +277,7 @@ impl KiroCredentials {
         }
     }
 
-    /// 检查凭据是否支持 Opus 模型
+    /// 检查账号是否支持 Opus 模型
     ///
     /// Free 账号不支持 Opus 模型，需要 PRO 或更高等级订阅
     pub fn supports_opus(&self) -> bool {
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_multiple_credentials_with_different_regions() {
-        // 测试多凭据场景下不同凭据使用各自的 region
+        // 测试多账号场景下不同账号使用各自的 region
         let json = r#"[
             {"refreshToken": "t1", "region": "us-east-1"},
             {"refreshToken": "t2", "region": "eu-west-1"},
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_effective_auth_region_credential_auth_region_highest() {
-        // 凭据.auth_region > 凭据.region > config.auth_region > config.region
+        // 账号.auth_region > 账号.region > config.auth_region > config.region
         let mut config = Config::default();
         config.region = "config-region".to_string();
         config.auth_region = Some("config-auth-region".to_string());
@@ -759,7 +759,7 @@ mod tests {
 
     #[test]
     fn test_effective_api_region_credential_api_region_highest() {
-        // 凭据.api_region > config.api_region > config.region
+        // 账号.api_region > config.api_region > config.region
         let mut config = Config::default();
         config.region = "config-region".to_string();
         config.api_region = Some("config-api-region".to_string());
@@ -793,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_effective_api_region_ignores_credential_region() {
-        // 凭据.region 不参与 api_region 的回退链
+        // 账号.region 不参与 api_region 的回退链
         let mut config = Config::default();
         config.region = "config-region".to_string();
 
@@ -817,7 +817,7 @@ mod tests {
         assert_eq!(creds.effective_api_region(&config), "api-only");
     }
 
-    // ============ 凭据级代理优先级测试 ============
+    // ============ 账号级代理优先级测试 ============
 
     #[test]
     fn test_effective_proxy_credential_overrides_global() {

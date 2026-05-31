@@ -3,7 +3,7 @@
 //!
 //! 核心组件，负责与 Kiro API 通信
 //! 支持流式和非流式请求
-//! 支持多凭据故障转移和重试
+//! 支持多账号故障转移和重试
 
 use reqwest::Client;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HOST, HeaderMap, HeaderValue};
@@ -22,7 +22,7 @@ use crate::model::rpm::RpmTracker;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 
-/// 每个凭据的最大重试次数
+/// 每个账号的最大重试次数
 const MAX_RETRIES_PER_CREDENTIAL: usize = 3;
 
 /// 总重试次数硬上限（避免无限重试）
@@ -34,19 +34,19 @@ const MAX_CONCURRENT_REQUESTS: usize = 50;
 /// Kiro API Provider
 ///
 /// 核心组件，负责与 Kiro API 通信
-/// 支持多凭据故障转移和重试机制
+/// 支持多账号故障转移和重试机制
 pub struct KiroProvider {
     token_manager: Arc<MultiTokenManager>,
-    /// 全局代理配置（用于凭据无自定义代理时的回退）
+    /// 全局代理配置（用于账号无自定义代理时的回退）
     global_proxy: Option<ProxyConfig>,
     /// Client 缓存：key = effective proxy config, value = reqwest::Client
-    /// 不同代理配置的凭据使用不同的 Client，共享相同代理的凭据复用 Client
+    /// 不同代理配置的账号使用不同的 Client，共享相同代理的账号复用 Client
     client_cache: Mutex<HashMap<Option<ProxyConfig>, Client>>,
     /// TLS 后端配置
     tls_backend: TlsBackend,
     /// 并发控制信号量，限制同时发往上游的请求数
     concurrency_limit: Arc<Semaphore>,
-    /// RPM 追踪器（可选，用于记录凭据维度的 RPM）
+    /// RPM 追踪器（可选，用于记录账号维度的 RPM）
     rpm_tracker: Option<Arc<RpmTracker>>,
 }
 
@@ -82,7 +82,7 @@ impl KiroProvider {
         self
     }
 
-    /// 根据凭据的代理配置获取（或创建并缓存）对应的 reqwest::Client
+    /// 根据账号的代理配置获取（或创建并缓存）对应的 reqwest::Client
     fn client_for(&self, credentials: &KiroCredentials) -> anyhow::Result<Client> {
         let effective = credentials.effective_proxy(self.global_proxy.as_ref());
         let mut cache = self.client_cache.lock();
@@ -120,7 +120,7 @@ impl KiroProvider {
         format!("q.{}.amazonaws.com", self.token_manager.config().effective_api_region())
     }
 
-    /// 获取凭据级 API 基础 URL
+    /// 获取账号级 API 基础 URL
     fn base_url_for(&self, credentials: &KiroCredentials) -> String {
         format!(
             "https://q.{}.amazonaws.com/generateAssistantResponse",
@@ -128,7 +128,7 @@ impl KiroProvider {
         )
     }
 
-    /// 获取凭据级 MCP API URL
+    /// 获取账号级 MCP API URL
     fn mcp_url_for(&self, credentials: &KiroCredentials) -> String {
         format!(
             "https://q.{}.amazonaws.com/mcp",
@@ -136,7 +136,7 @@ impl KiroProvider {
         )
     }
 
-    /// 获取凭据级 API 基础域名
+    /// 获取账号级 API 基础域名
     fn base_domain_for(&self, credentials: &KiroCredentials) -> String {
         format!(
             "q.{}.amazonaws.com",
@@ -190,7 +190,7 @@ impl KiroProvider {
     /// 构建请求头
     ///
     /// # Arguments
-    /// * `ctx` - API 调用上下文，包含凭据和 token
+    /// * `ctx` - API 调用上下文，包含账号和 token
     /// * `request_body` - 请求体，用于提取 agentTaskType
     fn build_headers(&self, ctx: &CallContext, request_body: &str) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
@@ -288,11 +288,11 @@ impl KiroProvider {
 
     /// 发送非流式 API 请求
     ///
-    /// 支持多凭据故障转移：
-    /// - 400 Bad Request: 直接返回错误，不计入凭据失败
-    /// - 401/403: 视为凭据/权限问题，计入失败次数并允许故障转移
-    /// - 402 MONTHLY_REQUEST_COUNT: 视为额度用尽，禁用凭据并切换
-    /// - 429/5xx/网络等瞬态错误: 重试但不禁用或切换凭据（避免误把所有凭据锁死）
+    /// 支持多账号故障转移：
+    /// - 400 Bad Request: 直接返回错误，不计入账号失败
+    /// - 401/403: 视为账号/权限问题，计入失败次数并允许故障转移
+    /// - 402 MONTHLY_REQUEST_COUNT: 视为额度用尽，禁用账号并切换
+    /// - 429/5xx/网络等瞬态错误: 重试但不禁用或切换账号（避免误把所有账号锁死）
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
@@ -305,11 +305,11 @@ impl KiroProvider {
 
     /// 发送流式 API 请求
     ///
-    /// 支持多凭据故障转移：
-    /// - 400 Bad Request: 直接返回错误，不计入凭据失败
-    /// - 401/403: 视为凭据/权限问题，计入失败次数并允许故障转移
-    /// - 402 MONTHLY_REQUEST_COUNT: 视为额度用尽，禁用凭据并切换
-    /// - 429/5xx/网络等瞬态错误: 重试但不禁用或切换凭据（避免误把所有凭据锁死）
+    /// 支持多账号故障转移：
+    /// - 400 Bad Request: 直接返回错误，不计入账号失败
+    /// - 401/403: 视为账号/权限问题，计入失败次数并允许故障转移
+    /// - 402 MONTHLY_REQUEST_COUNT: 视为额度用尽，禁用账号并切换
+    /// - 429/5xx/网络等瞬态错误: 重试但不禁用或切换账号（避免误把所有账号锁死）
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
@@ -404,7 +404,7 @@ impl KiroProvider {
             if status.as_u16() == 402 && Self::is_monthly_request_limit(&body) {
                 let has_available = self.token_manager.report_quota_exhausted(ctx.id);
                 if !has_available {
-                    anyhow::bail!("MCP 请求失败（所有凭据已用尽）: {} {}", status, body);
+                    anyhow::bail!("MCP 请求失败（所有账号已用尽）: {} {}", status, body);
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 continue;
@@ -415,20 +415,20 @@ impl KiroProvider {
                 anyhow::bail!("MCP 请求失败: {} {}", status, body);
             }
 
-            // 401/403 凭据问题
+            // 401/403 账号问题
             if matches!(status.as_u16(), 401 | 403) {
                 let has_available = self.token_manager.report_failure(ctx.id);
                 if !has_available {
-                    anyhow::bail!("MCP 请求失败（所有凭据已用尽）: {} {}", status, body);
+                    anyhow::bail!("MCP 请求失败（所有账号已用尽）: {} {}", status, body);
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个凭据
+            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
             if status.as_u16() == 429 {
                 tracing::warn!(
-                    "MCP 请求失败（上游限流，切换凭据重试，尝试 {}/{}）: {} {}",
+                    "MCP 请求失败（上游限流，切换账号重试，尝试 {}/{}）: {} {}",
                     attempt + 1,
                     max_retries,
                     status,
@@ -479,8 +479,8 @@ impl KiroProvider {
     /// 内部方法：带重试逻辑的 API 调用
     ///
     /// 重试策略：
-    /// - 每个凭据最多重试 MAX_RETRIES_PER_CREDENTIAL 次
-    /// - 总重试次数 = min(凭据数量 × 每凭据重试次数, MAX_TOTAL_RETRIES)
+    /// - 每个账号最多重试 MAX_RETRIES_PER_CREDENTIAL 次
+    /// - 总重试次数 = min(账号数量 × 每账号重试次数, MAX_TOTAL_RETRIES)
     /// - 硬上限 9 次，避免无限重试
     async fn call_api_with_retry(
         &self,
@@ -499,7 +499,7 @@ impl KiroProvider {
         let continuation_id = Self::extract_continuation_id_from_request(request_body);
 
         for attempt in 0..max_retries {
-            // 获取调用上下文（优先路由到同一会话的缓存凭据）
+            // 获取调用上下文（优先路由到同一会话的缓存账号）
             let ctx = match self.token_manager.acquire_context_sticky(model.as_deref(), bound_ids, continuation_id.as_deref()).await {
                 Ok(c) => c,
                 Err(e) => {
@@ -534,8 +534,8 @@ impl KiroProvider {
                         max_retries,
                         e
                     );
-                    // 网络错误通常是上游/链路瞬态问题，不应导致"禁用凭据"或"切换凭据"
-                    // （否则一段时间网络抖动会把所有凭据都误禁用，需要重启才能恢复）
+                    // 网络错误通常是上游/链路瞬态问题，不应导致"禁用账号"或"切换账号"
+                    // （否则一段时间网络抖动会把所有账号都误禁用，需要重启才能恢复）
                     last_error = Some(e.into());
                     if attempt + 1 < max_retries {
                         sleep(Self::retry_delay(attempt)).await;
@@ -558,10 +558,10 @@ impl KiroProvider {
             // 失败响应：读取 body 用于日志/错误信息
             let body = response.text().await.unwrap_or_default();
 
-            // 402 Payment Required 且额度用尽：禁用凭据并故障转移
+            // 402 Payment Required 且额度用尽：禁用账号并故障转移
             if status.as_u16() == 402 && Self::is_monthly_request_limit(&body) {
                 tracing::warn!(
-                    "API 请求失败（额度已用尽，禁用凭据并切换，尝试 {}/{}）: {} {}",
+                    "API 请求失败（额度已用尽，禁用账号并切换，尝试 {}/{}）: {} {}",
                     attempt + 1,
                     max_retries,
                     status,
@@ -571,7 +571,7 @@ impl KiroProvider {
                 let has_available = self.token_manager.report_quota_exhausted(ctx.id);
                 if !has_available {
                     anyhow::bail!(
-                        "{} API 请求失败（所有凭据已用尽）: {} {}",
+                        "{} API 请求失败（所有账号已用尽）: {} {}",
                         api_type,
                         status,
                         body
@@ -587,15 +587,15 @@ impl KiroProvider {
                 continue;
             }
 
-            // 400 Bad Request - 请求问题，重试/切换凭据无意义
+            // 400 Bad Request - 请求问题，重试/切换账号无意义
             if status.as_u16() == 400 {
                 anyhow::bail!("{} API 请求失败: {} {}", api_type, status, body);
             }
 
-            // 401/403 - 更可能是凭据/权限问题：计入失败并允许故障转移
+            // 401/403 - 更可能是账号/权限问题：计入失败并允许故障转移
             if matches!(status.as_u16(), 401 | 403) {
                 tracing::warn!(
-                    "API 请求失败（可能为凭据错误，尝试 {}/{}）: {} {}",
+                    "API 请求失败（可能为账号错误，尝试 {}/{}）: {} {}",
                     attempt + 1,
                     max_retries,
                     status,
@@ -605,7 +605,7 @@ impl KiroProvider {
                 let has_available = self.token_manager.report_failure(ctx.id);
                 if !has_available {
                     anyhow::bail!(
-                        "{} API 请求失败（所有凭据已用尽）: {} {}",
+                        "{} API 请求失败（所有账号已用尽）: {} {}",
                         api_type,
                         status,
                         body
@@ -621,17 +621,17 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个凭据
+            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
             if status.as_u16() == 429 {
                 tracing::warn!(
-                    "API 请求失败（上游限流，切换凭据重试，尝试 {}/{}）: {} {}",
+                    "API 请求失败（上游限流，切换账号重试，尝试 {}/{}）: {} {}",
                     attempt + 1,
                     max_retries,
                     status,
                     body
                 );
                 self.token_manager.report_throttled(ctx.id);
-                // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他凭据
+                // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他账号
                 self.token_manager.report_success(ctx.id);
                 last_error = Some(anyhow::anyhow!(
                     "{} API 请求失败: {} {}",
@@ -645,8 +645,8 @@ impl KiroProvider {
                 continue;
             }
 
-            // 408/5xx - 瞬态上游错误：重试但不禁用或切换凭据
-            // （避免 502 high load 等瞬态错误把所有凭据锁死）
+            // 408/5xx - 瞬态上游错误：重试但不禁用或切换账号
+            // （避免 502 high load 等瞬态错误把所有账号锁死）
             if status.as_u16() == 408 || status.is_server_error() {
                 tracing::warn!(
                     "API 请求失败（上游瞬态错误，尝试 {}/{}）: {} {}",
@@ -667,12 +667,12 @@ impl KiroProvider {
                 continue;
             }
 
-            // 其他 4xx - 通常为请求/配置问题：直接返回，不计入凭据失败
+            // 其他 4xx - 通常为请求/配置问题：直接返回，不计入账号失败
             if status.is_client_error() {
                 anyhow::bail!("{} API 请求失败: {} {}", api_type, status, body);
             }
 
-            // 兜底：当作可重试的瞬态错误处理（不切换凭据）
+            // 兜底：当作可重试的瞬态错误处理（不切换账号）
             tracing::warn!(
                 "API 请求失败（未知错误，尝试 {}/{}）: {} {}",
                 attempt + 1,

@@ -528,7 +528,7 @@ pub struct StreamContext {
     usage_tracker: Option<Arc<UsageTracker>>,
     /// API Key ID（用于用量记录）
     api_key_id: Option<u32>,
-    /// 凭据 ID（用于用量记录）
+    /// 账号 ID（用于用量记录）
     credential_id: Option<u64>,
     /// 客户端 IP（用于用量记录）
     client_ip: Option<String>,

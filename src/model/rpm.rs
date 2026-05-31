@@ -2,7 +2,7 @@
 //! RPM（Requests Per Minute）实时监控
 //!
 //! 使用滑动窗口统计最近 60 秒内的请求数量，
-//! 支持全局、按凭据、按 API Key 三个维度。
+//! 支持全局、按账号、按 API Key 三个维度。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -54,7 +54,7 @@ pub struct RpmTracker {
 struct RpmTrackerInner {
     /// 全局请求队列
     global: TimestampQueue,
-    /// 按凭据 ID 分组
+    /// 按账号 ID 分组
     by_credential: HashMap<u64, TimestampQueue>,
     /// 按 API Key ID 分组
     by_api_key: HashMap<u32, TimestampQueue>,
@@ -66,7 +66,7 @@ struct RpmTrackerInner {
 pub struct RpmSnapshot {
     /// 全局 RPM
     pub global: u64,
-    /// 按凭据 ID 分组的 RPM
+    /// 按账号 ID 分组的 RPM
     pub by_credential: HashMap<u64, u64>,
     /// 按 API Key ID 分组的 RPM
     pub by_api_key: HashMap<u32, u64>,
@@ -100,7 +100,7 @@ impl RpmTracker {
         }
     }
 
-    /// 记录凭据维度的请求（在 provider 成功调用后调用）
+    /// 记录账号维度的请求（在 provider 成功调用后调用）
     pub fn record_credential(&self, credential_id: u64) {
         let now = Instant::now();
         let mut inner = self.inner.lock().unwrap();

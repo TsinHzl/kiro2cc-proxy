@@ -55,7 +55,7 @@ impl AdminService {
         }
     }
 
-    /// 获取所有凭据状态
+    /// 获取所有账号状态
     pub fn get_all_credentials(&self) -> CredentialsStatusResponse {
         let snapshot = self.token_manager.snapshot();
 
@@ -94,9 +94,9 @@ impl AdminService {
         }
     }
 
-    /// 设置凭据禁用状态
+    /// 设置账号禁用状态
     pub fn set_disabled(&self, id: u64, disabled: bool) -> Result<(), AdminServiceError> {
-        // 先获取当前凭据 ID，用于判断是否需要切换
+        // 先获取当前账号 ID，用于判断是否需要切换
         let snapshot = self.token_manager.snapshot();
         let current_id = snapshot.current_id;
 
@@ -104,14 +104,14 @@ impl AdminService {
             .set_disabled(id, disabled)
             .map_err(|e| self.classify_error(e, id))?;
 
-        // 只有禁用的是当前凭据时才尝试切换到下一个
+        // 只有禁用的是当前账号时才尝试切换到下一个
         if disabled && id == current_id {
             let _ = self.token_manager.switch_to_next();
         }
         Ok(())
     }
 
-    /// 设置凭据优先级
+    /// 设置账号优先级
     pub fn set_priority(&self, id: u64, priority: u32) -> Result<(), AdminServiceError> {
         self.token_manager
             .set_priority(id, priority)
@@ -125,7 +125,7 @@ impl AdminService {
             .map_err(|e| self.classify_error(e, id))
     }
 
-    /// 获取凭据余额（带缓存）
+    /// 获取账号余额（带缓存）
     pub async fn get_balance(&self, id: u64) -> Result<BalanceResponse, AdminServiceError> {
         // 先查缓存
         {
@@ -133,7 +133,7 @@ impl AdminService {
             if let Some(cached) = cache.get(&id) {
                 let now = Utc::now().timestamp() as f64;
                 if (now - cached.cached_at) < BALANCE_CACHE_TTL_SECS as f64 {
-                    tracing::debug!("凭据 #{} 余额命中缓存", id);
+                    tracing::debug!("账号 #{} 余额命中缓存", id);
                     return Ok(cached.data.clone());
                 }
             }
@@ -186,12 +186,12 @@ impl AdminService {
         })
     }
 
-    /// 添加新凭据
+    /// 添加新账号
     pub async fn add_credential(
         &self,
         req: AddCredentialRequest,
     ) -> Result<AddCredentialResponse, AdminServiceError> {
-        // 构建凭据对象
+        // 构建账号对象
         let email = req.email.clone();
         let new_cred = KiroCredentials {
             id: None,
@@ -213,10 +213,10 @@ impl AdminService {
             proxy_url: req.proxy_url,
             proxy_username: req.proxy_username,
             proxy_password: req.proxy_password,
-            disabled: false, // 新添加的凭据默认启用
+            disabled: false, // 新添加的账号默认启用
         };
 
-        // 调用 token_manager 添加凭据
+        // 调用 token_manager 添加账号
         let credential_id = self
             .token_manager
             .add_credential(new_cred)
@@ -227,25 +227,25 @@ impl AdminService {
         let tm = self.token_manager.clone();
         tokio::spawn(async move {
             if let Err(e) = tm.get_usage_limits_for(credential_id).await {
-                tracing::warn!("添加凭据后获取订阅等级失败（不影响凭据添加）: {}", e);
+                tracing::warn!("添加账号后获取订阅等级失败（不影响账号添加）: {}", e);
             }
         });
 
         Ok(AddCredentialResponse {
             success: true,
-            message: format!("凭据添加成功，ID: {}", credential_id),
+            message: format!("账号添加成功，ID: {}", credential_id),
             credential_id,
             email,
         })
     }
 
-    /// 删除凭据
+    /// 删除账号
     pub fn delete_credential(&self, id: u64) -> Result<(), AdminServiceError> {
         self.token_manager
             .delete_credential(id)
             .map_err(|e| self.classify_delete_error(e, id))?;
 
-        // 清理已删除凭据的余额缓存
+        // 清理已删除账号的余额缓存
         {
             let mut cache = self.balance_cache.lock();
             cache.remove(&id);
@@ -255,7 +255,7 @@ impl AdminService {
         Ok(())
     }
 
-    /// 更新凭据配置
+    /// 更新账号配置
     pub async fn update_credential(
         &self,
         id: u64,
@@ -266,7 +266,7 @@ impl AdminService {
             .await
             .map_err(|e| self.classify_update_error(e, id))?;
 
-        // 清理该凭据的余额缓存（配置变更后需要重新获取）
+        // 清理该账号的余额缓存（配置变更后需要重新获取）
         {
             let mut cache = self.balance_cache.lock();
             cache.remove(&id);
@@ -276,7 +276,7 @@ impl AdminService {
         Ok(())
     }
 
-    /// 构建凭据 ID -> 显示标签（nickname 优先，其次 email，都没有则用 #id）的映射
+    /// 构建账号 ID -> 显示标签（nickname 优先，其次 email，都没有则用 #id）的映射
     pub fn credential_labels(&self) -> std::collections::HashMap<u64, String> {
         let snapshot = self.token_manager.snapshot();
         snapshot.entries.into_iter().map(|e| {
@@ -387,7 +387,7 @@ impl AdminService {
     fn classify_balance_error(&self, e: anyhow::Error, id: u64) -> AdminServiceError {
         let msg = e.to_string();
 
-        // 1. 凭据不存在
+        // 1. 账号不存在
         if msg.contains("不存在") {
             return AdminServiceError::NotFound { id };
         }
@@ -416,15 +416,15 @@ impl AdminService {
         }
     }
 
-    /// 分类添加凭据错误
+    /// 分类添加账号错误
     fn classify_add_error(&self, e: anyhow::Error) -> AdminServiceError {
         let msg = e.to_string();
 
-        // 凭据验证失败（refreshToken 无效、格式错误等）
+        // 账号验证失败（refreshToken 无效、格式错误等）
         let is_invalid_credential = msg.contains("缺少 refreshToken")
             || msg.contains("refreshToken 为空")
             || msg.contains("refreshToken 已被截断")
-            || msg.contains("凭据已存在")
+            || msg.contains("账号已存在")
             || msg.contains("refreshToken 重复")
             || msg.contains("凭证已过期或无效")
             || msg.contains("权限不足")
@@ -442,19 +442,19 @@ impl AdminService {
         }
     }
 
-    /// 分类删除凭据错误
+    /// 分类删除账号错误
     fn classify_delete_error(&self, e: anyhow::Error, id: u64) -> AdminServiceError {
         let msg = e.to_string();
         if msg.contains("不存在") {
             AdminServiceError::NotFound { id }
-        } else if msg.contains("只能删除已禁用的凭据") || msg.contains("请先禁用凭据") {
+        } else if msg.contains("只能删除已禁用的账号") || msg.contains("请先禁用账号") {
             AdminServiceError::InvalidCredential(msg)
         } else {
             AdminServiceError::InternalError(msg)
         }
     }
 
-    /// 分类更新凭据错误
+    /// 分类更新账号错误
     fn classify_update_error(&self, e: anyhow::Error, id: u64) -> AdminServiceError {
         let msg = e.to_string();
         if msg.contains("不存在") {

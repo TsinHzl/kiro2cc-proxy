@@ -30,7 +30,7 @@ pub struct ApiKey {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activated_at: Option<DateTime<Utc>>,
-    /// 绑定的凭据 ID 列表，None 或空列表表示不限制（使用全局策略）
+    /// 绑定的账号 ID 列表，None 或空列表表示不限制（使用全局策略）
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bound_credential_ids: Option<Vec<u64>>,

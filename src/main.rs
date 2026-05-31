@@ -57,14 +57,14 @@ async fn main() {
         std::process::exit(1);
     });
 
-    // 判断是否为多凭据格式（用于刷新后回写）
+    // 判断是否为多账号格式（用于刷新后回写）
     let is_multiple_format = credentials_config.is_multiple();
 
-    // 转换为按优先级排序的凭据列表
+    // 转换为按优先级排序的账号列表
     let credentials_list = credentials_config.into_sorted_credentials();
-    tracing::info!("已加载 {} 个凭据配置", credentials_list.len());
+    tracing::info!("已加载 {} 个账号配置", credentials_list.len());
 
-    // 获取第一个凭据用于日志显示
+    // 获取第一个账号用于日志显示
     let first_credentials = credentials_list.first().cloned().unwrap_or_default();
     tracing::debug!("主凭证: {:?}", first_credentials);
 

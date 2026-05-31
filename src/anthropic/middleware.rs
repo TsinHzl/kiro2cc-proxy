@@ -25,7 +25,7 @@ use super::types::ErrorResponse;
 pub struct ApiKeyContext {
     /// API Key ID（0 = 主密钥）
     pub id: u32,
-    /// 绑定的凭据 ID 列表，None 表示不限制
+    /// 绑定的账号 ID 列表，None 表示不限制
     pub bound_credential_ids: Option<Vec<u64>>,
 }
 

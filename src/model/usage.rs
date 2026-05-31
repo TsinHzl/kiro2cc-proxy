@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 pub struct UsageRecord {
     /// API Key ID（0 = 主密钥）
     pub api_key_id: u32,
-    /// 凭据 ID（None 表示旧数据或未知）
+    /// 账号 ID（None 表示旧数据或未知）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_id: Option<u64>,
     /// 模型名称
@@ -125,7 +125,7 @@ fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32) -> f64 {
     input_cost + output_cost
 }
 
-/// 每个 API Key / 凭据的最大日志条数，超出时删除最老的记录
+/// 每个 API Key / 账号的最大日志条数，超出时删除最老的记录
 const MAX_RECORDS_PER_KEY: usize = 10_000;
 
 /// 用量追踪器（线程安全）
@@ -300,7 +300,7 @@ impl UsageTracker {
 
     /// 分页查询指定 API Key 的原始请求记录（按 created_at 降序）
     /// page 从 1 开始，小于 1 的值视为 1
-    /// credential_labels: 凭据 ID -> 显示标签（email 或 nickname）
+    /// credential_labels: 账号 ID -> 显示标签（email 或 nickname）
     pub fn get_records_paged(
         &self,
         api_key_id: u32,
@@ -406,10 +406,10 @@ pub struct UsageRecordItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_saved: Option<f64>,
     pub created_at: DateTime<Utc>,
-    /// 使用的凭据 ID（None 表示旧数据或主密钥请求）
+    /// 使用的账号 ID（None 表示旧数据或主密钥请求）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_id: Option<u64>,
-    /// 凭据账号（email 或 nickname，用于前端显示）
+    /// 账号账号（email 或 nickname，用于前端显示）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_label: Option<String>,
     /// 客户端 IP（None 表示旧数据或未知）
@@ -418,7 +418,7 @@ pub struct UsageRecordItem {
 }
 
 impl UsageTracker {
-    /// 分页查询指定凭据的原始请求记录（按 created_at 降序）
+    /// 分页查询指定账号的原始请求记录（按 created_at 降序）
     pub fn get_records_paged_by_credential(
         &self,
         credential_id: u64,

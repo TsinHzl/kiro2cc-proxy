@@ -35,9 +35,9 @@ fn normalize_machine_id(machine_id: &str) -> Option<String> {
 
 /// 根据凭证信息生成唯一的 Machine ID
 ///
-/// 优先使用凭据级 machineId，其次使用 config.machineId，然后使用 refreshToken 生成
+/// 优先使用账号级 machineId，其次使用 config.machineId，然后使用 refreshToken 生成
 pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config) -> Option<String> {
-    // 如果配置了凭据级 machineId，优先使用
+    // 如果配置了账号级 machineId，优先使用
     if let Some(ref machine_id) = credentials.machine_id {
         if let Some(normalized) = normalize_machine_id(machine_id) {
             return Some(normalized);

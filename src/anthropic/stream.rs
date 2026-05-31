@@ -434,6 +434,35 @@ impl SseStateManager {
         // 发送 message_delta
         if !self.message_delta_sent {
             self.message_delta_sent = true;
+
+            // [TOOLUSE-DIAG] 工具调用收尾诊断：仅当本轮发起过工具调用时记录一条，
+            // 用于定位"客户端只显示 call 不执行"的根因。记录原始 stop_reason、
+            // 最终 stop_reason、以及每个 tool 块的闭合/索引状态，便于复现后离线分析。
+            if self.has_tool_use {
+                let tool_blocks: Vec<String> = self
+                    .active_blocks
+                    .iter()
+                    .filter(|(_, b)| b.block_type == "tool_use")
+                    .map(|(i, b)| {
+                        format!("idx={} started={} stopped={}", i, b.started, b.stopped)
+                    })
+                    .collect();
+                let unclosed = self
+                    .active_blocks
+                    .values()
+                    .filter(|b| b.started && !b.stopped)
+                    .count();
+                tracing::warn!(
+                    "[TOOLUSE-DIAG] has_tool_use=true raw_stop_reason={:?} final_stop_reason={} \
+                     tool_blocks=[{}] unclosed_blocks={} total_blocks={}",
+                    self.stop_reason,
+                    self.get_stop_reason(),
+                    tool_blocks.join("; "),
+                    unclosed,
+                    self.active_blocks.len(),
+                );
+            }
+
             let mut usage = serde_json::Map::new();
             usage.insert("input_tokens".into(), json!(input_tokens));
             usage.insert("output_tokens".into(), json!(output_tokens));

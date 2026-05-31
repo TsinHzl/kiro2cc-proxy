@@ -293,6 +293,11 @@ impl SseStateManager {
             .any(|b| b.block_type != "thinking")
     }
 
+    /// 是否记录过工具调用（用于检测上游空响应）
+    pub fn has_tool_use(&self) -> bool {
+        self.has_tool_use
+    }
+
     /// 获取最终的 stop_reason
     pub fn get_stop_reason(&self) -> String {
         // tool_use 优先级最高：只要本轮发起了工具调用，必须返回 tool_use，
@@ -510,6 +515,10 @@ impl SseStateManager {
 
 /// 上下文窗口大小（200K tokens）
 const CONTEXT_WINDOW_SIZE: i32 = 200_000;
+
+/// 空响应判定为「上下文过大」的输入 token 阈值。
+/// 实测 input>10万 时上游稳定返回空流，正常响应均 <8万，取 9万 居中。
+const EMPTY_RESPONSE_OVERSIZED_THRESHOLD: i32 = 90_000;
 
 /// input_tokens 上报的最大绝对上限
 const INPUT_TOKENS_ABSOLUTE_CAP: i32 = 200_000;
@@ -1189,6 +1198,30 @@ impl StreamContext {
         events
     }
 
+    /// 检测上游是否返回了完全空的响应（无任何内容事件）。
+    /// 触发条件：未产生任何内容块、输出 token 为 0、thinking 缓冲也为空。
+    /// 用于在超大上下文等场景下上游返回空流时，给客户端一个明确的错误信号
+    /// 以触发重试，而非静默返回空的 end_turn（客户端会表现为卡住/工具不执行）。
+    ///
+    /// 判据：未累积任何输出 token、未发起工具调用、thinking 缓冲为空。
+    /// 不依赖 active_blocks 是否为空 —— 非 thinking 模式下 generate_initial_events
+    /// 会预创建一个空 text 块占位，此时 active_blocks 非空但响应仍是空的。
+    pub fn is_empty_response(&self) -> bool {
+        self.output_tokens == 0
+            && !self.state_manager.has_tool_use()
+            && self.thinking_buffer.trim().is_empty()
+    }
+
+    /// 空响应是否由「上下文过大」导致。
+    /// 经验阈值：实测 input>10万 token 时上游稳定返回空流（疑似 Kiro 上下文软上限），
+    /// 而正常响应的 input 均 <8万。取 9万 作为判定阈值。
+    /// 大输入空响应 → 不应重试（重试还是同样的大请求），应提示客户端压缩上下文；
+    /// 小输入空响应 → 视为偶发，可重试。
+    pub fn empty_response_is_oversized_context(&self) -> bool {
+        let est = self.context_input_tokens.unwrap_or(self.input_tokens);
+        est >= EMPTY_RESPONSE_OVERSIZED_THRESHOLD
+    }
+
     /// 生成最终事件序列
     pub fn generate_final_events(&mut self) -> Vec<SseEvent> {
         let mut events = Vec::new();
@@ -1418,6 +1451,16 @@ impl BufferedStreamContext {
         // 处理事件并缓冲结果
         let events = self.inner.process_kiro_event(event);
         self.event_buffer.extend(events);
+    }
+
+    /// 检测上游是否返回了完全空的响应（委托给 inner StreamContext）。
+    pub fn is_empty_response(&self) -> bool {
+        self.inner.is_empty_response()
+    }
+
+    /// 空响应是否由上下文过大导致（委托给 inner StreamContext）。
+    pub fn empty_response_is_oversized_context(&self) -> bool {
+        self.inner.empty_response_is_oversized_context()
     }
 
     /// 完成流处理并返回所有事件
@@ -2297,6 +2340,62 @@ mod tests {
         assert_eq!(
             md.data["delta"]["stop_reason"], "tool_use",
             "存在 tool_use 时 stop_reason 必须是 tool_use，不能被 model_context_window_exceeded 覆盖"
+        );
+    }
+
+    #[test]
+    fn test_empty_response_detected() {
+        // 上游完全没发任何内容事件 → is_empty_response 为 true
+        let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
+        let _ = ctx.generate_initial_events();
+        assert!(
+            ctx.is_empty_response(),
+            "未收到任何内容事件时应判定为空响应"
+        );
+    }
+
+    #[test]
+    fn test_empty_response_oversized_context_by_threshold() {
+        // 大输入(>=9万)的空响应 → 判定为上下文过大
+        let big = StreamContext::new_with_thinking("test-model", 110_000, true);
+        assert!(
+            big.empty_response_is_oversized_context(),
+            "input 11万应判定为上下文过大"
+        );
+        // 小输入的空响应 → 视为偶发，可重试
+        let small = StreamContext::new_with_thinking("test-model", 5_000, true);
+        assert!(
+            !small.empty_response_is_oversized_context(),
+            "input 5千不应判定为上下文过大"
+        );
+    }
+
+    #[test]
+    fn test_non_empty_response_not_flagged() {
+        // 收到了文本内容 → 不应判定为空响应
+        let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
+        let _ = ctx.generate_initial_events();
+        ctx.process_assistant_response("hello");
+        assert!(
+            !ctx.is_empty_response(),
+            "已产生文本内容时不应判定为空响应"
+        );
+    }
+
+    #[test]
+    fn test_tool_only_response_not_flagged() {
+        // 只有工具调用、无文本 → 不是空响应
+        let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
+        let _ = ctx.generate_initial_events();
+        ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
+            name: "Bash".to_string(),
+            tool_use_id: "toolu_1".to_string(),
+            input: "{}".to_string(),
+            stop: true,
+        });
+        assert!(
+            !ctx.is_empty_response(),
+            "仅有工具调用时不应判定为空响应"
         );
     }
 }

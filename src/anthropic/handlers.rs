@@ -639,6 +639,33 @@ fn create_ping_sse() -> Bytes {
     Bytes::from("event: ping\ndata: {\"type\": \"ping\"}\n\n")
 }
 
+/// 为上游空响应构造合适的 SSE error 事件。
+///
+/// - 大输入（疑似上下文过大）：返回 invalid_request_error，提示压缩上下文，
+///   不鼓励原样重试（重试还是同样的大请求，仍会空）。
+/// - 小输入（疑似偶发）：返回 overloaded_error，客户端可重试。
+fn empty_response_error_event(oversized_context: bool) -> SseEvent {
+    let (err_type, message) = if oversized_context {
+        (
+            "invalid_request_error",
+            "Upstream returned an empty response, likely because the context is too large. \
+             Reduce conversation history (e.g. /compact), system prompt, or tools, then retry.",
+        )
+    } else {
+        (
+            "overloaded_error",
+            "Upstream returned an empty response. Please retry.",
+        )
+    };
+    SseEvent::new(
+        "error",
+        serde_json::json!({
+            "type": "error",
+            "error": { "type": err_type, "message": message }
+        }),
+    )
+}
+
 /// 创建 SSE 事件流
 fn create_sse_stream(
     response: reqwest::Response,
@@ -707,9 +734,23 @@ fn create_sse_stream(
                             Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
                         }
                         None => {
-                            // 流结束，发送最终事件
-                            let final_events = ctx.generate_final_events();
-                            let bytes: Vec<Result<Bytes, Infallible>> = final_events
+                            // 流结束。先检测上游是否返回了完全空的响应
+                            // （超大上下文等场景上游会返回 200 + 空流），
+                            // 若空则补发 error 事件，而非静默的空 end_turn
+                            // （后者会让客户端表现为卡住/工具调用不执行）。
+                            let mut out_events = Vec::new();
+                            if ctx.is_empty_response() {
+                                let oversized = ctx.empty_response_is_oversized_context();
+                                tracing::warn!(
+                                    oversized_context = oversized,
+                                    est_input_tokens = ctx.input_tokens,
+                                    "上游返回空响应（无任何内容事件），补发 error 事件"
+                                );
+                                out_events.push(empty_response_error_event(oversized));
+                            } else {
+                                out_events = ctx.generate_final_events();
+                            }
+                            let bytes: Vec<Result<Bytes, Infallible>> = out_events
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
@@ -1352,6 +1393,18 @@ fn create_buffered_sse_stream(
                                 return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
                             }
                             None => {
+                                // 流结束。先检测上游空响应（与流式路径一致），
+                                // 若空则补发 error 事件（大输入提示压缩上下文，小输入可重试）。
+                                if ctx.is_empty_response() {
+                                    let oversized = ctx.empty_response_is_oversized_context();
+                                    tracing::warn!(
+                                        oversized_context = oversized,
+                                        "上游返回空响应（buffered 路径，无任何内容事件），补发 error 事件"
+                                    );
+                                    let err_event = empty_response_error_event(oversized);
+                                    let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
+                                    return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                }
                                 // 流结束，完成处理并返回所有事件（已更正 input_tokens）
                                 let all_events = ctx.finish_and_get_all_events();
                                 let bytes: Vec<Result<Bytes, Infallible>> = all_events

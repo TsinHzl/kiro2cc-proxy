@@ -1472,6 +1472,12 @@ impl MultiTokenManager {
                 None => return entries.iter().any(|e| !e.disabled),
             };
 
+            // 已禁用的账号直接返回，避免覆盖其原始禁用原因（如 QuotaExceeded/Manual）。
+            // 并发下若该账号已被 report_quota_exhausted 等禁用，这里不应再累加失败计数。
+            if entry.disabled {
+                return entries.iter().any(|e| !e.disabled);
+            }
+
             entry.failure_count += 1;
             entry.last_used_at = Some(Utc::now().to_rfc3339());
             let failure_count = entry.failure_count;
@@ -2479,6 +2485,45 @@ mod tests {
             err
         );
         assert_eq!(manager.available_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_report_failure_preserves_quota_disabled_reason() {
+        // 回归：并发下账号已被 report_quota_exhausted 禁用后，
+        // 再来一个普通失败（report_failure）不得覆盖 disabled_reason，
+        // 否则会被自愈逻辑（只重置 TooManyFailures）错误重新启用。
+        let config = Config::default();
+        let mut cred1 = KiroCredentials::default();
+        cred1.access_token = Some("t1".to_string());
+        cred1.expires_at = Some((Utc::now() + Duration::hours(1)).to_rfc3339());
+        let mut cred2 = KiroCredentials::default();
+        cred2.access_token = Some("t2".to_string());
+        cred2.expires_at = Some((Utc::now() + Duration::hours(1)).to_rfc3339());
+
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 账号 #1 额度用尽被禁用
+        manager.report_quota_exhausted(1);
+        // 模拟在途的另一请求随后对同一账号报告普通失败
+        manager.report_failure(1);
+
+        // disabled_reason 必须仍是 QuotaExceeded，不能被改写为 TooManyFailures
+        {
+            let entries = manager.entries.lock();
+            let entry = entries.iter().find(|e| e.id == 1).unwrap();
+            assert!(entry.disabled);
+            assert_eq!(
+                entry.disabled_reason,
+                Some(DisabledReason::QuotaExceeded),
+                "QuotaExceeded 禁用原因被 report_failure 覆盖"
+            );
+        }
+
+        // 仅 #2 可用，acquire 不应自愈被额度禁用的 #1
+        let ctx = manager.acquire_context(None).await.unwrap();
+        assert_eq!(ctx.token, "t2", "额度耗尽账号 #1 不应被重新启用");
+        assert_eq!(manager.available_count(), 1);
     }
 
     // ============ 账号级 Region 优先级测试 ============

@@ -594,6 +594,8 @@ pub struct MultiTokenManager {
     rr_counter: AtomicU64,
     /// Sticky cache：agentContinuationId → 账号绑定关系
     sticky_cache: Mutex<HashMap<String, StickyCacheEntry>>,
+    /// 持久化串行锁：串行化 credentials/stats 的序列化+写盘，避免多路径并发交错写
+    persist_lock: Mutex<()>,
 }
 
 /// 每个账号最大 API 调用失败次数
@@ -608,6 +610,33 @@ struct StickyCacheEntry {
     credential_id: u64,
     /// 最后一次命中/写入时间，用于 TTL 计算
     inserted_at: Instant,
+}
+
+/// 原子写文件：写临时文件 → fsync → rename 替换 → fsync 父目录。
+/// 同目录 rename 在 POSIX 上是原子操作，避免写半截导致目标文件损坏。
+fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+
+    // 写临时文件并落盘
+    {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+    }
+
+    // 原子替换目标文件
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp); // 清理残留临时文件
+        return Err(e);
+    }
+
+    // fsync 父目录，确保 rename 元数据落盘（容器持久化卷必须）
+    if let Ok(dir_file) = std::fs::File::open(dir) {
+        let _ = dir_file.sync_all();
+    }
+    Ok(())
 }
 
 /// API 调用上下文
@@ -717,6 +746,7 @@ impl MultiTokenManager {
             stats_dirty: AtomicBool::new(false),
             rr_counter: AtomicU64::new(0),
             sticky_cache: Mutex::new(HashMap::new()),
+            persist_lock: Mutex::new(()),
         };
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
@@ -1221,16 +1251,13 @@ impl MultiTokenManager {
         // 序列化为 pretty JSON
         let json = serde_json::to_string_pretty(&credentials).context("序列化账号失败")?;
 
-        // 写入文件并 fsync 确保数据落盘（容器环境持久化卷必须 fsync，否则重启后数据丢失）
+        // 原子写 + 串行化，确保数据落盘且不被并发写交错（容器持久化卷必须 fsync）
         let write_result = {
             let path = path.clone();
             let json = json.clone();
             let do_write = move || -> std::io::Result<()> {
-                use std::io::Write;
-                let mut file = std::fs::File::create(&path)?;
-                file.write_all(json.as_bytes())?;
-                file.sync_all()?;
-                Ok(())
+                let _guard = self.persist_lock.lock();
+                atomic_write(&path, json.as_bytes())
             };
             if tokio::runtime::Handle::try_current().is_ok() {
                 tokio::task::block_in_place(do_write)
@@ -1323,7 +1350,8 @@ impl MultiTokenManager {
 
         match serde_json::to_string_pretty(&stats) {
             Ok(json) => {
-                if let Err(e) = std::fs::write(&path, json) {
+                let _guard = self.persist_lock.lock();
+                if let Err(e) = atomic_write(&path, json.as_bytes()) {
                     tracing::warn!("保存统计缓存失败: {}", e);
                 } else {
                     *self.last_stats_save_at.lock() = Some(Instant::now());

@@ -20,7 +20,7 @@ use bytes::Bytes;
 use futures::{Stream, StreamExt, stream};
 use serde_json::json;
 use std::time::Duration;
-use tokio::time::interval;
+use tokio::time::{interval_at, Instant};
 use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
@@ -729,7 +729,7 @@ fn create_sse_stream(
     let body_stream = response.bytes_stream();
 
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval(Duration::from_secs(PING_INTERVAL_SECS))),
+        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS))),
         |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
             if finished {
                 return None;
@@ -1388,7 +1388,7 @@ fn create_buffered_sse_stream(
             ctx,
             EventStreamDecoder::new(),
             false,
-            interval(Duration::from_secs(PING_INTERVAL_SECS)),
+            interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)),
         ),
         |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
             if finished {

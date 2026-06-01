@@ -3,7 +3,7 @@
 ## 镜像地址
 
 ```
-ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+ghcr.io/tsinhzl/kiro2cc-proxy:latest
 ```
 
 ## 前置要求
@@ -31,7 +31,7 @@ mkdir -p ~/kiro2cc-proxy/data
 cat > ~/kiro2cc-proxy/docker-compose.yml << 'EOF'
 services:
   kiro2cc-proxy:
-    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    image: ghcr.io/tsinhzl/kiro2cc-proxy:latest
     container_name: kiro2cc-proxy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -150,7 +150,7 @@ New API 配 4 个渠道，自动负载均衡。50 并发分散到 4 个 IP，每
 ```yaml
 services:
   kiro2cc-proxy-1:
-    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    image: ghcr.io/tsinhzl/kiro2cc-proxy:latest
     container_name: kiro2cc-proxy-1
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -161,7 +161,7 @@ services:
     restart: unless-stopped
 
   kiro2cc-proxy-2:
-    image: ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest
+    image: ghcr.io/tsinhzl/kiro2cc-proxy:latest
     container_name: kiro2cc-proxy-2
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -240,7 +240,7 @@ docker compose pull && docker compose up -d
 docker ps --format "{{.Image}}"
 ```
 
-正确的镜像地址为 `ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest`。如果使用了其他 owner 的镜像（如 `dev-longshun`），拉取的是别人发布的版本，不会包含本项目的最新改动。
+正确的镜像地址为 `ghcr.io/tsinhzl/kiro2cc-proxy:latest`。如果使用了其他 owner 的镜像（如 `dev-longshun`），拉取的是别人发布的版本，不会包含本项目的最新改动。
 
 ### 服务器配置低，无法本地构建
 
@@ -251,4 +251,4 @@ docker compose pull
 docker compose up -d
 ```
 
-镜像在每次打 `v*` tag 时由 GitHub Actions 自动构建并推送到 `ghcr.io/tsinhzl/kiro2cc-proxy-commercial:latest`。
+镜像在每次打 `v*` tag 时由 GitHub Actions 自动构建并推送到 `ghcr.io/tsinhzl/kiro2cc-proxy:latest`。

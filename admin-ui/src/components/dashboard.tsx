@@ -17,6 +17,7 @@ import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-
 import { ApiKeysPanel } from '@/components/api-keys-panel'
 import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { CredentialDetailPage } from '@/components/credential-detail-page'
+import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage } from '@/hooks/use-credentials'
 import { DailyStatsPage } from '@/components/daily-stats-page'
@@ -33,6 +34,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
+  const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
   const [selectedCredentialId, setSelectedCredentialId] = useState<number | null>(null)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -650,6 +652,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
             date={dailyView}
             onBack={() => setDailyView('list')}
           />
+        ) : throttleLogCredentialId !== null ? (
+          <ThrottleLogPage
+            credentialId={throttleLogCredentialId}
+            onBack={() => setThrottleLogCredentialId(null)}
+          />
         ) : detailCredentialId !== null ? (
           <CredentialDetailPage
             credentialId={detailCredentialId}
@@ -844,6 +851,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     credential={credential}
                     onViewBalance={handleViewBalance}
                     onViewDetail={(id) => setDetailCredentialId(id)}
+                    onViewThrottleLog={(id) => setThrottleLogCredentialId(id)}
                     selected={selectedIds.has(credential.id)}
                     onToggleSelect={() => toggleSelect(credential.id)}
                     balance={balanceMap.get(credential.id) || null}

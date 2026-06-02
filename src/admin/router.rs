@@ -10,7 +10,8 @@ use super::{
     api_keys::{
         create_api_key, delete_api_key, get_all_usage, get_credential_usage_records,
         get_daily_usage, get_daily_usage_records, get_key_usage, get_key_usage_records,
-        get_rpm, get_server_info, list_api_keys, reset_key_usage, update_api_key,
+        get_rpm, get_server_info, get_throttle_logs, list_api_keys, reset_key_usage,
+        update_api_key,
     },
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_auth_keys,
@@ -35,6 +36,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/credentials/{id}/reset", post(reset_failure_count))
         .route("/credentials/{id}/balance", get(get_credential_balance))
         .route("/credentials/{id}/usage/records", get(get_credential_usage_records))
+        .route("/credentials/{id}/throttle-logs", get(get_throttle_logs))
         .route(
             "/config/load-balancing",
             get(get_load_balancing_mode).put(set_load_balancing_mode),

@@ -191,3 +191,21 @@ export interface DailySummary {
   totalCredits: number
   totalCreditsSaved?: number
 }
+
+// 单条限流日志记录
+export interface ThrottleLogRecord {
+  credentialId: number
+  requestType: string
+  statusCode: number
+  responseBody: string
+  createdAt: string
+}
+
+// 限流日志分页响应
+export interface ThrottleLogsResponse {
+  records: ThrottleLogRecord[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

@@ -18,6 +18,7 @@ use super::types::AdminErrorResponse;
 use crate::common::auth;
 use crate::model::api_key::ApiKeyManager;
 use crate::model::rpm::RpmTracker;
+use crate::model::throttle_log::ThrottleLogStore;
 use crate::model::usage::UsageTracker;
 
 /// Admin API 共享状态
@@ -35,6 +36,8 @@ pub struct AdminState {
     pub usage_tracker: Option<Arc<UsageTracker>>,
     /// RPM 追踪器（可选）
     pub rpm_tracker: Option<Arc<RpmTracker>>,
+    /// 限流日志存储（可选）
+    pub throttle_log_store: Option<Arc<ThrottleLogStore>>,
     /// 配置文件路径（用于持久化修改）
     pub config_path: Option<PathBuf>,
 }
@@ -48,6 +51,7 @@ impl AdminState {
             api_key_manager: None,
             usage_tracker: None,
             rpm_tracker: None,
+            throttle_log_store: None,
             config_path: None,
         }
     }
@@ -69,6 +73,11 @@ impl AdminState {
 
     pub fn with_rpm_tracker(mut self, tracker: Arc<RpmTracker>) -> Self {
         self.rpm_tracker = Some(tracker);
+        self
+    }
+
+    pub fn with_throttle_log_store(mut self, store: Arc<ThrottleLogStore>) -> Self {
+        self.throttle_log_store = Some(store);
         self
     }
 

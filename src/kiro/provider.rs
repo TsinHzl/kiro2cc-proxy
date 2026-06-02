@@ -19,6 +19,7 @@ use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
 use crate::model::rpm::RpmTracker;
+use crate::model::throttle_log::ThrottleLogStore;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 
@@ -48,6 +49,8 @@ pub struct KiroProvider {
     concurrency_limit: Arc<Semaphore>,
     /// RPM 追踪器（可选，用于记录账号维度的 RPM）
     rpm_tracker: Option<Arc<RpmTracker>>,
+    /// 限流日志存储（可选）
+    throttle_log_store: Option<Arc<ThrottleLogStore>>,
 }
 
 #[allow(dead_code)]
@@ -73,12 +76,19 @@ impl KiroProvider {
             tls_backend,
             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_REQUESTS)),
             rpm_tracker: None,
+            throttle_log_store: None,
         }
     }
 
     /// 设置 RPM 追踪器
     pub fn with_rpm_tracker(mut self, tracker: Arc<RpmTracker>) -> Self {
         self.rpm_tracker = Some(tracker);
+        self
+    }
+
+    /// 设置限流日志存储
+    pub fn with_throttle_log_store(mut self, store: Arc<ThrottleLogStore>) -> Self {
+        self.throttle_log_store = Some(store);
         self
     }
 
@@ -436,6 +446,9 @@ impl KiroProvider {
                 );
                 self.token_manager.report_throttled(ctx.id);
                 self.token_manager.report_success(ctx.id);
+                if let Some(ref store) = self.throttle_log_store {
+                    store.record(ctx.id, "mcp", status.as_u16(), &body);
+                }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
                     sleep(Self::retry_delay(attempt)).await;
@@ -633,6 +646,9 @@ impl KiroProvider {
                 self.token_manager.report_throttled(ctx.id);
                 // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他账号
                 self.token_manager.report_success(ctx.id);
+                if let Some(ref store) = self.throttle_log_store {
+                    store.record(ctx.id, "api", status.as_u16(), &body);
+                }
                 last_error = Some(anyhow::anyhow!(
                     "{} API 请求失败: {} {}",
                     api_type,

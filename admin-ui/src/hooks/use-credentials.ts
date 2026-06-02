@@ -25,6 +25,7 @@ import {
   getCredentialUsageRecords,
   getDailyUsage,
   getDailyUsageRecords,
+  getThrottleLogs,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -289,5 +290,15 @@ export function useDailyUsageRecords(date: string, page: number, pageSize = 50) 
     queryKey: ['dailyUsageRecords', date, page, pageSize],
     queryFn: () => getDailyUsageRecords(date, page, pageSize),
     enabled: !!date,
+  })
+}
+
+// ============ 限流日志 Hooks ============
+
+export function useThrottleLogs(id: number, page: number, pageSize = 50) {
+  return useQuery({
+    queryKey: ['throttleLogs', id, page, pageSize],
+    queryFn: () => getThrottleLogs(id, page, pageSize),
+    enabled: id > 0,
   })
 }

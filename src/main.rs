@@ -20,6 +20,7 @@ use kiro::token_manager::MultiTokenManager;
 use model::api_key::ApiKeyManager;
 use model::arg::Args;
 use model::config::Config;
+use model::throttle_log::ThrottleLogStore;
 use model::usage::UsageTracker;
 
 #[tokio::main]
@@ -105,8 +106,21 @@ async fn main() {
     // 创建 RPM 追踪器
     let rpm_tracker = Arc::new(model::rpm::RpmTracker::new());
 
+    // 加载限流日志存储
+    let throttle_data_dir = std::path::Path::new(&config_path)
+        .parent()
+        .unwrap_or(std::path::Path::new("."));
+    let throttle_log_store = Arc::new(
+        ThrottleLogStore::load(throttle_data_dir.join("throttle_log.json"))
+            .unwrap_or_else(|e| {
+                tracing::warn!("加载限流日志失败（将使用空日志）: {}", e);
+                ThrottleLogStore::empty(throttle_data_dir.join("throttle_log.json"))
+            }),
+    );
+
     let kiro_provider = KiroProvider::with_proxy(token_manager.clone(), proxy_config.clone())
-        .with_rpm_tracker(rpm_tracker.clone());
+        .with_rpm_tracker(rpm_tracker.clone())
+        .with_throttle_log_store(throttle_log_store.clone());
 
     // 初始化 count_tokens 配置
     token::init_config(token::CountTokensConfig {
@@ -182,6 +196,7 @@ async fn main() {
             if let Some(ref tracker) = usage_tracker {
                 admin_state = admin_state.with_usage_tracker(tracker.clone());
             }
+            admin_state = admin_state.with_throttle_log_store(throttle_log_store.clone());
             let admin_app = admin::create_admin_router(admin_state);
 
             // 创建 Admin UI 路由

@@ -769,7 +769,7 @@ impl StreamContext {
                         self.metering_cache_creation_tokens = Some(write);
                     }
                 }
-                tracing::debug!(
+                tracing::info!(
                     "[metadata] metadataEvent: input={:?} output={:?} cache_read={:?} cache_write={:?}",
                     metadata.input_tokens, metadata.output_tokens,
                     metadata.cache_read_input_tokens, metadata.cache_write_input_tokens

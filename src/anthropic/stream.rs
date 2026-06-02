@@ -757,25 +757,7 @@ impl StreamContext {
                 }
                 Vec::new()
             }
-            Event::Metadata(metadata) => {
-                // metadataEvent 可能携带 cache token 统计，优先级低于 meteringEvent
-                if self.metering_cache_read_tokens.is_none() {
-                    if let Some(read) = metadata.cache_read_input_tokens {
-                        self.metering_cache_read_tokens = Some(read);
-                    }
-                }
-                if self.metering_cache_creation_tokens.is_none() {
-                    if let Some(write) = metadata.cache_write_input_tokens {
-                        self.metering_cache_creation_tokens = Some(write);
-                    }
-                }
-                tracing::info!(
-                    "[metadata] metadataEvent: input={:?} output={:?} cache_read={:?} cache_write={:?}",
-                    metadata.input_tokens, metadata.output_tokens,
-                    metadata.cache_read_input_tokens, metadata.cache_write_input_tokens
-                );
-                Vec::new()
-            }
+
             Event::CodeReference(code_ref) => {
                 for r in &code_ref.references {
                     tracing::debug!(

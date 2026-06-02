@@ -14,7 +14,7 @@ use crate::kiro::model::requests::conversation::{
     HistoryUserMessage, KiroImage, Message, UserInputMessage, UserInputMessageContext, UserMessage,
 };
 use crate::kiro::model::requests::tool::{
-    InputSchema, Tool, ToolEntry, ToolResult, ToolSpecification, ToolUseEntry,
+    InputSchema, Tool, ToolResult, ToolSpecification, ToolUseEntry,
 };
 
 use super::types::{ContentBlock, MessagesRequest, OutputConfig};
@@ -465,15 +465,12 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let history_tool_names = collect_history_tool_names(&history);
     let existing_tool_names: std::collections::HashSet<_> = tools
         .iter()
-        .filter_map(|entry| match entry {
-            ToolEntry::Tool(t) => Some(t.tool_specification.name.to_lowercase()),
-            _ => None,
-        })
+        .map(|t| t.tool_specification.name.to_lowercase())
         .collect();
 
     for tool_name in history_tool_names {
         if !existing_tool_names.contains(&tool_name.to_lowercase()) {
-            tools.push(ToolEntry::Tool(create_placeholder_tool(&tool_name)));
+            tools.push(create_placeholder_tool(&tool_name));
         }
     }
 
@@ -1020,7 +1017,7 @@ fn remove_orphaned_tool_uses(
 }
 
 /// 转换工具定义
-fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<ToolEntry> {
+fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
     let Some(tools) = tools else {
         return Vec::new();
     };
@@ -1063,7 +1060,7 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<ToolEntry> {
             None => description,
         };
 
-        converted.push(ToolEntry::Tool(Tool {
+        converted.push(Tool {
             tool_specification: ToolSpecification {
                 name: name.to_string(),
                 description,
@@ -1071,12 +1068,7 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<ToolEntry> {
                     t.input_schema
                 ))),
             },
-        }));
-
-        // 对有 cache_control 的工具，在其后插入 cachePoint 标记
-        if t.cache_control.is_some() {
-            converted.push(ToolEntry::cache_point());
-        }
+        });
     }
 
     converted
@@ -1726,8 +1718,8 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "Read".to_string(), description: "Read a file".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
-                Tool { tool_type: None, name: "Write".to_string(), description: "Write a file".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
+                Tool { tool_type: None, name: "Read".to_string(), description: "Read a file".to_string(), input_schema: Default::default(), max_uses: None },
+                Tool { tool_type: None, name: "Write".to_string(), description: "Write a file".to_string(), input_schema: Default::default(), max_uses: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1747,7 +1739,7 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "calculator".to_string(), description: "Do math".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
+                Tool { tool_type: None, name: "calculator".to_string(), description: "Do math".to_string(), input_schema: Default::default(), max_uses: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1767,7 +1759,7 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "Bash".to_string(), description: "Run bash".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
+                Tool { tool_type: None, name: "Bash".to_string(), description: "Run bash".to_string(), input_schema: Default::default(), max_uses: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1866,7 +1858,7 @@ mod tests {
 
         assert!(!tools.is_empty(), "tools 列表不应为空");
         assert!(
-            tools.iter().any(|t| matches!(t, ToolEntry::Tool(tool) if tool.tool_specification.name == "read")),
+            tools.iter().any(|t| t.tool_specification.name == "read"),
             "tools 列表应包含 'read' 工具的占位符定义"
         );
     }

@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::tool::{ToolEntry, ToolResult, ToolUseEntry};
+use super::tool::{Tool, ToolResult, ToolUseEntry};
 
 /// 对话状态
 ///
@@ -148,9 +148,9 @@ pub struct UserInputMessageContext {
     /// 工具执行结果列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_results: Vec<ToolResult>,
-    /// 可用工具列表（包含 toolSpecification 和 cachePoint 条目）
+    /// 可用工具列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<ToolEntry>,
+    pub tools: Vec<Tool>,
 }
 
 impl UserInputMessageContext {
@@ -160,7 +160,7 @@ impl UserInputMessageContext {
     }
 
     /// 设置工具列表
-    pub fn with_tools(mut self, tools: Vec<ToolEntry>) -> Self {
+    pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
         self.tools = tools;
         self
     }

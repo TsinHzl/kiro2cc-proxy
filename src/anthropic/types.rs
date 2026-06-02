@@ -235,6 +235,9 @@ pub struct Tool {
     /// 最大使用次数（仅 WebSearch 工具）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_uses: Option<i32>,
+    /// 缓存控制标记（如 {"type": "ephemeral"}），用于触发上游 prompt cache
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<serde_json::Value>,
 }
 
 

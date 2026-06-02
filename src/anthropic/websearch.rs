@@ -544,6 +544,7 @@ mod tests {
                 description: String::new(),
                 input_schema: Default::default(),
                 max_uses: Some(8),
+                cache_control: None,
             }]),
             tool_choice: None,
             thinking: None,
@@ -574,6 +575,7 @@ mod tests {
                     description: String::new(),
                     input_schema: Default::default(),
                     max_uses: Some(8),
+                    cache_control: None,
                 },
                 Tool {
                     tool_type: None,
@@ -581,6 +583,7 @@ mod tests {
                     description: "Other tool".to_string(),
                     input_schema: Default::default(),
                     max_uses: None,
+                    cache_control: None,
                 },
             ]),
             tool_choice: None,

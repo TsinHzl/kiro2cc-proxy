@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "kiro2cc-proxy"
-version = "2.1.20"
+version = "2.1.21"
 dependencies = [
  "anyhow",
  "axum",

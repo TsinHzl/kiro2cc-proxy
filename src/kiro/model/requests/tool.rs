@@ -5,6 +5,48 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Kiro prompt cache 标记
+///
+/// 插入到 tools 数组中，告诉上游"前面的工具定义可以被缓存"
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachePoint {
+    #[serde(rename = "type")]
+    pub point_type: String,
+}
+
+impl CachePoint {
+    pub fn default_type() -> Self {
+        Self {
+            point_type: "default".to_string(),
+        }
+    }
+}
+
+/// tools 数组中的条目：要么是工具定义，要么是 cachePoint 标记
+///
+/// 序列化为 `{"toolSpecification":{...}}` 或 `{"cachePoint":{"type":"default"}}`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ToolEntry {
+    Tool(Tool),
+    CachePoint(CachePointWrapper),
+}
+
+/// cachePoint 的包装，确保序列化为 `{"cachePoint":{"type":"..."}}`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CachePointWrapper {
+    pub cache_point: CachePoint,
+}
+
+impl ToolEntry {
+    pub fn cache_point() -> Self {
+        Self::CachePoint(CachePointWrapper {
+            cache_point: CachePoint::default_type(),
+        })
+    }
+}
+
 /// 工具定义
 ///
 /// 用于在请求中定义可用的工具

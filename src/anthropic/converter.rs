@@ -14,7 +14,7 @@ use crate::kiro::model::requests::conversation::{
     HistoryUserMessage, KiroImage, Message, UserInputMessage, UserInputMessageContext, UserMessage,
 };
 use crate::kiro::model::requests::tool::{
-    InputSchema, Tool, ToolResult, ToolSpecification, ToolUseEntry,
+    InputSchema, Tool, ToolEntry, ToolResult, ToolSpecification, ToolUseEntry,
 };
 
 use super::types::{ContentBlock, MessagesRequest, OutputConfig};
@@ -465,12 +465,15 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let history_tool_names = collect_history_tool_names(&history);
     let existing_tool_names: std::collections::HashSet<_> = tools
         .iter()
-        .map(|t| t.tool_specification.name.to_lowercase())
+        .filter_map(|entry| match entry {
+            ToolEntry::Tool(t) => Some(t.tool_specification.name.to_lowercase()),
+            _ => None,
+        })
         .collect();
 
     for tool_name in history_tool_names {
         if !existing_tool_names.contains(&tool_name.to_lowercase()) {
-            tools.push(create_placeholder_tool(&tool_name));
+            tools.push(ToolEntry::Tool(create_placeholder_tool(&tool_name)));
         }
     }
 
@@ -1017,7 +1020,7 @@ fn remove_orphaned_tool_uses(
 }
 
 /// 转换工具定义
-fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
+fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<ToolEntry> {
     let Some(tools) = tools else {
         return Vec::new();
     };
@@ -1060,7 +1063,7 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
             None => description,
         };
 
-        converted.push(Tool {
+        converted.push(ToolEntry::Tool(Tool {
             tool_specification: ToolSpecification {
                 name: name.to_string(),
                 description,
@@ -1068,7 +1071,12 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
                     t.input_schema
                 ))),
             },
-        });
+        }));
+
+        // 对有 cache_control 的工具，在其后插入 cachePoint 标记
+        if t.cache_control.is_some() {
+            converted.push(ToolEntry::cache_point());
+        }
     }
 
     converted
@@ -1350,7 +1358,27 @@ fn convert_assistant_message(
         text_content
     };
 
-    let mut assistant = AssistantMessage::new(final_content);
+    // 确定性 messageId：基于 content + tool_use IDs 做 SHA-256，保证同一历史条目跨请求稳定
+    let message_id = {
+        let mut seed = String::from("assistant-msg:");
+        seed.push_str(&final_content);
+        for tu in &tool_uses {
+            seed.push(':');
+            seed.push_str(&tu.tool_use_id);
+        }
+        let hash = Sha256::digest(seed.as_bytes());
+        format!(
+            "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+            hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
+            hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+        )
+    };
+
+    let mut assistant = AssistantMessage {
+        message_id: Some(message_id),
+        content: final_content,
+        tool_uses: None,
+    };
     if !tool_uses.is_empty() {
         assistant = assistant.with_tool_uses(tool_uses);
     }
@@ -1390,7 +1418,26 @@ fn merge_assistant_messages(
         content_parts.join("\n\n")
     };
 
-    let mut assistant = AssistantMessage::new(content);
+    let message_id = {
+        let mut seed = String::from("assistant-msg:");
+        seed.push_str(&content);
+        for tu in &all_tool_uses {
+            seed.push(':');
+            seed.push_str(&tu.tool_use_id);
+        }
+        let hash = Sha256::digest(seed.as_bytes());
+        format!(
+            "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+            hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
+            hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+        )
+    };
+
+    let mut assistant = AssistantMessage {
+        message_id: Some(message_id),
+        content,
+        tool_uses: None,
+    };
     if !all_tool_uses.is_empty() {
         assistant = assistant.with_tool_uses(all_tool_uses);
     }
@@ -1679,8 +1726,8 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "Read".to_string(), description: "Read a file".to_string(), input_schema: Default::default(), max_uses: None },
-                Tool { tool_type: None, name: "Write".to_string(), description: "Write a file".to_string(), input_schema: Default::default(), max_uses: None },
+                Tool { tool_type: None, name: "Read".to_string(), description: "Read a file".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
+                Tool { tool_type: None, name: "Write".to_string(), description: "Write a file".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1700,7 +1747,7 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "calculator".to_string(), description: "Do math".to_string(), input_schema: Default::default(), max_uses: None },
+                Tool { tool_type: None, name: "calculator".to_string(), description: "Do math".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1720,7 +1767,7 @@ mod tests {
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "Bash".to_string(), description: "Run bash".to_string(), input_schema: Default::default(), max_uses: None },
+                Tool { tool_type: None, name: "Bash".to_string(), description: "Run bash".to_string(), input_schema: Default::default(), max_uses: None, cache_control: None },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1819,7 +1866,7 @@ mod tests {
 
         assert!(!tools.is_empty(), "tools 列表不应为空");
         assert!(
-            tools.iter().any(|t| t.tool_specification.name == "read"),
+            tools.iter().any(|t| matches!(t, ToolEntry::Tool(tool) if tool.tool_specification.name == "read")),
             "tools 列表应包含 'read' 工具的占位符定义"
         );
     }

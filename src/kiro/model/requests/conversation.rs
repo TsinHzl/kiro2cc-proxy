@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::tool::{Tool, ToolResult, ToolUseEntry};
+use super::tool::{ToolEntry, ToolResult, ToolUseEntry};
 
 /// 对话状态
 ///
@@ -148,9 +148,9 @@ pub struct UserInputMessageContext {
     /// 工具执行结果列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_results: Vec<ToolResult>,
-    /// 可用工具列表
+    /// 可用工具列表（包含 toolSpecification 和 cachePoint 条目）
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<Tool>,
+    pub tools: Vec<ToolEntry>,
 }
 
 impl UserInputMessageContext {
@@ -160,7 +160,7 @@ impl UserInputMessageContext {
     }
 
     /// 设置工具列表
-    pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
+    pub fn with_tools(mut self, tools: Vec<ToolEntry>) -> Self {
         self.tools = tools;
         self
     }
@@ -322,6 +322,9 @@ impl HistoryAssistantMessage {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantMessage {
+    /// 消息 ID（确定性生成，保证同一历史条目跨请求稳定，利于上游 prompt cache）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
     /// 响应内容
     pub content: String,
     /// 工具使用列表
@@ -333,6 +336,7 @@ impl AssistantMessage {
     /// 创建新的助手消息
     pub fn new(content: impl Into<String>) -> Self {
         Self {
+            message_id: None,
             content: content.into(),
             tool_uses: None,
         }

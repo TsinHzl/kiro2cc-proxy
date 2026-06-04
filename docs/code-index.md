@@ -1,0 +1,506 @@
+> **注：** 本文档由 **claude-sonnet-4-6** 模型自动生成。
+
+# kiro2cc-proxy 代码索引
+
+> 功能 → 代码位置速查表，供 Claude Code 快速定位使用。
+
+---
+
+## 目录
+
+1. [请求链路总览](#请求链路总览)
+2. [src/main.rs](#1-srcmainrs)
+3. [src/kiro/token_manager.rs](#2-srckirotokenmanagerrs)
+4. [src/kiro/provider.rs](#3-srckiroproviderrs)
+5. [src/kiro/parser/](#4-srckiroparsers)
+6. [src/anthropic/handlers.rs](#5-srcanthropichandlersrs)
+7. [src/anthropic/converter.rs](#6-srcanthropicconverterrs)
+8. [src/anthropic/stream.rs](#7-srcanthropicstreamrs)
+9. [src/anthropic/middleware.rs](#8-srcanthropicmiddlewarers)
+10. [src/anthropic/types.rs](#9-srcanthropictypesrs)
+11. [src/model/config.rs](#10-srcmodelconfigrs)
+12. [src/model/rpm.rs](#11-srcmodelrpmrs)
+13. [src/model/throttle_log.rs](#12-srcmodelthrottlelogrs)
+14. [src/model/api_key.rs](#13-srcmodelapikeyrs)
+15. [src/model/usage.rs](#14-srcmodelusagers)
+16. [src/cache.rs](#15-srccachers)
+17. [src/admin/](#16-srcadmin)
+18. [src/user/handlers.rs](#17-srcuserhandlersrs)
+19. [src/common/auth.rs](#18-srccommonauthrs)
+20. [src/http_client.rs](#19-srchttpclientrs)
+21. [src/token.rs](#20-srctokenrs)
+
+---
+
+## 请求链路总览
+
+```
+Client (Anthropic format)
+  │
+  ▼
+src/anthropic/middleware.rs   auth_middleware         认证、AppState
+  │
+src/anthropic/handlers.rs     post_messages           路由入口
+  │                           post_messages_cc        缓冲模式(/cc/v1)
+src/anthropic/converter.rs    convert_request         Anthropic→Kiro 格式转换
+  │
+src/kiro/provider.rs          call_api_stream         HTTP 调用 + 重试/故障转移
+  │                           call_api_with_retry     429/401/402/5xx 处理
+src/kiro/token_manager.rs     acquire_context         账号选择 + token 刷新
+  │
+  ▼  (Kiro 二进制帧协议)
+src/kiro/parser/decoder.rs    EventStreamDecoder      流式帧解码
+src/kiro/parser/frame.rs      parse_frame             单帧 CRC 验证 + 解析
+  │
+src/anthropic/stream.rs       SseStateManager         Kiro 事件→Anthropic SSE
+  ▼
+Client (Anthropic SSE format)
+```
+
+---
+
+## 1. `src/main.rs`
+
+**职责**：应用入口，加载配置/凭证，组装所有组件，启动 HTTP 服务。
+
+| 内容 | 行号 |
+|------|------|
+| `main()` tokio 异步入口 | 27–255 |
+| 加载 `Config` 和 `CredentialsConfig` | 40–66 |
+| 构建 `MultiTokenManager` | 93–103 |
+| 构建 `KiroProvider` + RPM/ThrottleLog | 107–123 |
+| 初始化 `token::init_config` | 126–132 |
+| 条件启用 Admin / User API 路由 | 135–227 |
+| `axum::serve` TCP 监听 | 253–254 |
+
+---
+
+## 2. `src/kiro/token_manager.rs`
+
+**职责**：多账号 Token 生命周期管理（刷新、故障转移、负载均衡、统计持久化、Admin 操作）。
+
+### 关键类型
+
+| 类型 | 行号 | 说明 |
+|------|------|------|
+| `struct CredentialEntry` | 431 | 单账号运行时状态（内部） |
+| `enum DisabledReason` | 455 | Manual / TooManyFailures / QuotaExceeded |
+| `pub enum HealthStatus` | 466 | Healthy / Warning / Degraded / Unhealthy / Disabled |
+| `struct StatsEntry` | 507 | 统计持久化结构（含 `last_throttled_wall`） |
+| `pub struct CredentialEntrySnapshot` | 522 | Admin API 只读快照 |
+| `pub struct ManagerSnapshot` | 561 | 全量快照（entries + current_id + available） |
+| `pub struct MultiTokenManager` | 578 | 多账号管理核心（Mutex 包裹 entries） |
+| `pub struct CallContext` | 653 | 一次调用绑定的账号 ID + token |
+
+### 关键常量
+
+| 常量 | 行号 | 值 |
+|------|------|-----|
+| `MAX_FAILURES_PER_CREDENTIAL` | 602 | 3 |
+| `STATS_SAVE_DEBOUNCE` | 604 | 30s |
+| `STICKY_CACHE_TTL` | 606 | 60min |
+| `HEALTH_WINDOW_DAYS` | 608 | 4 天（健康状态时间窗口） |
+
+### 关键函数
+
+| 函数 | 行号 | 说明 |
+|------|------|------|
+| `MultiTokenManager::new` | 671 | 构造，分配 ID、加载统计 |
+| `select_next_credential` | 808 | priority/balanced 模式选账号 |
+| `acquire_context` | 885 | 获取可用账号 + token，含自愈 |
+| `acquire_context_filtered` | 977 | 带白名单的 acquire_context |
+| `acquire_context_sticky` | 1026 | agentContinuationId sticky 路由 |
+| `try_ensure_token` | 1153 | 双重检查锁 token 刷新 |
+| `persist_credentials` | 1230 | 原子写回凭证文件 |
+| `compute_health` | 1394 | 计算 HealthStatus（含 4 天窗口） |
+| `report_throttled` | 1435 | 记录 429，写 `last_throttled_wall` |
+| `report_success` | 1457 | 重置失败计数，更新 last_used_at |
+| `report_failure` | 1481 | 累加失败，达阈值自动禁用 |
+| `report_quota_exhausted` | 1542 | 立即禁用额度耗尽账号 |
+| `snapshot` | 1631 | 生成 ManagerSnapshot |
+| `set_disabled` | 1671 | Admin：启用/禁用 |
+| `set_priority` | 1696 | Admin：修改优先级 |
+| `reset_and_enable` | 1713 | Admin：重置失败计数 |
+| `get_usage_limits_for` | 1730 | Admin：查单账号余额 |
+| `add_credential` | 1841 | Admin：新增账号 |
+| `update_credential` | 1938 | Admin：更新账号字段 |
+| `delete_credential` | 2075 | Admin：删除账号 |
+| `set_load_balancing_mode` | 2151 | Admin：切换 priority/balanced |
+
+---
+
+## 3. `src/kiro/provider.rs`
+
+**职责**：封装对 Kiro AWS API 的 HTTP 调用，多账号重试/故障转移，并发限流，sticky 路由。
+
+### 关键类型
+
+| 类型 | 行号 | 说明 |
+|------|------|------|
+| `pub struct KiroProvider` | 39 | 核心 Provider（Client 缓存 + Semaphore） |
+
+### 关键常量
+
+| 常量 | 行号 | 值 |
+|------|------|-----|
+| `MAX_RETRIES_PER_CREDENTIAL` | 27 | 3 |
+| `MAX_TOTAL_RETRIES` | 30 | 9 |
+| `MAX_CONCURRENT_REQUESTS` | 33 | 50 |
+
+### 关键函数
+
+| 函数 | 行号 | 说明 |
+|------|------|------|
+| `KiroProvider::with_proxy` | 64 | 构造，预热全局代理 Client |
+| `with_throttle_log_store` | 90 | builder：挂载限流日志 |
+| `client_for` | 96 | 按账号代理获取/创建 reqwest::Client |
+| `build_headers` | 205 | 构建 Kiro 请求头（machine_id / auth / agent_mode） |
+| `build_mcp_headers` | 257 | 构建 MCP 请求头 |
+| `call_api` | 312 | 非流式调用入口 |
+| `call_api_stream` | 329 | 流式调用入口 |
+| `call_mcp` | 342 | MCP 工具调用入口 |
+| `call_api_with_retry` | 498 | 重试逻辑（400/401/402/429/5xx 各自处理） |
+| `call_mcp_with_retry` | 347 | MCP 重试逻辑 |
+| `retry_delay` | 720 | 指数退避 + 抖动 |
+| `is_monthly_request_limit` | 731 | 检测 402 MONTHLY_REQUEST_COUNT |
+| `extract_model_from_request` | 160 | 从请求体提取 modelId |
+| `extract_continuation_id_from_request` | 192 | 提取 agentContinuationId |
+
+---
+
+## 4. `src/kiro/parser/`
+
+**职责**：Kiro 私有二进制帧协议（AWS Event Stream）解码，含 CRC32 校验。
+
+### 文件清单
+
+| 文件 | 行号 | 说明 |
+|------|------|------|
+| `mod.rs` | 1 | 子模块声明与重导出 |
+| `crc.rs` | — | `pub fn crc32(data: &[u8]) -> u32`（CRC32 ISO-HDLC） |
+| `error.rs` | 8 | `pub enum ParseError`（12 种变体）；`pub type ParseResult<T>` |
+| `frame.rs` | 35 | `pub struct Frame`；`pub fn parse_frame` (76)；`PRELUDE_SIZE=12` |
+| `header.rs` | 13 | `pub enum HeaderValue`；`pub struct Headers`；`pub fn parse_headers` (131) |
+| `decoder.rs` | 54 | `pub enum DecoderState`（4 态）；`pub struct EventStreamDecoder`；`feed` (149)；`decode` (175)；`try_recover` (243) |
+
+---
+
+## 5. `src/anthropic/handlers.rs`
+
+**职责**：Anthropic 兼容 API 的 HTTP 处理函数。
+
+| 函数 | 行号 | 路由 |
+|------|------|------|
+| `ping` | 35 | `GET /v1/ping` |
+| `get_models` | 170 | `GET /v1/models` |
+| `get_model` | 436 | `GET /v1/models/:id` |
+| `post_messages` | 460 | `POST /v1/messages`（直通流式） |
+| `post_messages_cc` | 1158 | `POST /cc/v1/messages`（缓冲模式） |
+| `count_tokens` | 1132 | `POST /v1/messages/count_tokens` |
+| `handle_stream_request` | 641 | 内部：流式响应处理 |
+| `handle_non_stream_request` | 825 | 内部：非流式响应（含事件解码） |
+| `create_sse_stream` | 716 | 内部：SSE 事件流（含 25s ping 保活） |
+| `create_buffered_sse_stream` | 1379 | 内部：缓冲版 SSE 流 |
+| `override_thinking_from_model_name` | 1094 | 从模型名后缀注入 thinking 配置 |
+| `map_provider_error_with_context` | 64 | 错误映射（429→429，上下文超限→400） |
+| `build_model_list` | 180 | 构建模型列表（新老模型 ID） |
+
+---
+
+## 6. `src/anthropic/converter.rs`
+
+**职责**：Anthropic → Kiro 请求格式转换（模型映射、消息历史构建、工具 schema 规范化）。
+
+| 函数/类型 | 行号 | 说明 |
+|-----------|------|------|
+| `normalize_json_schema` | 27 | 修复 MCP 工具 schema（null 字段、类型合并） |
+| `map_model` | 237 | Anthropic 模型名 → Kiro 模型 ID |
+| `pub struct ConversionResult` | 279 | 转换结果（含 conversation_state） |
+| `pub enum ConversionError` | 286 | UnsupportedModel / EmptyMessages |
+| `convert_request` | 398 | **主入口**：完整 Anthropic→Kiro 转换 |
+| `extract_session_id` | 314 | 从 metadata.user_id 提取 session UUID |
+| `derive_agent_continuation_id` | 345 | SHA-256 派生 agentContinuationId（sticky 路由依据） |
+| `determine_agent_task_type` | 537 | 根据工具名判断 vibe/spectask |
+| `build_history` | 1113 | 构建历史消息（系统消息注入、thinking 前缀） |
+| `validate_tool_pairing` | 910 | 验证 tool_use/tool_result 配对完整性 |
+| `remove_orphaned_tool_uses` | 991 | 清理孤立 tool_use |
+| `convert_tools` | 1020 | 转换工具定义（描述截断、schema 规范化） |
+| `normalize_billing_header` | 214 | 固定 cch= 值，确保 prompt cache 命中 |
+
+---
+
+## 7. `src/anthropic/stream.rs`
+
+**职责**：Kiro 事件流 → Anthropic SSE 转换，管理 message_start/content_block/tool_use 状态机。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct SseEvent` | 179 | SSE 事件（event + data） |
+| `SseEvent::to_sse_string` | 194 | 格式化为 `event:\ndata:\n\n` |
+| `pub struct SseStateManager` | 229 | SSE 状态机（防重复 message_start，tool_use 自动关闭文本块） |
+| `SseStateManager::get_stop_reason` | 303 | tool_use 优先的 stop_reason |
+| `find_real_thinking_end_tag` | 72 | 识别真正的 thinking 结束标签（过滤引用场景） |
+| `find_real_thinking_start_tag` | 152 | 识别真正的 thinking 开始标签 |
+| `pub struct StreamContext` | — | 流式处理上下文（用量追踪、事件处理） |
+| `pub struct BufferedStreamContext` | — | 缓冲版上下文（cc 端点，延迟 message_start） |
+
+---
+
+## 8. `src/anthropic/middleware.rs`
+
+**职责**：Axum 中间件层：API Key 认证、CORS 配置、AppState 定义。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct ApiKeyContext` | 25 | 认证后注入 Extension（id + bound_credential_ids） |
+| `pub struct AppState` | 33 | 应用共享状态（api_key / kiro_provider / rpm_tracker / usage_tracker 等） |
+| `AppState::new` | 51 | 构造（只需 api_key） |
+| `AppState::with_*` | 63 | Builder 链式设置各字段 |
+| `auth_middleware` | 99 | 认证中间件（主密钥 → 子 API Key → 401） |
+| `cors_layer` | 190 | 允许所有来源的 CORS 层 |
+
+---
+
+## 9. `src/anthropic/types.rs`
+
+**职责**：Anthropic API 所有请求/响应类型定义。
+
+| 类型 | 行号 | 说明 |
+|------|------|------|
+| `pub struct ErrorResponse` | 11 | `{ error: { type, message } }` |
+| `pub struct Model` | 43 | 模型信息（id / display_name / created_at） |
+| `pub struct Thinking` | 68 | thinking 配置（type + budget_tokens） |
+| `pub struct MessagesRequest` | 128 | 主请求体（model / messages / system / tools / stream / thinking 等） |
+| `pub struct Message` | 203 | role + content（Value） |
+| `pub struct Tool` | 221 | 工具定义（含 WebSearch type） |
+| `pub struct ContentBlock` | 242 | text / image / tool_use / tool_result 等 |
+| `pub struct CountTokensRequest` | 278 | count_tokens 请求体 |
+| `pub struct CountTokensResponse` | 293 | `{ input_tokens }` |
+
+---
+
+## 10. `src/model/config.rs`
+
+**职责**：应用配置结构定义、文件加载、环境变量覆盖。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub enum TlsBackend` | 8 | Rustls / NativeTls |
+| `pub struct Config` | 22 | 全量配置（host / port / region / auth_region / api_region / proxy / admin_api_key / load_balancing_mode 等） |
+| `Config::load` | 183 | 从 JSON 文件加载，不存在返回默认值 |
+| `Config::apply_env_overrides` | 230 | 环境变量覆盖（API_KEY / HOST / PORT / REGION 等） |
+| `Config::effective_auth_region` | 172 | auth_region → region 回退 |
+| `Config::effective_api_region` | 177 | api_region → region 回退 |
+
+---
+
+## 11. `src/model/rpm.rs`
+
+**职责**：滑动窗口 RPM 统计（全局 / 按账号 / 按 API Key 三维度）。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `struct TimestampQueue` | 17 | 时间戳滑动窗口队列 |
+| `pub struct RpmTracker` | 50 | 线程安全追踪器 |
+| `pub struct RpmSnapshot` | 65 | 快照（global + by_credential + by_api_key） |
+| `RpmTracker::record_request` | 90 | 记录全局 + per-key RPM |
+| `RpmTracker::record_credential` | 104 | 记录 per-credential RPM |
+| `RpmTracker::snapshot` | 115 | 返回当前快照 |
+
+---
+
+## 12. `src/model/throttle_log.rs`
+
+**职责**：记录 429 限流事件并持久化到 `throttle_log.json`，支持分页查询。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct ThrottleEvent` | 13 | 单条事件（credential_id / request_type / status_code / response_body / created_at） |
+| `pub struct ThrottleLogStore` | 29 | 存储（RwLock + 文件路径） |
+| `ThrottleLogStore::load` | 44 | 从文件加载 |
+| `ThrottleLogStore::record` | 73 | 追加事件，按 credential 裁剪上限（500 条） |
+| `ThrottleLogStore::get_paged` | 126 | 分页查询（created_at 降序） |
+| `pub struct ThrottleLogsPage` | 189 | 分页结果（records / total / page / page_size / total_pages） |
+
+---
+
+## 13. `src/model/api_key.rs`
+
+**职责**：API Key 的 CRUD、认证、懒激活模式、额度检查。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct ApiKey` | 8 | Key 实体（id / key / name / enabled / expires_at / spending_limit / duration_days / activated_at / bound_credential_ids） |
+| `ApiKey::is_expired` | 81 | 过期检测（含懒激活状态） |
+| `ApiKey::activate` | 97 | 首次使用激活，计算 expires_at |
+| `pub enum ApiKeyAuthResult` | 116 | Valid / Disabled / Expired / NotFound |
+| `pub struct ApiKeyManager` | 133 | 管理器（RwLock + 文件路径） |
+| `ApiKeyManager::authenticate` | 170 | 认证（检查 enabled + expired） |
+| `ApiKeyManager::authenticate_readonly` | 192 | 只读认证（不检查状态，供用量查询） |
+| `ApiKeyManager::create` | 211 | 创建新 key |
+| `ApiKeyManager::update` | 229 | 更新 key（含续期逻辑） |
+| `ApiKeyManager::activate_key` | 310 | 激活指定 key（幂等） |
+
+---
+
+## 14. `src/model/usage.rs`
+
+**职责**：记录每个 API Key 的 token 用量、估算费用并持久化。
+
+| 类型/函数 | 说明 |
+|-----------|------|
+| `pub struct UsageRecord` | 单条记录（api_key_id / credential_id / model / input_tokens / output_tokens / cost / created_at） |
+| `pub struct UsageSummary` | 汇总（total_requests / tokens / cost，按模型分组） |
+| `pub struct UsageTracker` | 追踪器（RwLock + 文件路径） |
+| `UsageTracker::record` | 记录用量并持久化 |
+| `UsageTracker::get_summary` | 返回指定 key 的汇总 |
+| `UsageTracker::get_total_cost` | 返回累计费用（供额度检查） |
+
+---
+
+## 15. `src/cache.rs`
+
+**职责**：Prompt Cache 用量模拟（比例分布采样 cache_creation / cache_read tokens）。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct CacheSimulationRatioConfig` | 23 | 配置（min / max / peak_ratio / focus_radius / focus_probability） |
+| `CacheSimulationRatioConfig::fixed` | 32 | 固定比例快捷构造 |
+| `pub struct PromptCacheUsage` | — | 模拟的 cache 用量（input_tokens / cache_creation / cache_read） |
+| `PromptCacheUsage::from_ratio_config` | — | 从比例配置采样生成 |
+| `PromptCacheUsage::scale_to` | — | 按实际 input_tokens 重新缩放 |
+
+---
+
+## 16. `src/admin/`
+
+### `router.rs`
+
+**职责**：注册全部 Admin API 路由并挂载认证中间件。
+
+| 函数 | 行号 | 说明 |
+|------|------|------|
+| `create_admin_router` | 26 | 返回挂载 `admin_auth_middleware` 的 Router |
+
+路由前缀 `/api/admin`（部分列举）：
+
+| 路由 | 说明 |
+|------|------|
+| `GET/POST /credentials` | 账号列表 / 新增 |
+| `DELETE/PUT /credentials/{id}` | 删除 / 更新 |
+| `POST /credentials/{id}/disabled\|priority\|reset` | 禁用 / 优先级 / 重置 |
+| `GET /credentials/{id}/balance\|throttle-logs` | 余额 / 限流日志 |
+| `GET/PUT /config/load-balancing` | 负载均衡模式 |
+| `GET/POST /api-keys` | API Key 列表 / 创建 |
+| `GET /rpm` | RPM 快照 |
+| `GET /usage/daily` | 每日用量 |
+| `GET /server-info` | 服务信息 |
+
+### `handlers.rs`
+
+**职责**：Admin API 各路由 HTTP 处理函数（薄层，委托给 service）。
+
+| 函数 | 行号 | 路由 |
+|------|------|------|
+| `get_all_credentials` | 20 | `GET /credentials` |
+| `set_credential_disabled` | 27 | `POST /credentials/:id/disabled` |
+| `set_credential_priority` | 43 | `POST /credentials/:id/priority` |
+| `reset_failure_count` | 60 | `POST /credentials/:id/reset` |
+| `get_credential_balance` | 76 | `GET /credentials/:id/balance` |
+
+### `service.rs`
+
+**职责**：Admin 业务逻辑层，封装 MultiTokenManager 调用，含余额 5 分钟缓存。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `struct CachedBalance` | 27 | 余额缓存条目（含 cached_at） |
+| `pub struct AdminService` | 37 | 服务结构 |
+| `AdminService::get_balance` | — | 带缓存的余额查询（TTL 5min） |
+
+### `types.rs`
+
+**职责**：Admin API 所有请求/响应 DTO。
+
+| 类型 | 说明 |
+|------|------|
+| `CredentialsStatusResponse` | 账号列表响应 |
+| `CredentialStatusItem` | 单账号状态（含 health_status / throttle_count） |
+| `SetDisabledRequest` | `{ disabled: bool }` |
+| `SetPriorityRequest` | `{ priority: u32 }` |
+| `AddCredentialRequest` | 新增账号请求 |
+| `UpdateCredentialRequest` | 更新请求（patch 语义，全可选） |
+| `BalanceResponse` | 余额响应 |
+
+---
+
+## 17. `src/user/handlers.rs`
+
+**职责**：User 自助 API（API Key 验证、用量查询）。
+
+| 函数 | 行号 | 路由 |
+|------|------|------|
+| `login` | 17 | `POST /api/user/login` |
+| `get_usage` | 57 | `GET /api/user/usage` |
+
+---
+
+## 18. `src/common/auth.rs`
+
+**职责**：认证工具函数（从请求提取 API Key、防时序攻击比较）。
+
+| 函数 | 行号 | 说明 |
+|------|------|------|
+| `extract_api_key` | 15 | 从 `x-api-key` 或 `Authorization: Bearer` 提取 key |
+| `constant_time_eq` | 40 | `subtle` crate 防时序攻击比较 |
+
+---
+
+## 19. `src/http_client.rs`
+
+**职责**：统一构建 reqwest::Client，支持代理、TLS 后端切换、连接池配置。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct ProxyConfig` | 13 | 代理配置（url + 可选认证） |
+| `ProxyConfig::new` | 24 | 从 URL 构造 |
+| `ProxyConfig::with_auth` | 32 | 链式设置用户名密码 |
+| `pub fn build_client` | 48 | 构建 reqwest::Client（超时 / 连接池 / TLS / 代理） |
+
+---
+
+## 20. `src/token.rs`
+
+**职责**：Token 数量估算（本地 heuristic）和可选的外部 count_tokens API 调用。
+
+| 类型/函数 | 行号 | 说明 |
+|-----------|------|------|
+| `pub struct CountTokensConfig` | 19 | count_tokens 配置（api_url / key / auth_type / proxy） |
+| `pub fn init_config` | 39 | 初始化全局配置（OnceLock，只能调用一次） |
+| `pub fn count_tokens` | 80 | 本地 heuristic：非西文 ×4，西文 ×1，/4 取整 |
+| `pub fn count_all_tokens` | — | 汇总 system+messages+tools token 数（可调外部 API） |
+| `pub fn estimate_output_tokens` | — | 估算输出 token 数（用于 non-stream 响应的 usage 字段） |
+
+---
+
+## 快速功能定位
+
+| 要找什么 | 去哪里 |
+|---------|--------|
+| 账号选择 / 故障转移 | `token_manager.rs:acquire_context` (885) |
+| 健康状态计算 | `token_manager.rs:compute_health` (1394) |
+| 限流事件记录 | `token_manager.rs:report_throttled` (1435) |
+| 请求格式转换 | `converter.rs:convert_request` (398) |
+| 模型名映射 | `converter.rs:map_model` (237) |
+| tool schema 修复 | `converter.rs:normalize_json_schema` (27) |
+| SSE 事件转换 | `stream.rs:SseStateManager` (229) |
+| thinking 标签处理 | `stream.rs:find_real_thinking_end_tag` (72) |
+| HTTP 重试逻辑 | `provider.rs:call_api_with_retry` (498) |
+| 二进制帧解码 | `parser/decoder.rs:EventStreamDecoder` |
+| 认证中间件 | `middleware.rs:auth_middleware` (99) |
+| API Key 管理 | `model/api_key.rs:ApiKeyManager` |
+| 用量统计 | `model/usage.rs:UsageTracker` |
+| RPM 追踪 | `model/rpm.rs:RpmTracker` |
+| 配置加载 / 环境变量 | `model/config.rs:Config::apply_env_overrides` (230) |
+| Admin REST API 路由 | `admin/router.rs:create_admin_router` (26) |
+| Token 估算 | `token.rs:count_tokens` (80) |

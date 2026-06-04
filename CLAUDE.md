@@ -77,3 +77,9 @@ Client (Anthropic SSE format)
 ### /cc/v1 vs /v1
 
 `/cc/v1/messages` 是 Claude Code 专用端点：等待上游流完成后再返回（缓冲模式），`input_tokens` 使用实际值而非估算；期间每 25s 发送 SSE ping 保活。`/v1/messages` 为直通流式转发。
+
+## 代码索引
+
+详细的功能 → 代码位置速查表：`docs/code-index.md`
+
+在需要定位特定功能（如账号选择、格式转换、认证、限流等）时，**优先读取此文件**再作答。

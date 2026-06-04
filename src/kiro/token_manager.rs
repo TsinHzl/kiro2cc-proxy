@@ -447,6 +447,8 @@ struct CredentialEntry {
     throttle_count: u64,
     /// 最后一次被限流时间（内存中，不持久化）
     last_throttled_at: Option<Instant>,
+    /// 最后一次被限流时间（UTC，持久化，用于健康状态窗口计算）
+    last_throttled_wall: Option<DateTime<Utc>>,
 }
 
 /// 禁用原因
@@ -508,6 +510,8 @@ struct StatsEntry {
     last_used_at: Option<String>,
     #[serde(default)]
     throttle_count: u64,
+    #[serde(default)]
+    last_throttled_wall: Option<String>,
 }
 
 // ============================================================================
@@ -604,6 +608,8 @@ const MAX_FAILURES_PER_CREDENTIAL: u32 = 3;
 const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
 /// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
 const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60);
+/// 健康状态计算的时间窗口（天），超出此窗口的限流历史不影响健康状态
+const HEALTH_WINDOW_DAYS: i64 = 4;
 
 /// Sticky cache 条目：记录会话到账号的绑定关系
 struct StickyCacheEntry {
@@ -709,6 +715,7 @@ impl MultiTokenManager {
                     last_used_at: None,
                     throttle_count: 0,
                     last_throttled_at: None,
+                    last_throttled_wall: None,
                 }
             })
             .collect();
@@ -1317,6 +1324,9 @@ impl MultiTokenManager {
                 entry.success_count = s.success_count;
                 entry.last_used_at = s.last_used_at.clone();
                 entry.throttle_count = s.throttle_count;
+                if let Some(ref ts) = s.last_throttled_wall {
+                    entry.last_throttled_wall = ts.parse::<DateTime<Utc>>().ok();
+                }
             }
         }
         *self.last_stats_save_at.lock() = Some(Instant::now());
@@ -1342,6 +1352,7 @@ impl MultiTokenManager {
                             success_count: e.success_count,
                             last_used_at: e.last_used_at.clone(),
                             throttle_count: e.throttle_count,
+                            last_throttled_wall: e.last_throttled_wall.map(|t| t.to_rfc3339()),
                         },
                     )
                 })
@@ -1393,6 +1404,10 @@ impl MultiTokenManager {
             .last_throttled_at
             .map(|t| t.elapsed() < StdDuration::from_secs(600))
             .unwrap_or(false);
+        let recently_throttled_wall = entry
+            .last_throttled_wall
+            .map(|t| Utc::now() - t < Duration::days(HEALTH_WINDOW_DAYS))
+            .unwrap_or(false);
 
         // 只有样本足够时才计算限流率，避免少量请求时误判
         let total_calls = entry.success_count + entry.throttle_count;
@@ -1406,10 +1421,10 @@ impl MultiTokenManager {
             HealthStatus::Unhealthy
         } else if entry.failure_count >= 1
             || (recently_throttled && throttle_rate > 0.2)
-            || throttle_rate > 0.3
+            || (recently_throttled_wall && throttle_rate > 0.3)
         {
             HealthStatus::Degraded
-        } else if entry.throttle_count > 0 || entry.failure_count > 0 {
+        } else if recently_throttled_wall || entry.failure_count > 0 {
             HealthStatus::Warning
         } else {
             HealthStatus::Healthy
@@ -1422,6 +1437,7 @@ impl MultiTokenManager {
         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
             entry.throttle_count += 1;
             entry.last_throttled_at = Some(Instant::now());
+            entry.last_throttled_wall = Some(Utc::now());
             tracing::debug!(
                 "账号 #{} 被限流（累计 {} 次）",
                 id,
@@ -1893,6 +1909,7 @@ impl MultiTokenManager {
                 last_used_at: None,
                 throttle_count: 0,
                 last_throttled_at: None,
+                last_throttled_wall: None,
             });
         }
 

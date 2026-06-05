@@ -1,0 +1,40 @@
+# openspec/config.yaml
+# 由 /opsx:init 自动生成。可手动编辑以调整约束注入内容。
+# context 和 rules 在所有 OpenSpec artifact 生成步骤中作为约束条件注入，
+# 不是模板内容，不得直接复制到 artifact 输出文件中。
+
+schema: spec-driven
+
+context: |
+  Tech stack: Rust 2024 edition；axum（HTTP 路由）、tokio（async runtime）、reqwest（HTTP 客户端）、serde_json（序列化）、parking_lot（同步原语）、rust-embed（静态资源嵌入）
+  Package manager: Cargo（Cargo.toml）
+  Architecture: Reverse-proxy；Anthropic API ↔ Kiro API 协议转换；多账号故障转移；二进制帧协议解码；SSE 流式状态机
+  Source layout:
+    src/anthropic/ — Anthropic 协议层（converter、handlers、stream、middleware、types）
+    src/kiro/ — Kiro API 客户端（provider、token_manager、model/、parser/）
+    src/model/ — 通用数据模型（config、usage、rpm、throttle_log 等）
+    src/admin/ — Admin REST API
+    src/admin_ui/ + src/user_ui/ — rust-embed 嵌入前端静态资源路由
+    src/common/ — 公共认证工具
+    admin-ui/ + user-ui/ — 前端源码（构建后嵌入二进制）
+  Test framework: Rust 内置 #[cfg(test)]，src/test.rs
+  Target platform: macOS / Linux（x86_64 + arm64）、Docker
+  Min deployment target: N/A（服务端代理，无移动端）
+
+rules:
+  specs:
+    - 使用 WHEN/THEN 场景格式描述可观测行为变化（协议转换、状态流转、错误响应码）
+    - 涉及 Kiro 私有协议的场景需注明帧格式约束（CRC32、字段类型、null 容忍度）
+    - 接口变更需同时说明 /v1/messages 和 /cc/v1/messages 两端点的差异
+    - 账号选择/负载均衡/故障转移逻辑须列出所有分支条件（priority / balanced / retry 上限）
+  tasks:
+    - 每个任务粒度：单一模块或单一函数变更，可独立通过 cargo check + cargo test 验证
+    - 涉及协议层（converter/stream/parser）的任务须附带对应单元测试要求
+    - 涉及 token_manager 或 provider 的任务须说明对现有多账号逻辑的影响评估
+    - 前端（admin-ui/user-ui）与后端任务分离，各自独立可验证
+  design:
+    - 优先复用已有 axum extractor / middleware 模式，不引入新框架
+    - 不新增外部 crate（能用标准库或已有依赖解决的不新增）
+    - 状态共享通过 Arc<T> 传递，禁止全局 static mut
+    - async 函数优先，阻塞操作必须放入 tokio::task::spawn_blocking
+    - 改动必须通过 cargo fmt + cargo clippy clean

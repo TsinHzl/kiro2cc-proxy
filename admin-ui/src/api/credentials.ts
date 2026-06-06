@@ -116,8 +116,8 @@ export async function setLoadBalancingMode(mode: 'priority' | 'balanced'): Promi
 // ============ 服务器信息 ============
 
 // 获取服务器连接信息
-export async function getServerInfo(): Promise<{ masterApiKey: string | null }> {
-  const { data } = await api.get<{ masterApiKey: string | null }>('/server-info')
+export async function getServerInfo(): Promise<{ masterApiKey: string | null; version: string }> {
+  const { data } = await api.get<{ masterApiKey: string | null; version: string }>('/server-info')
   return data
 }
 

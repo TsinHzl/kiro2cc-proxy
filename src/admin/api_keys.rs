@@ -21,9 +21,11 @@ pub async fn get_server_info(State(state): State<AdminState>) -> impl IntoRespon
     #[serde(rename_all = "camelCase")]
     struct ServerInfo {
         master_api_key: Option<String>,
+        version: String,
     }
     Json(ServerInfo {
         master_api_key: state.master_api_key.as_ref().map(|k| k.read().clone()),
+        version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }
 

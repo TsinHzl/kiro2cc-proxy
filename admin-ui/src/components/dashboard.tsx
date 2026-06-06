@@ -19,7 +19,7 @@ import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { CredentialDetailPage } from '@/components/credential-detail-page'
 import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
-import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage } from '@/hooks/use-credentials'
+import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
 import { getCredentialBalance } from '@/api/credentials'
@@ -61,6 +61,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const itemsPerPage = 12
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch } = useCredentials()
+  const { data: serverInfo } = useServerInfo()
   const credentialsRef = useRef(data?.credentials)
   const { data: rpmData } = useRpm()
   const { mutate: deleteCredential } = useDeleteCredential()
@@ -617,7 +618,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </div>
         </nav>
         <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
-          <span className="text-[11px] font-mono text-muted-foreground/50">kiro2cc-proxy</span>
+          <span className="text-[11px] font-mono text-muted-foreground/50">kiro2cc-proxy v{serverInfo?.version ?? '...'}</span>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh} title="刷新">
               <RefreshCw className="h-3.5 w-3.5" />

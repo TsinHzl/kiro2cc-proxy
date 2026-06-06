@@ -337,7 +337,8 @@ async fn refresh_idc_token(
     let data: IdcRefreshResponse = response.json().await?;
 
     let mut new_credentials = credentials.clone();
-    new_credentials.access_token = Some(data.access_token);
+    // Amazon Q generateAssistantResponse 需要 idToken（JWT），accessToken 是 SSO portal session token
+    new_credentials.access_token = Some(data.id_token.unwrap_or(data.access_token));
 
     if let Some(new_refresh_token) = data.refresh_token {
         new_credentials.refresh_token = Some(new_refresh_token);

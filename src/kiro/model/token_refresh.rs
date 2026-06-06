@@ -37,9 +37,9 @@ pub struct IdcRefreshRequest {
 pub struct IdcRefreshResponse {
     pub access_token: String,
     #[serde(default)]
+    pub id_token: Option<String>,
+    #[serde(default)]
     pub refresh_token: Option<String>,
-    // #[serde(default)]
-    // pub token_type: Option<String>,
     #[serde(default)]
     pub expires_in: Option<i64>,
 }

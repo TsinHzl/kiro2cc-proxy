@@ -1178,6 +1178,10 @@ fn build_history(
                         session_id
                     );
                     map.insert(session_id.to_string(), final_content.clone());
+                    if map.len() > 128 {
+                        let current_key = session_id.to_string();
+                        map.retain(|k, _| k == &current_key);
+                    }
                     final_content
                 }
             };

@@ -1381,6 +1381,7 @@ fn create_buffered_sse_stream(
     ctx: BufferedStreamContext,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     let body_stream = response.bytes_stream();
+    let deadline = Instant::now() + Duration::from_secs(300);
 
     stream::unfold(
         (
@@ -1389,8 +1390,9 @@ fn create_buffered_sse_stream(
             EventStreamDecoder::new(),
             false,
             interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)),
+            deadline,
         ),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
             if finished {
                 return None;
             }
@@ -1401,11 +1403,25 @@ fn create_buffered_sse_stream(
                     // 避免在上游 chunk 密集时 ping 被"饿死"
                     biased;
 
+                    // 全局 deadline：防止上游挂起导致请求永不结束
+                    _ = tokio::time::sleep_until(deadline) => {
+                        tracing::error!("缓冲模式全局超时（5分钟），强制终止");
+                        let err_event = SseEvent::new("error", serde_json::json!({
+                            "type": "error",
+                            "error": {
+                                "type": "overloaded_error",
+                                "message": "Upstream response timed out (buffered mode, 5min deadline)"
+                            }
+                        }));
+                        let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
+                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
+                    }
+
                     // 优先检查 ping 保活（等待期间唯一发送的数据）
                     _ = ping_interval.tick() => {
                         tracing::trace!("发送 ping 保活事件（缓冲模式）");
                         let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)));
+                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)));
                     }
 
                     // 然后处理数据流
@@ -1440,7 +1456,7 @@ fn create_buffered_sse_stream(
                                     .into_iter()
                                     .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                     .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
                             }
                             None => {
                                 // 流结束。先检测上游空响应（与流式路径一致），
@@ -1453,7 +1469,7 @@ fn create_buffered_sse_stream(
                                     );
                                     let err_event = empty_response_error_event(oversized);
                                     let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                                    return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                    return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
                                 }
                                 // 流结束，完成处理并返回所有事件（已更正 input_tokens）
                                 let all_events = ctx.finish_and_get_all_events();
@@ -1461,7 +1477,7 @@ fn create_buffered_sse_stream(
                                     .into_iter()
                                     .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                     .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
                             }
                         }
                     }

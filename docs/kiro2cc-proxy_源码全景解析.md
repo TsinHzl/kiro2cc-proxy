@@ -80,7 +80,7 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
   "conversationState": {
     "conversationId": "8bb5523b-ec7c-4540-a9ca-beb6d79f1552",
     "agentContinuationId": "3f7a2b1c-d4e5-6f78-9a0b-1c2d3e4f5a6b",
-    "agentTaskType": "vibe",
+    "agentTaskType": "spectask",
     "chatTriggerType": "MANUAL",
     "history": [
       {
@@ -233,10 +233,12 @@ pub fn map_model(model: &str) -> Option<String> {
     } else if model_lower.contains("opus") {
         if model_lower.contains("4-5") || model_lower.contains("4.5") {
             Some("claude-opus-4.5".to_string())   // 💡 Opus 4.5 明确指定
+        } else if model_lower.contains("4-8") || model_lower.contains("4.8") {
+            Some("claude-opus-4.8".to_string())   // 💡 Opus 4.8 最新模型
         } else if model_lower.contains("4-7") || model_lower.contains("4.7") {
-            Some("claude-opus-4.7".to_string())   // 💡 Opus 4.7 最新模型
+            Some("claude-opus-4.7".to_string())   // 💡 Opus 4.7
         } else {
-            Some("claude-opus-4.6".to_string())   // 💡 Opus 默认 → 4.6（最稳定版）
+            Some("claude-opus-4.6".to_string())   // 💡 Opus 默认 → 4.6（兜底）
         }
     } else if model_lower.contains("haiku") {
         Some("claude-haiku-4.5".to_string())      // 💡 所有 haiku → 4.5
@@ -268,17 +270,52 @@ pub fn map_model(model: &str) -> Option<String> {
 | `claude-sonnet-4-6-20251101` | contains "sonnet" + contains "4-6" | `claude-sonnet-4.6` | Claude Sonnet 4.6 |
 | `claude-sonnet-4.6` | contains "sonnet" + contains "4.6" | `claude-sonnet-4.6` | Claude Sonnet 4.6 |
 | `claude-sonnet-4-5` | contains "sonnet"（不含 4-6/4.6） | `claude-sonnet-4.5` | Claude Sonnet 4.5 |
+| `claude-opus-4-8` | contains "opus" + contains "4-8" | `claude-opus-4.8` | Claude Opus 4.8 |
+| `claude-opus-4-8-20260101-thinking` | contains "opus" + contains "4-8" | `claude-opus-4.8` | Claude Opus 4.8 |
 | `claude-opus-4-7` | contains "opus" + contains "4-7" | `claude-opus-4.7` | Claude Opus 4.7 |
 | `claude-opus-4-7-20251101-thinking` | contains "opus" + contains "4-7" | `claude-opus-4.7` | Claude Opus 4.7 |
 | `claude-opus-4-6` | contains "opus" + contains "4-6" | `claude-opus-4.6` | Claude Opus 4.6 |
 | `claude-opus-4-5` | contains "opus" + contains "4-5" | `claude-opus-4.5` | Claude Opus 4.5 |
-| `claude-opus-4` | contains "opus"（不含4-5/4-6/4-7） | `claude-opus-4.6` | Claude Opus 4.6（默认） |
+| `claude-opus-4` | contains "opus"（不含4-5/4-6/4-7/4-8） | `claude-opus-4.6` | Claude Opus 4.6（默认） |
 | `claude-haiku-4-5` | contains "haiku" | `claude-haiku-4.5` | Claude Haiku 4.5 |
 | `auto` | 精确匹配 "auto" | `auto` | Kiro 自动选择 |
 | `deepseek-r1` | contains "deepseek" | `deepseek-3.2` | DeepSeek 3.2 |
 | `gpt-4` | 不匹配任何规则 | `None` → 400 错误 | — |
 
-> ⚠️ **重要设计细节**：Opus 的优先级是 4.5 > 4.7 > 默认4.6（不是数字大小排序）。因为 4.5 和 4.7 是明确版本，而 4.6 是兜底默认值。
+> ⚠️ **重要设计细节**：Opus 的匹配优先级是 4.5 > 4.8 > 4.7 > 默认4.6（不是数字大小排序）。因为 4.5/4.8/4.7 是明确版本，而 4.6 是兜底默认值。
+
+### 2.5 `agentTaskType` 动态路由 — "spectask" vs "vibe"
+
+**文件位置：** `src/anthropic/converter.rs:537`
+
+请求中的 `agentTaskType` 并非固定为 `"vibe"`，而是由 `determine_agent_task_type()` 根据工具列表动态决定：
+
+```rust
+const CODE_TOOL_NAMES: &[&str] = &[
+    "read", "write", "edit", "bash", "glob", "grep",
+    "read_file", "write_file", "edit_file", "run_bash",
+    "list_files", "search_files", "create_file", "delete_file",
+    "str_replace_editor", "computer",
+];
+
+fn determine_agent_task_type(req: &MessagesRequest) -> &'static str {
+    let Some(tools) = &req.tools else { return "vibe"; };
+    if tools.is_empty() { return "vibe"; }
+    let has_code_tool = tools.iter().any(|t| {
+        CODE_TOOL_NAMES.iter().any(|&code_tool| t.name.to_lowercase() == code_tool)
+    });
+    if has_code_tool { "spectask" } else { "vibe" }
+}
+```
+
+| 条件 | agentTaskType | 效果 |
+|------|---------------|------|
+| 工具列表含代码工具（bash/read/edit 等） | `spectask` | Kiro 后端优化代码生成质量 |
+| 工具列表为空或不含代码工具 | `vibe` | Kiro 后端优化对话连续性 |
+
+> Claude Code 始终携带代码工具，因此实际请求几乎都是 `spectask`。纯对话场景（如 Open WebUI 无工具调用）才会走 `vibe`。
+
+---
 
 ### 3. model_id 在 Kiro JSON 请求中的位置
 
@@ -487,17 +524,23 @@ src/
 │       ├── frame.rs           # 帧结构解析（CRC32C 校验）
 │       ├── header.rs          # 二进制帧头解析
 │       └── crc.rs             # CRC32C 实现
+├── common/                    # 公共工具模块
+│   └── auth.rs                # API Key 提取 + 常量时间比较（subtle crate）
 ├── model/                     # 配置/参数/API Key 管理数据结构
 │   ├── config.rs              # Config：从 config.json 加载，含 region、kiro_version 等
 │   ├── api_key.rs             # 多用户 API Key 管理
 │   ├── rpm.rs                 # RPM 统计追踪
+│   ├── throttle_log.rs        # 限流日志持久化
 │   └── usage.rs               # Token 用量追踪
 ├── admin/                     # Admin API（管理凭据、查看状态）
 ├── admin_ui/                  # Admin 前端静态资源路由
 ├── user/                      # User API（用户登录、用量查询）
+├── user_ui/                   # User 前端静态资源路由
 ├── cache.rs                   # Prompt Cache 模拟（伪造 cache_read_tokens）
 ├── token.rs                   # Token 计数（估算 input_tokens）
-└── http_client.rs             # reqwest Client 构建（代理配置）
+├── http_client.rs             # reqwest Client 构建（代理配置）
+├── debug.rs                   # 调试工具
+└── test.rs                    # 测试辅助
 ```
 
 <!-- SECTION:概述 -->
@@ -510,19 +553,34 @@ src/
 
 **大白话**：就像一个密码管家，帮你记住所有 Kiro 账号的临时通行证。快过期了自动续期，某个账号被封了自动换下一个。
 
-**凭据状态机：**
+**凭据健康状态模型（5 级）：**
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Active: 初始加载
-    Active --> Refreshing: token 即将过期
-    Refreshing --> Active: 刷新成功
-    Refreshing --> TooManyFailures: 连续失败 ≥3 次
-    Active --> TooManyFailures: 401/403 响应
-    Active --> QuotaExhausted: 402 MONTHLY_REQUEST_COUNT
-    TooManyFailures --> Active: 全部凭据失败时自动重置
-    QuotaExhausted --> [*]: 永久禁用（不自动恢复）
+    [*] --> Healthy: 初始加载
+    Healthy --> Warning: 少量限流或 1 次失败
+    Warning --> Degraded: 频繁限流或 2 次失败
+    Degraded --> Unhealthy: 极近期高频限流或即将禁用
+    Unhealthy --> Disabled: 连续失败 ≥3 / 额度耗尽 / 手动禁用
+    Disabled --> Healthy: 全部凭据被自动禁用时触发 self-healing 重置
+    Warning --> Healthy: 限流/失败计数衰减后恢复
+    Degraded --> Warning: 同上
 ```
+
+| 健康等级 | 颜色 | 触发条件 | 行为 |
+|----------|------|----------|------|
+| `Healthy` | 🟢 | 无失败无限流 | 正常使用 |
+| `Warning` | 🟡 | 4 天内有限流记录或 1 次失败 | 正常使用但标记 |
+| `Degraded` | 🟠 | 近期频繁限流（rate>20%）或 2 次失败 | 正常使用但降低优先级 |
+| `Unhealthy` | 🔴 | 极近期高频限流（rate>40%）或即将禁用 | 选凭据时跳过（除非全部不健康） |
+| `Disabled` | ⚫ | 连续失败≥3 / 402 额度耗尽 / Admin 手动禁用 | 完全不使用 |
+
+**禁用原因（`DisabledReason`）：**
+- `TooManyFailures` — 连续 401/403 失败达到阈值（≥3 次）→ 自动禁用
+- `QuotaExceeded` — 402 + MONTHLY_REQUEST_COUNT → 永久禁用（不自动恢复）
+- `Manual` — Admin API 手动禁用
+
+**Self-healing 机制：** 当所有凭据均为 `TooManyFailures` 自动禁用状态时，系统自动重置所有失败计数并重新启用，避免全部凭据因瞬态错误同时锁死。`QuotaExceeded` 不参与自动恢复。
 
 **双重检查锁（防止 100 并发同时触发刷新）：**
 
@@ -605,12 +663,12 @@ let current_hit = if is_balanced {
 };
 ```
 
-**429 限流时的 balanced 联动（`provider.rs:599`）：**
+**429 限流时的 balanced 联动（`provider.rs`）：**
 
 ```rust
-// 429 Too Many Requests：调用 report_success() 递增 success_count
-// 使 balanced 模式下一次 acquire_context 自然轮转到其他凭据
-self.token_manager.report_success(ctx.id);
+// 429 Too Many Requests：先记录限流事件（影响健康状态计算），再递增 success_count 推进轮转
+self.token_manager.report_throttled(ctx.id);  // 更新 throttle_count + last_throttled_at
+self.token_manager.report_success(ctx.id);    // 使 balanced 模式下一次 acquire_context 轮转
 ```
 
 **行为特征：**
@@ -926,6 +984,7 @@ sequenceDiagram
     CV->>CV: map_model("claude-sonnet-4-6") → "claude-sonnet-4.6"
     CV->>CV: system → history[0] user+assistant
     CV->>CV: messages → history + currentMessage
+    CV->>CV: determine_agent_task_type() → "spectask"/"vibe"
     CV-->>KP: ConversationState {modelId:"claude-sonnet-4.6"}
     KP->>TM: try_ensure_token()
     alt token 有效
@@ -991,8 +1050,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let conversation_id = extract_session_id_from_metadata(&req.metadata);
     // 4-12. 构建 history + currentMessage + tools ...
     // 13. 最终构建 ConversationState
+    let agent_task_type = determine_agent_task_type(req); // "spectask" 或 "vibe"
     let conversation_state = ConversationState::new(conversation_id)
-        .with_agent_task_type("vibe")
+        .with_agent_task_type(agent_task_type)
         .with_chat_trigger_type("MANUAL")
         .with_current_message(current_message) // ← currentMessage 含 modelId
         .with_history(history);                 // ← history 每条 user msg 也含 modelId
@@ -1057,7 +1117,7 @@ if !provided_key.as_bytes().ct_eq(expected_key.as_bytes()).into() {
 | 400 | 请求格式错误 | 直接返回给客户端（不重试，不切换凭据） |
 | 401/403 | Token 失效 | `report_failure()` → 换下一凭据重试 |
 | 402 + MONTHLY_REQUEST_COUNT | 月配额耗尽 | `report_quota_exhausted()` → 永久禁用 |
-| 429 | 被限流 | `report_success()` → Least-Used 算法自然轮换 |
+| 429 | 被限流 | `report_throttled()` 记录限流 + `report_success()` 推进轮换，并持久化到 ThrottleLogStore |
 | 408/5xx | 上游瞬态错误 | 指数退避重试（不切换凭据，避免误禁用） |
 
 ### 安全相关设计
@@ -1075,7 +1135,7 @@ if !provided_key.as_bytes().ct_eq(expected_key.as_bytes()).into() {
 // file: src/kiro/model/requests/conversation.rs:14 — 发给 Kiro 的完整请求体
 pub struct ConversationState {
     pub conversation_id: String,
-    pub agent_task_type: Option<String>,   // "vibe"
+    pub agent_task_type: Option<String>,   // "spectask"（含代码工具）或 "vibe"（纯对话）
     pub chat_trigger_type: Option<String>, // "MANUAL"
     pub current_message: CurrentMessage,   // 包含 UserInputMessage
     pub history: Vec<Message>,             // 历史消息，每条 user 消息都含 model_id
@@ -1383,7 +1443,8 @@ ConversationState
 │     无 metadata 时每次请求生成新 UUID
 │
 ├── agent_task_type: Option<String>
-│     固定值 "vibe"，伪装为 Kiro IDE 的 Vibe 模式
+│     由 determine_agent_task_type() 动态决定：
+│     "spectask"（请求含代码工具时，优化代码生成）或 "vibe"（纯对话，优化连续性）
 │
 ├── chat_trigger_type: Option<String>
 │     固定值 "MANUAL"，表示用户手动触发
@@ -1830,11 +1891,18 @@ static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 - **方案**：`/v1` 流式快速响应，`/cc/v1` 缓冲等 contextUsageEvent
 - **代价**：用户需要在 Claude Code 配置中指定 `/cc/v1` 路径
 
-### 决策三：Opus 的"4.5 > 4.7 > 默认4.6"优先级
+### 决策三：Opus 的"4.5 > 4.8 > 4.7 > 默认4.6"优先级
 
-- **问题**：Opus 系列有 4.5/4.6/4.7 三个版本，如何确定默认版本？
-- **逻辑**：4.5 和 4.7 是用户明确指定的版本；4.6 是"没有明确指定时的最新稳定版"默认值
+- **问题**：Opus 系列有 4.5/4.6/4.7/4.8 四个版本，如何确定默认版本？
+- **逻辑**：4.5/4.8/4.7 是用户明确指定的版本；4.6 是"没有明确指定时"的兜底默认值
 - **注意**：不是"数字越大越新"的简单规则，而是"指定的优于默认的"
+
+### 决策四：模型名含 "thinking" 时自动启用 Extended Thinking
+
+- **问题**：用户传 `claude-opus-4-6-thinking` 时，如何无配置启用思考模式？
+- **方案**：`override_thinking_from_model_name()` 检测模型名含 "thinking" 时自动注入 thinking 配置
+- **细节**：Opus 4.6/4.8 使用 `adaptive`（模型自决定是否思考），其余使用 `enabled`（强制思考），budget 默认 20000
+- **代价**：模型名驱动行为，用户无需额外配置 thinking 字段即可启用
 
 ---
 

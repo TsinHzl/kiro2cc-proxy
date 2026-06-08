@@ -229,6 +229,14 @@ impl Config {
         let content = fs::read_to_string(path)?;
         let mut config: Config = serde_json::from_str(&content)?;
         config.config_path = Some(path.to_path_buf());
+        if config.request_delay_min_ms > config.request_delay_max_ms {
+            tracing::warn!(
+                "配置警告：request_delay_min_ms({}) > request_delay_max_ms({})，将使用固定延迟 {}ms",
+                config.request_delay_min_ms,
+                config.request_delay_max_ms,
+                config.request_delay_min_ms
+            );
+        }
         Ok(config)
     }
 

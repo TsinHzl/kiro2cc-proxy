@@ -6,6 +6,7 @@ mod cache;
 mod common;
 mod http_client;
 mod kiro;
+mod log_capture;
 mod model;
 pub mod token;
 mod user;

@@ -245,7 +245,7 @@ const IDC_AMZ_USER_AGENT: &str = "aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/
 struct KiroAuthTokenFile {
     #[serde(default)]
     region: Option<String>,
-    #[serde(default)]
+    #[serde(default, rename = "profileArn")]
     profile_arn: Option<String>,
 }
 

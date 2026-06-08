@@ -92,6 +92,22 @@ pub struct Config {
     #[serde(default = "default_load_balancing_mode")]
     pub load_balancing_mode: String,
 
+    /// 请求前最小延迟（毫秒），0 表示关闭
+    #[serde(default = "default_request_delay_min_ms")]
+    pub request_delay_min_ms: u64,
+
+    /// 请求前最大延迟（毫秒），0 表示关闭
+    #[serde(default = "default_request_delay_max_ms")]
+    pub request_delay_max_ms: u64,
+
+    /// 冷启动阈值（分钟）：账号超过此时间未使用，首次请求触发额外延迟
+    #[serde(default = "default_cold_start_threshold_mins")]
+    pub cold_start_threshold_mins: u64,
+
+    /// 冷启动额外延迟上限（毫秒），实际延迟为 0..=此值 的随机数
+    #[serde(default = "default_cold_start_delay_ms")]
+    pub cold_start_delay_ms: u64,
+
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
@@ -110,7 +126,8 @@ fn default_region() -> String {
 }
 
 fn default_kiro_version() -> String {
-    "0.10.0".to_string()
+    // 请在 config.json 中设置 kiroVersion 为你的 IDE 实际版本（Kiro IDE → About）
+    "0.14.0".to_string()
 }
 
 fn default_system_version() -> String {
@@ -132,6 +149,22 @@ fn default_tls_backend() -> TlsBackend {
 
 fn default_load_balancing_mode() -> String {
     "priority".to_string()
+}
+
+fn default_request_delay_min_ms() -> u64 {
+    100
+}
+
+fn default_request_delay_max_ms() -> u64 {
+    800
+}
+
+fn default_cold_start_threshold_mins() -> u64 {
+    30
+}
+
+fn default_cold_start_delay_ms() -> u64 {
+    2000
 }
 
 impl Default for Config {
@@ -156,6 +189,10 @@ impl Default for Config {
             proxy_password: None,
             admin_api_key: None,
             load_balancing_mode: default_load_balancing_mode(),
+            request_delay_min_ms: default_request_delay_min_ms(),
+            request_delay_max_ms: default_request_delay_max_ms(),
+            cold_start_threshold_mins: default_cold_start_threshold_mins(),
+            cold_start_delay_ms: default_cold_start_delay_ms(),
             config_path: None,
         }
     }

@@ -198,6 +198,21 @@ impl KiroProvider {
             .map(|s| s.to_string())
     }
 
+    /// 将账号级 profileArn 注入请求体，覆盖 handler 层烤入的全局值
+    ///
+    /// 解决多账号场景下 profileArn 始终取自第一个账号的问题。
+    /// 若 profile_arn 为 None 或 JSON 解析失败，返回原始 body。
+    fn patch_profile_arn(body: &str, profile_arn: Option<&str>) -> String {
+        let Some(arn) = profile_arn else {
+            return body.to_string();
+        };
+        let Ok(mut v) = serde_json::from_str::<serde_json::Value>(body) else {
+            return body.to_string();
+        };
+        v["profileArn"] = serde_json::Value::String(arn.to_string());
+        serde_json::to_string(&v).unwrap_or_else(|_| body.to_string())
+    }
+
     /// 构建请求头
     ///
     /// # Arguments
@@ -406,6 +421,7 @@ impl KiroProvider {
             }
             // ─────────────────────────────────────────────────────────────
 
+            let effective_body = Self::patch_profile_arn(request_body, ctx.credentials.profile_arn.as_deref());
             let url = self.mcp_url_for(&ctx.credentials);
             let headers = match self.build_mcp_headers(&ctx, attempt) {
                 Ok(h) => h,
@@ -426,7 +442,7 @@ impl KiroProvider {
             let response = match client
                 .post(&url)
                 .headers(headers)
-                .body(request_body.to_string())
+                .body(effective_body)
                 .send()
                 .await
             {
@@ -612,6 +628,7 @@ impl KiroProvider {
             }
             // ─────────────────────────────────────────────────────────────
 
+            let effective_body = Self::patch_profile_arn(request_body, ctx.credentials.profile_arn.as_deref());
             let url = self.base_url_for(&ctx.credentials);
             let headers = match self.build_headers(&ctx, request_body, attempt) {
                 Ok(h) => h,
@@ -632,7 +649,7 @@ impl KiroProvider {
             let response = match client
                 .post(&url)
                 .headers(headers)
-                .body(request_body.to_string())
+                .body(effective_body)
                 .send()
                 .await
             {

@@ -609,6 +609,8 @@ const MAX_FAILURES_PER_CREDENTIAL: u32 = 3;
 const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
 /// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
 const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60);
+/// 健康状态计算的时间窗口（天），超出此窗口的限流历史不影响健康状态
+const HEALTH_WINDOW_DAYS: i64 = 4;
 
 /// Sticky cache 条目：记录会话到账号的绑定关系
 struct StickyCacheEntry {
@@ -1395,24 +1397,6 @@ impl MultiTokenManager {
             return HealthStatus::Disabled;
         }
 
-        // 认证失败（401/403）是严重问题，直接根据次数判断
-        if entry.failure_count >= 3 {
-            return HealthStatus::Unhealthy;
-        }
-        if entry.failure_count >= 2 {
-            return HealthStatus::Degraded;
-        }
-        if entry.failure_count >= 1 {
-            return HealthStatus::Warning;
-        }
-
-        // 限流判断：样本不足时默认健康，避免少量请求时误判
-        let total_calls = entry.success_count + entry.throttle_count;
-        if total_calls < 5 {
-            return HealthStatus::Healthy;
-        }
-
-        let throttle_rate = entry.throttle_count as f64 / total_calls as f64;
         let very_recently_throttled = entry
             .last_throttled_at
             .map(|t| t.elapsed() < StdDuration::from_secs(120))
@@ -1421,12 +1405,27 @@ impl MultiTokenManager {
             .last_throttled_at
             .map(|t| t.elapsed() < StdDuration::from_secs(600))
             .unwrap_or(false);
+        let recently_throttled_wall = entry
+            .last_throttled_wall
+            .map(|t| Utc::now() - t < Duration::days(HEALTH_WINDOW_DAYS))
+            .unwrap_or(false);
 
-        if very_recently_throttled && throttle_rate > 0.5 {
+        // 只有样本足够时才计算限流率，避免少量请求时误判
+        let total_calls = entry.success_count + entry.throttle_count;
+        let throttle_rate = if total_calls >= 10 {
+            entry.throttle_count as f64 / total_calls as f64
+        } else {
+            0.0
+        };
+
+        if entry.failure_count >= 2 || (very_recently_throttled && throttle_rate > 0.4) {
             HealthStatus::Unhealthy
-        } else if recently_throttled && throttle_rate > 0.3 {
+        } else if entry.failure_count >= 1
+            || (recently_throttled && throttle_rate > 0.2)
+            || (recently_throttled_wall && throttle_rate > 0.3)
+        {
             HealthStatus::Degraded
-        } else if recently_throttled && throttle_rate > 0.15 {
+        } else if recently_throttled_wall || entry.failure_count > 0 {
             HealthStatus::Warning
         } else {
             HealthStatus::Healthy

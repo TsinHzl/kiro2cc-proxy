@@ -1,6 +1,6 @@
 [package]
 name = "kiro2cc-proxy"
-version = "2.3.3"
+version = "2.4.0"
 edition = "2024"
 license = "MIT"
 authors = ["Harllan He"]
@@ -16,7 +16,7 @@ reqwest = { version = "0.12", features = ["stream", "json", "socks", "rustls-tls
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 anyhow = "1.0"
 http = "1.0"
 futures = "0.3"

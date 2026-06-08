@@ -19,13 +19,14 @@ use super::{
         set_auth_keys, set_credential_disabled, set_credential_priority,
         set_load_balancing_mode, update_credential,
     },
+    log_handler::{download_logs, stream_logs},
     middleware::{AdminState, admin_auth_middleware},
 };
 
 /// 创建 Admin API 路由
 pub fn create_admin_router(state: AdminState) -> Router {
-    Router::new()
-        // 账号管理
+    // 受 header 认证中间件保护的路由
+    let protected = Router::new()
         .route(
             "/credentials",
             get(get_all_credentials).post(add_credential),
@@ -45,14 +46,12 @@ pub fn create_admin_router(state: AdminState) -> Router {
             "/config/auth-keys",
             get(get_auth_keys).put(set_auth_keys),
         )
-        // API Key 管理
         .route("/server-info", get(get_server_info))
         .route("/api-keys", get(list_api_keys).post(create_api_key))
         .route("/api-keys/usage", get(get_all_usage))
         .route("/api-keys/{id}", put(update_api_key).delete(delete_api_key))
         .route("/api-keys/{id}/usage", get(get_key_usage).delete(reset_key_usage))
         .route("/api-keys/{id}/usage/records", get(get_key_usage_records))
-        // RPM 监控
         .route("/rpm", get(get_rpm))
         .route("/usage/daily", get(get_daily_usage))
         .route("/usage/daily/{date}/records", get(get_daily_usage_records))
@@ -60,5 +59,13 @@ pub fn create_admin_router(state: AdminState) -> Router {
             state.clone(),
             admin_auth_middleware,
         ))
-        .with_state(state)
+        .with_state(state.clone());
+
+    // 日志路由使用 Query Param 内联认证（EventSource API 不支持自定义 Header）
+    let log_routes = Router::new()
+        .route("/logs/stream", get(stream_logs))
+        .route("/logs/download", get(download_logs))
+        .with_state(state);
+
+    protected.merge(log_routes)
 }

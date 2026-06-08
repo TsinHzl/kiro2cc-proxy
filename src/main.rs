@@ -29,13 +29,21 @@ async fn main() {
     // 解析命令行参数
     let args = Args::parse();
 
-    // 初始化日志
-    tracing_subscriber::fmt()
-        .with_env_filter(
+    // 初始化日志捕获器（在 tracing 初始化之前创建）
+    let log_capture = std::sync::Arc::new(log_capture::LogCapture::new(1000));
+
+    // 初始化日志（registry 风格，同时输出到控制台和 LogCapture）
+    {
+        use tracing_subscriber::prelude::*;
+        let make_filter = || {
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+        };
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().with_filter(make_filter()))
+            .with(log_capture.as_layer().with_filter(make_filter()))
+            .init();
+    }
 
     // 加载配置
     let config_path = args
@@ -198,6 +206,7 @@ async fn main() {
                 admin_state = admin_state.with_usage_tracker(tracker.clone());
             }
             admin_state = admin_state.with_throttle_log_store(throttle_log_store.clone());
+            admin_state = admin_state.with_log_capture(log_capture.clone());
             let admin_app = admin::create_admin_router(admin_state);
 
             // 创建 Admin UI 路由

@@ -16,6 +16,7 @@ use parking_lot::RwLock;
 use super::service::AdminService;
 use super::types::AdminErrorResponse;
 use crate::common::auth;
+use crate::log_capture::LogCapture;
 use crate::model::api_key::ApiKeyManager;
 use crate::model::rpm::RpmTracker;
 use crate::model::throttle_log::ThrottleLogStore;
@@ -38,6 +39,8 @@ pub struct AdminState {
     pub rpm_tracker: Option<Arc<RpmTracker>>,
     /// 限流日志存储（可选）
     pub throttle_log_store: Option<Arc<ThrottleLogStore>>,
+    /// 日志捕获器（可选）
+    pub log_capture: Option<Arc<LogCapture>>,
     /// 配置文件路径（用于持久化修改）
     pub config_path: Option<PathBuf>,
 }
@@ -52,6 +55,7 @@ impl AdminState {
             usage_tracker: None,
             rpm_tracker: None,
             throttle_log_store: None,
+            log_capture: None,
             config_path: None,
         }
     }
@@ -83,6 +87,11 @@ impl AdminState {
 
     pub fn with_config_path(mut self, path: PathBuf) -> Self {
         self.config_path = Some(path);
+        self
+    }
+
+    pub fn with_log_capture(mut self, capture: Arc<LogCapture>) -> Self {
+        self.log_capture = Some(capture);
         self
     }
 }

@@ -202,15 +202,15 @@ impl KiroProvider {
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含账号和 token
     /// * `request_body` - 请求体，用于提取 agentTaskType
-    fn build_headers(&self, ctx: &CallContext, request_body: &str) -> anyhow::Result<HeaderMap> {
+    fn build_headers(&self, ctx: &CallContext, request_body: &str, attempt: usize) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
             .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
 
         let kiro_version = &config.kiro_version;
-        let os_name = &config.system_version;
-        let node_version = &config.node_version;
+        let os_name = machine_id::derive_os_fingerprint(&ctx.credentials, config);
+        let node_version = machine_id::derive_node_version(&ctx.credentials, config);
 
         let x_amz_user_agent = format!("aws-sdk-js/1.0.27 KiroIDE-{}-{}", kiro_version, machine_id);
 
@@ -242,9 +242,10 @@ impl KiroProvider {
             "amz-sdk-invocation-id",
             HeaderValue::from_str(&Uuid::new_v4().to_string()).unwrap(),
         );
+        let attempt_str = format!("attempt={}; max=3", attempt + 1);
         headers.insert(
             "amz-sdk-request",
-            HeaderValue::from_static("attempt=1; max=3"),
+            HeaderValue::from_str(&attempt_str).unwrap(),
         );
         headers.insert(
             AUTHORIZATION,
@@ -254,15 +255,15 @@ impl KiroProvider {
     }
 
     /// 构建 MCP 请求头
-    fn build_mcp_headers(&self, ctx: &CallContext) -> anyhow::Result<HeaderMap> {
+    fn build_mcp_headers(&self, ctx: &CallContext, attempt: usize) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
             .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
 
         let kiro_version = &config.kiro_version;
-        let os_name = &config.system_version;
-        let node_version = &config.node_version;
+        let os_name = machine_id::derive_os_fingerprint(&ctx.credentials, config);
+        let node_version = machine_id::derive_node_version(&ctx.credentials, config);
 
         let x_amz_user_agent = format!("aws-sdk-js/1.0.27 KiroIDE-{}-{}", kiro_version, machine_id);
 
@@ -285,9 +286,10 @@ impl KiroProvider {
             "amz-sdk-invocation-id",
             HeaderValue::from_str(&Uuid::new_v4().to_string()).unwrap(),
         );
+        let attempt_str = format!("attempt={}; max=3", attempt + 1);
         headers.insert(
             "amz-sdk-request",
-            HeaderValue::from_static("attempt=1; max=3"),
+            HeaderValue::from_str(&attempt_str).unwrap(),
         );
         headers.insert(
             "Authorization",
@@ -363,7 +365,7 @@ impl KiroProvider {
             };
 
             let url = self.mcp_url_for(&ctx.credentials);
-            let headers = match self.build_mcp_headers(&ctx) {
+            let headers = match self.build_mcp_headers(&ctx, attempt) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -528,7 +530,7 @@ impl KiroProvider {
             };
 
             let url = self.base_url_for(&ctx.credentials);
-            let headers = match self.build_headers(&ctx, request_body) {
+            let headers = match self.build_headers(&ctx, request_body, attempt) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -807,7 +809,7 @@ mod tests {
             credentials,
             token: "test_token".to_string(),
         };
-        let headers = provider.build_headers(&ctx, "{}").unwrap();
+        let headers = provider.build_headers(&ctx, "{}", 0).unwrap();
 
         assert_eq!(headers.get(CONTENT_TYPE).unwrap(), "application/json");
         assert_eq!(headers.get("x-amzn-codewhisperer-optout").unwrap(), "true");
@@ -877,7 +879,7 @@ mod tests {
             token: "test_token".to_string(),
         };
         let spectask_body = r#"{"conversationState":{"agentTaskType":"spectask"}}"#;
-        let headers = provider.build_headers(&ctx, spectask_body).unwrap();
+        let headers = provider.build_headers(&ctx, spectask_body, 0).unwrap();
         assert_eq!(headers.get("x-amzn-kiro-agent-mode").unwrap(), "spectask");
     }
 }

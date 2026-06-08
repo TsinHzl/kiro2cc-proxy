@@ -19,6 +19,7 @@
 //! ```
 
 mod api_keys;
+mod log_handler;
 mod error;
 mod handlers;
 mod middleware;

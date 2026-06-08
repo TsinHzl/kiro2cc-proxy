@@ -34,6 +34,7 @@ export function LogViewerPage() {
   const [keyword, setKeyword] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const [localLogs, setLocalLogs] = useState<LogEntry[]>([])
+  const [copyToast, setCopyToast] = useState(false)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -90,6 +91,15 @@ export function LogViewerPage() {
       `/api/admin/logs/download?api_key=${encodeURIComponent(apiKey)}`,
       '_blank'
     )
+  }
+
+  const handleCopy = async () => {
+    const text = filteredLogs
+      .map((e) => `${formatTimestamp(e.timestamp)} [${e.level}] ${e.target} ${e.message}`)
+      .join('\n')
+    await navigator.clipboard.writeText(text)
+    setCopyToast(true)
+    setTimeout(() => setCopyToast(false), 2000)
   }
 
   const handleClear = () => setLocalLogs([])
@@ -229,6 +239,21 @@ export function LogViewerPage() {
           </button>
 
           <button
+            onClick={handleCopy}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 4,
+              fontSize: 11,
+              border: '1px solid #30363d',
+              background: '#21262d',
+              color: '#8b949e',
+              cursor: 'pointer',
+            }}
+          >
+            📋 复制日志
+          </button>
+
+          <button
             onClick={handleDownload}
             style={{
               padding: '4px 12px',
@@ -359,6 +384,26 @@ export function LogViewerPage() {
           </span>
         </div>
       </div>
+      {copyToast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 32,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#2ea043',
+            color: 'white',
+            padding: '8px 20px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 9999,
+          }}
+        >
+          已复制 {filteredLogs.length} 条日志
+        </div>
+      )}
     </div>
   )
 }

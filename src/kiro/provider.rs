@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
@@ -364,6 +365,47 @@ impl KiroProvider {
                 }
             };
 
+            // ── 行为模拟延迟 ──────────────────────────────────────────────
+            let config = self.token_manager.config();
+
+            // 冷启动延迟：账号超过阈值未活动时，首次请求额外等待（仅第 1 次尝试）
+            if attempt == 0
+                && config.cold_start_threshold_mins > 0
+                && config.cold_start_delay_ms > 0
+            {
+                let threshold_secs = config.cold_start_threshold_mins * 60;
+                let is_cold = self
+                    .token_manager
+                    .get_last_used_at(ctx.id)
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                    .map(|t| {
+                        Utc::now()
+                            .signed_duration_since(t.with_timezone(&Utc))
+                            .num_seconds()
+                            > threshold_secs as i64
+                    })
+                    .unwrap_or(true); // 从未使用过也视为冷启动
+                if is_cold {
+                    let extra_ms = fastrand::u64(0..=config.cold_start_delay_ms);
+                    sleep(Duration::from_millis(extra_ms)).await;
+                }
+            }
+
+            // 请求前随机延迟：每次尝试均执行
+            if config.request_delay_max_ms > 0 {
+                let lo = config.request_delay_min_ms;
+                let hi = config.request_delay_max_ms;
+                let delay_ms = if lo < hi {
+                    fastrand::u64(lo..=hi)
+                } else {
+                    lo
+                };
+                if delay_ms > 0 {
+                    sleep(Duration::from_millis(delay_ms)).await;
+                }
+            }
+            // ─────────────────────────────────────────────────────────────
+
             let url = self.mcp_url_for(&ctx.credentials);
             let headers = match self.build_mcp_headers(&ctx, attempt) {
                 Ok(h) => h,
@@ -528,6 +570,47 @@ impl KiroProvider {
                     continue;
                 }
             };
+
+            // ── 行为模拟延迟 ──────────────────────────────────────────────
+            let config = self.token_manager.config();
+
+            // 冷启动延迟：账号超过阈值未活动时，首次请求额外等待（仅第 1 次尝试）
+            if attempt == 0
+                && config.cold_start_threshold_mins > 0
+                && config.cold_start_delay_ms > 0
+            {
+                let threshold_secs = config.cold_start_threshold_mins * 60;
+                let is_cold = self
+                    .token_manager
+                    .get_last_used_at(ctx.id)
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                    .map(|t| {
+                        Utc::now()
+                            .signed_duration_since(t.with_timezone(&Utc))
+                            .num_seconds()
+                            > threshold_secs as i64
+                    })
+                    .unwrap_or(true); // 从未使用过也视为冷启动
+                if is_cold {
+                    let extra_ms = fastrand::u64(0..=config.cold_start_delay_ms);
+                    sleep(Duration::from_millis(extra_ms)).await;
+                }
+            }
+
+            // 请求前随机延迟：每次尝试均执行
+            if config.request_delay_max_ms > 0 {
+                let lo = config.request_delay_min_ms;
+                let hi = config.request_delay_max_ms;
+                let delay_ms = if lo < hi {
+                    fastrand::u64(lo..=hi)
+                } else {
+                    lo
+                };
+                if delay_ms > 0 {
+                    sleep(Duration::from_millis(delay_ms)).await;
+                }
+            }
+            // ─────────────────────────────────────────────────────────────
 
             let url = self.base_url_for(&ctx.credentials);
             let headers = match self.build_headers(&ctx, request_body, attempt) {

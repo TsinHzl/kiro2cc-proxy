@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::model::config::Config;
 
+#[allow(dead_code)]
 const OS_VERSIONS: &[&str] = &[
     "darwin#24.6.0",
     "darwin#23.6.0",
@@ -14,6 +15,7 @@ const OS_VERSIONS: &[&str] = &[
     "win32#10.0.19045",
 ];
 
+#[allow(dead_code)]
 const NODE_VERSIONS: &[&str] = &[
     "20.11.1",
     "20.18.0",
@@ -22,10 +24,9 @@ const NODE_VERSIONS: &[&str] = &[
     "22.21.1",
 ];
 
+#[allow(dead_code)]
 fn sha256_bytes(input: &str) -> Vec<u8> {
-    let mut hasher = Sha256::new();
-    hasher.update(input.as_bytes());
-    hasher.finalize().to_vec()
+    Sha256::digest(input.as_bytes()).to_vec()
 }
 
 /// 标准化 machineId 格式
@@ -87,6 +88,7 @@ pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config)
 ///
 /// 保证同账号跨会话稳定，跨账号各不相同。
 /// 无 refreshToken 时回退到 config.system_version。
+#[allow(dead_code)]
 pub fn derive_os_fingerprint(credentials: &KiroCredentials, config: &Config) -> String {
     if let Some(ref rt) = credentials.refresh_token {
         if !rt.is_empty() {
@@ -102,6 +104,7 @@ pub fn derive_os_fingerprint(credentials: &KiroCredentials, config: &Config) -> 
 ///
 /// 使用 hash[1] 与 OS 指纹使用 hash[0] 区分，保证两者独立。
 /// 无 refreshToken 时回退到 config.node_version。
+#[allow(dead_code)]
 pub fn derive_node_version(credentials: &KiroCredentials, config: &Config) -> String {
     if let Some(ref rt) = credentials.refresh_token {
         if !rt.is_empty() {
@@ -115,10 +118,7 @@ pub fn derive_node_version(credentials: &KiroCredentials, config: &Config) -> St
 
 /// SHA256 哈希实现（返回十六进制字符串）
 fn sha256_hex(input: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(input.as_bytes());
-    let result = hasher.finalize();
-    hex::encode(result)
+    hex::encode(sha256_bytes(input))
 }
 
 #[cfg(test)]

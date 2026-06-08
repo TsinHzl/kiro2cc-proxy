@@ -240,24 +240,41 @@ async fn refresh_social_token(
 /// IdC Token 刷新所需的 x-amz-user-agent header
 const IDC_AMZ_USER_AGENT: &str = "aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE";
 
-/// Kiro auth token 文件的 region 字段结构
+/// Kiro auth token 文件结构
 #[derive(Debug, Deserialize)]
 struct KiroAuthTokenFile {
     #[serde(default)]
     region: Option<String>,
+    #[serde(default)]
+    profile_arn: Option<String>,
+}
+
+/// 从 ~/.aws/sso/cache/kiro-auth-token.json 读取文件内容
+fn read_kiro_auth_token_file() -> Option<KiroAuthTokenFile> {
+    let home = dirs::home_dir()?;
+    let path = home.join(".aws/sso/cache/kiro-auth-token.json");
+    let content = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&content).ok()
 }
 
 /// 从 ~/.aws/sso/cache/kiro-auth-token.json 读取 region 字段
 fn read_region_from_kiro_auth_token() -> Option<String> {
-    let home = dirs::home_dir()?;
-    let path = home.join(".aws/sso/cache/kiro-auth-token.json");
-    let content = std::fs::read_to_string(&path).ok()?;
-    let token_file: KiroAuthTokenFile = serde_json::from_str(&content).ok()?;
-    let region = token_file.region.filter(|r| !r.is_empty());
+    let region = read_kiro_auth_token_file()?.region.filter(|r| !r.is_empty());
     if let Some(ref r) = region {
         tracing::debug!("从 kiro-auth-token.json 读取到 region: {}", r);
     }
     region
+}
+
+/// 从 ~/.aws/sso/cache/kiro-auth-token.json 读取 profileArn 字段
+///
+/// 供 credentials 未设置 profileArn 时作为兜底。
+pub(crate) fn read_profile_arn_from_kiro_auth_token() -> Option<String> {
+    let arn = read_kiro_auth_token_file()?.profile_arn.filter(|s| !s.is_empty());
+    if let Some(ref a) = arn {
+        tracing::debug!("从 kiro-auth-token.json 读取到 profileArn: {}", a);
+    }
+    arn
 }
 
 /// 刷新 IdC Token (AWS SSO OIDC)

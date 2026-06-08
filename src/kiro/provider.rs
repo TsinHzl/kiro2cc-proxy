@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
+use crate::kiro::token_manager;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
@@ -200,16 +201,18 @@ impl KiroProvider {
 
     /// 将账号级 profileArn 注入请求体，覆盖 handler 层烤入的全局值
     ///
-    /// 解决多账号场景下 profileArn 始终取自第一个账号的问题。
-    /// 若 profile_arn 为 None 或 JSON 解析失败，返回原始 body。
+    /// 优先级：credentials.profile_arn > kiro-auth-token.json > 不注入
     fn patch_profile_arn(body: &str, profile_arn: Option<&str>) -> String {
-        let Some(arn) = profile_arn else {
+        let effective_arn = profile_arn
+            .map(|s| s.to_string())
+            .or_else(token_manager::read_profile_arn_from_kiro_auth_token);
+        let Some(arn) = effective_arn else {
             return body.to_string();
         };
         let Ok(mut v) = serde_json::from_str::<serde_json::Value>(body) else {
             return body.to_string();
         };
-        v["profileArn"] = serde_json::Value::String(arn.to_string());
+        v["profileArn"] = serde_json::Value::String(arn);
         serde_json::to_string(&v).unwrap_or_else(|_| body.to_string())
     }
 

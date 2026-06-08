@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2 } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -19,6 +19,7 @@ import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { CredentialDetailPage } from '@/components/credential-detail-page'
 import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
+import { LogViewerPage } from '@/components/log-viewer-page'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
@@ -31,7 +32,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings'>('credentials')
+  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -53,7 +54,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
   const [dailyView, setDailyView] = useState<string | null>(null)
   const cancelVerifyRef = useRef(false)
-  const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | null>(null)
+  const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | 'logs' | null>(null)
   const prevDetailCredentialId = useRef<number | null>(null)
   const prevDailyView = useRef<string | null>(null)
   const initialBalanceFetchDone = useRef(false)
@@ -615,6 +616,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <Settings className="w-4 h-4 shrink-0" />
               <span>设置</span>
             </button>
+            <button
+              onClick={() => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'logs' ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+              style={activeTab === 'logs' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
+            >
+              <ScrollText className="w-4 h-4 shrink-0" />
+              <span>查看日志</span>
+            </button>
           </div>
         </nav>
         <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
@@ -632,7 +641,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
       {/* 主内容 */}
       <main className="ml-[232px] flex-1 min-h-screen px-9 py-7">
-        {activeTab === 'settings' ? (
+        {activeTab === 'logs' ? (
+          <LogViewerPage />
+        ) : activeTab === 'settings' ? (
           <SettingsPanel />
         ) : activeTab === 'apikeys' ? (
           detailKeyId !== null ? (

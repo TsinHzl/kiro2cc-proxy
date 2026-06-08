@@ -1472,6 +1472,14 @@ impl MultiTokenManager {
         self.save_stats_debounced();
     }
 
+    /// 获取指定账号的末次使用时间（RFC3339 字符串）
+    ///
+    /// 用于冷启动检测：若账号超过阈值时间未使用，可在首次请求前加额外延迟。
+    pub fn get_last_used_at(&self, id: u64) -> Option<String> {
+        let entries = self.entries.lock();
+        entries.iter().find(|e| e.id == id)?.last_used_at.clone()
+    }
+
     /// 报告指定账号 API 调用失败
     ///
     /// 增加失败计数，达到阈值时禁用账号并切换到优先级最高的可用账号

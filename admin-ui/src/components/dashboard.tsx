@@ -18,6 +18,7 @@ import { ApiKeysPanel } from '@/components/api-keys-panel'
 import { ApiKeyDetailPage } from '@/components/api-key-detail-page'
 import { CredentialDetailPage } from '@/components/credential-detail-page'
 import { ThrottleLogPage } from '@/components/throttle-log-page'
+import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
@@ -36,6 +37,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
+  const [failureLogCredentialId, setFailureLogCredentialId] = useState<number | null>(null)
   const [selectedCredentialId, setSelectedCredentialId] = useState<number | null>(null)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -664,6 +666,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
             date={dailyView}
             onBack={() => setDailyView('list')}
           />
+        ) : failureLogCredentialId !== null ? (
+          <FailureLogPage
+            credentialId={failureLogCredentialId}
+            onBack={() => setFailureLogCredentialId(null)}
+          />
         ) : throttleLogCredentialId !== null ? (
           <ThrottleLogPage
             credentialId={throttleLogCredentialId}
@@ -864,6 +871,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     onViewBalance={handleViewBalance}
                     onViewDetail={(id) => setDetailCredentialId(id)}
                     onViewThrottleLog={(id) => setThrottleLogCredentialId(id)}
+                    onViewFailureLog={(id) => setFailureLogCredentialId(id)}
                     selected={selectedIds.has(credential.id)}
                     onToggleSelect={() => toggleSelect(credential.id)}
                     balance={balanceMap.get(credential.id) || null}

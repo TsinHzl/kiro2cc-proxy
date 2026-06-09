@@ -29,9 +29,15 @@ function formatTimestamp(ts: string): string {
   return ts.replace('T', ' ').replace('Z', '')
 }
 
-export function LogViewerPage() {
-  const [levelFilter, setLevelFilter] = useState<LevelFilter>('ALL')
-  const [keyword, setKeyword] = useState('')
+interface LogViewerPageProps {
+  embedded?: boolean
+  initialLevelFilter?: LevelFilter
+  initialKeyword?: string
+}
+
+export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKeyword = '' }: LogViewerPageProps = {}) {
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>(initialLevelFilter)
+  const [keyword, setKeyword] = useState(initialKeyword)
   const [autoScroll, setAutoScroll] = useState(true)
   const [localLogs, setLocalLogs] = useState<LogEntry[]>([])
   const [copyToast, setCopyToast] = useState(false)
@@ -114,14 +120,16 @@ export function LogViewerPage() {
   }, [autoScroll])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: embedded ? '100%' : 'calc(100vh - 56px)' }}>
       {/* Page Header */}
-      <div className="mb-4">
-        <h1 className="text-[22px] font-bold tracking-[-0.02em]">实时日志</h1>
-        <p className="text-[13px] text-muted-foreground mt-0.5">
-          实时查看服务运行日志，最近 1000 条
-        </p>
-      </div>
+      {!embedded && (
+        <div className="mb-4">
+          <h1 className="text-[22px] font-bold tracking-[-0.02em]">实时日志</h1>
+          <p className="text-[13px] text-muted-foreground mt-0.5">
+            实时查看服务运行日志，最近 1000 条
+          </p>
+        </div>
+      )}
 
       {/* Terminal area */}
       <div

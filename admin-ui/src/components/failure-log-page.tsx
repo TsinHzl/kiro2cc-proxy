@@ -4,6 +4,7 @@ import { ArrowLeft, XCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useCredentials, useFailureLogs } from '@/hooks/use-credentials'
 
 interface FailureLogPageProps {
@@ -22,6 +23,7 @@ const PAGE_SIZE = 50
 
 export function FailureLogPage({ credentialId, onBack }: FailureLogPageProps) {
   const [page, setPage] = useState(1)
+  const [selectedBody, setSelectedBody] = useState<string | null>(null)
 
   const { data: credentialsData } = useCredentials()
   const { data: logsData, isLoading, refetch } = useFailureLogs(credentialId, page, PAGE_SIZE)
@@ -128,7 +130,10 @@ export function FailureLogPage({ credentialId, onBack }: FailureLogPageProps) {
                         <td className="px-4 py-2 font-mono text-xs text-red-500 dark:text-red-400">
                           {record.statusCode}
                         </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground max-w-[400px] truncate" title={record.responseBody}>
+                        <td
+                          className="px-4 py-2 text-xs text-muted-foreground max-w-[400px] truncate cursor-pointer hover:text-foreground hover:underline"
+                          onClick={() => setSelectedBody(record.responseBody)}
+                        >
                           {record.responseBody}
                         </td>
                       </tr>
@@ -165,6 +170,17 @@ export function FailureLogPage({ credentialId, onBack }: FailureLogPageProps) {
           </div>
         )}
       </div>
+
+      <Dialog open={selectedBody !== null} onOpenChange={(open) => { if (!open) setSelectedBody(null) }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>完整响应内容</DialogTitle>
+          </DialogHeader>
+          <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-y-auto flex-1 bg-muted/50 rounded p-3">
+            {selectedBody}
+          </pre>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

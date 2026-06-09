@@ -17,7 +17,7 @@ pub struct FailureEvent {
     /// "api" 或 "mcp"
     pub request_type: String,
     pub status_code: u16,
-    /// 响应体摘要（截取前 200 字符）
+    /// 响应体（截取前 2000 字符）
     pub response_body: String,
     pub created_at: DateTime<Utc>,
 }
@@ -77,10 +77,10 @@ impl FailureLogStore {
         status_code: u16,
         response_body: &str,
     ) {
-        let body_summary = if response_body.len() > 200 {
+        let body_summary = if response_body.len() > 2000 {
             let boundary = response_body
                 .char_indices()
-                .take_while(|(i, _)| *i < 200)
+                .take_while(|(i, _)| *i < 2000)
                 .last()
                 .map(|(i, c)| i + c.len_utf8())
                 .unwrap_or(0);

@@ -114,8 +114,7 @@ fn default_kiro_version() -> String {
 }
 
 fn default_system_version() -> String {
-    const SYSTEM_VERSIONS: &[&str] = &["darwin#24.6.0", "win32#10.0.22631"];
-    SYSTEM_VERSIONS[fastrand::usize(..SYSTEM_VERSIONS.len())].to_string()
+    "darwin#24.6.0".to_string()
 }
 
 fn default_node_version() -> String {

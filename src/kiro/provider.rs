@@ -32,6 +32,9 @@ const MAX_TOTAL_RETRIES: usize = 9;
 /// 最大并发请求数（同时发往上游的请求上限）
 const MAX_CONCURRENT_REQUESTS: usize = 50;
 
+/// 单账号最大并发请求数
+const MAX_CONCURRENT_PER_CREDENTIAL: usize = 5;
+
 /// Kiro API Provider
 ///
 /// 核心组件，负责与 Kiro API 通信
@@ -47,6 +50,8 @@ pub struct KiroProvider {
     tls_backend: TlsBackend,
     /// 并发控制信号量，限制同时发往上游的请求数
     concurrency_limit: Arc<Semaphore>,
+    /// 单账号并发信号量：限制每个账号的同时请求数
+    credential_semaphores: Mutex<HashMap<u64, Arc<tokio::sync::Semaphore>>>,
     /// RPM 追踪器（可选，用于记录账号维度的 RPM）
     rpm_tracker: Option<Arc<RpmTracker>>,
     /// 限流日志存储（可选）
@@ -75,6 +80,7 @@ impl KiroProvider {
             client_cache: Mutex::new(cache),
             tls_backend,
             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_REQUESTS)),
+            credential_semaphores: Mutex::new(HashMap::new()),
             rpm_tracker: None,
             throttle_log_store: None,
         }
@@ -102,6 +108,14 @@ impl KiroProvider {
         let client = build_client(effective.as_ref(), 180, self.tls_backend)?;
         cache.insert(effective, client.clone());
         Ok(client)
+    }
+
+    /// 获取指定账号的并发信号量（懒初始化）
+    fn semaphore_for(&self, credential_id: u64) -> Arc<tokio::sync::Semaphore> {
+        let mut map = self.credential_semaphores.lock();
+        map.entry(credential_id)
+            .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_PER_CREDENTIAL)))
+            .clone()
     }
 
     /// 获取 token_manager 的引用
@@ -202,7 +216,7 @@ impl KiroProvider {
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含账号和 token
     /// * `request_body` - 请求体，用于提取 agentTaskType
-    fn build_headers(&self, ctx: &CallContext, request_body: &str) -> anyhow::Result<HeaderMap> {
+    fn build_headers(&self, ctx: &CallContext, request_body: &str, attempt: usize) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
@@ -244,7 +258,7 @@ impl KiroProvider {
         );
         headers.insert(
             "amz-sdk-request",
-            HeaderValue::from_static("attempt=1; max=3"),
+            HeaderValue::from_str(&format!("attempt={}; max=3", attempt + 1)).unwrap(),
         );
         headers.insert(
             AUTHORIZATION,
@@ -254,7 +268,7 @@ impl KiroProvider {
     }
 
     /// 构建 MCP 请求头
-    fn build_mcp_headers(&self, ctx: &CallContext) -> anyhow::Result<HeaderMap> {
+    fn build_mcp_headers(&self, ctx: &CallContext, attempt: usize) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
@@ -287,7 +301,7 @@ impl KiroProvider {
         );
         headers.insert(
             "amz-sdk-request",
-            HeaderValue::from_static("attempt=1; max=3"),
+            HeaderValue::from_str(&format!("attempt={}; max=3", attempt + 1)).unwrap(),
         );
         headers.insert(
             "Authorization",
@@ -362,8 +376,11 @@ impl KiroProvider {
                 }
             };
 
+            // 获取单账号并发 permit
+            let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
+
             let url = self.mcp_url_for(&ctx.credentials);
-            let headers = match self.build_mcp_headers(&ctx) {
+            let headers = match self.build_mcp_headers(&ctx, attempt) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -527,8 +544,11 @@ impl KiroProvider {
                 }
             };
 
+            // 获取单账号并发 permit
+            let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
+
             let url = self.base_url_for(&ctx.credentials);
-            let headers = match self.build_headers(&ctx, request_body) {
+            let headers = match self.build_headers(&ctx, request_body, attempt) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -807,7 +827,7 @@ mod tests {
             credentials,
             token: "test_token".to_string(),
         };
-        let headers = provider.build_headers(&ctx, "{}").unwrap();
+        let headers = provider.build_headers(&ctx, "{}", 0).unwrap();
 
         assert_eq!(headers.get(CONTENT_TYPE).unwrap(), "application/json");
         assert_eq!(headers.get("x-amzn-codewhisperer-optout").unwrap(), "true");
@@ -877,7 +897,7 @@ mod tests {
             token: "test_token".to_string(),
         };
         let spectask_body = r#"{"conversationState":{"agentTaskType":"spectask"}}"#;
-        let headers = provider.build_headers(&ctx, spectask_body).unwrap();
+        let headers = provider.build_headers(&ctx, spectask_body, 0).unwrap();
         assert_eq!(headers.get("x-amzn-kiro-agent-mode").unwrap(), "spectask");
     }
 }

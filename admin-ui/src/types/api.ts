@@ -209,3 +209,21 @@ export interface ThrottleLogsResponse {
   pageSize: number
   totalPages: number
 }
+
+// 单条失败日志记录
+export interface FailureLogRecord {
+  credentialId: number
+  requestType: string
+  statusCode: number
+  responseBody: string
+  createdAt: string
+}
+
+// 失败日志分页响应
+export interface FailureLogsResponse {
+  records: FailureLogRecord[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

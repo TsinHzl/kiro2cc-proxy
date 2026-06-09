@@ -21,6 +21,7 @@ use kiro::token_manager::MultiTokenManager;
 use model::api_key::ApiKeyManager;
 use model::arg::Args;
 use model::config::Config;
+use model::failure_log::FailureLogStore;
 use model::throttle_log::ThrottleLogStore;
 use model::usage::UsageTracker;
 
@@ -127,9 +128,19 @@ async fn main() {
             }),
     );
 
+    let failure_log_store = Arc::new(
+        FailureLogStore::load(throttle_data_dir.join("failure_log.json"))
+            .unwrap_or_else(|e| {
+                tracing::warn!("加载失败日志失败（将使用空日志）: {}", e);
+                FailureLogStore::empty(throttle_data_dir.join("failure_log.json"))
+            }),
+    );
+    tracing::info!("failure_log_store 已启用: {:?}", throttle_data_dir.join("failure_log.json"));
+
     let kiro_provider = KiroProvider::with_proxy(token_manager.clone(), proxy_config.clone())
         .with_rpm_tracker(rpm_tracker.clone())
-        .with_throttle_log_store(throttle_log_store.clone());
+        .with_throttle_log_store(throttle_log_store.clone())
+        .with_failure_log_store(failure_log_store.clone());
 
     // 初始化 count_tokens 配置
     token::init_config(token::CountTokensConfig {
@@ -206,6 +217,7 @@ async fn main() {
                 admin_state = admin_state.with_usage_tracker(tracker.clone());
             }
             admin_state = admin_state.with_throttle_log_store(throttle_log_store.clone());
+            admin_state = admin_state.with_failure_log_store(failure_log_store.clone());
             admin_state = admin_state.with_log_capture(log_capture.clone());
             let admin_app = admin::create_admin_router(admin_state);
 

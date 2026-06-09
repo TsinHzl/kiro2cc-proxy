@@ -19,6 +19,7 @@ use crate::common::auth;
 use crate::log_capture::LogCapture;
 use crate::model::api_key::ApiKeyManager;
 use crate::model::rpm::RpmTracker;
+use crate::model::failure_log::FailureLogStore;
 use crate::model::throttle_log::ThrottleLogStore;
 use crate::model::usage::UsageTracker;
 
@@ -39,6 +40,8 @@ pub struct AdminState {
     pub rpm_tracker: Option<Arc<RpmTracker>>,
     /// 限流日志存储（可选）
     pub throttle_log_store: Option<Arc<ThrottleLogStore>>,
+    /// 失败日志存储（可选）
+    pub failure_log_store: Option<Arc<FailureLogStore>>,
     /// 日志捕获器（可选）
     pub log_capture: Option<Arc<LogCapture>>,
     /// 配置文件路径（用于持久化修改）
@@ -55,6 +58,7 @@ impl AdminState {
             usage_tracker: None,
             rpm_tracker: None,
             throttle_log_store: None,
+            failure_log_store: None,
             log_capture: None,
             config_path: None,
         }
@@ -82,6 +86,11 @@ impl AdminState {
 
     pub fn with_throttle_log_store(mut self, store: Arc<ThrottleLogStore>) -> Self {
         self.throttle_log_store = Some(store);
+        self
+    }
+
+    pub fn with_failure_log_store(mut self, store: Arc<FailureLogStore>) -> Self {
+        self.failure_log_store = Some(store);
         self
     }
 

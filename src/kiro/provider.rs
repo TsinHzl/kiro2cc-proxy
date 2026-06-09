@@ -19,6 +19,7 @@ use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
 use crate::model::rpm::RpmTracker;
+use crate::model::failure_log::FailureLogStore;
 use crate::model::throttle_log::ThrottleLogStore;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
@@ -56,6 +57,8 @@ pub struct KiroProvider {
     rpm_tracker: Option<Arc<RpmTracker>>,
     /// 限流日志存储（可选）
     throttle_log_store: Option<Arc<ThrottleLogStore>>,
+    /// 失败日志存储（可选）
+    failure_log_store: Option<Arc<FailureLogStore>>,
 }
 
 #[allow(dead_code)]
@@ -83,6 +86,7 @@ impl KiroProvider {
             credential_semaphores: Mutex::new(HashMap::new()),
             rpm_tracker: None,
             throttle_log_store: None,
+            failure_log_store: None,
         }
     }
 
@@ -95,6 +99,12 @@ impl KiroProvider {
     /// 设置限流日志存储
     pub fn with_throttle_log_store(mut self, store: Arc<ThrottleLogStore>) -> Self {
         self.throttle_log_store = Some(store);
+        self
+    }
+
+    /// 设置失败日志存储
+    pub fn with_failure_log_store(mut self, store: Arc<FailureLogStore>) -> Self {
+        self.failure_log_store = Some(store);
         self
     }
 
@@ -451,6 +461,9 @@ impl KiroProvider {
             // 401/403 账号问题
             if matches!(status.as_u16(), 401 | 403) {
                 let has_available = self.token_manager.report_failure(ctx.id);
+                if let Some(ref store) = self.failure_log_store {
+                    store.record(ctx.id, "mcp", status.as_u16(), &body);
+                }
                 if !has_available {
                     anyhow::bail!("MCP 请求失败（所有账号已用尽）: {} {}", status, body);
                 }
@@ -646,6 +659,9 @@ impl KiroProvider {
                 );
 
                 let has_available = self.token_manager.report_failure(ctx.id);
+                if let Some(ref store) = self.failure_log_store {
+                    store.record(ctx.id, "api", status.as_u16(), &body);
+                }
                 if !has_available {
                     anyhow::bail!(
                         "{} API 请求失败（所有账号已用尽）: {} {}",

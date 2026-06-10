@@ -70,7 +70,7 @@ Authorization: Bearer <用户的 API Key>
 
 **converter.rs 转换后，发给 Kiro 的请求：**
 
-```json
+```
 POST https://q.us-east-1.amazonaws.com/generateAssistantResponse
 Authorization: Bearer <Kiro access_token，每8小时刷新>
 x-amzn-kiro-agent-mode: vibe
@@ -83,15 +83,46 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
     "agentTaskType": "spectask",
     "chatTriggerType": "MANUAL",
     "history": [
+      // ─── history[0]: System Prompt（PREV_H0 冻结，跨轮次不变）───
       {
         "userInputMessage": {
-          "content": "你是一个代码助手\nWhen the Write or Edit tool has content size limits...",
+          "content": "你是一个代码助手\nWhen the Write or Edit tool has content size limits...\n<system_chunked_policy>...",
           "modelId": "claude-sonnet-4.6"
+        }
+      },
+      // ─── history[1]: System Prompt 助手应答 ───
+      {
+        "assistantResponseMessage": {
+          "content": "I will follow these instructions."
+        }
+      },
+      // ─── history[2]: Tools 定义（注入 history 以命中 Kiro 前缀缓存）───
+      {
+        "userInputMessage": {
+          "content": "<tools>[{\"toolSpecification\":{\"name\":\"read\",...}},...]</tools>",
+          "modelId": "claude-sonnet-4.6"
+        }
+      },
+      // ─── history[3]: Tools 助手应答 ───
+      {
+        "assistantResponseMessage": {
+          "content": "OK"
+        }
+      },
+      // ─── history[4..N]: 真实对话历史（每轮 user → assistant 配对）───
+      {
+        "userInputMessage": {
+          "content": "上一轮用户消息",
+          "modelId": "claude-sonnet-4.6",
+          "userInputMessageContext": {
+            "toolResults": [...]
+          }
         }
       },
       {
         "assistantResponseMessage": {
-          "content": "I will follow these instructions."
+          "content": "上一轮助手回复",
+          "toolUses": [...]
         }
       }
     ],
@@ -100,7 +131,9 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
         "content": "帮我写一个快排算法",
         "modelId": "claude-sonnet-4.6",
         "origin": "AI_EDITOR",
-        "userInputMessageContext": {}
+        "userInputMessageContext": {
+          "toolResults": [{...}]   // 本轮 tool_result（如有）
+        }
       }
     }
   }
@@ -109,11 +142,14 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
 
 **关键变换点总结：**
 1. `model: "claude-sonnet-4-6"` → `modelId: "claude-sonnet-4.6"`（连字符换点号，嵌套进去）
-2. `system` 数组 → 变成 `history` 最开头的 user+assistant 配对（`"I will follow these instructions."`）
-3. `messages` 数组 → 拆分成 `history`（历史）+ `currentMessage`（最后一条）
-4. 顶层 `Authorization` 的 Bearer → 换成 Kiro 的 access_token
-5. 加上 Kiro IDE 特有的 Header（`x-amzn-kiro-agent-mode`、`x-amz-user-agent` 等）
-6. `agentContinuationId` 由 `conversationId` SHA-256 派生（稳定值），让 Kiro 后端识别同一会话的连续请求，启用跨请求 prompt caching
+2. `system` 数组 → 变成 `history[0]` user + `history[1]` assistant 配对（`"I will follow these instructions."`）
+3. `tools` 定义 → 注入 `history[2]` user + `history[3]` assistant 配对，使其被 Kiro 前缀缓存覆盖（tools 几乎不跨轮次变化）
+4. `history[0]` 内容通过 `PREV_H0` 机制按 session_id 冻结第一次的值，后续轮次复用，防止 `cc_version`/`gitStatus`/`currentDate` 等动态字段破坏缓存
+5. `agentContinuationId` 由 `conversationId` SHA-256 派生（稳定值），让 Kiro 后端识别同一会话的连续请求，启用跨请求 prompt caching
+6. `messages` 数组 → 拆分成 `history[4..N]`（历史对话，每轮 user+assistant 配对）+ `currentMessage`（本轮用户输入）
+7. 顶层 `Authorization` 的 Bearer → 换成 Kiro 的 access_token
+8. 加上 Kiro IDE 特有的 Header（`x-amzn-kiro-agent-mode`、`x-amz-user-agent` 等）
+9. tool_results → 注入 `currentMessage.userInputMessageContext.toolResults`（本轮）或历史 user 消息（往轮）
 
 ### 3. 完整响应变换过程
 
@@ -178,11 +214,11 @@ handle_stream_request (handlers.rs)
   │
   ▼
 convert_request (converter.rs)         ← 协议转换：Anthropic → Kiro JSON
-  │  1. map_model("claude-sonnet-4-6") → "claude-sonnet-4.6"
-  │  2. system → history[0] user + history[1] assistant
-  │  3. messages → history[2..n] + currentMessage
-  │  4. tools → normalize_json_schema → Kiro tool format
-  │
+	  │  1. map_model("claude-sonnet-4-6") → "claude-sonnet-4.6"
+	  │  2. system → history[0] user (PREV_H0 冻结) + history[1] assistant
+	  │  3. tools → normalize_json_schema → 注入 history[2] user + history[3] assistant
+	  │  4. messages → history[4..N] + currentMessage
+	  │  5. tool_results → currentMessage.userInputMessageContext.toolResults
   ▼
 serde_json::to_string(conversation_state)   ← 序列化为 JSON 字符串
   │
@@ -889,6 +925,168 @@ fn normalize_billing_header(content: String) -> String {
 
 **效果**：`history[0] hash` 从每次请求都不同，变为同一会话内完全稳定（实测 `hash=4e40dd51` 连续 20+ 次请求不变），`effective_rate` 从冷启动的 `0.0207` 下降至 `0.011~0.012`，降幅约 **47%**。
 
+#### PREV_H0 — 冻结 history[0] 跨轮次（v2.4.0）
+
+**问题根因**：虽然 `cch` 已通过 `normalize_billing_header()` 固定为 `"0"`，但 Claude Code 的 system prompt 首行还包含 `cc_version=`（版本号递增）、`gitStatus=`（Git 仓库状态哈希）、`currentDate=`（日期变化）等动态字段。这些字段每次请求都可能变化，同样导致 `history[0]` hash 不稳定。
+
+**修复方案**：引入 `PREV_H0` 全局状态（`static OnceLock<Mutex<HashMap<String, String>>>`），按 `session_id` 存储第一轮的 `history[0]` 内容，后续所有轮次直接复用，完全冻结所有动态字段（`cc_version`/`gitStatus`/`currentDate` 等）：
+
+```rust
+// file: src/anthropic/converter.rs — PREV_H0 冻结逻辑
+static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+// build_history() 中：
+let final_content = {
+    let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(prev) = map.get(session_id) {
+        // 第二轮起：直接返回首轮冻存的内容
+        tracing::info!("[exp2] history[0] frozen hash={} len={} session={}", h0_hash, prev.len(), session_id);
+        prev.clone()
+    } else {
+        // 首轮：写入缓存
+        tracing::info!("[exp2] history[0] first hash={} len={} session={}", h0_hash, final_content.len(), session_id);
+        map.insert(session_id.to_string(), final_content.clone());
+        // 内存保护：超过128个会话时清空旧条目
+        if map.len() > 128 { map.retain(|k, _| k == &current_key); }
+        final_content
+    }
+};
+```
+
+**效果**：`history[0]` 的内容在整个会话内逐字节完全一致（不仅是 `cch` 固定、`cc_version`、`currentDate` 等均冻结在首轮值），Kiro 前缀缓存从 `history[0]` 起就能命中。
+
+**副作用**：若用户中途升级 Claude Code 版本导致 system prompt 模板变化，`history[0]` 仍使用旧版内容（直到会话结束或 cache 淘汰）。这比缓存失效更好——缓存失效会导致 credits 虚高，而冻存旧版只是 system prompt 少了对升级的感知。
+
+#### Tools 注入 history[2/3] — 前缀缓存覆盖工具定义（v2.5.0）
+
+**原理**：Claude Code 携带大量工具定义（通常 120–140KB），每轮请求都要发送。若将 tools 放在 `currentMessage.userInputMessageContext.tools` 中，每次请求 tools 都作为新内容发送，Kiro 无法缓存。
+
+**修复方案**：将 `tools` 定义从 `currentMessage` 移到 `history` 的固定位置（`history[2]` user + `history[3]` assistant，紧跟系统提示对）。tools 内容几乎不跨轮次变化，放入 history 后成为前缀缓存的固定部分，Kiro 可对 tool 定义做 KV cache：
+
+```rust
+// file: src/anthropic/converter.rs — tools 注入 history[2/3]
+let tools_history_idx = if !tools.is_empty() {
+    let insert_pos = if history.len() >= 2 { 2 } else { history.len() };
+    let tools_json = serde_json::to_string(&tools).unwrap_or_default();
+    let tools_user = HistoryUserMessage::new(
+        format!("<tools>{}</tools>", tools_json), &model_id
+    );
+    let tools_assistant = HistoryAssistantMessage::new("OK");
+    history.insert(insert_pos, Message::Assistant(tools_assistant));
+    history.insert(insert_pos, Message::User(tools_user));
+    Some(insert_pos)
+} else {
+    None
+};
+```
+
+**最终 history 排列顺序：**
+
+| 索引 | 内容 | 是否跨轮次变化 | 缓存行为 |
+|------|------|---------------|---------|
+| `history[0]` | System Prompt user（PREV_H0 冻结） | ❌ 不变 | 首轮写入，后续命中 |
+| `history[1]` | System Prompt assistant | ❌ 不变 | 命中 |
+| `history[2]` | Tools 定义 user | ❌ 几乎不变 | 命中（除非工具列表变化） |
+| `history[3]` | Tools 定义 assistant | ❌ 不变 | 命中 |
+| `history[4]` | 第 1 轮用户消息 | ❌ 不变 | 命中 |
+| `history[5]` | 第 1 轮助手回复 | ❌ 不变 | 命中 |
+| `...` | 后续历史轮次 | ❌ 不变 | 命中 |
+| `history[last]` | 最近一轮助手回复（新增） | ✅ 每轮新增 | 无缓存（新内容） |
+
+**cache-check 日志：** 修改后 `build_history()` 末尾统一打印每条 history 条目的 hash，便于诊断：
+
+```
+[cache-check] session=xxx history[0] hash=4e40dd51 len=26455
+[cache-check] session=xxx history[1] hash=a1b2c3d4 len=39
+[cache-check] session=xxx history[2] hash=e5f6a7b8 len=124867 (tools)
+[cache-check] session=xxx history[3] hash=9c0d1e2f len=6
+[cache-check] session=xxx history[4] hash=3f4a5b6c len=152
+...
+```
+
+**tools 变化时的影响：** 若某轮 tools 列表变化（如 Claude Code 加载了新 MCP server），`history[2]` hash 将不同于之前，Kiro 前缀缓存从 `history[2]` 起全部失效。但 `history[0]` 和 `history[1]` 仍可命中（成本较低，仅 26KB）。
+
+#### cache_read_input_tokens 反推公式（v2.5.1–v2.5.3）
+
+**背景**：Kiro 的 `meteringEvent` 不透传 `cache_read_input_tokens` / `cache_creation_input_tokens` 字段（始终为 `None`）。`input_tokens` 来自 `contextUsageEvent.contextUsagePercentage × 200000` 窗口估算，也不区分缓存命中 vs 未命中。但 Kiro 实际按缓存折扣计费——`metering_credits` 中已体现了缓存命中带来的 credits 减免。
+
+**核心思路**：从 `metering_credits`（真实计费数据）反推 `cache_read_input_tokens`。
+
+**公式推导：**
+
+1. 从 `metering_credits` 扣除 output 部分（output 无缓存折扣）：
+   ```
+   output_usd = output_price × output_tokens / 1,000,000
+   output_credits = k_ref × output_usd
+   input_credits = metering_credits - output_credits
+   ```
+
+2. 无缓存时 input 应消耗的 credits 基准：
+   ```
+   baseline = k_ref × input_price / 1,000,000 × input_tokens
+   ```
+
+3. 节省的 credits 来自缓存命中（cache read 仅收 10% 价格）：
+   ```
+   saved_credits = baseline - input_credits
+   cache_read_tokens = saved_credits / (0.9 × baseline_rate)
+   ```
+
+**k_ref 取值（按模型）：**
+
+| 模型 | k_ref | input_price | output_price |
+|------|-----:|------------:|-------------:|
+| claude-sonnet-4-* | 7.16 | $3/M | $15/M |
+| claude-opus-4-7 | 2.60 | $15/M | $75/M |
+| claude-opus-4-6 | 2.40 | $15/M | $75/M |
+| claude-haiku-* | — | — | —（k_ref 未实测，跳过反推） |
+
+**完整实现（`infer_cache_read_tokens`）：**
+
+```rust
+// file: src/anthropic/stream.rs
+fn infer_cache_read_tokens(
+    total: i32,          // input_tokens（来自 contextUsageEvent 估算）
+    credits: Option<f64>, // metering_credits
+    output_tokens: i32,  // 实际输出 token 数
+    model: &str,         // 模型名（用于查 k_ref）
+) -> Option<i32> {
+    let credits = credits?;
+    let (k_ref, input_price, output_price) = match model {
+        m if m.contains("opus") && m.contains("4-7") => (2.60, 15.0, 75.0),
+        m if m.contains("opus") => (2.40, 15.0, 75.0),
+        m if m.contains("haiku") => return None, // k_ref 未实测
+        _ => (7.16, 3.0, 15.0), // sonnet
+    };
+    // 从总 credits 中扣除 output 部分
+    let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
+    let output_credits = k_ref * output_usd;
+    let input_credits = (credits - output_credits).max(0.0);
+    // 基准 rate
+    let rate = k_ref * input_price / 1_000_000.0;
+    let baseline = rate * total as f64;
+    if baseline <= input_credits {
+        return Some(0);
+    }
+    // cache read token 享受 90% 折扣（仅付 10% 原价）
+    let r = ((baseline - input_credits) / (0.9 * rate)).round() as i32;
+    Some(r.clamp(0, total))
+}
+```
+
+**调用时机**：在 `StreamContext/BufferedStreamContext::finalize()` 中，**等待** `meteringEvent` 后再调用，确保传入了真实的 `metering_credits` 值而非估算值。
+
+**准确性验证**：公式推导出的 `cache_read_input_tokens` 与受控实验中观测到的 `effective_rate` 降幅（约 45-47%）高度吻合。受控实验（R1 写缓存 → R2 读缓存）中：
+- R1（冷启动）：`credits_per_ktok ≈ 0.021`，公式算得 `cache_read ≈ 0`
+- R2（命中缓存）：`credits_per_ktok ≈ 0.012`，公式算得 `cache_read ≈ 417`
+- 缓存命中率：`417/822 ≈ 51%`，与实际 45.1% credits 节省匹配
+
+**局限性**：
+- 依赖 `k_ref` 的经验值准确性；`k_ref` 本身由无缓存请求标定
+- haiku 模型不支持（k_ref 未实测）
+- output token 较多时（如 extended thinking），output 扣减模型误差会放大
+
 #### 多凭据轮换时的缓存隔离与预热
 
 Kiro 的 prompt cache 是**按账号（credential）隔离**的。多凭据轮换使用时，每个 credential 需要独立预热一次：
@@ -982,8 +1180,9 @@ sequenceDiagram
     AX->>AX: auth_middleware（验证 Bearer）
     AX->>CV: convert_request(anthropic_req)
     CV->>CV: map_model("claude-sonnet-4-6") → "claude-sonnet-4.6"
-    CV->>CV: system → history[0] user+assistant
-    CV->>CV: messages → history + currentMessage
+    CV->>CV: system → history[0] user (PREV_H0 冻结) + history[1] assistant
+    CV->>CV: tools → history[2] user + history[3] assistant
+    CV->>CV: messages → history[4..N] + currentMessage
     CV->>CV: determine_agent_task_type() → "spectask"/"vibe"
     CV-->>KP: ConversationState {modelId:"claude-sonnet-4.6"}
     KP->>TM: try_ensure_token()
@@ -1035,7 +1234,7 @@ sequenceDiagram
 
 ### 解析一：convert_request() — 13 步完整转换流程
 
-**文件位置：** `src/anthropic/converter.rs:335`
+**文件位置：** `src/anthropic/converter.rs:397`
 
 ```rust
 pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, ConversionError> {
@@ -1046,18 +1245,43 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     if req.messages.is_empty() { return Err(ConversionError::EmptyMessages); }
     // 2.5 末尾 assistant prefill 静默丢弃（Claude 4.x 已废弃此特性）
     let messages = strip_trailing_assistant_prefill(&req.messages)?;
-    // 3. 会话 ID 提取（优先从 metadata.user_id 的 session_ 段提取，确保多轮对话一致性）
+    // 3. 会话 ID 提取 + agentContinuationId 派生
     let conversation_id = extract_session_id_from_metadata(&req.metadata);
-    // 4-12. 构建 history + currentMessage + tools ...
+    let agent_continuation_id = derive_agent_continuation_id(&conversation_id);
+    // 4. 确定 chatTriggerType（固定 "MANUAL"）
+    // 5. 处理末条消息 → text_content + images + tool_results
+    // 6. 转换 tools 定义（含 JSON Schema 规范化）
+    // 7. build_history(): system → history[0/1]; 对话消息 → history[4..N]
+    // 8. validate_tool_pairing(): 过滤孤立 tool_result
+    // 9. remove_orphaned_tool_uses(): 清理孤立 tool_use
+    // 10. collect_history_tool_names(): 为历史引用但不在 tools 列表的工具生成占位符
+    // 11. tools 注入 history[2/3]（使 Kiro 前缀缓存覆盖工具定义）
+    // 11b. 构建 UserInputMessageContext（仅含 tool_results，不含 tools）
+    // 12. 构建 CurrentMessage（含 modelId）
     // 13. 最终构建 ConversationState
     let agent_task_type = determine_agent_task_type(req); // "spectask" 或 "vibe"
     let conversation_state = ConversationState::new(conversation_id)
+        .with_agent_continuation_id(agent_continuation_id)
         .with_agent_task_type(agent_task_type)
         .with_chat_trigger_type("MANUAL")
         .with_current_message(current_message) // ← currentMessage 含 modelId
         .with_history(history);                 // ← history 每条 user msg 也含 modelId
     Ok(ConversionResult { conversation_state })
 }
+```
+
+**history 完整排列顺序（发给 Kiro 的最终格式）：**
+
+```
+history[0] = System Prompt user      ← PREV_H0 冻结，跨轮次不变
+history[1] = System Prompt assistant ← "I will follow these instructions."
+history[2] = Tools 定义 user        ← <tools>[{...}]</tools>（几乎不跨轮次变化）
+history[3] = Tools 定义 assistant   ← "OK"
+history[4] = 第1轮 用户消息          ← 含 tool_results
+history[5] = 第1轮 助手回复          ← 含 tool_uses
+...
+history[N-1] = 最近一轮助手回复      ← 每轮新增内容
+currentMessage = 本轮用户输入        ← 含 modelId + tool_results（本轮）
 ```
 
 **最难理解的点**：System Prompt 为什么变成 `history[0]` 的 user+assistant 配对？
@@ -1090,6 +1314,8 @@ history[1] = {"assistantResponseMessage": {"content": "I will follow these instr
 ```
 
 **注意**：prompt caching 生效后，`contextUsageEvent` 上报的百分比会远低于本地估算（历史消息被 Kiro 缓存，不重复计入 context 占用）。`cap_input_tokens` 只做绝对上限截断（200K），不再强制下限兜底，避免用本地估算覆盖 Kiro 的真实数据。
+
+**v2.5.1+ 缓存读取反推**：`/cc/v1` 缓冲模式在等待 `meteringEvent` 后，通过 `infer_cache_read_tokens()` 从 `metering_credits` 反推 `cache_read_input_tokens`（详见"Prompt Caching → cache_read_input_tokens 反推公式"章节），将精确的缓存命中 token 数写入 Anthropic SSE 的 `usage` 字段和用量记录。
 
 **为什么 Claude Code 需要精确 input_tokens**：Claude Code 根据 input_tokens 判断 context 窗口是否快满了，误差过大会导致它提前"压缩上下文"或错误告警。
 
@@ -1137,15 +1363,18 @@ pub struct ConversationState {
     pub conversation_id: String,
     pub agent_task_type: Option<String>,   // "spectask"（含代码工具）或 "vibe"（纯对话）
     pub chat_trigger_type: Option<String>, // "MANUAL"
-    pub current_message: CurrentMessage,   // 包含 UserInputMessage
-    pub history: Vec<Message>,             // 历史消息，每条 user 消息都含 model_id
+    pub current_message: CurrentMessage,   // 包含 UserInputMessage（modelId + tool_results）
+    pub history: Vec<Message>,             // 历史消息排列：
+        // history[0]=system user (PREV_H0 冻结), history[1]=system asst,
+        // history[2]=tools user, history[3]=tools asst,
+        // history[4..N]=对话 user/asst 配对
 }
 
 // file: src/kiro/model/requests/conversation.rs:95 — ★ 核心：决定 Claude 版本
 pub struct UserInputMessage {
     pub content: String,                          // 用户消息文本
     pub model_id: String,                         // ★ Kiro 模型 ID（由 map_model 生成）
-    pub user_input_message_context: UserInputMessageContext, // 工具定义和工具结果
+    pub user_input_message_context: UserInputMessageContext, // 工具结果（tools 已移入 history[2/3]）
     pub images: Vec<KiroImage>,                   // 图片列表
     pub origin: Option<String>,                   // "AI_EDITOR"（伪装身份用）
 }
@@ -1200,11 +1429,12 @@ MessagesRequest
 │     系统提示，支持字符串或数组两种格式（反序列化时自动统一为数组）
 │     每条 SystemMessage:
 │       └── text: String          系统提示文本
-│     → 转换为 history[0] user + history[1] assistant 配对注入 Kiro
+│     → 转换为 history[0] user (PREV_H0 冻结) + history[1] assistant 配对注入 Kiro
 │
 ├── tools: Option<Vec<Tool>>
 │     工具定义列表（见 1.3）
-│     → 经 normalize_json_schema() 规范化后写入 Kiro currentMessage 的 tools 字段
+│     → 经 normalize_json_schema() 规范化后注入 Kiro history[2] user + history[3] assistant
+│       （v2.5.0 起改为注入 history 以使 Kiro 前缀缓存覆盖工具定义）
 │
 ├── tool_choice: Option<JSON Value>
 │     工具选择策略，如 {"type":"auto"} / {"type":"any"} / {"type":"tool","name":"xxx"}
@@ -1460,8 +1690,13 @@ ConversationState
 │
 └── history: Vec<Message>
       历史消息列表，可为空
-      结构：[system_user, system_assistant, msg1_user, msg1_assistant, ..., msgN_user, msgN_assistant]
-      注意：system prompt 被转换为 history[0]+history[1] 的 user+assistant 配对
+      完整结构：
+        history[0]=system_user (PREV_H0 冻结)
+        history[1]=system_assistant
+        history[2]=tools_user (v2.5.0+)
+        history[3]=tools_assistant (v2.5.0+)
+        history[4..N]=对话 user/asst 配对 (msg1_user, msg1_asst, ..., msgN_user, msgN_asst)
+      注意：system prompt + tools 定义均转换为此格式，每条 user msg 都含 modelId
       每条 Message 是 enum，两种变体（见 2.5/2.6）
 ```
 
@@ -1495,9 +1730,11 @@ UserInputMessage
 
 #### 2.4 `UserInputMessageContext` — 消息上下文
 
+> **v2.5.0 变更**：`tools` 已从 context 移至 `history[2/3]`（使 Kiro 前缀缓存覆盖工具定义）。context 的 `tools` 字段在序列化时始终为空。
+
 ```
 UserInputMessageContext
-├── tools: Vec<Tool>
+├── tools: Vec<Tool>（v2.5.0 起始终为空，tools 改为注入 history[2/3]）
 │     可用工具列表，空时不序列化
 │     Kiro Tool（与 Anthropic Tool 结构不同）：
 │       └── tool_specification: ToolSpecification

@@ -474,11 +474,50 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         }
     }
 
-    // 11. 构建 UserInputMessageContext
-    let mut context = UserInputMessageContext::new();
-    if !tools.is_empty() {
-        context = context.with_tools(tools);
+    // 11. 将 tools 注入 history（系统提示对之后），使 Kiro 前缀缓存覆盖工具定义。
+    // tools 几乎不跨轮次变化，放入 history 后可被 Kiro 缓存，减少重复计费。
+    // 若 tools 变化，history[tools_idx] hash 会变，后续历史缓存从该位置起失效。
+    let tools_history_idx = if !tools.is_empty() {
+        // 找系统提示对结束的位置（history[0/1] 是系统提示对，若无系统提示则从 0 插入）
+        let insert_pos = if history.len() >= 2 { 2 } else { history.len() };
+        let tools_json = serde_json::to_string(&tools).unwrap_or_default();
+        let tools_user = HistoryUserMessage {
+            user_input_message: {
+                let mut msg = crate::kiro::model::requests::conversation::UserMessage::new(
+                    format!("<tools>{}</tools>", tools_json),
+                    &model_id,
+                );
+                msg.origin = None;
+                msg
+            },
+        };
+        let tools_assistant = HistoryAssistantMessage::new("OK");
+        history.insert(insert_pos, Message::Assistant(tools_assistant));
+        history.insert(insert_pos, Message::User(tools_user));
+        Some(insert_pos)
+    } else {
+        None
+    };
+
+    // [cache-check] tools 插入后统一打印所有 history 条目，index 与实际发给 Kiro 的结构一致。
+    for (i, msg) in history.iter().enumerate() {
+        let json = serde_json::to_string(msg).unwrap_or_default();
+        let hash = format!("{:x}", Sha256::digest(json.as_bytes()));
+        let label = tools_history_idx
+            .map(|idx| if i == idx { " (tools)" } else { "" })
+            .unwrap_or("");
+        tracing::info!(
+            "[cache-check] session={} history[{}] hash={} len={}{}",
+            conversation_id,
+            i,
+            &hash[..8],
+            json.len(),
+            label
+        );
     }
+
+    // 11b. 构建 UserInputMessageContext（tools 已移入 history，此处只放 tool_results）
+    let mut context = UserInputMessageContext::new();
     if !validated_tool_results.is_empty() {
         context = context.with_tool_results(validated_tool_results);
     }

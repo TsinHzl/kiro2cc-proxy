@@ -548,27 +548,37 @@ pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32) -> i
 /// 其中 rate = k_ref × input_price / 1_000_000（credits per token）
 ///
 /// 仅 sonnet/opus 系列有可靠 k_ref；haiku 返回 None，由调用方降级到模拟值。
-fn infer_cache_read_tokens(total: i32, credits: Option<f64>, model: &str) -> Option<i32> {
+fn infer_cache_read_tokens(
+    total: i32,
+    credits: Option<f64>,
+    output_tokens: i32,
+    model: &str,
+) -> Option<i32> {
     let credits = credits?;
-    // (k_ref, input_price_per_million_usd)
-    let (k_ref, price): (f64, f64) = if model.contains("opus") {
+    // (k_ref, input_price_per_M, output_price_per_M)
+    let (k_ref, input_price, output_price): (f64, f64, f64) = if model.contains("opus") {
         if model.contains("4-7") {
-            (2.60, 15.0)
+            (2.60, 15.0, 75.0)
         } else {
-            (2.40, 15.0)
+            (2.40, 15.0, 75.0)
         }
     } else if model.contains("haiku") {
         return None; // k_ref 未实测，降级到模拟值
     } else {
         // sonnet 系列
-        (7.16, 3.0)
+        (7.16, 3.0, 15.0)
     };
-    let rate = k_ref * price / 1_000_000.0; // credits per token（无缓存基准）
+    // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
+    let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
+    let output_credits = k_ref * output_usd;
+    let input_credits = (credits - output_credits).max(0.0);
+
+    let rate = k_ref * input_price / 1_000_000.0; // credits per input token（无缓存基准）
     let baseline = rate * total as f64;
-    if baseline <= credits {
+    if baseline <= input_credits {
         return Some(0);
     }
-    let r = ((baseline - credits) / (0.9 * rate)).round() as i32;
+    let r = ((baseline - input_credits) / (0.9 * rate)).round() as i32;
     Some(r.clamp(0, total))
 }
 
@@ -1402,6 +1412,7 @@ impl StreamContext {
                 match infer_cache_read_tokens(
                     final_input_tokens,
                     self.metering_usage,
+                    self.output_tokens,
                     &self.model,
                 ) {
                     Some(r) => (final_input_tokens.saturating_sub(r), Some(0_i32), Some(r)),

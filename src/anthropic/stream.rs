@@ -539,6 +539,39 @@ pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32) -> i
     cap_input_tokens(context_input_tokens, local_estimate)
 }
 
+/// 从 metering credits 反推 cache_read_input_tokens。
+///
+/// Kiro 对缓存命中 token 按 10% 折扣定价（与 Anthropic 一致），因此：
+///   credits = rate × (total - 0.9 × R)
+///   → R = (rate × total - credits) / (0.9 × rate)
+///
+/// 其中 rate = k_ref × input_price / 1_000_000（credits per token）
+///
+/// 仅 sonnet/opus 系列有可靠 k_ref；haiku 返回 None，由调用方降级到模拟值。
+fn infer_cache_read_tokens(total: i32, credits: Option<f64>, model: &str) -> Option<i32> {
+    let credits = credits?;
+    // (k_ref, input_price_per_million_usd)
+    let (k_ref, price): (f64, f64) = if model.contains("opus") {
+        if model.contains("4-7") {
+            (2.60, 15.0)
+        } else {
+            (2.40, 15.0)
+        }
+    } else if model.contains("haiku") {
+        return None; // k_ref 未实测，降级到模拟值
+    } else {
+        // sonnet 系列
+        (7.16, 3.0)
+    };
+    let rate = k_ref * price / 1_000_000.0; // credits per token（无缓存基准）
+    let baseline = rate * total as f64;
+    if baseline <= credits {
+        return Some(0);
+    }
+    let r = ((baseline - credits) / (0.9 * rate)).round() as i32;
+    Some(r.clamp(0, total))
+}
+
 /// 流处理上下文
 pub struct StreamContext {
     /// SSE 状态管理器
@@ -1363,11 +1396,21 @@ impl StreamContext {
                     .saturating_sub(creation);
                 (non_cached, Some(creation), Some(read))
             } else {
-                (
-                    sim_usage.input_tokens,
-                    Some(sim_usage.cache_creation_input_tokens),
-                    Some(sim_usage.cache_read_input_tokens),
-                )
+                // Kiro 未透传真实 cache token（cache_read=None cache_creation=None），
+                // 用 metering credits 反推 cache_read，比固定 85% 模拟更贴近真实。
+                // haiku 或 k_ref 未知时降级到固定比例模拟值。
+                match infer_cache_read_tokens(
+                    final_input_tokens,
+                    self.metering_usage,
+                    &self.model,
+                ) {
+                    Some(r) => (final_input_tokens.saturating_sub(r), Some(0_i32), Some(r)),
+                    None => (
+                        sim_usage.input_tokens,
+                        Some(sim_usage.cache_creation_input_tokens),
+                        Some(sim_usage.cache_read_input_tokens),
+                    ),
+                }
             };
         events.extend(self.state_manager.generate_final_events(
             report_input,

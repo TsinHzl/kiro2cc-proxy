@@ -31,6 +31,12 @@ pub struct UsageRecord {
     /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_used: Option<f64>,
+    /// 缓存命中的输入 token 数（来自 meteringEvent 或反推，None 表示旧数据）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<i32>,
+    /// 缓存创建的输入 token 数（来自 meteringEvent，None 表示旧数据）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<i32>,
     /// 记录时间
     pub created_at: DateTime<Utc>,
     /// 客户端 IP（None 表示旧数据或未知）
@@ -174,6 +180,8 @@ impl UsageTracker {
         output_tokens: i32,
         client_ip: Option<String>,
         credits_used: Option<f64>,
+        cache_read_input_tokens: Option<i32>,
+        cache_creation_input_tokens: Option<i32>,
     ) {
         let cost = calculate_cost(&model, input_tokens, output_tokens);
         let record = UsageRecord {
@@ -184,6 +192,8 @@ impl UsageTracker {
             output_tokens,
             estimated_cost: cost,
             credits_used,
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
             created_at: Utc::now(),
             client_ip,
         };
@@ -361,6 +371,8 @@ impl UsageTracker {
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
                     credits_saved,
+                    cache_read_input_tokens: r.cache_read_input_tokens,
+                    cache_creation_input_tokens: r.cache_creation_input_tokens,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -401,6 +413,12 @@ pub struct UsageRecordItem {
     /// 真实 credits 消耗（来自 meteringEvent，None 表示旧数据）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits_used: Option<f64>,
+    /// 缓存命中的输入 token 数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<i32>,
+    /// 缓存创建的输入 token 数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<i32>,
     /// 节省的 credits（与无缓存对比）= estimated_cost * get_k_ref(model) - credits_used
     /// 仅当 credits_used 有值时才有值
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -477,6 +495,8 @@ impl UsageTracker {
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
                     credits_saved,
+                    cache_read_input_tokens: r.cache_read_input_tokens,
+                    cache_creation_input_tokens: r.cache_creation_input_tokens,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,
@@ -594,6 +614,8 @@ impl UsageTracker {
                     estimated_cost: r.estimated_cost,
                     credits_used: r.credits_used,
                     credits_saved,
+                    cache_read_input_tokens: r.cache_read_input_tokens,
+                    cache_creation_input_tokens: r.cache_creation_input_tokens,
                     created_at: r.created_at,
                     credential_id: r.credential_id,
                     credential_label,

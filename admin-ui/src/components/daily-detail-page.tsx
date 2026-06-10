@@ -142,6 +142,7 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">缓存读取</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">费用</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Credits</th>
                     </tr>
@@ -170,6 +171,9 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
                           </td>
                           <td className="px-4 py-2 text-right tabular-nums">{formatTokens(record.inputTokens)}</td>
                           <td className="px-4 py-2 text-right tabular-nums">{formatTokens(record.outputTokens)}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-green-600 dark:text-green-400">
+                            {record.cacheReadInputTokens != null ? formatTokens(record.cacheReadInputTokens) : '—'}
+                          </td>
                           <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                             {formatCost(record.estimatedCost)}
                           </td>

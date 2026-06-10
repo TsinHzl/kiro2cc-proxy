@@ -1359,41 +1359,6 @@ impl StreamContext {
         // 对外报告的 output_tokens 需要限制在合理范围
         let reported_output_tokens = self.output_tokens.min(OUTPUT_TOKENS_REPORT_CAP);
 
-        // 记录用量（内部记录使用真实值）
-        if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
-            let credits_per_ktok = self.metering_usage.map(|c| {
-                if final_input_tokens > 0 {
-                    c / (final_input_tokens as f64) * 1000.0
-                } else {
-                    0.0
-                }
-            });
-            let effective_rate = self.metering_usage.map(|c| {
-                let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
-                if denom > 0.0 {
-                    c / denom * 1000.0
-                } else {
-                    0.0
-                }
-            });
-            tracing::info!(
-                "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
-                self.model, final_input_tokens, self.output_tokens, self.metering_usage,
-                credits_per_ktok, effective_rate,
-                self.metering_cache_read_tokens, self.metering_cache_creation_tokens,
-                key_id, self.credential_id
-            );
-            tracker.record(
-                key_id,
-                self.credential_id,
-                self.model.clone(),
-                final_input_tokens,
-                self.output_tokens,
-                self.client_ip.clone(),
-                self.metering_usage,
-            );
-        }
-
         // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
         let sim_usage = self.prompt_cache_usage.scale_to(final_input_tokens);
         let (report_input, report_cache_creation, report_cache_read) =
@@ -1423,6 +1388,43 @@ impl StreamContext {
                     ),
                 }
             };
+
+        // 记录用量（内部记录使用真实值）
+        if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
+            let credits_per_ktok = self.metering_usage.map(|c| {
+                if final_input_tokens > 0 {
+                    c / (final_input_tokens as f64) * 1000.0
+                } else {
+                    0.0
+                }
+            });
+            let effective_rate = self.metering_usage.map(|c| {
+                let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
+                if denom > 0.0 {
+                    c / denom * 1000.0
+                } else {
+                    0.0
+                }
+            });
+            tracing::info!(
+                "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
+                self.model, final_input_tokens, self.output_tokens, self.metering_usage,
+                credits_per_ktok, effective_rate,
+                report_cache_read, report_cache_creation,
+                key_id, self.credential_id
+            );
+            tracker.record(
+                key_id,
+                self.credential_id,
+                self.model.clone(),
+                final_input_tokens,
+                self.output_tokens,
+                self.client_ip.clone(),
+                self.metering_usage,
+                report_cache_read,
+                report_cache_creation,
+            );
+        }
         events.extend(self.state_manager.generate_final_events(
             report_input,
             reported_output_tokens,

@@ -1014,7 +1014,7 @@ async fn handle_non_stream_request(
             "[usage] 入库: model={} input={} output={} metering_credits=None credits_per_ktok=None effective_rate=None cache_read=None cache_creation=None api_key={} credential=Some({})",
             model, final_input_tokens, output_tokens, key_id, credential_id
         );
-        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, None);
+        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, None, None, None);
     }
 
     // 构建 Anthropic 响应

@@ -189,6 +189,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">模型</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Input</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Output</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">缓存读取</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">费用</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Kiro Credits</th>
                       </tr>
@@ -219,6 +220,9 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums">
                               {formatTokens(r.outputTokens)}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-green-600 dark:text-green-400">
+                              {r.cacheReadInputTokens != null ? formatTokens(r.cacheReadInputTokens) : '—'}
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                               {formatCost(r.estimatedCost)}

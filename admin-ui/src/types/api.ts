@@ -168,6 +168,7 @@ export interface UsageRecord {
   estimatedCost: number
   creditsUsed?: number
   creditsSaved?: number
+  cacheReadInputTokens?: number
   createdAt: string
   credentialId?: number
   credentialLabel?: string

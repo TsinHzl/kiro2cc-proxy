@@ -207,6 +207,78 @@ Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
 
 static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+static PREV_TOOLS: OnceLock<Mutex<HashMap<String, (String, bool)>>> = OnceLock::new();
+
+/// 从文本中剥除所有 `<system-reminder>...</system-reminder>` 标签及其内容。
+fn strip_system_reminders(text: &str) -> String {
+    const OPEN_TAG: &str = "<system-reminder>";
+    const CLOSE_TAG: &str = "</system-reminder>";
+
+    let mut result = String::with_capacity(text.len());
+    let mut search_from = 0;
+
+    while let Some(start) = text[search_from..].find(OPEN_TAG) {
+        let abs_start = search_from + start;
+        result.push_str(&text[search_from..abs_start]);
+
+        let after_open = abs_start + OPEN_TAG.len();
+        if let Some(end) = text[after_open..].find(CLOSE_TAG) {
+            search_from = after_open + end + CLOSE_TAG.len();
+        } else {
+            search_from = text.len();
+        }
+    }
+    result.push_str(&text[search_from..]);
+
+    result
+}
+
+/// 从所有 user 消息中提取 `<system-reminder>` 标签内的内容，拼接返回。
+fn extract_system_reminders(messages: &[super::types::Message]) -> String {
+    const OPEN_TAG: &str = "<system-reminder>";
+    const CLOSE_TAG: &str = "</system-reminder>";
+
+    let mut reminders = Vec::new();
+
+    for msg in messages {
+        if msg.role != "user" {
+            continue;
+        }
+        let texts: Vec<String> = match &msg.content {
+            serde_json::Value::String(s) => vec![s.clone()],
+            serde_json::Value::Array(arr) => arr
+                .iter()
+                .filter_map(|item| {
+                    let t = item.get("type")?.as_str()?;
+                    if t == "text" {
+                        item.get("text")?.as_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            _ => vec![],
+        };
+
+        for text in &texts {
+            let mut search_from = 0;
+            while let Some(start) = text[search_from..].find(OPEN_TAG) {
+                let after_open = search_from + start + OPEN_TAG.len();
+                if let Some(end) = text[after_open..].find(CLOSE_TAG) {
+                    let content = text[after_open..after_open + end].trim();
+                    if !content.is_empty() {
+                        reminders.push(content.to_string());
+                    }
+                    search_from = after_open + end + CLOSE_TAG.len();
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    reminders.join("\n")
+}
 
 /// 将系统提示词中 `x-anthropic-billing-header` 行的 `cch=<value>` 替换为固定值 `0`。
 /// cch 是 Claude Code 每轮注入的计费哈希，对 Kiro 无意义，固定后 history[0] 跨请求稳定，
@@ -475,12 +547,42 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     }
 
     // 11. 将 tools 注入 history（系统提示对之后），使 Kiro 前缀缓存覆盖工具定义。
-    // tools 几乎不跨轮次变化，放入 history 后可被 Kiro 缓存，减少重复计费。
-    // 若 tools 变化，history[tools_idx] hash 会变，后续历史缓存从该位置起失效。
+    // 连续两轮 tools JSON 相同则冻结，冻结后跨轮次稳定命中缓存。
     let tools_history_idx = if !tools.is_empty() {
-        // 找系统提示对结束的位置（history[0/1] 是系统提示对，若无系统提示则从 0 插入）
         let insert_pos = if history.len() >= 2 { 2 } else { history.len() };
-        let tools_json = serde_json::to_string(&tools).unwrap_or_default();
+        let tools_json = {
+            let cache = PREV_TOOLS.get_or_init(|| Mutex::new(HashMap::new()));
+            let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
+            let current_json = serde_json::to_string(&tools).unwrap_or_default();
+            let prev_state = map.get(&conversation_id).cloned();
+            let result = if let Some((prev_json, frozen)) = prev_state {
+                if frozen {
+                    // 已冻结，永远复用冻结值
+                    prev_json
+                } else if prev_json == current_json {
+                    // 连续两轮相同，冻结
+                    tracing::info!(
+                        "[cache-freeze] session={} tools frozen (consecutive match)",
+                        conversation_id
+                    );
+                    map.insert(conversation_id.clone(), (prev_json, true));
+                    current_json
+                } else {
+                    // 未冻结且不同，更新为本轮值
+                    map.insert(conversation_id.clone(), (current_json.clone(), false));
+                    current_json
+                }
+            } else {
+                // 首轮，记录但不冻结
+                map.insert(conversation_id.clone(), (current_json.clone(), false));
+                if map.len() > 128 {
+                    let current_key = conversation_id.clone();
+                    map.retain(|k, _| k == &current_key);
+                }
+                current_json
+            };
+            result
+        };
         let tools_user = HistoryUserMessage {
             user_input_message: {
                 let mut msg = crate::kiro::model::requests::conversation::UserMessage::new(
@@ -516,8 +618,22 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         );
     }
 
-    // 11b. 构建 UserInputMessageContext（tools 已移入 history，此处只放 tool_results）
+    // 11b. 构建 UserInputMessageContext
+    // tools 完整定义在 history 中（走缓存），context.tools 放精简骨架（仅 name）触发 Kiro toolUseEvent 模式
     let mut context = UserInputMessageContext::new();
+    if !tools.is_empty() {
+        let slim_tools: Vec<Tool> = tools
+            .iter()
+            .map(|t| Tool {
+                tool_specification: ToolSpecification {
+                    name: t.tool_specification.name.clone(),
+                    description: t.tool_specification.description.chars().take(1).collect(),
+                    input_schema: InputSchema::default(),
+                },
+            })
+            .collect();
+        context.tools = slim_tools;
+    }
     if !validated_tool_results.is_empty() {
         context = context.with_tool_results(validated_tool_results);
     }
@@ -582,7 +698,10 @@ fn process_message_content(
 
     match content {
         serde_json::Value::String(s) => {
-            text_parts.push(s.clone());
+            let stripped = strip_system_reminders(s);
+            if !stripped.trim().is_empty() {
+                text_parts.push(stripped);
+            }
         }
         serde_json::Value::Array(arr) => {
             for item in arr {
@@ -590,7 +709,10 @@ fn process_message_content(
                     match block.block_type.as_str() {
                         "text" => {
                             if let Some(text) = block.text {
-                                text_parts.push(text);
+                                let stripped = strip_system_reminders(&text);
+                                if !stripped.trim().is_empty() {
+                                    text_parts.push(stripped);
+                                }
                             }
                         }
                         "image" => {
@@ -1170,6 +1292,16 @@ fn build_history(
             // 将 cch= 固定为 0，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
             let final_content = normalize_billing_header(final_content);
 
+            // 从 messages 中提取 <system-reminder> 内容追加到 h[0]，一并冻结
+            let final_content = {
+                let reminders = extract_system_reminders(messages);
+                if reminders.is_empty() {
+                    final_content
+                } else {
+                    format!("{}\n{}", final_content, reminders)
+                }
+            };
+
             // 同一会话复用首轮 history[0]，冻结 cc_version/gitStatus/currentDate 等易变字段，
             // 确保 Kiro 服务端跨轮次缓存命中。首轮写入，后续轮次直接返回首轮内容。
             let final_content = {
@@ -1324,7 +1456,6 @@ fn merge_user_messages(
 fn convert_assistant_message(
     msg: &super::types::Message,
 ) -> Result<HistoryAssistantMessage, ConversionError> {
-    let mut thinking_content = String::new();
     let mut text_content = String::new();
     let mut tool_uses = Vec::new();
 
@@ -1336,11 +1467,10 @@ fn convert_assistant_message(
             for item in arr {
                 if let Ok(block) = serde_json::from_value::<ContentBlock>(item.clone()) {
                     match block.block_type.as_str() {
-                        "thinking" => {
-                            if let Some(thinking) = block.thinking {
-                                thinking_content.push_str(&thinking);
-                            }
-                        }
+                        // 历史消息中剥离 thinking 内容：thinking 仅对当轮推理有意义，
+                        // 保留在 history 中会导致 payload 膨胀（Opus 每轮可产生数万字符），
+                        // 触发 Kiro 400 "Improperly formed request"。
+                        "thinking" => {}
                         "text" => {
                             if let Some(text) = block.text {
                                 text_content.push_str(&text);
@@ -1360,19 +1490,8 @@ fn convert_assistant_message(
         _ => {}
     }
 
-    // 组合 thinking 和 text 内容
-    // 格式: <thinking>思考内容</thinking>\n\ntext内容
-    // 注意: Kiro API 要求 content 字段不能为空，当只有 tool_use 时需要占位符
-    let final_content = if !thinking_content.is_empty() {
-        if !text_content.is_empty() {
-            format!(
-                "<thinking>{}</thinking>\n\n{}",
-                thinking_content, text_content
-            )
-        } else {
-            format!("<thinking>{}</thinking>", thinking_content)
-        }
-    } else if text_content.is_empty() && !tool_uses.is_empty() {
+    // Kiro API 要求 content 字段不能为空，当只有 tool_use 时需要占位符
+    let final_content = if text_content.is_empty() && !tool_uses.is_empty() {
         " ".to_string()
     } else {
         text_content
@@ -1774,7 +1893,7 @@ mod tests {
             output_config: None,
             metadata: None,
         };
-        assert_eq!(determine_agent_task_type(&req), "vibe");
+        assert_eq!(determine_agent_task_type(&req), "spectask");
     }
 
     #[test]
@@ -2409,7 +2528,8 @@ mod tests {
         let result = merge_assistant_messages(&messages).expect("合并应成功");
 
         let content = &result.assistant_response_message.content;
-        assert!(content.contains("<thinking>"), "应包含 thinking 标签");
+        // thinking 块在 convert_assistant_message 中被有意剥离，不应出现
+        assert!(!content.contains("<thinking>"), "thinking 应被剥离");
         assert!(
             content.contains("Let me read that file"),
             "应包含第二条消息的 text 内容"

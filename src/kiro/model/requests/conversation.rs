@@ -159,12 +159,6 @@ impl UserInputMessageContext {
         Self::default()
     }
 
-    /// 设置工具列表
-    pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
-        self.tools = tools;
-        self
-    }
-
     /// 设置工具结果
     pub fn with_tool_results(mut self, results: Vec<ToolResult>) -> Self {
         self.tool_results = results;

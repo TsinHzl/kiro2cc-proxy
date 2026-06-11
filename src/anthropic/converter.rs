@@ -561,30 +561,15 @@ fn determine_chat_trigger_type(_req: &MessagesRequest) -> String {
     "MANUAL".to_string()
 }
 
-/// 典型代码工具名称（用于 spectask 检测）
-const CODE_TOOL_NAMES: &[&str] = &[
-    "read", "write", "edit", "bash", "glob", "grep",
-    "read_file", "write_file", "edit_file", "run_bash",
-    "list_files", "search_files", "create_file", "delete_file",
-    "str_replace_editor", "computer",
-];
-
 /// 确定代理任务类型
 ///
-/// - 若工具列表包含典型代码/文件系统工具 → "spectask"（优化代码生成质量）
-/// - 否则 → "vibe"（优化对话连续性）
+/// - 请求携带任意工具 → "spectask"：触发 Kiro 原生 toolUseEvent 响应
+/// - 无工具 → "vibe"
 fn determine_agent_task_type(req: &MessagesRequest) -> &'static str {
-    let Some(tools) = &req.tools else {
-        return "vibe";
-    };
-    if tools.is_empty() {
-        return "vibe";
+    match &req.tools {
+        Some(tools) if !tools.is_empty() => "spectask",
+        _ => "vibe",
     }
-    let has_code_tool = tools.iter().any(|t| {
-        let name_lower = t.name.to_lowercase();
-        CODE_TOOL_NAMES.iter().any(|&code_tool| name_lower == code_tool)
-    });
-    if has_code_tool { "spectask" } else { "vibe" }
 }
 
 /// 处理消息内容，提取文本、图片和工具结果

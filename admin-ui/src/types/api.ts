@@ -169,6 +169,7 @@ export interface UsageRecord {
   creditsUsed?: number
   creditsSaved?: number
   cacheReadInputTokens?: number
+  cacheCreationInputTokens?: number
   createdAt: string
   credentialId?: number
   credentialLabel?: string

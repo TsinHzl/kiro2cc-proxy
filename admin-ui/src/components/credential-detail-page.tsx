@@ -231,7 +231,14 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                           {formatTokens(record.outputTokens)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums text-green-600 dark:text-green-400">
-                          {record.cacheReadInputTokens != null ? formatTokens(record.cacheReadInputTokens) : '—'}
+                          {record.cacheReadInputTokens != null && record.inputTokens > 0 ? (
+                            <>
+                              <span>{formatTokens(record.cacheReadInputTokens)}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {(record.cacheReadInputTokens / record.inputTokens * 100).toFixed(1)}%
+                              </span>
+                            </>
+                          ) : '—'}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(record.estimatedCost)}

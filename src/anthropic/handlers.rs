@@ -870,6 +870,7 @@ async fn handle_non_stream_request(
     let mut context_input_tokens: Option<i32> = None;
     let mut metering_cache_read_tokens: Option<i32> = None;
     let mut metering_cache_creation_tokens: Option<i32> = None;
+    let mut metering_usage: Option<f64> = None;
 
     // 收集工具调用的增量 JSON
     let mut tool_json_buffers: std::collections::HashMap<String, String> =
@@ -936,6 +937,7 @@ async fn handle_non_stream_request(
                         Event::Metering(metering) => {
                             metering_cache_read_tokens = metering.cache_read_input_tokens;
                             metering_cache_creation_tokens = metering.cache_creation_input_tokens;
+                            metering_usage = Some(metering.usage);
                         }
                         Event::Exception { exception_type, .. } => {
                             if exception_type == "ContentLengthExceededException" {
@@ -998,12 +1000,14 @@ async fn handle_non_stream_request(
     // 对外报告的 output_tokens 限制在安全范围
     let reported_output_tokens = output_tokens.min(380);
 
-    // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+    // 优先使用 meteringEvent 中的真实 cache token，次选 credits 反推，最后降级到模拟值
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
     let (report_input, report_cache_creation, report_cache_read) =
         if let (Some(read), Some(creation)) = (metering_cache_read_tokens, metering_cache_creation_tokens) {
-            let non_cached = final_input_tokens.saturating_sub(read).saturating_sub(creation);
-            (non_cached, creation, read)
+            (final_input_tokens.saturating_sub(read).saturating_sub(creation), creation, read)
+        } else if let Some(inferred) = crate::anthropic::stream::infer_cache_read_tokens(
+            final_input_tokens, metering_usage, output_tokens, model) {
+            (final_input_tokens.saturating_sub(inferred), 0, inferred)
         } else {
             (sim_usage.input_tokens, sim_usage.cache_creation_input_tokens, sim_usage.cache_read_input_tokens)
         };
@@ -1011,10 +1015,10 @@ async fn handle_non_stream_request(
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
         tracing::info!(
-            "[usage] 入库: model={} input={} output={} metering_credits=None credits_per_ktok=None effective_rate=None cache_read=None cache_creation=None api_key={} credential=Some({})",
-            model, final_input_tokens, output_tokens, key_id, credential_id
+            "[usage] 入库: model={} input={} output={} metering_credits={:?} cache_read={} cache_creation={} api_key={} credential=Some({})",
+            model, final_input_tokens, output_tokens, metering_usage, report_cache_read, report_cache_creation, key_id, credential_id
         );
-        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, None, None, None);
+        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, metering_usage, Some(report_cache_read), Some(report_cache_creation));
     }
 
     // 构建 Anthropic 响应

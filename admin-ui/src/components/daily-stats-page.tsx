@@ -7,6 +7,7 @@ import { useDailyUsage } from '@/hooks/use-credentials'
 interface DailyStatsPageProps {
   onBack: () => void
   onViewDay: (date: string) => void
+  showBack?: boolean
 }
 
 function formatDate(dateStr: string): string {
@@ -15,16 +16,18 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export function DailyStatsPage({ onBack, onViewDay }: DailyStatsPageProps) {
+export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStatsPageProps) {
   const { data, isLoading, refetch } = useDailyUsage()
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-          <ArrowLeft className="h-4 w-4" />
-          返回
-        </Button>
+        {showBack && (
+          <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+            <ArrowLeft className="h-4 w-4" />
+            返回
+          </Button>
+        )}
         <h2 className="text-xl font-semibold">每日用量统计</h2>
         <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading} className="ml-auto">
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

@@ -55,6 +55,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [liveCreditsTotal, setLiveCreditsTotal] = useState<number | null>(null)
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
   const [dailyView, setDailyView] = useState<string | null>(null)
+  const [dailyFromSidebar, setDailyFromSidebar] = useState(false)
   const cancelVerifyRef = useRef(false)
   const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | 'logs' | null>(null)
   const prevDetailCredentialId = useRef<number | null>(null)
@@ -598,7 +599,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             {[
               { label: '账号管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-              { label: '每日统计', icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list') } },
+              { label: '每日统计', icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
             ].map(({ label, icon, active, onClick }) => (
               <button key={label} onClick={onClick}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
@@ -658,6 +659,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           )
         ) : dailyView === 'list' ? (
           <DailyStatsPage
+            showBack={!dailyFromSidebar}
             onBack={() => setDailyView(null)}
             onViewDay={(date) => setDailyView(date)}
           />
@@ -691,7 +693,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </div>
         </div>
         {/* 统计卡片 */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-5 mb-6">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -741,7 +743,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </Card>
           <Card
             className="cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => setDailyView('list')}
+            onClick={() => { setDailyView('list'); setDailyFromSidebar(false) }}
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -761,16 +763,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
               ) : (
                 <div className="text-2xl font-bold text-muted-foreground">—</div>
               )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                全局 RPM
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{rpmData?.global ?? '-'}</div>
             </CardContent>
           </Card>
         </div>

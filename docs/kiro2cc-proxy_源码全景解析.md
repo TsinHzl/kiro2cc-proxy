@@ -1,5 +1,3 @@
-> **注：** 本文档由 **claude-sonnet-4-6** 模型自动生成。
-
 # 📖 kiro2cc-proxy 源码全景解析
 
 ## 🌟 小白导读
@@ -132,6 +130,11 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
         "modelId": "claude-sonnet-4.6",
         "origin": "AI_EDITOR",
         "userInputMessageContext": {
+          "tools": [              // slim_tools（v2.5.6+）：触发 Kiro toolUseEvent 激活信号
+            {"toolSpecification": {"name": "read", "description": "R", "inputSchema": {}}},
+            {"toolSpecification": {"name": "write", "description": "W", "inputSchema": {}}},
+            // ... 每个工具仅保留 name + 1字符 description + 空 inputSchema，~1680 tokens
+          ],
           "toolResults": [{...}]   // 本轮 tool_result（如有）
         }
       }
@@ -143,7 +146,7 @@ x-amz-user-agent: aws-sdk-js/1.0.27 KiroIDE-{version}-{machine_id}
 **关键变换点总结：**
 1. `model: "claude-sonnet-4-6"` → `modelId: "claude-sonnet-4.6"`（连字符换点号，嵌套进去）
 2. `system` 数组 → 变成 `history[0]` user + `history[1]` assistant 配对（`"I will follow these instructions."`）
-3. `tools` 定义 → 注入 `history[2]` user + `history[3]` assistant 配对，使其被 Kiro 前缀缓存覆盖（tools 几乎不跨轮次变化）
+3. `tools` 全量定义 → normalize_json_schema → 注入 `history[2]` user + `history[3]` assistant 配对，使其被 Kiro 前缀缓存覆盖（tools 几乎不跨轮次变化）；同时生成 slim_tools（每工具仅 name + 1字符 description + 空 inputSchema）放入 `currentMessage.userInputMessageContext.tools`，触发 Kiro toolUseEvent 激活信号（v2.5.6 修复 tool_use 丢失问题）
 4. `history[0]` 内容通过 `PREV_H0` 机制按 session_id 冻结第一次的值，后续轮次复用，防止 `cc_version`/`gitStatus`/`currentDate` 等动态字段破坏缓存
 5. `agentContinuationId` 由 `conversationId` SHA-256 派生（稳定值），让 Kiro 后端识别同一会话的连续请求，启用跨请求 prompt caching
 6. `messages` 数组 → 拆分成 `history[4..N]`（历史对话，每轮 user+assistant 配对）+ `currentMessage`（本轮用户输入）
@@ -216,7 +219,7 @@ handle_stream_request (handlers.rs)
 convert_request (converter.rs)         ← 协议转换：Anthropic → Kiro JSON
 	  │  1. map_model("claude-sonnet-4-6") → "claude-sonnet-4.6"
 	  │  2. system → history[0] user (PREV_H0 冻结) + history[1] assistant
-	  │  3. tools → normalize_json_schema → 注入 history[2] user + history[3] assistant
+	  │  3. tools 全量 → normalize_json_schema → history[2/3]；slim_tools → context.tools（触发 toolUseEvent，v2.5.6）
 	  │  4. messages → history[4..N] + currentMessage
 	  │  5. tool_results → currentMessage.userInputMessageContext.toolResults
   ▼
@@ -1007,6 +1010,38 @@ let tools_history_idx = if !tools.is_empty() {
 
 **tools 变化时的影响：** 若某轮 tools 列表变化（如 Claude Code 加载了新 MCP server），`history[2]` hash 将不同于之前，Kiro 前缀缓存从 `history[2]` 起全部失效。但 `history[0]` 和 `history[1]` 仍可命中（成本较低，仅 26KB）。
 
+#### Slim Tools — context.tools 触发 toolUseEvent（v2.5.6）
+
+**问题根因（v2.5.0 引入的 bug）**：将 tools 移入 `history[2/3]` 后，`currentMessage.userInputMessageContext.tools` 变为空数组。Kiro 后端检测 `context.tools` 是否非空来决定是否激活 toolUseEvent 模式——空数组导致 Kiro 始终返回纯文本，`has_tool_use=false`，工具调用完全丢失（proxy 日志可见但 stream 无 toolUseEvent）。
+
+**修复方案（v2.5.6）**：职责分离——context.tools 专职"激活信号"，history[2] 专职"完整 schema"。
+
+```rust
+// file: src/anthropic/converter.rs — slim_tools 生成
+let slim_tools: Vec<Tool> = tools
+    .iter()
+    .map(|t| Tool {
+        tool_specification: ToolSpecification {
+            name: t.tool_specification.name.clone(),
+            description: t.tool_specification.description.chars().take(1).collect(), // 1字符即满足非空条件
+            input_schema: InputSchema::default(), // {"type":"object","properties":{}}
+        },
+    })
+    .collect();
+context.tools = slim_tools;
+```
+
+**职责分离表：**
+
+| 位置 | 内容 | 大小 | 职责 |
+|------|------|------|------|
+| `context.tools`（currentMessage） | slim_tools（name + 1字符 desc + 空 schema） | ~1680 tokens | 触发 Kiro toolUseEvent 激活模式 |
+| `history[2]`（user message） | 完整 tools JSON（含 inputSchema） | ~34K tokens | 提供实际工具 schema，被前缀缓存覆盖 |
+
+**关键发现**：Kiro 只检查 `description` 是否非空（1 字符即可），不校验 `inputSchema` 内容。即使 slim_tools 的 schema 是空对象，toolUseEvent 也能正常触发。模型真正使用的 schema 来自 history[2] 的完整定义。
+
+**token 开销**：slim_tools 约 1680 tokens（vs 完整 tools 34K tokens），每轮请求节省约 32K tokens 的重复发送，且不影响前缀缓存。
+
 #### cache_read_input_tokens 反推公式（v2.5.1–v2.5.3）
 
 **背景**：Kiro 的 `meteringEvent` 不透传 `cache_read_input_tokens` / `cache_creation_input_tokens` 字段（始终为 `None`）。`input_tokens` 来自 `contextUsageEvent.contextUsagePercentage × 200000` 窗口估算，也不区分缓存命中 vs 未命中。但 Kiro 实际按缓存折扣计费——`metering_credits` 中已体现了缓存命中带来的 credits 减免。
@@ -1256,7 +1291,8 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     // 9. remove_orphaned_tool_uses(): 清理孤立 tool_use
     // 10. collect_history_tool_names(): 为历史引用但不在 tools 列表的工具生成占位符
     // 11. tools 注入 history[2/3]（使 Kiro 前缀缓存覆盖工具定义）
-    // 11b. 构建 UserInputMessageContext（仅含 tool_results，不含 tools）
+    // 11b. 生成 slim_tools → 注入 context.tools（触发 Kiro toolUseEvent，v2.5.6）
+    // 11c. 构建 UserInputMessageContext（含 slim_tools + tool_results）
     // 12. 构建 CurrentMessage（含 modelId）
     // 13. 最终构建 ConversationState
     let agent_task_type = determine_agent_task_type(req); // "spectask" 或 "vibe"
@@ -1281,7 +1317,7 @@ history[4] = 第1轮 用户消息          ← 含 tool_results
 history[5] = 第1轮 助手回复          ← 含 tool_uses
 ...
 history[N-1] = 最近一轮助手回复      ← 每轮新增内容
-currentMessage = 本轮用户输入        ← 含 modelId + tool_results（本轮）
+currentMessage = 本轮用户输入        ← 含 modelId + slim_tools（toolUseEvent 触发信号，v2.5.6）+ tool_results（本轮）
 ```
 
 **最难理解的点**：System Prompt 为什么变成 `history[0]` 的 user+assistant 配对？
@@ -1730,18 +1766,22 @@ UserInputMessage
 
 #### 2.4 `UserInputMessageContext` — 消息上下文
 
-> **v2.5.0 变更**：`tools` 已从 context 移至 `history[2/3]`（使 Kiro 前缀缓存覆盖工具定义）。context 的 `tools` 字段在序列化时始终为空。
+> **v2.5.0 变更**：完整 `tools` 已从 context 移至 `history[2/3]`（前缀缓存覆盖）。  
+> **v2.5.6 变更**：context 重新加入 slim_tools（每工具仅 name + 1字符 description + 空 inputSchema），用于触发 Kiro toolUseEvent 激活信号；完整 schema 仍在 history[2/3]。
 
 ```
 UserInputMessageContext
-├── tools: Vec<Tool>（v2.5.0 起始终为空，tools 改为注入 history[2/3]）
-│     可用工具列表，空时不序列化
+├── tools: Vec<Tool>  slim_tools（v2.5.6+）
+│     职责：触发 Kiro 的 toolUseEvent 激活信号（Kiro 检测 description 非空即启用工具调用模式）
+│     内容：每工具仅保留 name + 1字符 description + 空 inputSchema（约 1680 tokens，vs 全量 34K tokens）
+│     完整工具 schema 在 history[2] — slim_tools 不重复存储 schema
+│     空时不序列化
 │     Kiro Tool（与 Anthropic Tool 结构不同）：
 │       └── tool_specification: ToolSpecification
 │             ├── name: String          工具名称
-│             ├── description: String   工具描述
+│             ├── description: String   工具描述（slim_tools 中截断为 1 字符）
 │             └── input_schema: InputSchema
-│                   └── json: JSON Value   规范化后的 JSON Schema
+│                   └── json: JSON Value   规范化后的 JSON Schema（slim_tools 中为空 {}）
 │
 └── tool_results: Vec<ToolResult>
       工具执行结果列表，空时不序列化

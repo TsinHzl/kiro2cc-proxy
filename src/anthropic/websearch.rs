@@ -184,7 +184,7 @@ pub fn create_mcp_request(query: &str) -> (String, McpRequest) {
     // tool_use_id 使用相同格式
     let tool_use_id = format!(
         "srvtoolu_{}",
-        Uuid::new_v4().to_string().replace('-', "")[..32].to_string()
+        &Uuid::new_v4().to_string().replace('-', "")[..32]
     );
 
     let request = McpRequest {
@@ -243,7 +243,7 @@ fn generate_websearch_events(
     let mut events = Vec::new();
     let message_id = format!(
         "msg_{}",
-        Uuid::new_v4().to_string().replace('-', "")[..24].to_string()
+        &Uuid::new_v4().to_string().replace('-', "")[..24]
     );
 
     // 1. message_start

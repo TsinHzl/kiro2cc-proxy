@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -139,7 +139,7 @@ const MAX_RECORDS_PER_KEY: usize = 10_000;
 /// 用量追踪器（线程安全）
 pub struct UsageTracker {
     records: Arc<RwLock<Vec<UsageRecord>>>,
-    file_path: PathBuf,
+
     dirty_tx: mpsc::UnboundedSender<()>,
 }
 impl UsageTracker {
@@ -172,11 +172,10 @@ impl UsageTracker {
                             Some(_) => dirty = true,
                             None => {
                                 // 通道已关闭（系统退出），执行 Graceful Shutdown 刷盘
-                                if dirty {
-                                    if let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
+                                if dirty
+                                    && let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
                                         tracing::error!("Graceful shutdown usage save failed: {}", e);
                                     }
-                                }
                                 break;
                             }
                         }
@@ -196,7 +195,7 @@ impl UsageTracker {
 
         Ok(Self {
             records,
-            file_path: path,
+
             dirty_tx: tx,
         })
     }
@@ -399,9 +398,9 @@ impl UsageTracker {
 
         // 锁已释放，在锁外排序
         let mut sorted = owned;
-        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
-        let total_pages = (total + page_size - 1) / page_size;
+        let total_pages = total.div_ceil(page_size);
         let page = page.max(1).min(total_pages);
         let start = (page - 1) * page_size;
 
@@ -523,9 +522,9 @@ impl UsageTracker {
         }
 
         let mut sorted = owned;
-        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
-        let total_pages = (total + page_size - 1) / page_size;
+        let total_pages = total.div_ceil(page_size);
         let page = page.max(1).min(total_pages);
         let start = (page - 1) * page_size;
 
@@ -615,7 +614,7 @@ impl UsageTracker {
         credential_labels: &std::collections::HashMap<u64, String>,
     ) -> UsageRecordsPage {
         const MAX_TOTAL: usize = 2000;
-        let page_size = page_size.min(500).max(1);
+        let page_size = page_size.clamp(1, 500);
         let cst = FixedOffset::east_opt(8 * 3600).unwrap();
 
         let owned: Vec<UsageRecord> = {
@@ -628,7 +627,7 @@ impl UsageTracker {
         };
 
         let mut sorted = owned;
-        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         sorted.truncate(MAX_TOTAL);
 
         let total = sorted.len();
@@ -642,7 +641,7 @@ impl UsageTracker {
             };
         }
 
-        let total_pages = (total + page_size - 1) / page_size;
+        let total_pages = total.div_ceil(page_size);
         let page = page.max(1).min(total_pages);
         let start = (page - 1) * page_size;
 

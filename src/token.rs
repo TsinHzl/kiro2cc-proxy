@@ -99,8 +99,8 @@ pub(crate) fn count_all_tokens(
     tools: Option<Vec<Tool>>,
 ) -> u64 {
     // 检查是否配置了远程 API
-    if let Some(config) = get_config() {
-        if let Some(api_url) = &config.api_url {
+    if let Some(config) = get_config()
+        && let Some(api_url) = &config.api_url {
             // 尝试调用远程 API
             let result = tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(call_remote_count_tokens(
@@ -118,7 +118,6 @@ pub(crate) fn count_all_tokens(
                 }
             }
         }
-    }
 
     // 本地计算
     count_all_tokens_local(system, messages, tools)
@@ -130,15 +129,15 @@ async fn call_remote_count_tokens(
     config: &CountTokensConfig,
     model: String,
     system: &Option<Vec<SystemMessage>>,
-    messages: &Vec<Message>,
+    messages: &[Message],
     tools: &Option<Vec<Tool>>,
 ) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     let client = build_client(config.proxy.as_ref(), 300, config.tls_backend)?;
 
     // 构建请求体
     let request = CountTokensRequest {
-        model: model, // 模型名称用于 token 计算
-        messages: messages.clone(),
+        model, // 模型名称用于 token 计算
+        messages: messages.to_vec(),
         system: system.clone(),
         tools: tools.clone(),
     };

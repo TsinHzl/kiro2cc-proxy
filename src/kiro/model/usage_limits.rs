@@ -158,11 +158,10 @@ impl UsageLimitsResponse {
         let mut total = breakdown.usage_limit_with_precision;
 
         // 累加激活的 free trial 额度
-        if let Some(trial) = &breakdown.free_trial_info {
-            if trial.is_active() {
+        if let Some(trial) = &breakdown.free_trial_info
+            && trial.is_active() {
                 total += trial.usage_limit_with_precision;
             }
-        }
 
         // 累加激活的 bonus 额度
         for bonus in &breakdown.bonuses {
@@ -185,11 +184,10 @@ impl UsageLimitsResponse {
         let mut total = breakdown.current_usage_with_precision;
 
         // 累加激活的 free trial 使用量
-        if let Some(trial) = &breakdown.free_trial_info {
-            if trial.is_active() {
+        if let Some(trial) = &breakdown.free_trial_info
+            && trial.is_active() {
                 total += trial.current_usage_with_precision;
             }
-        }
 
         // 累加激活的 bonus 使用量
         for bonus in &breakdown.bonuses {

@@ -890,7 +890,7 @@ async fn handle_non_stream_request(
                             // 累积工具的 JSON 输入
                             let buffer = tool_json_buffers
                                 .entry(tool_use.tool_use_id.clone())
-                                .or_insert_with(String::new);
+                                .or_default();
                             buffer.push_str(&tool_use.input);
 
                             // 如果是完整的工具调用，添加到列表
@@ -939,11 +939,10 @@ async fn handle_non_stream_request(
                             metering_cache_creation_tokens = metering.cache_creation_input_tokens;
                             metering_usage = Some(metering.usage);
                         }
-                        Event::Exception { exception_type, .. } => {
-                            if exception_type == "ContentLengthExceededException" {
+                        Event::Exception { exception_type, .. }
+                            if exception_type == "ContentLengthExceededException" => {
                                 stop_reason = "max_tokens".to_string();
                             }
-                        }
                         _ => {}
                     }
                 }
@@ -1071,22 +1070,20 @@ fn strip_json_fences(text: String) -> String {
 
 /// 从请求头或连接信息提取客户端真实 IP
 fn extract_client_ip(headers: &axum::http::HeaderMap, connect_info: Option<&std::net::SocketAddr>) -> Option<String> {
-    if let Some(val) = headers.get("x-forwarded-for") {
-        if let Ok(s) = val.to_str() {
+    if let Some(val) = headers.get("x-forwarded-for")
+        && let Ok(s) = val.to_str() {
             let ip = s.split(',').next().unwrap_or("").trim();
             if !ip.is_empty() {
                 return Some(ip.to_string());
             }
         }
-    }
-    if let Some(val) = headers.get("x-real-ip") {
-        if let Ok(s) = val.to_str() {
+    if let Some(val) = headers.get("x-real-ip")
+        && let Ok(s) = val.to_str() {
             let ip = s.trim();
             if !ip.is_empty() {
                 return Some(ip.to_string());
             }
         }
-    }
     connect_info.map(|addr| addr.ip().to_string())
 }
 
@@ -1150,7 +1147,7 @@ pub async fn count_tokens(
     ) as i32;
 
     Json(CountTokensResponse {
-        input_tokens: total_tokens.max(1) as i32,
+        input_tokens: total_tokens.max(1),
     })
 }
 

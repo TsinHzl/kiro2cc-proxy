@@ -125,7 +125,7 @@ fn canonicalize_auth_method_value(value: &str) -> &str {
 #[serde(untagged)]
 pub enum CredentialsConfig {
     /// 单个账号（旧格式）
-    Single(KiroCredentials),
+    Single(Box<KiroCredentials>),
     /// 多账号数组（新格式）
     Multiple(Vec<KiroCredentials>),
 }
@@ -160,7 +160,7 @@ impl CredentialsConfig {
         match self {
             CredentialsConfig::Single(mut cred) => {
                 cred.canonicalize_auth_method();
-                vec![cred]
+                vec![*cred]
             }
             CredentialsConfig::Multiple(mut creds) => {
                 // 按优先级排序（数字越小优先级越高）

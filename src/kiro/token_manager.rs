@@ -696,14 +696,13 @@ impl MultiTokenManager {
                     has_new_ids = true;
                     id
                 });
-                if cred.machine_id.is_none() {
-                    if let Some(machine_id) =
+                if cred.machine_id.is_none()
+                    && let Some(machine_id) =
                         machine_id::generate_from_credentials(&cred, config_ref)
                     {
                         cred.machine_id = Some(machine_id);
                         has_new_machine_ids = true;
                     }
-                }
                 CredentialEntry {
                     id,
                     credentials: cred.clone(),
@@ -1147,8 +1146,7 @@ impl MultiTokenManager {
             .iter()
             .filter(|e| !e.disabled)
             .min_by_key(|e| e.credentials.priority)
-        {
-            if best.id != *current_id {
+            && best.id != *current_id {
                 tracing::info!(
                     "优先级变更后切换账号: #{} -> #{}（优先级 {}）",
                     *current_id,
@@ -1157,7 +1155,6 @@ impl MultiTokenManager {
                 );
                 *current_id = best.id;
             }
-        }
     }
 
     /// 尝试使用指定账号获取有效 Token
@@ -1835,11 +1832,10 @@ impl MultiTokenManager {
                 }
             };
 
-            if changed {
-                if let Err(e) = self.persist_credentials() {
+            if changed
+                && let Err(e) = self.persist_credentials() {
                     tracing::warn!("订阅等级更新后持久化失败（不影响本次请求）: {}", e);
                 }
-            }
         }
 
         Ok(usage_limits)

@@ -144,8 +144,8 @@ fn normalize_json_schema_inner(schema: serde_json::Value, root: bool) -> serde_j
         None => {}
     }
 
-    if let Some(description) = obj.remove("description") {
-        if let Some(description) = description.as_str() {
+    if let Some(description) = obj.remove("description")
+        && let Some(description) = description.as_str() {
             let description = match description.char_indices().nth(2000) {
                 Some((idx, _)) => description[..idx].to_string(),
                 None => description.to_string(),
@@ -155,10 +155,9 @@ fn normalize_json_schema_inner(schema: serde_json::Value, root: bool) -> serde_j
                 serde_json::Value::String(description),
             );
         }
-    }
 
-    if let Some(enum_value) = obj.remove("enum") {
-        if let serde_json::Value::Array(values) = enum_value {
+    if let Some(enum_value) = obj.remove("enum")
+        && let serde_json::Value::Array(values) = enum_value {
             let values: Vec<_> = values
                 .into_iter()
                 .filter(|v| v.is_string() || v.is_number() || v.is_boolean())
@@ -167,7 +166,6 @@ fn normalize_json_schema_inner(schema: serde_json::Value, root: bool) -> serde_j
                 obj.insert("enum".to_string(), serde_json::Value::Array(values));
             }
         }
-    }
 
     obj.retain(|key, _| {
         matches!(
@@ -315,7 +313,7 @@ fn normalize_billing_header(content: String) -> String {
     };
     let value_start = cch_pos + PREFIX.len();
     let value_end = content[value_start..]
-        .find(|c: char| c == ';' || c == '\n')
+        .find([';', '\n'])
         .map(|i| value_start + i)
         .unwrap_or(content.len());
     let mut result = content;
@@ -410,17 +408,15 @@ pub(super) fn is_valid_uuid(s: &str) -> bool {
 /// 2. JSON 格式: {"session_id":"UUID"} 或 {"id":"UUID"}（Claude Code 2.1.128+）
 fn extract_session_id(user_id: &str) -> Option<String> {
     // 尝试 JSON 格式解析（Claude Code 新版本发送 JSON 字符串作为 user_id）
-    if user_id.trim_start().starts_with('{') {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id) {
+    if user_id.trim_start().starts_with('{')
+        && let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id) {
             for key in &["session_id", "id"] {
-                if let Some(id) = v.get(key).and_then(|v| v.as_str()) {
-                    if is_valid_uuid(id) {
+                if let Some(id) = v.get(key).and_then(|v| v.as_str())
+                    && is_valid_uuid(id) {
                         return Some(id.to_string());
                     }
-                }
             }
         }
-    }
     // 标准格式: 查找 "session_" 后面的 UUID
     if let Some(pos) = user_id.find("session_") {
         let session_part = &user_id[pos + 8..]; // "session_" 长度为 8
@@ -501,15 +497,14 @@ fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
     let mut tool_names = Vec::new();
 
     for msg in history {
-        if let Message::Assistant(assistant_msg) = msg {
-            if let Some(ref tool_uses) = assistant_msg.assistant_response_message.tool_uses {
+        if let Message::Assistant(assistant_msg) = msg
+            && let Some(ref tool_uses) = assistant_msg.assistant_response_message.tool_uses {
                 for tool_use in tool_uses {
                     if !tool_names.contains(&tool_use.name) {
                         tool_names.push(tool_use.name.clone());
                     }
                 }
             }
-        }
     }
 
     tool_names
@@ -626,7 +621,8 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
             let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
             let current_json = serde_json::to_string(&tools).unwrap_or_default();
             let prev_state = map.get(&conversation_id).map(|e| e.value.clone());
-            let result = if let Some((prev_json, frozen)) = prev_state {
+            
+            if let Some((prev_json, frozen)) = prev_state {
                 if frozen {
                     // 已冻结，永远复用冻结值，更新 LRU 时间戳
                     if let Some(entry) = map.get_mut(&conversation_id) {
@@ -651,8 +647,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
                 map.insert(conversation_id.clone(), CacheEntry::new((current_json.clone(), false)));
                 evict_oldest_if_full(&mut map);
                 current_json
-            };
-            result
+            }
         };
         let tools_user = HistoryUserMessage {
             user_input_message: {
@@ -787,15 +782,14 @@ fn process_message_content(
                             }
                         }
                         "image" => {
-                            if let Some(source) = block.source {
-                                if let Some(format) = get_image_format(&source.media_type) {
+                            if let Some(source) = block.source
+                                && let Some(format) = get_image_format(&source.media_type) {
                                     images.push(KiroImage::from_base64(format, source.data));
                                 }
-                            }
                         }
                         "document" => {
-                            if let Some(source) = block.source {
-                                if source.media_type == "application/pdf" {
+                            if let Some(source) = block.source
+                                && source.media_type == "application/pdf" {
                                     match extract_pdf_text_from_base64(&source.data) {
                                         Some(text) if !text.is_empty() => {
                                             text_parts.push(format!(
@@ -811,7 +805,6 @@ fn process_message_content(
                                         }
                                     }
                                 }
-                            }
                         }
                         "tool_result" => {
                             if let Some(tool_use_id) = block.tool_use_id {
@@ -1214,8 +1207,8 @@ fn remove_orphaned_tool_uses(
     }
 
     for msg in history.iter_mut() {
-        if let Message::Assistant(assistant_msg) = msg {
-            if let Some(ref mut tool_uses) = assistant_msg.assistant_response_message.tool_uses {
+        if let Message::Assistant(assistant_msg) = msg
+            && let Some(ref mut tool_uses) = assistant_msg.assistant_response_message.tool_uses {
                 let original_len = tool_uses.len();
                 tool_uses.retain(|tu| !orphaned_ids.contains(&tu.tool_use_id));
 
@@ -1229,7 +1222,6 @@ fn remove_orphaned_tool_uses(
                     );
                 }
             }
-        }
     }
 }
 

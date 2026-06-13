@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -30,16 +30,16 @@ const MAX_EVENTS_PER_CREDENTIAL: usize = 500;
 /// 失败日志存储
 pub struct FailureLogStore {
     events: Arc<RwLock<Vec<FailureEvent>>>,
-    file_path: PathBuf,
+
     dirty_tx: Option<mpsc::UnboundedSender<()>>,
 }
 
 impl FailureLogStore {
     /// 创建空的 store（用于加载失败时降级）
-    pub fn empty<P: AsRef<Path>>(path: P) -> Self {
+    pub fn empty<P: AsRef<Path>>(_path: P) -> Self {
         Self {
             events: Arc::new(RwLock::new(Vec::new())),
-            file_path: path.as_ref().to_path_buf(),
+
             dirty_tx: None,
         }
     }
@@ -71,11 +71,10 @@ impl FailureLogStore {
                         match res {
                             Some(_) => dirty = true,
                             None => {
-                                if dirty {
-                                    if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
+                                if dirty
+                                    && let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
                                         tracing::error!("Graceful shutdown failure log save failed: {}", e);
                                     }
-                                }
                                 break;
                             }
                         }
@@ -95,7 +94,7 @@ impl FailureLogStore {
 
         Ok(Self {
             events,
-            file_path: path,
+
             dirty_tx: Some(tx),
         })
     }
@@ -203,9 +202,9 @@ impl FailureLogStore {
         }
 
         let mut sorted = owned;
-        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
-        let total_pages = (total + page_size - 1) / page_size;
+        let total_pages = total.div_ceil(page_size);
         let page = page.max(1).min(total_pages);
         let start = (page - 1) * page_size;
 

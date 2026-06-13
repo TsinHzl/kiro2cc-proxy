@@ -38,25 +38,22 @@ fn normalize_machine_id(machine_id: &str) -> Option<String> {
 /// 优先使用账号级 machineId，其次使用 config.machineId，然后使用 refreshToken 生成
 pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config) -> Option<String> {
     // 如果配置了账号级 machineId，优先使用
-    if let Some(ref machine_id) = credentials.machine_id {
-        if let Some(normalized) = normalize_machine_id(machine_id) {
+    if let Some(ref machine_id) = credentials.machine_id
+        && let Some(normalized) = normalize_machine_id(machine_id) {
             return Some(normalized);
         }
-    }
 
     // 如果配置了全局 machineId，作为默认值
-    if let Some(ref machine_id) = config.machine_id {
-        if let Some(normalized) = normalize_machine_id(machine_id) {
+    if let Some(ref machine_id) = config.machine_id
+        && let Some(normalized) = normalize_machine_id(machine_id) {
             return Some(normalized);
         }
-    }
 
     // 使用 refreshToken 生成
-    if let Some(ref refresh_token) = credentials.refresh_token {
-        if !refresh_token.is_empty() {
+    if let Some(ref refresh_token) = credentials.refresh_token
+        && !refresh_token.is_empty() {
             return Some(sha256_hex(&format!("KotlinNativeAPI/{}", refresh_token)));
         }
-    }
 
     // 没有有效的凭证
     None

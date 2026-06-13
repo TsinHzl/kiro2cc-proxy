@@ -15,9 +15,15 @@
 
 ## 1. Prompt Caching（前缀缓存）机制
 
-**大白话**：Kiro 后端（基于 AWS Q）会自动对历史消息进行 KV Cache（键值缓存）。如果相邻两次请求的消息前缀完全一致，不仅能极大提升首字响应速度（TTFT），还能节省高达 90% 的 Input Token 计费。
+**大白话**：Kiro 后端（基于 AWS Q）会自动对历史消息进行 KV Cache（键值缓存）。如果相邻两次请求的消息前缀完全一致，能极大提升首字响应速度（TTFT）。然而需要注意：**Kiro 并未将 90% 的 Prompt Cache 折扣传递给用户**。
 
-### 1.1 核心标识符：`agentContinuationId`
+### 1.1 计费模型与缓存折扣（重要）
+**结论**：Kiro 按 Anthropic 无缓存定价 1:1 扣除 Credits，不传递 prompt cache 折扣细节。
+- `meteringEvent` 帧从不返回 `cache_read_input_tokens` 等缓存计费明细，Proxy 只能依靠 `contextUsagePercentage` 本地模拟 Token 分布以骗过前端。
+- 保持 `agentContinuationId` 的主要收益是**极大降低首字延迟（TTFT）**和提升上游并发宽容度，而对 **Kiro Credits 的消耗减少无实质帮助**。
+- 要真正降低 Credits 消耗，唯一有效手段是缩短 System Prompt 和压缩历史 Context。
+
+### 1.2 核心标识符：`agentContinuationId`
 Kiro 识别“同一会话连续请求”的唯一凭证是 `agentContinuationId`。如果每次请求这个 ID 都发生变化，Kiro 后端就会将其视为全新会话，前缀缓存将完全失效。
 
 代理层针对不同客户端的派生逻辑：

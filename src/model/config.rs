@@ -7,16 +7,13 @@ use std::env;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum TlsBackend {
+    #[default]
     Rustls,
     NativeTls,
 }
 
-impl Default for TlsBackend {
-    fn default() -> Self {
-        Self::Rustls
-    }
-}
 
 /// KNA 应用配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,11 +230,10 @@ impl Config {
         if let Ok(v) = env::var("HOST") {
             self.host = v;
         }
-        if let Ok(v) = env::var("PORT") {
-            if let Ok(p) = v.parse::<u16>() {
+        if let Ok(v) = env::var("PORT")
+            && let Ok(p) = v.parse::<u16>() {
                 self.port = p;
             }
-        }
         if let Ok(v) = env::var("REGION") {
             self.region = v;
         }

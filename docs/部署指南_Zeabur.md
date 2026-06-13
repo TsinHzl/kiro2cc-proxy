@@ -50,7 +50,7 @@ Add Service → Prebuilt Image → 输入上方镜像地址
 
 ### 凭据重启后丢失
 
-确保 `credentials.json` **没有**被添加到 Config File 中。Zeabur 的 Config File 会以只读方式挂载，覆盖持久化卷上的同名文件，导致应用无法写入凭据数据。详见 [排查记录](troubleshooting/zeabur-credentials-readonly-mount.md)。
+确保 `credentials.json` **没有**被添加到 Config File 中。Zeabur 的 Config File 会以只读方式挂载，覆盖持久化卷上的同名文件，导致应用无法写入凭据数据。详见 [排查记录](troubleshooting/排障指南_Zeabur只读挂载问题.md)。
 
 ### 镜像显示损坏
 

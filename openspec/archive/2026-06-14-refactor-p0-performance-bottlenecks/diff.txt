@@ -1,0 +1,559 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 4fa5f36..b8164a6 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -951,7 +951,7 @@ dependencies = [
+ 
+ [[package]]
+ name = "kiro2cc-proxy"
+-version = "2.5.6"
++version = "2.5.8"
+ dependencies = [
+  "anyhow",
+  "axum",
+diff --git a/src/model/failure_log.rs b/src/model/failure_log.rs
+index db9721d..ec8ef7b 100644
+--- a/src/model/failure_log.rs
++++ b/src/model/failure_log.rs
+@@ -8,6 +8,8 @@ use parking_lot::RwLock;
+ use serde::{Deserialize, Serialize};
+ use std::fs;
+ use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use tokio::sync::mpsc;
+ 
+ /// 单条失败事件
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+@@ -27,16 +29,18 @@ const MAX_EVENTS_PER_CREDENTIAL: usize = 500;
+ 
+ /// 失败日志存储
+ pub struct FailureLogStore {
+-    events: RwLock<Vec<FailureEvent>>,
++    events: Arc<RwLock<Vec<FailureEvent>>>,
+     file_path: PathBuf,
++    dirty_tx: Option<mpsc::UnboundedSender<()>>,
+ }
+ 
+ impl FailureLogStore {
+     /// 创建空的 store（用于加载失败时降级）
+     pub fn empty<P: AsRef<Path>>(path: P) -> Self {
+         Self {
+-            events: RwLock::new(Vec::new()),
++            events: Arc::new(RwLock::new(Vec::new())),
+             file_path: path.as_ref().to_path_buf(),
++            dirty_tx: None,
+         }
+     }
+ 
+@@ -53,19 +57,63 @@ impl FailureLogStore {
+         } else {
+             Vec::new()
+         };
++        let events = Arc::new(RwLock::new(events));
++        let (tx, mut rx) = mpsc::unbounded_channel();
++        let events_clone = events.clone();
++        let path_clone = path.clone();
++
++        tokio::spawn(async move {
++            let mut dirty = false;
++            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
++            loop {
++                tokio::select! {
++                    res = rx.recv() => {
++                        match res {
++                            Some(_) => dirty = true,
++                            None => {
++                                if dirty {
++                                    if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
++                                        tracing::error!("Graceful shutdown failure log save failed: {}", e);
++                                    }
++                                }
++                                break;
++                            }
++                        }
++                    }
++                    _ = interval.tick() => {
++                        if dirty {
++                            if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
++                                tracing::error!("Failed to save failure log: {}", e);
++                            } else {
++                                dirty = false;
++                            }
++                        }
++                    }
++                }
++            }
++        });
++
+         Ok(Self {
+-            events: RwLock::new(events),
++            events,
+             file_path: path,
++            dirty_tx: Some(tx),
+         })
+     }
+ 
+-    fn save(&self) -> anyhow::Result<()> {
+-        let events = self.events.read();
+-        let content = serde_json::to_string(&*events)?;
+-        if let Some(parent) = self.file_path.parent() {
+-            fs::create_dir_all(parent)?;
+-        }
+-        fs::write(&self.file_path, content)?;
++    async fn save_internal(events: &Arc<RwLock<Vec<FailureEvent>>>, file_path: &Path) -> anyhow::Result<()> {
++        let content = {
++            let e = events.read();
++            serde_json::to_string(&*e)?
++        };
++        let path = file_path.to_path_buf();
++        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
++            if let Some(parent) = path.parent() {
++                fs::create_dir_all(parent)?;
++            }
++            fs::write(&path, content)?;
++            Ok(())
++        })
++        .await??;
+         Ok(())
+     }
+ 
+@@ -117,8 +165,8 @@ impl FailureLogStore {
+             }
+         }
+ 
+-        if let Err(e) = self.save() {
+-            tracing::warn!("保存失败日志失败: {}", e);
++        if let Some(tx) = &self.dirty_tx {
++            let _ = tx.send(());
+         }
+     }
+ 
+diff --git a/src/model/rpm.rs b/src/model/rpm.rs
+index b8ac1e9..f250b45 100644
+--- a/src/model/rpm.rs
++++ b/src/model/rpm.rs
+@@ -6,47 +6,57 @@
+ 
+ use std::collections::HashMap;
+ use std::sync::Mutex;
+-use std::time::Instant;
++use std::time::{SystemTime, UNIX_EPOCH};
+ 
+ use serde::Serialize;
+ 
+ /// 滑动窗口大小（秒）
+-const WINDOW_SECS: u64 = 60;
++const WINDOW_SECS: usize = 60;
+ 
+-/// 单个维度的请求时间戳队列
++#[derive(Clone, Copy, Default)]
++struct Bucket {
++    timestamp: u64,
++    count: u64,
++}
++
++/// 单个维度的请求时间戳队列（基于 Ring Buffer 的 O(1) 实现）
+ struct TimestampQueue {
+-    /// 请求时间戳（单调递增）
+-    timestamps: Vec<Instant>,
++    buckets: [Bucket; WINDOW_SECS],
+ }
+ 
+ impl TimestampQueue {
+     fn new() -> Self {
+         Self {
+-            timestamps: Vec::new(),
++            buckets: [Bucket::default(); WINDOW_SECS],
+         }
+     }
+ 
+     /// 记录一次请求
+-    fn record(&mut self, now: Instant) {
+-        self.timestamps.push(now);
++    fn record(&mut self, now_secs: u64) {
++        let index = (now_secs as usize) % WINDOW_SECS;
++        let bucket = &mut self.buckets[index];
++        if bucket.timestamp == now_secs {
++            bucket.count += 1;
++        } else {
++            bucket.timestamp = now_secs;
++            bucket.count = 1;
++        }
+     }
+ 
+     /// 清理过期条目并返回当前窗口内的请求数
+-    fn count(&mut self, now: Instant) -> u64 {
+-        let cutoff = now - std::time::Duration::from_secs(WINDOW_SECS);
+-        // 二分查找第一个 >= cutoff 的位置
+-        let pos = self.timestamps.partition_point(|t| *t < cutoff);
+-        if pos > 0 {
+-            self.timestamps.drain(..pos);
+-        }
+-        self.timestamps.len() as u64
++    fn count(&self, now_secs: u64) -> u64 {
++        self.buckets
++            .iter()
++            .filter(|b| now_secs.saturating_sub(b.timestamp) < WINDOW_SECS as u64)
++            .map(|b| b.count)
++            .sum()
+     }
+ }
+ 
+ /// RPM 追踪器
+ ///
+ /// 线程安全，使用单个 Mutex 保护所有状态。
+-/// 内存开销极小：每个请求仅存储一个 Instant（8 字节），60 秒后自动清理。
++/// 内存开销恒定：每个队列固定为 `[Bucket; 60]` 大小。
+ pub struct RpmTracker {
+     inner: Mutex<RpmTrackerInner>,
+ }
+@@ -88,48 +98,58 @@ impl RpmTracker {
+     ///
+     /// 记录全局 RPM 和 per-API-Key RPM
+     pub fn record_request(&self, api_key_id: Option<u32>) {
+-        let now = Instant::now();
++        let now_secs = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .unwrap_or_default()
++            .as_secs();
+         let mut inner = self.inner.lock().unwrap();
+-        inner.global.record(now);
++        inner.global.record(now_secs);
+         if let Some(key_id) = api_key_id {
+             inner
+                 .by_api_key
+                 .entry(key_id)
+                 .or_insert_with(TimestampQueue::new)
+-                .record(now);
++                .record(now_secs);
+         }
+     }
+ 
+     /// 记录账号维度的请求（在 provider 成功调用后调用）
+     pub fn record_credential(&self, credential_id: u64) {
+-        let now = Instant::now();
++        let now_secs = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .unwrap_or_default()
++            .as_secs();
+         let mut inner = self.inner.lock().unwrap();
+         inner
+             .by_credential
+             .entry(credential_id)
+             .or_insert_with(TimestampQueue::new)
+-            .record(now);
++            .record(now_secs);
+     }
+ 
+     /// 获取当前 RPM 快照
+     pub fn snapshot(&self) -> RpmSnapshot {
+-        let now = Instant::now();
++        let now_secs = SystemTime::now()
++            .duration_since(UNIX_EPOCH)
++            .unwrap_or_default()
++            .as_secs();
+         let mut inner = self.inner.lock().unwrap();
+ 
+-        let global = inner.global.count(now);
++        let global = inner.global.count(now_secs);
+ 
++        // 获取并顺便清理废弃为空的键，防止长时间未用的 map 残留
++        inner.by_credential.retain(|_, queue| queue.count(now_secs) > 0);
+         let by_credential: HashMap<u64, u64> = inner
+             .by_credential
+-            .iter_mut()
+-            .map(|(&id, queue)| (id, queue.count(now)))
+-            .filter(|(_, count)| *count > 0)
++            .iter()
++            .map(|(&id, queue)| (id, queue.count(now_secs)))
+             .collect();
+ 
++        inner.by_api_key.retain(|_, queue| queue.count(now_secs) > 0);
+         let by_api_key: HashMap<u32, u64> = inner
+             .by_api_key
+-            .iter_mut()
+-            .map(|(&id, queue)| (id, queue.count(now)))
+-            .filter(|(_, count)| *count > 0)
++            .iter()
++            .map(|(&id, queue)| (id, queue.count(now_secs)))
+             .collect();
+ 
+         RpmSnapshot {
+@@ -139,3 +159,39 @@ impl RpmTracker {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_rpm_ring_buffer() {
++        let mut queue = TimestampQueue::new();
++        // 模拟当前时间
++        let now_secs = 1000;
++        
++        queue.record(now_secs);
++        queue.record(now_secs);
++        
++        assert_eq!(queue.count(now_secs), 2);
++        assert_eq!(queue.count(now_secs + 10), 2); // 10秒后依然在 60 秒窗口内
++        
++        // 测试过期的边界
++        assert_eq!(queue.count(now_secs + 60), 0); // 正好 60 秒（已过期）
++        assert_eq!(queue.count(now_secs + 61), 0);
++        
++        // 模拟一分钟后同一槽位被复用
++        queue.record(now_secs + 60);
++        assert_eq!(queue.count(now_secs + 60), 1);
++        
++        // 模拟多个不同秒数的请求
++        queue.record(now_secs + 60);
++        queue.record(now_secs + 61);
++        queue.record(now_secs + 62);
++        
++        assert_eq!(queue.count(now_secs + 62), 4);
++        
++        // 当 now_secs 推进到 now_secs + 123 时，所有数据均应过期（最后一次记录在 1062）
++        assert_eq!(queue.count(now_secs + 123), 0);
++    }
++}
+diff --git a/src/model/throttle_log.rs b/src/model/throttle_log.rs
+index 7d18320..1429a58 100644
+--- a/src/model/throttle_log.rs
++++ b/src/model/throttle_log.rs
+@@ -8,6 +8,8 @@ use parking_lot::RwLock;
+ use serde::{Deserialize, Serialize};
+ use std::fs;
+ use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use tokio::sync::mpsc;
+ 
+ /// 单条限流事件
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+@@ -27,16 +29,18 @@ const MAX_EVENTS_PER_CREDENTIAL: usize = 500;
+ 
+ /// 限流日志存储
+ pub struct ThrottleLogStore {
+-    events: RwLock<Vec<ThrottleEvent>>,
++    events: Arc<RwLock<Vec<ThrottleEvent>>>,
+     file_path: PathBuf,
++    dirty_tx: Option<mpsc::UnboundedSender<()>>,
+ }
+ 
+ impl ThrottleLogStore {
+     /// 创建空的 store（用于加载失败时降级）
+     pub fn empty<P: AsRef<Path>>(path: P) -> Self {
+         Self {
+-            events: RwLock::new(Vec::new()),
++            events: Arc::new(RwLock::new(Vec::new())),
+             file_path: path.as_ref().to_path_buf(),
++            dirty_tx: None,
+         }
+     }
+ 
+@@ -53,19 +57,63 @@ impl ThrottleLogStore {
+         } else {
+             Vec::new()
+         };
++        let events = Arc::new(RwLock::new(events));
++        let (tx, mut rx) = mpsc::unbounded_channel();
++        let events_clone = events.clone();
++        let path_clone = path.clone();
++
++        tokio::spawn(async move {
++            let mut dirty = false;
++            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
++            loop {
++                tokio::select! {
++                    res = rx.recv() => {
++                        match res {
++                            Some(_) => dirty = true,
++                            None => {
++                                if dirty {
++                                    if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
++                                        tracing::error!("Graceful shutdown throttle log save failed: {}", e);
++                                    }
++                                }
++                                break;
++                            }
++                        }
++                    }
++                    _ = interval.tick() => {
++                        if dirty {
++                            if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
++                                tracing::error!("Failed to save throttle log: {}", e);
++                            } else {
++                                dirty = false;
++                            }
++                        }
++                    }
++                }
++            }
++        });
++
+         Ok(Self {
+-            events: RwLock::new(events),
++            events,
+             file_path: path,
++            dirty_tx: Some(tx),
+         })
+     }
+ 
+-    fn save(&self) -> anyhow::Result<()> {
+-        let events = self.events.read();
+-        let content = serde_json::to_string(&*events)?;
+-        if let Some(parent) = self.file_path.parent() {
+-            fs::create_dir_all(parent)?;
+-        }
+-        fs::write(&self.file_path, content)?;
++    async fn save_internal(events: &Arc<RwLock<Vec<ThrottleEvent>>>, file_path: &Path) -> anyhow::Result<()> {
++        let content = {
++            let e = events.read();
++            serde_json::to_string(&*e)?
++        };
++        let path = file_path.to_path_buf();
++        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
++            if let Some(parent) = path.parent() {
++                fs::create_dir_all(parent)?;
++            }
++            fs::write(&path, content)?;
++            Ok(())
++        })
++        .await??;
+         Ok(())
+     }
+ 
+@@ -117,8 +165,8 @@ impl ThrottleLogStore {
+             }
+         }
+ 
+-        if let Err(e) = self.save() {
+-            tracing::warn!("保存限流日志失败: {}", e);
++        if let Some(tx) = &self.dirty_tx {
++            let _ = tx.send(());
+         }
+     }
+ 
+diff --git a/src/model/usage.rs b/src/model/usage.rs
+index d46b61a..e0bdc01 100644
+--- a/src/model/usage.rs
++++ b/src/model/usage.rs
+@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
+ use std::collections::HashMap;
+ use std::fs;
+ use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use tokio::sync::mpsc;
+ 
+ /// 单条用量记录
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+@@ -136,8 +138,9 @@ const MAX_RECORDS_PER_KEY: usize = 10_000;
+ 
+ /// 用量追踪器（线程安全）
+ pub struct UsageTracker {
+-    records: RwLock<Vec<UsageRecord>>,
++    records: Arc<RwLock<Vec<UsageRecord>>>,
+     file_path: PathBuf,
++    dirty_tx: mpsc::UnboundedSender<()>,
+ }
+ impl UsageTracker {
+     /// 从文件加载，文件不存在则创建空列表
+@@ -153,20 +156,66 @@ impl UsageTracker {
+         } else {
+             Vec::new()
+         };
++        let records = Arc::new(RwLock::new(records));
++        let (tx, mut rx) = mpsc::unbounded_channel();
++        let records_clone = records.clone();
++        let path_clone = path.clone();
++
++        // 启动后台异步写入任务，避免同步文件写阻塞请求线程
++        tokio::spawn(async move {
++            let mut dirty = false;
++            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
++            loop {
++                tokio::select! {
++                    res = rx.recv() => {
++                        match res {
++                            Some(_) => dirty = true,
++                            None => {
++                                // 通道已关闭（系统退出），执行 Graceful Shutdown 刷盘
++                                if dirty {
++                                    if let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
++                                        tracing::error!("Graceful shutdown usage save failed: {}", e);
++                                    }
++                                }
++                                break;
++                            }
++                        }
++                    }
++                    _ = interval.tick() => {
++                        if dirty {
++                            if let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
++                                tracing::error!("Failed to save usage: {}", e);
++                            } else {
++                                dirty = false;
++                            }
++                        }
++                    }
++                }
++            }
++        });
++
+         Ok(Self {
+-            records: RwLock::new(records),
++            records,
+             file_path: path,
++            dirty_tx: tx,
+         })
+     }
+ 
+-    /// 持久化到文件
+-    fn save(&self) -> anyhow::Result<()> {
+-        let records = self.records.read();
+-        let content = serde_json::to_string(&*records)?;
+-        if let Some(parent) = self.file_path.parent() {
+-            fs::create_dir_all(parent)?;
+-        }
+-        fs::write(&self.file_path, content)?;
++    /// 内部真正的异步落地方法
++    async fn save_internal(records: &Arc<RwLock<Vec<UsageRecord>>>, file_path: &Path) -> anyhow::Result<()> {
++        let content = {
++            let r = records.read();
++            serde_json::to_string(&*r)?
++        };
++        let path = file_path.to_path_buf();
++        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
++            if let Some(parent) = path.parent() {
++                fs::create_dir_all(parent)?;
++            }
++            fs::write(&path, content)?;
++            Ok(())
++        })
++        .await??;
+         Ok(())
+     }
+ 
+@@ -233,9 +282,7 @@ impl UsageTracker {
+                 }
+             }
+         }
+-        if let Err(e) = self.save() {
+-            tracing::warn!("保存用量记录失败: {}", e);
+-        }
++        let _ = self.dirty_tx.send(());
+     }
+     /// 获取单个 API Key 的用量汇总
+     pub fn get_summary(&self, api_key_id: u32) -> UsageSummary {
+@@ -295,7 +342,8 @@ impl UsageTracker {
+         let mut records = self.records.write();
+         records.retain(|r| r.api_key_id != api_key_id);
+         drop(records);
+-        self.save()
++        let _ = self.dirty_tx.send(());
++        Ok(())
+     }
+ 
+     /// 获取指定 API Key 的累计费用（轻量版，仅算总费用）

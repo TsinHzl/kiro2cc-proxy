@@ -6,47 +6,57 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
 /// 滑动窗口大小（秒）
-const WINDOW_SECS: u64 = 60;
+const WINDOW_SECS: usize = 60;
 
-/// 单个维度的请求时间戳队列
+#[derive(Clone, Copy, Default)]
+struct Bucket {
+    timestamp: u64,
+    count: u64,
+}
+
+/// 单个维度的请求时间戳队列（基于 Ring Buffer 的 O(1) 实现）
 struct TimestampQueue {
-    /// 请求时间戳（单调递增）
-    timestamps: Vec<Instant>,
+    buckets: [Bucket; WINDOW_SECS],
 }
 
 impl TimestampQueue {
     fn new() -> Self {
         Self {
-            timestamps: Vec::new(),
+            buckets: [Bucket::default(); WINDOW_SECS],
         }
     }
 
     /// 记录一次请求
-    fn record(&mut self, now: Instant) {
-        self.timestamps.push(now);
+    fn record(&mut self, now_secs: u64) {
+        let index = (now_secs as usize) % WINDOW_SECS;
+        let bucket = &mut self.buckets[index];
+        if bucket.timestamp == now_secs {
+            bucket.count += 1;
+        } else {
+            bucket.timestamp = now_secs;
+            bucket.count = 1;
+        }
     }
 
     /// 清理过期条目并返回当前窗口内的请求数
-    fn count(&mut self, now: Instant) -> u64 {
-        let cutoff = now - std::time::Duration::from_secs(WINDOW_SECS);
-        // 二分查找第一个 >= cutoff 的位置
-        let pos = self.timestamps.partition_point(|t| *t < cutoff);
-        if pos > 0 {
-            self.timestamps.drain(..pos);
-        }
-        self.timestamps.len() as u64
+    fn count(&self, now_secs: u64) -> u64 {
+        self.buckets
+            .iter()
+            .filter(|b| now_secs.saturating_sub(b.timestamp) < WINDOW_SECS as u64)
+            .map(|b| b.count)
+            .sum()
     }
 }
 
 /// RPM 追踪器
 ///
 /// 线程安全，使用单个 Mutex 保护所有状态。
-/// 内存开销极小：每个请求仅存储一个 Instant（8 字节），60 秒后自动清理。
+/// 内存开销恒定：每个队列固定为 `[Bucket; 60]` 大小。
 pub struct RpmTracker {
     inner: Mutex<RpmTrackerInner>,
 }
@@ -88,48 +98,58 @@ impl RpmTracker {
     ///
     /// 记录全局 RPM 和 per-API-Key RPM
     pub fn record_request(&self, api_key_id: Option<u32>) {
-        let now = Instant::now();
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let mut inner = self.inner.lock().unwrap();
-        inner.global.record(now);
+        inner.global.record(now_secs);
         if let Some(key_id) = api_key_id {
             inner
                 .by_api_key
                 .entry(key_id)
                 .or_insert_with(TimestampQueue::new)
-                .record(now);
+                .record(now_secs);
         }
     }
 
     /// 记录账号维度的请求（在 provider 成功调用后调用）
     pub fn record_credential(&self, credential_id: u64) {
-        let now = Instant::now();
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let mut inner = self.inner.lock().unwrap();
         inner
             .by_credential
             .entry(credential_id)
             .or_insert_with(TimestampQueue::new)
-            .record(now);
+            .record(now_secs);
     }
 
     /// 获取当前 RPM 快照
     pub fn snapshot(&self) -> RpmSnapshot {
-        let now = Instant::now();
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         let mut inner = self.inner.lock().unwrap();
 
-        let global = inner.global.count(now);
+        let global = inner.global.count(now_secs);
 
+        // 获取并顺便清理废弃为空的键，防止长时间未用的 map 残留
+        inner.by_credential.retain(|_, queue| queue.count(now_secs) > 0);
         let by_credential: HashMap<u64, u64> = inner
             .by_credential
-            .iter_mut()
-            .map(|(&id, queue)| (id, queue.count(now)))
-            .filter(|(_, count)| *count > 0)
+            .iter()
+            .map(|(&id, queue)| (id, queue.count(now_secs)))
             .collect();
 
+        inner.by_api_key.retain(|_, queue| queue.count(now_secs) > 0);
         let by_api_key: HashMap<u32, u64> = inner
             .by_api_key
-            .iter_mut()
-            .map(|(&id, queue)| (id, queue.count(now)))
-            .filter(|(_, count)| *count > 0)
+            .iter()
+            .map(|(&id, queue)| (id, queue.count(now_secs)))
             .collect();
 
         RpmSnapshot {
@@ -137,5 +157,41 @@ impl RpmTracker {
             by_credential,
             by_api_key,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rpm_ring_buffer() {
+        let mut queue = TimestampQueue::new();
+        // 模拟当前时间
+        let now_secs = 1000;
+        
+        queue.record(now_secs);
+        queue.record(now_secs);
+        
+        assert_eq!(queue.count(now_secs), 2);
+        assert_eq!(queue.count(now_secs + 10), 2); // 10秒后依然在 60 秒窗口内
+        
+        // 测试过期的边界
+        assert_eq!(queue.count(now_secs + 60), 0); // 正好 60 秒（已过期）
+        assert_eq!(queue.count(now_secs + 61), 0);
+        
+        // 模拟一分钟后同一槽位被复用
+        queue.record(now_secs + 60);
+        assert_eq!(queue.count(now_secs + 60), 1);
+        
+        // 模拟多个不同秒数的请求
+        queue.record(now_secs + 60);
+        queue.record(now_secs + 61);
+        queue.record(now_secs + 62);
+        
+        assert_eq!(queue.count(now_secs + 62), 4);
+        
+        // 当 now_secs 推进到 now_secs + 123 时，所有数据均应过期（最后一次记录在 1062）
+        assert_eq!(queue.count(now_secs + 123), 0);
     }
 }

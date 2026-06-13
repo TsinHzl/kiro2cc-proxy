@@ -8,6 +8,8 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// 单条限流事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,16 +29,18 @@ const MAX_EVENTS_PER_CREDENTIAL: usize = 500;
 
 /// 限流日志存储
 pub struct ThrottleLogStore {
-    events: RwLock<Vec<ThrottleEvent>>,
+    events: Arc<RwLock<Vec<ThrottleEvent>>>,
     file_path: PathBuf,
+    dirty_tx: Option<mpsc::UnboundedSender<()>>,
 }
 
 impl ThrottleLogStore {
     /// 创建空的 store（用于加载失败时降级）
     pub fn empty<P: AsRef<Path>>(path: P) -> Self {
         Self {
-            events: RwLock::new(Vec::new()),
+            events: Arc::new(RwLock::new(Vec::new())),
             file_path: path.as_ref().to_path_buf(),
+            dirty_tx: None,
         }
     }
 
@@ -53,19 +57,63 @@ impl ThrottleLogStore {
         } else {
             Vec::new()
         };
+        let events = Arc::new(RwLock::new(events));
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let events_clone = events.clone();
+        let path_clone = path.clone();
+
+        tokio::spawn(async move {
+            let mut dirty = false;
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+            loop {
+                tokio::select! {
+                    res = rx.recv() => {
+                        match res {
+                            Some(_) => dirty = true,
+                            None => {
+                                if dirty {
+                                    if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
+                                        tracing::error!("Graceful shutdown throttle log save failed: {}", e);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    _ = interval.tick() => {
+                        if dirty {
+                            if let Err(e) = Self::save_internal(&events_clone, &path_clone).await {
+                                tracing::error!("Failed to save throttle log: {}", e);
+                            } else {
+                                dirty = false;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         Ok(Self {
-            events: RwLock::new(events),
+            events,
             file_path: path,
+            dirty_tx: Some(tx),
         })
     }
 
-    fn save(&self) -> anyhow::Result<()> {
-        let events = self.events.read();
-        let content = serde_json::to_string(&*events)?;
-        if let Some(parent) = self.file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&self.file_path, content)?;
+    async fn save_internal(events: &Arc<RwLock<Vec<ThrottleEvent>>>, file_path: &Path) -> anyhow::Result<()> {
+        let content = {
+            let e = events.read();
+            serde_json::to_string(&*e)?
+        };
+        let path = file_path.to_path_buf();
+        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&path, content)?;
+            Ok(())
+        })
+        .await??;
         Ok(())
     }
 
@@ -117,8 +165,8 @@ impl ThrottleLogStore {
             }
         }
 
-        if let Err(e) = self.save() {
-            tracing::warn!("保存限流日志失败: {}", e);
+        if let Some(tx) = &self.dirty_tx {
+            let _ = tx.send(());
         }
     }
 

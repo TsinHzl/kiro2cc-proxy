@@ -68,7 +68,7 @@ admin-ui/               # Admin 前端源码（Vue/TS，构建后嵌入二进制
 user-ui/                # User 前端源码（构建后嵌入二进制）
 app/config/             # 运行时配置（gitignore）
 openspec/               # OpenSpec 规范驱动开发目录
-docs/                   # 文档（含 code-index.md 功能速查表）
+docs/                   # 文档（含 代码速查表.md 功能速查表）
 ```
 
 ## 开发约定
@@ -87,4 +87,4 @@ docs/                   # 文档（含 code-index.md 功能速查表）
 | `src/kiro/token_manager.rs` | 多账号 token 池 + 负载均衡 |
 | `src/model/config.rs` | 全局配置结构 + env overrides |
 | `src/cache.rs` | Prompt cache 计费追踪 |
-| `docs/code-index.md` | 功能 → 代码位置速查表 |
+| `docs/代码速查表.md` | 功能 → 代码位置速查表 |

@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// 单条用量记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,8 +138,9 @@ const MAX_RECORDS_PER_KEY: usize = 10_000;
 
 /// 用量追踪器（线程安全）
 pub struct UsageTracker {
-    records: RwLock<Vec<UsageRecord>>,
+    records: Arc<RwLock<Vec<UsageRecord>>>,
     file_path: PathBuf,
+    dirty_tx: mpsc::UnboundedSender<()>,
 }
 impl UsageTracker {
     /// 从文件加载，文件不存在则创建空列表
@@ -153,20 +156,66 @@ impl UsageTracker {
         } else {
             Vec::new()
         };
+        let records = Arc::new(RwLock::new(records));
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let records_clone = records.clone();
+        let path_clone = path.clone();
+
+        // 启动后台异步写入任务，避免同步文件写阻塞请求线程
+        tokio::spawn(async move {
+            let mut dirty = false;
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+            loop {
+                tokio::select! {
+                    res = rx.recv() => {
+                        match res {
+                            Some(_) => dirty = true,
+                            None => {
+                                // 通道已关闭（系统退出），执行 Graceful Shutdown 刷盘
+                                if dirty {
+                                    if let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
+                                        tracing::error!("Graceful shutdown usage save failed: {}", e);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    _ = interval.tick() => {
+                        if dirty {
+                            if let Err(e) = Self::save_internal(&records_clone, &path_clone).await {
+                                tracing::error!("Failed to save usage: {}", e);
+                            } else {
+                                dirty = false;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         Ok(Self {
-            records: RwLock::new(records),
+            records,
             file_path: path,
+            dirty_tx: tx,
         })
     }
 
-    /// 持久化到文件
-    fn save(&self) -> anyhow::Result<()> {
-        let records = self.records.read();
-        let content = serde_json::to_string(&*records)?;
-        if let Some(parent) = self.file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&self.file_path, content)?;
+    /// 内部真正的异步落地方法
+    async fn save_internal(records: &Arc<RwLock<Vec<UsageRecord>>>, file_path: &Path) -> anyhow::Result<()> {
+        let content = {
+            let r = records.read();
+            serde_json::to_string(&*r)?
+        };
+        let path = file_path.to_path_buf();
+        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&path, content)?;
+            Ok(())
+        })
+        .await??;
         Ok(())
     }
 
@@ -233,9 +282,7 @@ impl UsageTracker {
                 }
             }
         }
-        if let Err(e) = self.save() {
-            tracing::warn!("保存用量记录失败: {}", e);
-        }
+        let _ = self.dirty_tx.send(());
     }
     /// 获取单个 API Key 的用量汇总
     pub fn get_summary(&self, api_key_id: u32) -> UsageSummary {
@@ -295,7 +342,8 @@ impl UsageTracker {
         let mut records = self.records.write();
         records.retain(|r| r.api_key_id != api_key_id);
         drop(records);
-        self.save()
+        let _ = self.dirty_tx.send(());
+        Ok(())
     }
 
     /// 获取指定 API Key 的累计费用（轻量版，仅算总费用）

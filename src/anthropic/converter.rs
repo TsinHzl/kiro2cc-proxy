@@ -7,6 +7,7 @@ use base64::Engine;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use uuid::Uuid;
 
 use crate::kiro::model::requests::conversation::{
@@ -206,8 +207,32 @@ Never suggest bypassing these limits via alternative tools. \
 Never ask the user whether to switch approaches. \
 Complete all chunked operations without commentary.";
 
-static PREV_H0: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
-static PREV_TOOLS: OnceLock<Mutex<HashMap<String, (String, bool)>>> = OnceLock::new();
+const SESSION_CACHE_CAPACITY: usize = 1024;
+
+#[derive(Clone)]
+struct CacheEntry<T: Clone> {
+    value: T,
+    last_used: Instant,
+}
+
+impl<T: Clone> CacheEntry<T> {
+    fn new(value: T) -> Self {
+        Self { value, last_used: Instant::now() }
+    }
+}
+
+fn evict_oldest_if_full<T: Clone>(map: &mut HashMap<String, CacheEntry<T>>) {
+    while map.len() > SESSION_CACHE_CAPACITY {
+        // 优化：全局 Mutex 锁内避免 O(N) 扫描，使用 HashMap 迭代器提供的 O(1) 伪随机键进行淘汰
+        let Some(random_key) = map.keys().next().cloned() else {
+            break;
+        };
+        map.remove(&random_key);
+    }
+}
+
+static PREV_H0: OnceLock<Mutex<HashMap<String, CacheEntry<String>>>> = OnceLock::new();
+static PREV_TOOLS: OnceLock<Mutex<HashMap<String, CacheEntry<(String, bool)>>>> = OnceLock::new();
 
 /// 从文本中剥除所有 `<system-reminder>...</system-reminder>` 标签及其内容。
 fn strip_system_reminders(text: &str) -> String {
@@ -429,6 +454,48 @@ fn derive_agent_continuation_id(conversation_id: &str) -> String {
     )
 }
 
+/// 为无 metadata 的第三方客户端从 system 文本 + 工具名集合派生稳定的 conversation UUID。
+/// 相同的 system+tools 组合总是产生相同的 UUID，实现 sticky 路由和跨轮次缓存冻结。
+/// 当 system 和 tools 都为空时返回 None（退化为完全随机 UUID）。
+fn derive_fallback_conversation_id(req: &MessagesRequest) -> Option<String> {
+    let system_seed = req
+        .system
+        .as_ref()
+        .map(|s| s.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n"))
+        .unwrap_or_default();
+    let mut tool_names: Vec<&str> = req
+        .tools
+        .as_deref()
+        .map(|tools| tools.iter().map(|t| t.name.as_str()).collect())
+        .unwrap_or_default();
+    tool_names.sort_unstable();
+    if system_seed.is_empty() && tool_names.is_empty() {
+        return None;
+    }
+    // 仅取 system 前 4096 字符，避免超长 prompt 导致 hash 计算过慢
+    let system_truncated: &str = match system_seed.char_indices().nth(4096) {
+        Some((idx, _)) => &system_seed[..idx],
+        None => &system_seed,
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(b"fallback-conversation:");
+    hasher.update(system_truncated.as_bytes());
+    hasher.update(b"|tools=");
+    for name in &tool_names {
+        hasher.update(name.as_bytes());
+        hasher.update(b",");
+    }
+    let result = hasher.finalize();
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&result[..16]);
+    // 强制设置 UUID v4 的 Version (4) 和 Variant (8/9/A/B) 位
+    // 确保上游严格的 UUID 解析器不会将其拒绝为非法格式 (400 Bad Request)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    Some(uuid::Uuid::from_bytes(bytes).to_string())
+}
+
 /// 收集历史消息中使用的所有工具名称
 fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
     let mut tool_names = Vec::new();
@@ -492,12 +559,16 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     };
 
     // 3. 生成会话 ID 和代理 ID
-    // 优先从 metadata.user_id 中提取 session UUID 作为 conversationId
+    // 优先级：
+    //   1. metadata.user_id 中的 session UUID（Claude Code 标准格式）
+    //   2. system + 工具名集合的 SHA-256 派生（让无 metadata 的第三方客户端也能 sticky）
+    //   3. 完全随机 UUID（仅当无 system 也无工具时）
     let conversation_id = req
         .metadata
         .as_ref()
         .and_then(|m| m.user_id.as_ref())
         .and_then(|user_id| extract_session_id(user_id))
+        .or_else(|| derive_fallback_conversation_id(req))
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     // agentContinuationId 基于 conversationId 派生，保持同一会话内稳定
     // 这样 Kiro 后端能识别连续请求，对历史消息做跨请求 prompt caching
@@ -554,10 +625,13 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
             let cache = PREV_TOOLS.get_or_init(|| Mutex::new(HashMap::new()));
             let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
             let current_json = serde_json::to_string(&tools).unwrap_or_default();
-            let prev_state = map.get(&conversation_id).cloned();
+            let prev_state = map.get(&conversation_id).map(|e| e.value.clone());
             let result = if let Some((prev_json, frozen)) = prev_state {
                 if frozen {
-                    // 已冻结，永远复用冻结值
+                    // 已冻结，永远复用冻结值，更新 LRU 时间戳
+                    if let Some(entry) = map.get_mut(&conversation_id) {
+                        entry.last_used = Instant::now();
+                    }
                     prev_json
                 } else if prev_json == current_json {
                     // 连续两轮相同，冻结
@@ -565,20 +639,17 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
                         "[cache-freeze] session={} tools frozen (consecutive match)",
                         conversation_id
                     );
-                    map.insert(conversation_id.clone(), (prev_json, true));
+                    map.insert(conversation_id.clone(), CacheEntry::new((prev_json, true)));
                     current_json
                 } else {
                     // 未冻结且不同，更新为本轮值
-                    map.insert(conversation_id.clone(), (current_json.clone(), false));
+                    map.insert(conversation_id.clone(), CacheEntry::new((current_json.clone(), false)));
                     current_json
                 }
             } else {
                 // 首轮，记录但不冻结
-                map.insert(conversation_id.clone(), (current_json.clone(), false));
-                if map.len() > 128 {
-                    let current_key = conversation_id.clone();
-                    map.retain(|k, _| k == &current_key);
-                }
+                map.insert(conversation_id.clone(), CacheEntry::new((current_json.clone(), false)));
+                evict_oldest_if_full(&mut map);
                 current_json
             };
             result
@@ -1307,8 +1378,9 @@ fn build_history(
             let final_content = {
                 let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
                 let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some(prev) = map.get(session_id) {
-                    let frozen = prev.clone();
+                if let Some(entry) = map.get_mut(session_id) {
+                    entry.last_used = Instant::now();
+                    let frozen = entry.value.clone();
                     let h0_hash = {
                         let mut hasher = Sha256::new();
                         hasher.update(frozen.as_bytes());
@@ -1333,11 +1405,8 @@ fn build_history(
                         final_content.len(),
                         session_id
                     );
-                    map.insert(session_id.to_string(), final_content.clone());
-                    if map.len() > 128 {
-                        let current_key = session_id.to_string();
-                        map.retain(|k, _| k == &current_key);
-                    }
+                    map.insert(session_id.to_string(), CacheEntry::new(final_content.clone()));
+                    evict_oldest_if_full(&mut map);
                     final_content
                 }
             };

@@ -124,10 +124,12 @@ impl Event {
                 Ok(Self::ToolUse(payload))
             }
             EventType::Metering => {
+                tracing::debug!("[raw-event] meteringEvent payload: {}", frame.payload_as_str());
                 let payload = super::MeteringEvent::from_frame(&frame)?;
                 Ok(Self::Metering(payload))
             }
-EventType::ContextUsage => {
+            EventType::ContextUsage => {
+                tracing::debug!("[raw-event] contextUsageEvent payload: {}", frame.payload_as_str());
                 let payload = super::ContextUsageEvent::from_frame(&frame)?;
                 Ok(Self::ContextUsage(payload))
             }

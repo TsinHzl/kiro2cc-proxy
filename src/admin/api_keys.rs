@@ -187,13 +187,27 @@ pub async fn get_credential_usage_records(
 }
 
 /// GET /api/admin/rpm
-/// 获取实时 RPM 数据
+/// 获取实时 RPM 数据（含 sticky cache 命中/未命中统计）
 pub async fn get_rpm(State(state): State<AdminState>) -> impl IntoResponse {
     let Some(rpm_tracker) = &state.rpm_tracker else {
         let error = AdminErrorResponse::internal_error("RPM 监控未启用");
         return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
     };
-    Json(rpm_tracker.snapshot()).into_response()
+    let (sticky_hits, sticky_misses) = state.service.sticky_metrics();
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct RpmAndCacheSnapshot {
+        #[serde(flatten)]
+        rpm: crate::model::rpm::RpmSnapshot,
+        sticky_hits: u64,
+        sticky_misses: u64,
+    }
+    Json(RpmAndCacheSnapshot {
+        rpm: rpm_tracker.snapshot(),
+        sticky_hits,
+        sticky_misses,
+    })
+    .into_response()
 }
 
 /// GET /api/admin/usage/daily

@@ -454,6 +454,11 @@ impl AdminService {
         }
     }
 
+    /// 转发 sticky cache 命中/未命中计数
+    pub fn sticky_metrics(&self) -> (u64, u64) {
+        self.token_manager.sticky_metrics()
+    }
+
     /// 分类更新账号错误
     fn classify_update_error(&self, e: anyhow::Error, id: u64) -> AdminServiceError {
         let msg = e.to_string();

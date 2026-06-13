@@ -599,6 +599,10 @@ pub struct MultiTokenManager {
     rr_counter: AtomicU64,
     /// Sticky cache：agentContinuationId → 账号绑定关系
     sticky_cache: Mutex<HashMap<String, StickyCacheEntry>>,
+    /// Sticky cache 命中次数（lock-free 统计）
+    sticky_hits: AtomicU64,
+    /// Sticky cache 未命中次数（包括无 continuation_id、TTL 过期、账号不健康）
+    sticky_misses: AtomicU64,
     /// 持久化串行锁：串行化 credentials/stats 的序列化+写盘，避免多路径并发交错写
     persist_lock: Mutex<()>,
 }
@@ -752,6 +756,8 @@ impl MultiTokenManager {
             stats_dirty: AtomicBool::new(false),
             rr_counter: AtomicU64::new(0),
             sticky_cache: Mutex::new(HashMap::new()),
+            sticky_hits: AtomicU64::new(0),
+            sticky_misses: AtomicU64::new(0),
             persist_lock: Mutex::new(()),
         };
 
@@ -795,6 +801,14 @@ impl MultiTokenManager {
     /// 获取可用账号数量
     pub fn available_count(&self) -> usize {
         self.entries.lock().iter().filter(|e| !e.disabled).count()
+    }
+
+    /// 返回 (sticky_hits, sticky_misses) 累计计数
+    pub fn sticky_metrics(&self) -> (u64, u64) {
+        (
+            self.sticky_hits.load(Ordering::Relaxed),
+            self.sticky_misses.load(Ordering::Relaxed),
+        )
     }
 
     /// 根据负载均衡模式选择下一个账号
@@ -1029,6 +1043,7 @@ impl MultiTokenManager {
         continuation_id: Option<&str>,
     ) -> anyhow::Result<CallContext> {
         let Some(cid) = continuation_id else {
+            // 新会话无 continuation_id 是正常流程，不计入 miss，避免稀释真实掉线率
             return self.acquire_context_filtered(model, allowed_ids).await;
         };
 
@@ -1061,6 +1076,7 @@ impl MultiTokenManager {
             match self.try_ensure_token(id, &credentials).await {
                 Ok(ctx) => {
                     // 命中成功，续期
+                    self.sticky_hits.fetch_add(1, Ordering::Relaxed);
                     self.sticky_cache.lock().entry(cid.to_string()).and_modify(|e| {
                         e.inserted_at = Instant::now();
                     });
@@ -1069,11 +1085,13 @@ impl MultiTokenManager {
                 Err(e) => {
                     tracing::warn!("sticky cache 账号 #{} token 刷新失败，驱逐并重选: {}", id, e);
                     self.sticky_cache.lock().remove(cid);
+                    self.sticky_misses.fetch_add(1, Ordering::Relaxed);
                 }
             }
         } else {
             // TTL 过期或不健康，清理旧条目
             self.sticky_cache.lock().remove(cid);
+            self.sticky_misses.fetch_add(1, Ordering::Relaxed);
         }
 
         // 步骤 ④：走原有选择逻辑

@@ -127,6 +127,20 @@ impl RpmTracker {
             .record(now_secs);
     }
 
+    /// 查询指定账号的当前 RPM
+    pub fn credential_rpm(&self, credential_id: u64) -> u64 {
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let inner = self.inner.lock().unwrap();
+        inner
+            .by_credential
+            .get(&credential_id)
+            .map(|q| q.count(now_secs))
+            .unwrap_or(0)
+    }
+
     /// 获取当前 RPM 快照
     pub fn snapshot(&self) -> RpmSnapshot {
         let now_secs = SystemTime::now()

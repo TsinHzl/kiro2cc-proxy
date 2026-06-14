@@ -89,6 +89,10 @@ pub struct Config {
     #[serde(default = "default_load_balancing_mode")]
     pub load_balancing_mode: String,
 
+    /// 单账号每分钟最大请求数（超出时排队等待），0 表示不限制
+    #[serde(default = "default_max_rpm_per_credential")]
+    pub max_rpm_per_credential: u32,
+
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
@@ -107,7 +111,11 @@ fn default_region() -> String {
 }
 
 fn default_kiro_version() -> String {
-    "0.10.0".to_string()
+    "2.2.2".to_string()
+}
+
+fn default_max_rpm_per_credential() -> u32 {
+    20
 }
 
 fn default_system_version() -> String {
@@ -152,6 +160,7 @@ impl Default for Config {
             proxy_password: None,
             admin_api_key: None,
             load_balancing_mode: default_load_balancing_mode(),
+            max_rpm_per_credential: default_max_rpm_per_credential(),
             config_path: None,
         }
     }

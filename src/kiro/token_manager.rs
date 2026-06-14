@@ -450,6 +450,8 @@ struct CredentialEntry {
     last_throttled_at: Option<Instant>,
     /// 最后一次被限流时间（UTC，持久化，用于健康状态窗口计算）
     last_throttled_wall: Option<DateTime<Utc>>,
+    /// 最后一次 token 刷新时间（用于冷却期控制）
+    last_refreshed_at: Option<Instant>,
 }
 
 /// 禁用原因
@@ -718,6 +720,7 @@ impl MultiTokenManager {
                     throttle_count: 0,
                     last_throttled_at: None,
                     last_throttled_wall: None,
+                    last_refreshed_at: None,
                 }
             })
             .collect();
@@ -1187,29 +1190,44 @@ impl MultiTokenManager {
             };
 
             if is_token_expired(&current_creds) || is_token_expiring_soon(&current_creds) {
-                // 确实需要刷新
-                let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
-                let new_creds =
-                    refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
+                // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
+                const REFRESH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
+                let skip_for_cooldown = !is_token_expired(&current_creds) && {
+                    let entries = self.entries.lock();
+                    entries.iter().find(|e| e.id == id)
+                        .and_then(|e| e.last_refreshed_at)
+                        .map(|t| t.elapsed() < REFRESH_COOLDOWN)
+                        .unwrap_or(false)
+                };
+                if skip_for_cooldown {
+                    tracing::debug!("Token 即将过期但在冷却期内（30s），跳过刷新");
+                    current_creds
+                } else {
+                    // 确实需要刷新
+                    let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
+                    let new_creds =
+                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
 
-                if is_token_expired(&new_creds) {
-                    anyhow::bail!("刷新后的 Token 仍然无效或已过期");
-                }
-
-                // 更新账号
-                {
-                    let mut entries = self.entries.lock();
-                    if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
-                        entry.credentials = new_creds.clone();
+                    if is_token_expired(&new_creds) {
+                        anyhow::bail!("刷新后的 Token 仍然无效或已过期");
                     }
-                }
 
-                // 回写账号到文件（仅多账号格式），失败只记录警告
-                if let Err(e) = self.persist_credentials() {
-                    tracing::warn!("Token 刷新后持久化失败（不影响本次请求）: {}", e);
-                }
+                    // 更新账号 + 记录刷新时间
+                    {
+                        let mut entries = self.entries.lock();
+                        if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+                            entry.credentials = new_creds.clone();
+                            entry.last_refreshed_at = Some(Instant::now());
+                        }
+                    }
 
-                new_creds
+                    // 回写账号到文件（仅多账号格式），失败只记录警告
+                    if let Err(e) = self.persist_credentials() {
+                        tracing::warn!("Token 刷新后持久化失败（不影响本次请求）: {}", e);
+                    }
+
+                    new_creds
+                }
             } else {
                 // 其他请求已经完成刷新，直接使用新账号
                 tracing::debug!("Token 已被其他请求刷新，跳过刷新");
@@ -1769,22 +1787,40 @@ impl MultiTokenManager {
             };
 
             if is_token_expired(&current_creds) || is_token_expiring_soon(&current_creds) {
-                let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
-                let new_creds =
-                    refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
-                {
-                    let mut entries = self.entries.lock();
-                    if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
-                        entry.credentials = new_creds.clone();
+                // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
+                const REFRESH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
+                let skip_for_cooldown = !is_token_expired(&current_creds) && {
+                    let entries = self.entries.lock();
+                    entries.iter().find(|e| e.id == id)
+                        .and_then(|e| e.last_refreshed_at)
+                        .map(|t| t.elapsed() < REFRESH_COOLDOWN)
+                        .unwrap_or(false)
+                };
+                if skip_for_cooldown {
+                    tracing::debug!("Token 即将过期但在冷却期内（30s），跳过刷新");
+                    current_creds
+                        .access_token
+                        .clone()
+                        .ok_or_else(|| anyhow::anyhow!("冷却期内无 access_token"))?
+                } else {
+                    let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
+                    let new_creds =
+                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
+                    {
+                        let mut entries = self.entries.lock();
+                        if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+                            entry.credentials = new_creds.clone();
+                            entry.last_refreshed_at = Some(Instant::now());
+                        }
                     }
+                    // 持久化失败只记录警告，不影响本次请求
+                    if let Err(e) = self.persist_credentials() {
+                        tracing::warn!("Token 刷新后持久化失败（不影响本次请求）: {}", e);
+                    }
+                    new_creds
+                        .access_token
+                        .ok_or_else(|| anyhow::anyhow!("刷新后无 access_token"))?
                 }
-                // 持久化失败只记录警告，不影响本次请求
-                if let Err(e) = self.persist_credentials() {
-                    tracing::warn!("Token 刷新后持久化失败（不影响本次请求）: {}", e);
-                }
-                new_creds
-                    .access_token
-                    .ok_or_else(|| anyhow::anyhow!("刷新后无 access_token"))?
             } else {
                 current_creds
                     .access_token
@@ -1926,6 +1962,7 @@ impl MultiTokenManager {
                 throttle_count: 0,
                 last_throttled_at: None,
                 last_throttled_wall: None,
+                last_refreshed_at: None,
             });
         }
 

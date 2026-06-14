@@ -230,7 +230,6 @@ fn evict_oldest_if_full<T: Clone>(map: &mut HashMap<String, CacheEntry<T>>) {
 }
 
 static PREV_H0: OnceLock<Mutex<HashMap<String, CacheEntry<String>>>> = OnceLock::new();
-static PREV_TOOLS: OnceLock<Mutex<HashMap<String, CacheEntry<(String, bool)>>>> = OnceLock::new();
 
 /// 从文本中剥除所有 `<system-reminder>...</system-reminder>` 标签及其内容。
 fn strip_system_reminders(text: &str) -> String {
@@ -300,6 +299,8 @@ fn extract_system_reminders(messages: &[super::types::Message]) -> String {
         }
     }
 
+    reminders.sort();
+    reminders.dedup();
     reminders.join("\n")
 }
 
@@ -613,42 +614,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     }
 
     // 11. 将 tools 注入 history（系统提示对之后），使 Kiro 前缀缓存覆盖工具定义。
-    // 连续两轮 tools JSON 相同则冻结，冻结后跨轮次稳定命中缓存。
     let tools_history_idx = if !tools.is_empty() {
         let insert_pos = if history.len() >= 2 { 2 } else { history.len() };
-        let tools_json = {
-            let cache = PREV_TOOLS.get_or_init(|| Mutex::new(HashMap::new()));
-            let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
-            let current_json = serde_json::to_string(&tools).unwrap_or_default();
-            let prev_state = map.get(&conversation_id).map(|e| e.value.clone());
-            
-            if let Some((prev_json, frozen)) = prev_state {
-                if frozen {
-                    // 已冻结，永远复用冻结值，更新 LRU 时间戳
-                    if let Some(entry) = map.get_mut(&conversation_id) {
-                        entry.last_used = Instant::now();
-                    }
-                    prev_json
-                } else if prev_json == current_json {
-                    // 连续两轮相同，冻结
-                    tracing::info!(
-                        "[cache-freeze] session={} tools frozen (consecutive match)",
-                        conversation_id
-                    );
-                    map.insert(conversation_id.clone(), CacheEntry::new((prev_json, true)));
-                    current_json
-                } else {
-                    // 未冻结且不同，更新为本轮值
-                    map.insert(conversation_id.clone(), CacheEntry::new((current_json.clone(), false)));
-                    current_json
-                }
-            } else {
-                // 首轮，记录但不冻结
-                map.insert(conversation_id.clone(), CacheEntry::new((current_json.clone(), false)));
-                evict_oldest_if_full(&mut map);
-                current_json
-            }
-        };
+        let tools_json = serde_json::to_string(&tools).unwrap_or_default();
         let tools_user = HistoryUserMessage {
             user_input_message: {
                 let mut msg = crate::kiro::model::requests::conversation::UserMessage::new(
@@ -1428,9 +1396,7 @@ fn build_history(
     let mut user_buffer: Vec<&super::types::Message> = Vec::new();
     let mut assistant_buffer: Vec<&super::types::Message> = Vec::new();
 
-    for i in 0..history_end_index {
-        let msg = &messages[i];
-
+    for msg in &messages[..history_end_index] {
         if msg.role == "user" {
             // 先处理累积的 assistant 消息
             if !assistant_buffer.is_empty() {

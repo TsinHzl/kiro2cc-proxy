@@ -135,13 +135,11 @@ pub fn extract_search_query(req: &MessagesRequest) -> Option<String> {
         _ => return None,
     };
 
-    // 去除前缀 "Perform a web search for the query: "
     const PREFIX: &str = "Perform a web search for the query: ";
-    let query = if text.starts_with(PREFIX) {
-        text[PREFIX.len()..].to_string()
-    } else {
-        text
-    };
+    let query = text
+        .strip_prefix(PREFIX)
+        .map(|s| s.to_string())
+        .unwrap_or(text);
 
     if query.is_empty() { None } else { Some(query) }
 }

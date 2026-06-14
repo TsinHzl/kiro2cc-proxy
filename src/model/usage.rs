@@ -219,6 +219,7 @@ impl UsageTracker {
     }
 
     /// 记录一次请求用量
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         &self,
         api_key_id: u32,

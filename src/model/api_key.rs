@@ -226,6 +226,7 @@ impl ApiKeyManager {
     }
 
     /// 更新 key（name, enabled, expires_at, spending_limit, duration_days）
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &self,
         id: u32,

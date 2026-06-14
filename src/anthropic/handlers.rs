@@ -127,6 +127,7 @@ fn map_provider_error_with_context(err: Error, model: &str, estimated_input_toke
 /// 替代 axum 的 `Json<MessagesRequest>` 提取器——后者反序列化失败时直接返回 400
 /// 且不记录任何信息，导致无法定位是哪个字段/格式导致客户端请求被拒。
 /// 此函数在失败时打印 serde 错误（行列+字段路径）、body 长度、出错位置附近的片段。
+#[allow(clippy::result_large_err)]
 fn parse_messages_request(body: &[u8]) -> Result<MessagesRequest, Response> {
     match serde_json::from_slice::<MessagesRequest>(body) {
         Ok(req) => Ok(req),
@@ -638,6 +639,7 @@ pub async fn post_messages(
 }
 
 /// 处理流式请求
+#[allow(clippy::too_many_arguments)]
 async fn handle_stream_request(
     provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
     request_body: &str,
@@ -822,6 +824,7 @@ fn create_sse_stream(
 const CONTEXT_WINDOW_SIZE: i32 = 200_000;
 
 /// 处理非流式请求
+#[allow(clippy::too_many_arguments)]
 async fn handle_non_stream_request(
     provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
     request_body: &str,
@@ -1334,6 +1337,7 @@ pub async fn post_messages_cc(
 ///
 /// 与 `handle_stream_request` 不同，此函数会缓冲所有事件直到流结束，
 /// 然后用从 contextUsageEvent 计算的正确 input_tokens 生成 message_start 事件。
+#[allow(clippy::too_many_arguments)]
 async fn handle_stream_request_buffered(
     provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
     request_body: &str,

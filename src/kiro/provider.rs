@@ -390,26 +390,7 @@ impl KiroProvider {
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
             // RPM 硬限制
-            if let Some(rpm) = &self.rpm_tracker {
-                let max_rpm = self.token_manager.config().max_rpm_per_credential;
-                if max_rpm > 0 {
-                    let mut rpm_waits = 0;
-                    while rpm.credential_rpm(ctx.id) >= max_rpm as u64 && rpm_waits < 2 {
-                        tracing::info!(
-                            "[RPM-GATE] credential={} rpm={} limit={}, waiting 3s (mcp)",
-                            ctx.id, rpm.credential_rpm(ctx.id), max_rpm
-                        );
-                        sleep(Duration::from_secs(3)).await;
-                        rpm_waits += 1;
-                    }
-                    if rpm.credential_rpm(ctx.id) >= max_rpm as u64 {
-                        tracing::warn!(
-                            "[RPM-GATE] credential={} still over limit after wait (mcp), proceeding anyway",
-                            ctx.id
-                        );
-                    }
-                }
-            }
+            self.wait_for_rpm_gate(ctx.id, " (mcp)").await;
 
             let url = self.mcp_url_for(&ctx.credentials);
             let headers = match self.build_mcp_headers(&ctx, attempt) {
@@ -583,26 +564,7 @@ impl KiroProvider {
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
             // RPM 硬限制：超出时等待后重试（最多等 2 次，共 6 秒）
-            if let Some(rpm) = &self.rpm_tracker {
-                let max_rpm = self.token_manager.config().max_rpm_per_credential;
-                if max_rpm > 0 {
-                    let mut rpm_waits = 0;
-                    while rpm.credential_rpm(ctx.id) >= max_rpm as u64 && rpm_waits < 2 {
-                        tracing::info!(
-                            "[RPM-GATE] credential={} rpm={} limit={}, waiting 3s",
-                            ctx.id, rpm.credential_rpm(ctx.id), max_rpm
-                        );
-                        sleep(Duration::from_secs(3)).await;
-                        rpm_waits += 1;
-                    }
-                    if rpm.credential_rpm(ctx.id) >= max_rpm as u64 {
-                        tracing::warn!(
-                            "[RPM-GATE] credential={} still over limit after wait, proceeding anyway",
-                            ctx.id
-                        );
-                    }
-                }
-            }
+            self.wait_for_rpm_gate(ctx.id, "").await;
 
             let url = self.base_url_for(&ctx.credentials);
             let headers = match self.build_headers(&ctx, request_body, attempt) {
@@ -821,6 +783,30 @@ impl KiroProvider {
     /// 429 限流专用退避：2-5 秒随机，避免短间隔重试加重检测
     fn throttle_delay() -> Duration {
         Duration::from_millis(2000 + fastrand::u64(0..=3000))
+    }
+
+    /// RPM 硬限制：超出时等待后放行（最多等 2 次，共 6 秒）
+    async fn wait_for_rpm_gate(&self, credential_id: u64, tag: &str) {
+        if let Some(rpm) = &self.rpm_tracker {
+            let max_rpm = self.token_manager.config().max_rpm_per_credential;
+            if max_rpm > 0 {
+                let mut rpm_waits = 0;
+                while rpm.credential_rpm(credential_id) >= max_rpm as u64 && rpm_waits < 2 {
+                    tracing::info!(
+                        "[RPM-GATE] credential={} rpm={} limit={}, waiting 3s{}",
+                        credential_id, rpm.credential_rpm(credential_id), max_rpm, tag
+                    );
+                    sleep(Duration::from_secs(3)).await;
+                    rpm_waits += 1;
+                }
+                if rpm.credential_rpm(credential_id) >= max_rpm as u64 {
+                    tracing::warn!(
+                        "[RPM-GATE] credential={} still over limit after wait{}, proceeding anyway",
+                        credential_id, tag
+                    );
+                }
+            }
+        }
     }
 
     fn is_monthly_request_limit(body: &str) -> bool {

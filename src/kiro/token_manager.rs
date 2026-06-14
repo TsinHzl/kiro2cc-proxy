@@ -616,6 +616,8 @@ const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
 /// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
 const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60);
 
+const TOKEN_REFRESH_COOLDOWN: StdDuration = StdDuration::from_secs(30);
+
 /// Sticky cache 条目：记录会话到账号的绑定关系
 struct StickyCacheEntry {
     credential_id: u64,
@@ -1191,12 +1193,11 @@ impl MultiTokenManager {
 
             if is_token_expired(&current_creds) || is_token_expiring_soon(&current_creds) {
                 // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
-                const REFRESH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
                 let skip_for_cooldown = !is_token_expired(&current_creds) && {
                     let entries = self.entries.lock();
                     entries.iter().find(|e| e.id == id)
                         .and_then(|e| e.last_refreshed_at)
-                        .map(|t| t.elapsed() < REFRESH_COOLDOWN)
+                        .map(|t| t.elapsed() < TOKEN_REFRESH_COOLDOWN)
                         .unwrap_or(false)
                 };
                 if skip_for_cooldown {
@@ -1788,12 +1789,11 @@ impl MultiTokenManager {
 
             if is_token_expired(&current_creds) || is_token_expiring_soon(&current_creds) {
                 // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
-                const REFRESH_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
                 let skip_for_cooldown = !is_token_expired(&current_creds) && {
                     let entries = self.entries.lock();
                     entries.iter().find(|e| e.id == id)
                         .and_then(|e| e.last_refreshed_at)
-                        .map(|t| t.elapsed() < REFRESH_COOLDOWN)
+                        .map(|t| t.elapsed() < TOKEN_REFRESH_COOLDOWN)
                         .unwrap_or(false)
                 };
                 if skip_for_cooldown {

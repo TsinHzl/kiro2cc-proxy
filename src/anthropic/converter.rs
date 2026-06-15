@@ -641,9 +641,12 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
 
     // 12. 构建当前消息
     // 保留文本内容，即使有工具结果也不丢弃用户文本
-    // 空 content 兜底：Kiro 后端不接受空字符串，用 "Continue" 占位
+    // 空 content 兜底：Kiro 后端不接受空字符串。
+    // 注意：此前用 "Continue" 会让模型把 tool_result-only 的 user 消息误判为
+    // "用户让我继续" → 仅简短回 "已完成" 不复述工具结果（如 LS 输出）。
+    // 改用中性提示词，明确告知"上方为工具结果"，让模型基于结果回复用户。
     let content = if text_content.is_empty() {
-        "Continue".to_string()
+        "(tool result above)".to_string()
     } else {
         text_content
     };
@@ -1473,9 +1476,10 @@ fn merge_user_messages(
     }
 
     let content = content_parts.join("\n");
-    // 空 content 兜底：历史 user 消息中仅含 tool_result 时，Kiro 不接受空字符串
+    // 空 content 兜底：历史 user 消息中仅含 tool_result 时，Kiro 不接受空字符串。
+    // 与 convert_request 保持同样占位词，避免 "Continue" 误导模型。
     let content = if content.is_empty() {
-        "Continue".to_string()
+        "(tool result above)".to_string()
     } else {
         content
     };
@@ -1535,7 +1539,10 @@ fn convert_assistant_message(
         _ => {}
     }
 
-    // Kiro API 要求 content 字段不能为空，当只有 tool_use 时需要占位符
+    // Kiro API 要求 content 字段不能为空，当只有 tool_use 时需要占位符。
+    // 注意：此处与 user 侧（convert_request / merge_user_messages）的 "(tool result above)"
+    // 策略不同 —— assistant 侧是"模型自己历史的 tool_use 调用"，仅需占位无需语义引导；
+    // 而 user 侧需明示"上方为工具结果"以避免模型误读为"用户让我继续"。
     let final_content = if text_content.is_empty() && !tool_uses.is_empty() {
         " ".to_string()
     } else {

@@ -308,7 +308,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.6".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 64000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-opus-4-6-thinking".to_string(),
@@ -317,7 +317,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.6 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 64000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-opus-4-7".to_string(),
@@ -352,6 +352,24 @@ fn build_model_list() -> Vec<Model> {
             created: 1775600000,
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.8 (Thinking)".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
+            id: "claude-fable-5".to_string(),
+            object: "model".to_string(),
+            created: 1772582400,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Fable 5".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
+            id: "claude-fable-5-thinking".to_string(),
+            object: "model".to_string(),
+            created: 1772582400,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Fable 5 (Thinking)".to_string(),
             model_type: "chat".to_string(),
             max_tokens: 128000,
         },
@@ -1491,4 +1509,58 @@ fn create_buffered_sse_stream(
         },
     )
     .flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn find_by_id(id: &str) -> Option<Model> {
+        build_model_list().into_iter().find(|m| m.id == id)
+    }
+
+    #[test]
+    fn test_opus_4_6_max_tokens_is_128k() {
+        let m = find_by_id("claude-opus-4-6").expect("claude-opus-4-6 缺失");
+        assert_eq!(m.max_tokens, 128000);
+        let mt = find_by_id("claude-opus-4-6-thinking").expect("claude-opus-4-6-thinking 缺失");
+        assert_eq!(mt.max_tokens, 128000);
+    }
+
+    #[test]
+    fn test_fable_5_present() {
+        let m = find_by_id("claude-fable-5").expect("claude-fable-5 应存在");
+        assert_eq!(m.max_tokens, 128000);
+        assert_eq!(m.owned_by, "anthropic");
+        assert_eq!(m.object, "model");
+        assert_eq!(m.model_type, "chat");
+        assert_eq!(m.display_name, "Claude Fable 5");
+    }
+
+    #[test]
+    fn test_fable_5_thinking_present() {
+        let m = find_by_id("claude-fable-5-thinking").expect("claude-fable-5-thinking 应存在");
+        assert_eq!(m.max_tokens, 128000);
+        assert_eq!(m.display_name, "Claude Fable 5 (Thinking)");
+    }
+
+    #[test]
+    fn test_haiku_4_5_max_tokens_unchanged() {
+        // 回归：haiku-4-5 max_tokens 维持 64000
+        let m = find_by_id("claude-haiku-4-5-20251001").expect("haiku 条目缺失");
+        assert_eq!(m.max_tokens, 64000);
+    }
+
+    #[test]
+    fn test_opus_4_7_4_8_max_tokens_unchanged() {
+        // 回归
+        assert_eq!(find_by_id("claude-opus-4-7").unwrap().max_tokens, 128000);
+        assert_eq!(find_by_id("claude-opus-4-8").unwrap().max_tokens, 128000);
+    }
+
+    #[test]
+    fn test_sonnet_4_6_max_tokens_unchanged() {
+        // 回归
+        assert_eq!(find_by_id("claude-sonnet-4-6").unwrap().max_tokens, 64000);
+    }
 }

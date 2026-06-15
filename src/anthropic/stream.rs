@@ -511,15 +511,20 @@ impl SseStateManager {
 }
 
 /// Kiro contextUsagePercentage 的基准窗口大小。
-/// opus-4.7/4.8/sonnet-4.6 实测按 1M 窗口计算百分比，与直连 API 的 input_tokens 吻合。
+/// opus-4.6/4.7/4.8、sonnet-4.6、fable-5 按 1M 窗口（Anthropic 官方公布值；
+/// opus-4.6 与 fable-5 未在 Kiro 上游实测，仅按官方对齐）。
 pub(crate) fn context_window_for_model(model: &str) -> i32 {
     match model {
         m if m.contains("opus-4-8")
             || m.contains("opus-4.8")
             || m.contains("opus-4-7")
             || m.contains("opus-4.7")
+            || m.contains("opus-4-6")
+            || m.contains("opus-4.6")
             || m.contains("sonnet-4-6")
-            || m.contains("sonnet-4.6") =>
+            || m.contains("sonnet-4.6")
+            || m.contains("fable-5")
+            || m.contains("fable_5") =>
         {
             1_000_000
         }
@@ -565,11 +570,24 @@ pub(crate) fn infer_cache_read_tokens(
     let credits = credits?;
     // (k_ref, input_price_per_M, output_price_per_M)
     let (k_ref, input_price, output_price): (f64, f64, f64) = if model.contains("opus") {
-        if model.contains("4-7") || model.contains("4-8") {
+        if model.contains("4-6")
+            || model.contains("4.6")
+            || model.contains("4-7")
+            || model.contains("4.7")
+            || model.contains("4-8")
+            || model.contains("4.8")
+        {
+            // opus 4.6/4.7/4.8 同档：官方单价均 .00/.00
             (2.60, 15.0, 75.0)
         } else {
+            // opus 4.5 及更早
             (2.40, 15.0, 75.0)
         }
+    } else if model.contains("fable") {
+        // 占位：fable-5 单价未实测，临时沿用 opus 顶端档位。
+        // 影响：cache_read_input_tokens 反推值进入 usage 上报，存在估算偏差。
+        // 后续：抓 Kiro fable-5 metering_credits 后修正为实测档位。
+        (2.60, 15.0, 75.0)
     } else if model.contains("haiku") {
         return None; // k_ref 未实测，降级到模拟值
     } else {
@@ -2451,6 +2469,66 @@ mod tests {
         assert!(
             !ctx.is_empty_response(),
             "仅有工具调用时不应判定为空响应"
+        );
+    }
+
+    #[test]
+    fn test_context_window_opus_4_6_is_1m() {
+        assert_eq!(context_window_for_model("claude-opus-4-6"), 1_000_000);
+        assert_eq!(
+            context_window_for_model("claude-opus-4-6-thinking"),
+            1_000_000
+        );
+    }
+
+    #[test]
+    fn test_context_window_fable_5_is_1m() {
+        assert_eq!(context_window_for_model("claude-fable-5"), 1_000_000);
+        assert_eq!(
+            context_window_for_model("claude-fable-5-thinking"),
+            1_000_000
+        );
+    }
+
+    #[test]
+    fn test_context_window_haiku_is_200k() {
+        assert_eq!(
+            context_window_for_model("claude-haiku-4-5-20251001"),
+            200_000
+        );
+    }
+
+    #[test]
+    fn test_context_window_existing_branches_unchanged() {
+        // 回归：4-7 / 4-8 / sonnet-4-6 仍为 1M
+        assert_eq!(context_window_for_model("claude-opus-4-7"), 1_000_000);
+        assert_eq!(context_window_for_model("claude-opus-4-8"), 1_000_000);
+        assert_eq!(context_window_for_model("claude-sonnet-4-6"), 1_000_000);
+    }
+
+    #[test]
+    fn test_infer_cache_read_tokens_opus_4_6_returns_some() {
+        // opus-4.6 应进入 (2.60, 15.0, 75.0) 分支，返回 Some(v) 且 0 <= v <= total
+        let result = infer_cache_read_tokens(1000, Some(0.0234), 0, "claude-opus-4-6");
+        assert!(result.is_some(), "opus-4.6 不应返回 None");
+        let v = result.unwrap();
+        assert!(
+            (0..=1000).contains(&v),
+            "opus-4.6 反推值应在 [0, 1000]，实际 {}",
+            v
+        );
+    }
+
+    #[test]
+    fn test_infer_cache_read_tokens_fable_returns_some() {
+        // fable-5 应进入新增 fable 分支，返回 Some(v) 且 0 <= v <= total
+        let result = infer_cache_read_tokens(1000, Some(0.0234), 0, "claude-fable-5");
+        assert!(result.is_some(), "fable-5 不应返回 None");
+        let v = result.unwrap();
+        assert!(
+            (0..=1000).contains(&v),
+            "fable-5 反推值应在 [0, 1000]，实际 {}",
+            v
         );
     }
 }

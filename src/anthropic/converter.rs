@@ -375,6 +375,8 @@ pub fn map_model(model: &str) -> Option<String> {
 pub struct ConversionResult {
     /// 转换后的 Kiro 请求
     pub conversation_state: ConversationState,
+    /// 模型专属请求参数（thinking、output_config、max_tokens）
+    pub additional_model_request_fields: Option<serde_json::Value>,
 }
 
 /// 转换错误
@@ -702,7 +704,12 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         .with_current_message(current_message)
         .with_history(history);
 
-    Ok(ConversionResult { conversation_state })
+    let additional_model_request_fields = build_additional_model_request_fields(req);
+
+    Ok(ConversionResult {
+        conversation_state,
+        additional_model_request_fields,
+    })
 }
 
 /// 确定聊天触发类型
@@ -1249,6 +1256,52 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
     }
 
     converted
+}
+
+/// 根据模型返回 Kiro 允许的 max_tokens 上限
+fn model_max_output_tokens(model: &str) -> i32 {
+    if model.contains("opus-4-7") || model.contains("opus-4-8") {
+        128000
+    } else {
+        64000
+    }
+}
+
+/// 构建 additionalModelRequestFields（thinking、output_config、max_tokens）
+fn build_additional_model_request_fields(req: &MessagesRequest) -> Option<serde_json::Value> {
+    let mut fields = serde_json::Map::new();
+
+    if let Some(t) = &req.thinking {
+        let mut thinking_obj = serde_json::Map::new();
+        if t.thinking_type == "enabled" || t.thinking_type == "adaptive" {
+            thinking_obj.insert("type".into(), serde_json::json!("adaptive"));
+        } else {
+            thinking_obj.insert("type".into(), serde_json::json!("disabled"));
+        }
+        fields.insert("thinking".into(), serde_json::Value::Object(thinking_obj));
+    }
+
+    let effort = req
+        .output_config
+        .as_ref()
+        .map(|c| c.effort.as_str())
+        .unwrap_or("high");
+    fields.insert(
+        "output_config".into(),
+        serde_json::json!({ "effort": effort }),
+    );
+
+    if req.max_tokens > 0 {
+        let cap = model_max_output_tokens(&req.model);
+        let capped = req.max_tokens.min(cap);
+        fields.insert("max_tokens".into(), serde_json::json!(capped));
+    }
+
+    if fields.is_empty() {
+        None
+    } else {
+        Some(serde_json::Value::Object(fields))
+    }
 }
 
 /// 生成thinking标签前缀

@@ -235,7 +235,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Sonnet 4".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 16000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-20250514".to_string(),
@@ -244,7 +244,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 16000,
+            max_tokens: 64000,
         },
         // === 当前主力模型 ===
         Model {
@@ -254,7 +254,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Sonnet 4.5".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-sonnet-4-5-20250929-thinking".to_string(),
@@ -263,7 +263,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Sonnet 4.5 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-5-20251101".to_string(),
@@ -272,7 +272,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.5".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-5-20251101-thinking".to_string(),
@@ -281,7 +281,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.5 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-sonnet-4-6".to_string(),
@@ -290,7 +290,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Sonnet 4.6".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-sonnet-4-6-thinking".to_string(),
@@ -299,7 +299,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Sonnet 4.6 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-6".to_string(),
@@ -308,7 +308,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.6".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-6-thinking".to_string(),
@@ -317,7 +317,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.6 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-opus-4-7".to_string(),
@@ -326,7 +326,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.7".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-opus-4-7-thinking".to_string(),
@@ -335,7 +335,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.7 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-opus-4-8".to_string(),
@@ -344,7 +344,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.8".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-opus-4-8-thinking".to_string(),
@@ -353,7 +353,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Opus 4.8 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 128000,
         },
         Model {
             id: "claude-haiku-4-5-20251001".to_string(),
@@ -362,7 +362,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Haiku 4.5".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         Model {
             id: "claude-haiku-4-5-20251001-thinking".to_string(),
@@ -371,7 +371,7 @@ fn build_model_list() -> Vec<Model> {
             owned_by: "anthropic".to_string(),
             display_name: "Claude Haiku 4.5 (Thinking)".to_string(),
             model_type: "chat".to_string(),
-            max_tokens: 32000,
+            max_tokens: 64000,
         },
         // === 非 Claude 模型 ===
         Model {
@@ -552,6 +552,7 @@ pub async fn post_messages(
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
         profile_arn: state.profile_arn.clone(),
+        additional_model_request_fields: conversion_result.additional_model_request_fields,
     };
 
     let request_body = match serde_json::to_string(&kiro_request) {
@@ -820,8 +821,7 @@ fn create_sse_stream(
     initial_stream.chain(processing_stream)
 }
 
-/// 上下文窗口大小（200K tokens）
-const CONTEXT_WINDOW_SIZE: i32 = 200_000;
+use super::stream::context_window_for_model;
 
 /// 处理非流式请求
 #[allow(clippy::too_many_arguments)]
@@ -920,21 +920,20 @@ async fn handle_non_stream_request(
                             }
                         }
                         Event::ContextUsage(context_usage) => {
-                            // 从上下文使用百分比计算实际的 input_tokens
-                            // 公式: percentage * 200_000 / 100 = percentage * 2000
+                            let window = context_window_for_model(model);
                             let actual_input_tokens = (context_usage.context_usage_percentage
-                                * (CONTEXT_WINDOW_SIZE as f64)
+                                * (window as f64)
                                 / 100.0)
                                 as i32;
                             context_input_tokens = Some(actual_input_tokens);
-                            // 上下文使用量达到 100% 时，设置 stop_reason 为 model_context_window_exceeded
                             if context_usage.context_usage_percentage >= 100.0 {
                                 stop_reason = "model_context_window_exceeded".to_string();
                             }
                             tracing::info!(
-                                "[P0] contextUsageEvent: {:.2}% → input_tokens={} (200K窗口)",
+                                "[P0] contextUsageEvent: {:.2}% → input_tokens={} ({}窗口)",
                                 context_usage.context_usage_percentage,
-                                actual_input_tokens
+                                actual_input_tokens,
+                                window
                             );
                         }
                         Event::Metering(metering) => {
@@ -993,7 +992,7 @@ async fn handle_non_stream_request(
 
     // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
     let raw_final_input_tokens = context_input_tokens.unwrap_or(input_tokens);
-    let final_input_tokens = super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens);
+    let final_input_tokens = super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens, model);
     tracing::info!(
         "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
         context_input_tokens, input_tokens, final_input_tokens
@@ -1247,6 +1246,7 @@ pub async fn post_messages_cc(
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
         profile_arn: state.profile_arn.clone(),
+        additional_model_request_fields: conversion_result.additional_model_request_fields,
     };
 
     let request_body = match serde_json::to_string(&kiro_request) {

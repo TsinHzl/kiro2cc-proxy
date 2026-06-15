@@ -15,13 +15,27 @@
 
 ## 1. Prompt Caching（前缀缓存）机制
 
-**大白话**：Kiro 后端（基于 AWS Q）会自动对历史消息进行 KV Cache（键值缓存）。如果相邻两次请求的消息前缀完全一致，能极大提升首字响应速度（TTFT）。然而需要注意：**Kiro 并未将 90% 的 Prompt Cache 折扣传递给用户**。
+**大白话**：Kiro 后端（基于 AWS Q）会自动对历史消息进行 KV Cache（键值缓存）。如果相邻两次请求的消息前缀完全一致，能极大提升首字响应速度（TTFT）并享受 **90% 的 input token 计费折扣**（缓存命中按全价 10% 计费，跨会话生效）。
 
 ### 1.1 计费模型与缓存折扣（重要）
-**结论**：Kiro 按 Anthropic 无缓存定价 1:1 扣除 Credits，不传递 prompt cache 折扣细节。
-- `meteringEvent` 帧从不返回 `cache_read_input_tokens` 等缓存计费明细，Proxy 只能依靠 `contextUsagePercentage` 本地模拟 Token 分布以骗过前端。
-- 保持 `agentContinuationId` 的主要收益是**极大降低首字延迟（TTFT）**和提升上游并发宽容度，而对 **Kiro Credits 的消耗减少无实质帮助**。
-- 要真正降低 Credits 消耗，唯一有效手段是缩短 System Prompt 和压缩历史 Context。
+**结论**：Kiro 具有跨会话生效的前缀缓存机制，缓存命中部分按全价 10% 计费（与 Anthropic prompt caching 定价一致）。
+
+- `meteringEvent` 帧不直接返回 `cache_read_input_tokens` 字段，但**缓存折扣体现在 `usage` credits 中**——命中缓存时实际计费远低于全价基准。
+- Proxy 通过 `infer_cache_read_tokens()` 反推缓存命中量：对比「无缓存基准费用」与「实际 credits」的差值，除以 `0.9 × rate` 得到 cache_read tokens。实测误差 < 0.1%。
+- **缓存跨会话生效**：新会话首轮即可命中 ~88% 缓存（system prompt + tools 前缀被 Kiro 服务端持久缓存），后续 turn 命中率达 97-99%。
+- 保持 `agentContinuationId` + 冻结 history[0]/history[2] 的收益：**降低首字延迟（TTFT）+ 节省约 90% 的 input credits**。
+- 降低 credits 消耗的手段：① 稳定前缀以提高缓存命中率（冻结 system prompt、tools 定义）；② 缩短非缓存部分（新增对话消息）。
+
+**上下文窗口映射（2026-06-15 实测）**：
+- opus-4.7 / opus-4.8 / sonnet-4.6：`contextUsagePercentage` 按 **1,000,000** 窗口计算
+- 其余模型：按 **200,000** 窗口计算
+
+**参考费率（k_ref = credits per $1 USD）**：
+| 模型 | k_ref | input_price ($/M) | cache_read 折扣 |
+|------|-------|-------------------|----------------|
+| sonnet 系列 | 7.06 | $3.0 | 10% 全价 |
+| opus-4.7 / 4.8 | 2.60 | $15.0 | 10% 全价 |
+| opus-4.5 / 4.6 | 2.40 | $15.0 | 10% 全价 |
 
 ### 1.2 核心标识符：`agentContinuationId`
 Kiro 识别“同一会话连续请求”的唯一凭证是 `agentContinuationId`。如果每次请求这个 ID 都发生变化，Kiro 后端就会将其视为全新会话，前缀缓存将完全失效。
@@ -105,27 +119,37 @@ sequenceDiagram
 
 ## 4. 缓存命中验证与 Token 反推
 
-AWS Q / Kiro 的流式响应中，`meteringEvent` **不直接透传**具体的缓存命中数据（如 `cache_read_input_tokens` 始终为空），代理层必须利用复杂的数学逻辑，从实际扣费中“反推”出真实的缓存表现。
+AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_input_tokens` 字段，但缓存折扣体现在 `usage` credits 数值中。代理层通过数学反推，从实际扣费中精确还原缓存命中量。
 
 ### 4.1 `effective_rate`（有效费率标定）
 代理在日志中记录了去噪后的有效费率：
 `effective_rate = metering_credits / (input_tokens + 5 × output_tokens) × 1000`
 *(注：公式中的 `5` 是消除 Output token 价格比差异的乘数)*
 
-- **冷启动状态**：`effective_rate` 通常较高（例如 Sonnet 4.6 为 `0.021`）。
-- **命中缓存状态**：`effective_rate` 会显著跌落（例如降至 `0.011`，直观证明节省了约 45% 的 Credits）。
+- **首轮（跨会话缓存命中 system+tools）**：sonnet-4.6 约 `0.0044`（已享受 ~88% 缓存折扣）
+- **后续 turn（高缓存命中）**：降至 `0.0022-0.0025`（~97-99% 命中率）
+- **理论无缓存全价**：`k_ref × input_price / 1M = 7.06 × 3.0 / 1,000,000 = 0.02118` credits/token
 
 ### 4.2 反推公式 (`infer_cache_read_tokens`)
-代理通过以下三步逆向工程，计算出到底有多少个 Token 命中了缓存，以欺骗客户端显示真实的节省数据：
+代理通过以下三步逆向工程，精确还原 Kiro 服务端的缓存命中 token 数：
 
 1. **剔除输出成本**：Output 部分没有缓存折扣，先从总 credits 中减去。
-   `output_credits = k_ref * output_usd`
+   `output_credits = k_ref * output_price * output_tokens / 1,000,000`
 2. **计算基准期望**：如果完全没有缓存，Input 本该消耗的 credits。
-   `baseline = rate * total_input_tokens`
-3. **计算折扣 Token**：由于 Cache Read 仅收取 10% 的价格（90% 折扣），剩余的 `input_credits` 与 `baseline` 的差额即为节省的钱。
+   `baseline = rate * total_input_tokens`（rate = k_ref × input_price / 1,000,000）
+3. **计算折扣 Token**：由于 Cache Read 仅收取 10% 的价格（90% 折扣），baseline 与 actual 的差额即为缓存节省。
    `cache_read_tokens = (baseline - actual_input_credits) / (0.9 * rate)`
 
-反推得出的 `cache_read_tokens` 最终会实时封装进 `/cc/v1` 缓冲模式等待发出的 `message_delta` SSE 帧中，使得 Claude Code 能够准确显示节省了多少 Token。
+**精度验证（2026-06-15 实测）**：
+- Turn 11：反推 cache_read = 90,598，日志报告 90,608（取整误差 10 tokens）
+- Turn 1：反推 cache_read = 62,435，日志报告 62,436（误差 1 token）
+
+**上下文窗口对结果的影响**：
+- `input_tokens` 来自 `contextUsagePercentage × window_size`，窗口大小直接决定 input_tokens 绝对值
+- opus-4.7/4.8/sonnet-4.6 必须用 1M 窗口，否则 input_tokens 被压缩为 1/5，导致 credits_per_ktok 虚高，看起来像"无折扣全价"
+- 这是此前错误地得出"Kiro 不传递 cache 折扣"结论的根本原因
+
+反推得出的 `cache_read_tokens` 最终封装进 `message_delta` SSE 帧的 `usage` 字段中，使 Claude Code 能准确显示缓存节省量。
 
 ---
 

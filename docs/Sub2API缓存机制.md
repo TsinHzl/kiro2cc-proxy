@@ -505,10 +505,16 @@ cache_control 断点注入（执行顺序）
 | 维度 | sub2api | kiro2cc-proxy |
 |---|---|---|
 | 上游协议 | Anthropic API（直接控制请求体 JSON） | Kiro/AWS CodeWhisperer API（私有协议） |
-| 缓存控制字段 | `cache_control: {type: "ephemeral", ttl: "5m"/"1h"}` | **无此字段**，Kiro 协议不暴露 |
-| TTL 延长手段 | 请求体注入 `"ttl":"1h"` | **不可行**，协议层不支持 |
+| 缓存控制字段 | `cache_control: {type: "ephemeral", ttl: "5m"/"1h"}` | **无此字段**，Kiro 协议不暴露；但服务端自动执行前缀缓存 |
+| TTL 延长手段 | 请求体注入 `"ttl":"1h"` | **不可行**，协议层不支持；TTL 由 Kiro 服务端决定 |
+| 缓存折扣 | Anthropic 直接报告 `cache_read_input_tokens`，10% 计费 | Kiro 折扣体现在 `meteringEvent.usage` credits 中，代理通过 `infer_cache_read_tokens()` 反推，实测确认同为 10% 计费 |
 | Sticky Session | Redis，TTL=1h，基于 session hash | 内存，基于 `agentContinuationId` |
 | Billing Header | 注入 + CCH 签名，伪装为官方 CLI | 不需要（走 Kiro 协议，非 Anthropic 直连） |
-| cache.rs 的作用 | 无对应 | **模拟层**，伪造 `cache_creation/cache_read` 字段，与真实 prompt cache 无关 |
+| 缓存命中率 | 取决于 TTL 和前缀稳定性 | 首轮 ~88%（跨会话前缀缓存），后续 ~97-99% |
+| cache.rs 的作用 | 无对应 | **反推层**：从 metering credits 反推 `cache_read` tokens，数学精度 <0.1%，非"伪造" |
 
-**结论**：sub2api 的 `enable_anthropic_cache_ttl_1h_injection` 能延长缓存，是因为它直接对接 Anthropic API，可以在请求体里写 `"ttl":"1h"`。kiro2cc-proxy 走的是 Kiro 私有协议（`generateAssistantResponse`），该协议的 `conversationState` 结构中没有 `cache_control` 字段，**无法从客户端侧控制缓存 TTL**，缓存完全由 Kiro/Anthropic 服务端决定。
+**结论**：两者底层的缓存计费模型一致（cache read = 10% 全价），差异在于控制方式：
+- sub2api 通过 `cache_control` 字段**显式控制**缓存行为和 TTL
+- kiro2cc-proxy 通过**稳定请求前缀**（冻结 history[0] system prompt + history[2] tools）来**间接最大化** Kiro 服务端的自动前缀缓存命中率
+
+kiro2cc-proxy 无法控制缓存 TTL，但实测 Kiro 的缓存 TTL 足够长（跨会话仍能命中），且缓存命中率极高（97-99%），credits 节省效果与 sub2api 的 1h TTL 策略相当。

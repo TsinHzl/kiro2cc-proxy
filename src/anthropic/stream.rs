@@ -510,15 +510,27 @@ impl SseStateManager {
     }
 }
 
-/// 上下文窗口大小（200K tokens）
-const CONTEXT_WINDOW_SIZE: i32 = 200_000;
+/// Kiro contextUsagePercentage 的基准窗口大小。
+/// opus-4.7/4.8/sonnet-4.6 实测按 1M 窗口计算百分比，与直连 API 的 input_tokens 吻合。
+pub(crate) fn context_window_for_model(model: &str) -> i32 {
+    match model {
+        m if m.contains("opus-4-8")
+            || m.contains("opus-4.8")
+            || m.contains("opus-4-7")
+            || m.contains("opus-4.7")
+            || m.contains("sonnet-4-6")
+            || m.contains("sonnet-4.6") =>
+        {
+            1_000_000
+        }
+        _ => 200_000,
+    }
+}
 
-/// 空响应判定为「上下文过大」的输入 token 阈值。
-/// 实测 input>10万 时上游稳定返回空流，正常响应均 <8万，取 9万 居中。
-const EMPTY_RESPONSE_OVERSIZED_THRESHOLD: i32 = 90_000;
-
-/// input_tokens 上报的最大绝对上限
-const INPUT_TOKENS_ABSOLUTE_CAP: i32 = 200_000;
+/// 空响应判定为「上下文过大」的输入 token 阈值（取窗口的 45%）。
+fn empty_response_oversized_threshold(model: &str) -> i32 {
+    (context_window_for_model(model) as f64 * 0.45) as i32
+}
 
 /// output_tokens 上报的最大值
 ///
@@ -526,14 +538,13 @@ const INPUT_TOKENS_ABSOLUTE_CAP: i32 = 200_000;
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 
-fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32) -> i32 {
-    // context_input_tokens 来自 Kiro 的 contextUsageEvent（有值时）或本地估算（无值时，由调用方 unwrap_or 传入）
-    // 只截绝对上限，不做下限兜底：Kiro 数据在 prompt caching 生效后会远低于本地估算，这是正常现象
-    context_input_tokens.clamp(1, INPUT_TOKENS_ABSOLUTE_CAP)
+fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {
+    let cap = context_window_for_model(model);
+    context_input_tokens.clamp(1, cap)
 }
 
-pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32) -> i32 {
-    cap_input_tokens(context_input_tokens, local_estimate)
+pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32, model: &str) -> i32 {
+    cap_input_tokens(context_input_tokens, local_estimate, model)
 }
 
 /// 从 metering credits 反推 cache_read_input_tokens。
@@ -554,7 +565,7 @@ pub(crate) fn infer_cache_read_tokens(
     let credits = credits?;
     // (k_ref, input_price_per_M, output_price_per_M)
     let (k_ref, input_price, output_price): (f64, f64, f64) = if model.contains("opus") {
-        if model.contains("4-7") {
+        if model.contains("4-7") || model.contains("4-8") {
             (2.60, 15.0, 75.0)
         } else {
             (2.40, 15.0, 75.0)
@@ -756,22 +767,21 @@ impl StreamContext {
             Event::AssistantResponse(resp) => self.process_assistant_response(&resp.content),
             Event::ToolUse(tool_use) => self.process_tool_use(tool_use),
             Event::ContextUsage(context_usage) => {
-                // 从上下文使用百分比计算实际的 input_tokens
-                // 公式: percentage * 200_000 / 100 = percentage * 2000
+                let window = context_window_for_model(&self.model);
                 let actual_input_tokens = (context_usage.context_usage_percentage
-                    * (CONTEXT_WINDOW_SIZE as f64)
+                    * (window as f64)
                     / 100.0) as i32;
                 self.context_input_tokens = Some(actual_input_tokens);
                 self.context_usage_percentage = Some(context_usage.context_usage_percentage);
-                // 上下文使用量达到 100% 时，设置 stop_reason 为 model_context_window_exceeded
                 if context_usage.context_usage_percentage >= 100.0 {
                     self.state_manager
                         .set_stop_reason("model_context_window_exceeded");
                 }
                 tracing::info!(
-                    "[P0] contextUsageEvent: {:.2}% → input_tokens={} (200K窗口)",
+                    "[P0] contextUsageEvent: {:.2}% → input_tokens={} ({}窗口)",
                     context_usage.context_usage_percentage,
-                    actual_input_tokens
+                    actual_input_tokens,
+                    window
                 );
                 Vec::new()
             }
@@ -1254,7 +1264,7 @@ impl StreamContext {
     /// 小输入空响应 → 视为偶发，可重试。
     pub fn empty_response_is_oversized_context(&self) -> bool {
         let est = self.context_input_tokens.unwrap_or(self.input_tokens);
-        est >= EMPTY_RESPONSE_OVERSIZED_THRESHOLD
+        est >= empty_response_oversized_threshold(&self.model)
     }
 
     /// 生成最终事件序列
@@ -1340,7 +1350,7 @@ impl StreamContext {
         // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
         // 约束到合理范围，避免 Kiro 后端的系统提示导致值远超预期
         let raw_final_input_tokens = self.context_input_tokens.unwrap_or(self.input_tokens);
-        let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.input_tokens);
+        let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.input_tokens, &self.model);
         tracing::info!(
             "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
             self.context_input_tokens, self.input_tokens, final_input_tokens
@@ -1534,7 +1544,7 @@ impl BufferedStreamContext {
             .context_input_tokens
             .unwrap_or(self.estimated_input_tokens);
         let final_input_tokens =
-            cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens);
+            cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens, &self.inner.model);
 
         // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
         let sim_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);

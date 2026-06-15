@@ -615,60 +615,23 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         }
     }
 
-    // 11. 将 tools 注入 history（系统提示对之后），使 Kiro 前缀缓存覆盖工具定义。
-    let tools_history_idx = if !tools.is_empty() {
-        let insert_pos = if history.len() >= 2 { 2 } else { history.len() };
-        let tools_json = serde_json::to_string(&tools).unwrap_or_default();
-        let tools_user = HistoryUserMessage {
-            user_input_message: {
-                let mut msg = crate::kiro::model::requests::conversation::UserMessage::new(
-                    format!("<tools>{}</tools>", tools_json),
-                    &model_id,
-                );
-                msg.origin = None;
-                msg
-            },
-        };
-        let tools_assistant = HistoryAssistantMessage::new("OK");
-        history.insert(insert_pos, Message::Assistant(tools_assistant));
-        history.insert(insert_pos, Message::User(tools_user));
-        Some(insert_pos)
-    } else {
-        None
-    };
-
-    // [cache-check] tools 插入后统一打印所有 history 条目，index 与实际发给 Kiro 的结构一致。
+    // 11. [cache-check] 打印 history 条目哈希，便于跨请求验证 prefix cache 稳定性
     for (i, msg) in history.iter().enumerate() {
         let json = serde_json::to_string(msg).unwrap_or_default();
         let hash = format!("{:x}", Sha256::digest(json.as_bytes()));
-        let label = tools_history_idx
-            .map(|idx| if i == idx { " (tools)" } else { "" })
-            .unwrap_or("");
         tracing::info!(
-            "[cache-check] session={} history[{}] hash={} len={}{}",
+            "[cache-check] session={} history[{}] hash={} len={}",
             conversation_id,
             i,
             &hash[..8],
             json.len(),
-            label
         );
     }
 
-    // 11b. 构建 UserInputMessageContext
-    // tools 完整定义在 history 中（走缓存），context.tools 放精简骨架（仅 name）触发 Kiro toolUseEvent 模式
+    // 11b. 构建 UserInputMessageContext —— tools 完整定义直接写入 context.tools（与 Kiro 官方 CLI 一致）
     let mut context = UserInputMessageContext::new();
     if !tools.is_empty() {
-        let slim_tools: Vec<Tool> = tools
-            .iter()
-            .map(|t| Tool {
-                tool_specification: ToolSpecification {
-                    name: t.tool_specification.name.clone(),
-                    description: t.tool_specification.description.chars().take(1).collect(),
-                    input_schema: InputSchema::default(),
-                },
-            })
-            .collect();
-        context.tools = slim_tools;
+        context.tools = tools;
     }
     if !validated_tool_results.is_empty() {
         context = context.with_tool_results(validated_tool_results);

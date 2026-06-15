@@ -339,6 +339,8 @@ pub fn map_model(model: &str) -> Option<String> {
         } else {
             Some("claude-sonnet-4.5".to_string())
         }
+    } else if model_lower.contains("fable") {
+        Some("claude-fable-5".to_string())
     } else if model_lower.contains("opus") {
         if model_lower.contains("4-5") || model_lower.contains("4.5") {
             Some("claude-opus-4.5".to_string())
@@ -2764,6 +2766,27 @@ mod tests {
             result1.conversation_state.agent_continuation_id,
             result2.conversation_state.agent_continuation_id,
             "无 metadata 时 agentContinuationId 应该随机（每次不同）"
+        );
+    }
+
+    #[test]
+    fn test_map_model_fable_routes_to_kiro_fable() {
+        assert_eq!(
+            map_model("claude-fable-5"),
+            Some("claude-fable-5".to_string())
+        );
+        assert_eq!(
+            map_model("claude-fable-5-thinking"),
+            Some("claude-fable-5".to_string())
+        );
+    }
+
+    #[test]
+    fn test_map_model_opus_4_6_unchanged() {
+        // 回归：opus-4-6 默认走 claude-opus-4.6
+        assert_eq!(
+            map_model("claude-opus-4-6"),
+            Some("claude-opus-4.6".to_string())
         );
     }
 }

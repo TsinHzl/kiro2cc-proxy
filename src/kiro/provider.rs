@@ -479,7 +479,7 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
+            // 429 Too Many Requests - 限流：标记后退避，下次 acquire_context 自然轮转到其他账号
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "MCP 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
@@ -490,7 +490,6 @@ impl KiroProvider {
                     body
                 );
                 self.token_manager.report_throttled(ctx.id);
-                self.token_manager.report_success(ctx.id);
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(ctx.id, "mcp", status.as_u16(), &body);
                 }
@@ -699,7 +698,7 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
+            // 429 Too Many Requests - 限流：标记后退避，下次 acquire_context 自然轮转到其他账号
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "API 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
@@ -710,8 +709,6 @@ impl KiroProvider {
                     body
                 );
                 self.token_manager.report_throttled(ctx.id);
-                // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他账号
-                self.token_manager.report_success(ctx.id);
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(ctx.id, "api", status.as_u16(), &body);
                 }

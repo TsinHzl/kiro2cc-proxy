@@ -5,8 +5,8 @@
 //! 支持流式和非流式请求
 //! 支持多账号故障转移和重试
 
-use reqwest::Client;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HOST, HeaderMap, HeaderValue};
+use wreq::Client;
+use wreq::header::{AUTHORIZATION, CONTENT_TYPE, HOST, HeaderMap, HeaderValue};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,7 +17,7 @@ use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
-use crate::model::config::TlsBackend;
+use crate::model::config::TlsFingerprint;
 use crate::model::rpm::RpmTracker;
 use crate::model::failure_log::FailureLogStore;
 use crate::model::throttle_log::ThrottleLogStore;
@@ -44,11 +44,11 @@ pub struct KiroProvider {
     token_manager: Arc<MultiTokenManager>,
     /// 全局代理配置（用于账号无自定义代理时的回退）
     global_proxy: Option<ProxyConfig>,
-    /// Client 缓存：key = effective proxy config, value = reqwest::Client
+    /// Client 缓存：key = effective proxy config, value = wreq::Client
     /// 不同代理配置的账号使用不同的 Client，共享相同代理的账号复用 Client
     client_cache: Mutex<HashMap<Option<ProxyConfig>, Client>>,
     /// TLS 后端配置
-    tls_backend: TlsBackend,
+    tls_fingerprint: TlsFingerprint,
     /// 并发控制信号量，限制同时发往上游的请求数
     concurrency_limit: Arc<Semaphore>,
     /// 单账号并发信号量：限制每个账号的同时请求数
@@ -70,9 +70,9 @@ impl KiroProvider {
 
     /// 创建带代理配置的 KiroProvider 实例
     pub fn with_proxy(token_manager: Arc<MultiTokenManager>, proxy: Option<ProxyConfig>) -> Self {
-        let tls_backend = token_manager.config().tls_backend;
+        let tls_fingerprint = token_manager.config().tls_fingerprint;
         // 预热：构建全局代理对应的 Client
-        let initial_client = build_client(proxy.as_ref(), 180, tls_backend)
+        let initial_client = build_client(proxy.as_ref(), 180, tls_fingerprint)
             .expect("创建 HTTP 客户端失败");
         let mut cache = HashMap::new();
         cache.insert(proxy.clone(), initial_client);
@@ -81,7 +81,7 @@ impl KiroProvider {
             token_manager,
             global_proxy: proxy,
             client_cache: Mutex::new(cache),
-            tls_backend,
+            tls_fingerprint,
             concurrency_limit: Arc::new(Semaphore::new(MAX_CONCURRENT_REQUESTS)),
             credential_semaphores: Mutex::new(HashMap::new()),
             rpm_tracker: None,
@@ -108,14 +108,14 @@ impl KiroProvider {
         self
     }
 
-    /// 根据账号的代理配置获取（或创建并缓存）对应的 reqwest::Client
+    /// 根据账号的代理配置获取（或创建并缓存）对应的 wreq::Client
     fn client_for(&self, credentials: &KiroCredentials) -> anyhow::Result<Client> {
         let effective = credentials.effective_proxy(self.global_proxy.as_ref());
         let mut cache = self.client_cache.lock();
         if let Some(client) = cache.get(&effective) {
             return Ok(client.clone());
         }
-        let client = build_client(effective.as_ref(), 180, self.tls_backend)?;
+        let client = build_client(effective.as_ref(), 180, self.tls_fingerprint)?;
         cache.insert(effective, client.clone());
         Ok(client)
     }
@@ -258,7 +258,7 @@ impl KiroProvider {
             HeaderValue::from_str(&x_amz_user_agent).unwrap(),
         );
         headers.insert(
-            reqwest::header::USER_AGENT,
+            wreq::header::USER_AGENT,
             HeaderValue::from_str(&user_agent).unwrap(),
         );
         headers.insert(HOST, HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap());
@@ -333,7 +333,7 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
-    pub async fn call_api(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    pub async fn call_api(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(wreq::Response, u64)> {
         self.call_api_with_retry(request_body, false, bound_ids).await
     }
 
@@ -350,7 +350,7 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
-    pub async fn call_api_stream(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    pub async fn call_api_stream(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(wreq::Response, u64)> {
         self.call_api_with_retry(request_body, true, bound_ids).await
     }
 
@@ -363,15 +363,20 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response
-    pub async fn call_mcp(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    pub async fn call_mcp(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(wreq::Response, u64)> {
         self.call_mcp_with_retry(request_body, bound_ids).await
     }
 
     /// 内部方法：带重试逻辑的 MCP API 调用
-    async fn call_mcp_with_retry(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    async fn call_mcp_with_retry(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(wreq::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
-        let total_credentials = self.token_manager.total_count();
-        let max_retries = (total_credentials * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
+        let effective_pool = if bound_ids.is_empty() {
+            self.token_manager.total_count()
+        } else {
+            bound_ids.len()
+        };
+        let max_retries = (effective_pool * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
+        let small_pool = effective_pool <= 1;
         let mut last_error: Option<anyhow::Error> = None;
 
         let continuation_id = Self::extract_continuation_id_from_request(request_body);
@@ -477,7 +482,8 @@ impl KiroProvider {
             // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
             if status.as_u16() == 429 {
                 tracing::warn!(
-                    "MCP 请求失败（上游限流，切换账号重试，尝试 {}/{}）: {} {}",
+                    "MCP 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
+                    if small_pool { "单账号延长间隔" } else { "切换账号" },
                     attempt + 1,
                     max_retries,
                     status,
@@ -490,7 +496,8 @@ impl KiroProvider {
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
-                    sleep(Self::throttle_delay()).await;
+                    let delay = if small_pool { Self::throttle_delay_long() } else { Self::throttle_delay() };
+                    sleep(delay).await;
                 }
                 continue;
             }
@@ -532,17 +539,23 @@ impl KiroProvider {
     ///
     /// 重试策略：
     /// - 每个账号最多重试 MAX_RETRIES_PER_CREDENTIAL 次
-    /// - 总重试次数 = min(账号数量 × 每账号重试次数, MAX_TOTAL_RETRIES)
+    /// - 总重试次数 = min(可用池大小 × 每账号重试次数, MAX_TOTAL_RETRIES)
     /// - 硬上限 9 次，避免无限重试
+    /// - 当可用池 ≤ 1 时，仅重试 3 次并使用更长退避间隔
     async fn call_api_with_retry(
         &self,
         request_body: &str,
         is_stream: bool,
         bound_ids: &[u64],
-    ) -> anyhow::Result<(reqwest::Response, u64)> {
+    ) -> anyhow::Result<(wreq::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
-        let total_credentials = self.token_manager.total_count();
-        let max_retries = (total_credentials * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
+        let effective_pool = if bound_ids.is_empty() {
+            self.token_manager.total_count()
+        } else {
+            bound_ids.len()
+        };
+        let max_retries = (effective_pool * MAX_RETRIES_PER_CREDENTIAL).min(MAX_TOTAL_RETRIES);
+        let small_pool = effective_pool <= 1;
         let mut last_error: Option<anyhow::Error> = None;
         let api_type = if is_stream { "流式" } else { "非流式" };
 
@@ -689,7 +702,8 @@ impl KiroProvider {
             // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
             if status.as_u16() == 429 {
                 tracing::warn!(
-                    "API 请求失败（上游限流，切换账号重试，尝试 {}/{}）: {} {}",
+                    "API 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
+                    if small_pool { "单账号延长间隔" } else { "切换账号" },
                     attempt + 1,
                     max_retries,
                     status,
@@ -708,7 +722,8 @@ impl KiroProvider {
                     body
                 ));
                 if attempt + 1 < max_retries {
-                    sleep(Self::throttle_delay()).await;
+                    let delay = if small_pool { Self::throttle_delay_long() } else { Self::throttle_delay() };
+                    sleep(delay).await;
                 }
                 continue;
             }
@@ -783,6 +798,11 @@ impl KiroProvider {
     /// 429 限流专用退避：2-5 秒随机，避免短间隔重试加重检测
     fn throttle_delay() -> Duration {
         Duration::from_millis(2000 + fastrand::u64(0..=3000))
+    }
+
+    /// 单账号池 429 退避：5-10 秒随机，给上游更长冷却时间
+    fn throttle_delay_long() -> Duration {
+        Duration::from_millis(5000 + fastrand::u64(0..=5000))
     }
 
     /// RPM 硬限制：超出时等待后放行（最多等 2 次，共 6 秒）

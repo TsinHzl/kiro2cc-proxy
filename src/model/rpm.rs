@@ -51,6 +51,21 @@ impl TimestampQueue {
             .map(|b| b.count)
             .sum()
     }
+
+    /// 计算当 RPM 达到上限时，最早的一个 bucket 将在多少秒后滑出窗口
+    ///
+    /// 返回 None 表示当前未满或无有效 bucket
+    fn time_until_earliest_expires(&self, now_secs: u64) -> Option<u64> {
+        self.buckets
+            .iter()
+            .filter(|b| b.count > 0 && now_secs.saturating_sub(b.timestamp) < WINDOW_SECS as u64)
+            .map(|b| {
+                // bucket 在 (b.timestamp + WINDOW_SECS) 时滑出窗口
+                (b.timestamp + WINDOW_SECS as u64).saturating_sub(now_secs)
+            })
+            .min()
+            .map(|s| s.max(1))
+    }
 }
 
 /// RPM 追踪器
@@ -125,6 +140,24 @@ impl RpmTracker {
             .entry(credential_id)
             .or_insert_with(TimestampQueue::new)
             .record(now_secs);
+    }
+
+    /// 计算指定账号在 RPM 满时，最快多久后会有一个 slot 释放
+    ///
+    /// 返回 None 表示当前 RPM 未满或无数据
+    pub fn time_until_slot(&self, credential_id: u64, max_rpm: u32) -> Option<std::time::Duration> {
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let inner = self.inner.lock().unwrap();
+        let queue = inner.by_credential.get(&credential_id)?;
+        if queue.count(now_secs) < max_rpm as u64 {
+            return None;
+        }
+        queue
+            .time_until_earliest_expires(now_secs)
+            .map(std::time::Duration::from_secs)
     }
 
     /// 查询指定账号的当前 RPM

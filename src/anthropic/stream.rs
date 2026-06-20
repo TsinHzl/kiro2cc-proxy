@@ -554,9 +554,9 @@ pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32, mode
 
 /// 从 metering credits 反推 cache_read_input_tokens。
 ///
-/// Kiro 对缓存命中 token 按 10% 折扣定价（与 Anthropic 一致），因此：
-///   credits = rate × (total - 0.9 × R)
-///   → R = (rate × total - credits) / (0.9 × rate)
+/// Kiro 缓存前缀含 system + tools，缓存命中 token 按全价 50% 收费（代理实测 2026-06-20），因此：
+///   credits = rate × (total - 0.50 × R)
+///   → R = (rate × total - credits) / (0.50 × rate)
 ///
 /// 其中 rate = k_ref × input_price / 1_000_000（credits per token）
 ///
@@ -591,8 +591,8 @@ pub(crate) fn infer_cache_read_tokens(
     } else if model.contains("haiku") {
         return None; // k_ref 未实测，降级到模拟值
     } else {
-        // sonnet 系列
-        (7.06, 3.0, 15.0)
+        // sonnet 系列（代理实测 k_ref=1.43，2026-06-20 多轮验证）
+        (1.43, 3.0, 15.0)
     };
     // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
     let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
@@ -604,7 +604,7 @@ pub(crate) fn infer_cache_read_tokens(
     if baseline <= input_credits {
         return Some(0);
     }
-    let r = ((baseline - input_credits) / (0.9 * rate)).round() as i32;
+    let r = ((baseline - input_credits) / (0.50 * rate)).round() as i32;
     Some(r.clamp(0, total))
 }
 

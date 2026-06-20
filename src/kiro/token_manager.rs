@@ -452,6 +452,8 @@ struct CredentialEntry {
     last_throttled_wall: Option<DateTime<Utc>>,
     /// 最后一次 token 刷新时间（用于冷却期控制）
     last_refreshed_at: Option<Instant>,
+    /// 轮转偏移量：429 时 +1，成功时清零；选择账号时优先选 bias 最小的
+    rotation_bias: u32,
 }
 
 /// 禁用原因
@@ -723,6 +725,7 @@ impl MultiTokenManager {
                     last_throttled_at: None,
                     last_throttled_wall: None,
                     last_refreshed_at: None,
+                    rotation_bias: 0,
                 }
             })
             .collect();
@@ -866,23 +869,28 @@ impl MultiTokenManager {
 
         match mode {
             "balanced" => {
-                // Round-Robin 策略：均匀轮转所有可用账号
+                // Round-Robin + rotation_bias：优先选 bias 最小的子集，再 round-robin
+                let min_bias = pool.iter().map(|e| e.rotation_bias).min().unwrap_or(0);
+                let low_bias: Vec<&CredentialEntry> = pool.iter().filter(|e| e.rotation_bias == min_bias).copied().collect();
                 let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
-                let entry = &pool[idx % pool.len()];
+                let entry = low_bias[idx % low_bias.len()];
                 Some((entry.id, entry.credentials.clone()))
             }
             _ => {
-                // priority 模式（默认）：选择优先级最高的，同优先级时 round-robin
+                // priority 模式：同优先级内按 rotation_bias 排序后 round-robin
                 let min_priority = pool.iter().map(|e| e.credentials.priority).min()?;
-                let top_tier: Vec<_> = pool
+                let top_tier: Vec<&CredentialEntry> = pool
                     .iter()
                     .filter(|e| e.credentials.priority == min_priority)
+                    .copied()
                     .collect();
                 if top_tier.len() == 1 {
                     Some((top_tier[0].id, top_tier[0].credentials.clone()))
                 } else {
+                    let min_bias = top_tier.iter().map(|e| e.rotation_bias).min().unwrap_or(0);
+                    let low_bias: Vec<&CredentialEntry> = top_tier.iter().filter(|e| e.rotation_bias == min_bias).copied().collect();
                     let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
-                    let entry = top_tier[idx % top_tier.len()];
+                    let entry = low_bias[idx % low_bias.len()];
                     Some((entry.id, entry.credentials.clone()))
                 }
             }
@@ -1116,6 +1124,16 @@ impl MultiTokenManager {
         }
 
         Ok(ctx)
+    }
+
+    /// 驱逐 sticky cache 中指定 continuation_id 的绑定
+    ///
+    /// 用于 429 发生后主动解除会话与被限流账号的绑定，使下次请求重新选择账号
+    pub fn evict_sticky(&self, continuation_id: &str) {
+        let removed = self.sticky_cache.lock().remove(continuation_id).is_some();
+        if removed {
+            tracing::debug!("sticky cache 已驱逐: continuation_id={}", continuation_id);
+        }
     }
 
     /// 切换到下一个优先级最高的可用账号（内部方法）
@@ -1484,6 +1502,22 @@ impl MultiTokenManager {
         self.stats_dirty.store(true, Ordering::Relaxed);
     }
 
+    /// 报告指定账号被限流并增加轮转偏移量
+    ///
+    /// 用于 429 场景：增加 rotation_bias 使选择算法优先选择其他账号，
+    /// 不影响 success_count 和 failure_count
+    pub fn report_throttled_for_rotation(&self, id: u64) {
+        let mut entries = self.entries.lock();
+        if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
+            entry.rotation_bias = entry.rotation_bias.saturating_add(1);
+            tracing::debug!(
+                "账号 #{} rotation_bias 递增至 {}",
+                id,
+                entry.rotation_bias
+            );
+        }
+    }
+
     /// 报告指定账号 API 调用成功
     ///
     /// 重置该账号的失败计数
@@ -1496,6 +1530,7 @@ impl MultiTokenManager {
             if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
                 entry.failure_count = 0;
                 entry.success_count += 1;
+                entry.rotation_bias = 0;
                 entry.last_used_at = Some(Utc::now().to_rfc3339());
                 tracing::debug!(
                     "账号 #{} API 调用成功（累计 {} 次）",
@@ -1963,6 +1998,7 @@ impl MultiTokenManager {
                 last_throttled_at: None,
                 last_throttled_wall: None,
                 last_refreshed_at: None,
+                rotation_bias: 0,
             });
         }
 

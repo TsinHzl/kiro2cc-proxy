@@ -394,8 +394,17 @@ impl KiroProvider {
             // 获取单账号并发 permit
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
-            // RPM 硬限制
-            self.wait_for_rpm_gate(ctx.id, " (mcp)").await;
+            // RPM 硬限制：精确等待或多账号时 skip
+            let rpm_ok = self.wait_for_rpm_gate(ctx.id, " (mcp)").await;
+            if !rpm_ok && !small_pool {
+                tracing::info!("[RPM-GATE] credential={} RPM 满（MCP），跳过切换下一账号", ctx.id);
+                self.token_manager.report_throttled_for_rotation(ctx.id);
+                if let Some(cid) = continuation_id.as_deref() {
+                    self.token_manager.evict_sticky(cid);
+                }
+                last_error = Some(anyhow::anyhow!("RPM limit exceeded for credential {}", ctx.id));
+                continue;
+            }
 
             let url = self.mcp_url_for(&ctx.credentials);
             let headers = match self.build_mcp_headers(&ctx, attempt) {
@@ -479,7 +488,7 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
+            // 429 Too Many Requests - 限流：驱逐 sticky cache + rotation bias 轮转
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "MCP 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
@@ -490,13 +499,16 @@ impl KiroProvider {
                     body
                 );
                 self.token_manager.report_throttled(ctx.id);
-                self.token_manager.report_success(ctx.id);
+                self.token_manager.report_throttled_for_rotation(ctx.id);
+                if let Some(cid) = continuation_id.as_deref() {
+                    self.token_manager.evict_sticky(cid);
+                }
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(ctx.id, "mcp", status.as_u16(), &body);
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
-                    let delay = if small_pool { Self::throttle_delay_long() } else { Self::throttle_delay() };
+                    let delay = Self::throttle_delay(attempt, small_pool);
                     sleep(delay).await;
                 }
                 continue;
@@ -576,8 +588,17 @@ impl KiroProvider {
             // 获取单账号并发 permit
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
-            // RPM 硬限制：超出时等待后重试（最多等 2 次，共 6 秒）
-            self.wait_for_rpm_gate(ctx.id, "").await;
+            // RPM 硬限制：精确等待或多账号时 skip
+            let rpm_ok = self.wait_for_rpm_gate(ctx.id, "").await;
+            if !rpm_ok && !small_pool {
+                tracing::info!("[RPM-GATE] credential={} RPM 满，跳过切换下一账号", ctx.id);
+                self.token_manager.report_throttled_for_rotation(ctx.id);
+                if let Some(cid) = continuation_id.as_deref() {
+                    self.token_manager.evict_sticky(cid);
+                }
+                last_error = Some(anyhow::anyhow!("RPM limit exceeded for credential {}", ctx.id));
+                continue;
+            }
 
             let url = self.base_url_for(&ctx.credentials);
             let headers = match self.build_headers(&ctx, request_body, attempt) {
@@ -699,7 +720,7 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：递增 success_count 让 Least-Used 算法轮转到下一个账号
+            // 429 Too Many Requests - 限流：驱逐 sticky cache + rotation bias 轮转
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "API 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
@@ -710,8 +731,10 @@ impl KiroProvider {
                     body
                 );
                 self.token_manager.report_throttled(ctx.id);
-                // 递增 success_count，使 balanced 模式下一次 acquire_context 选择其他账号
-                self.token_manager.report_success(ctx.id);
+                self.token_manager.report_throttled_for_rotation(ctx.id);
+                if let Some(cid) = continuation_id.as_deref() {
+                    self.token_manager.evict_sticky(cid);
+                }
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(ctx.id, "api", status.as_u16(), &body);
                 }
@@ -722,7 +745,7 @@ impl KiroProvider {
                     body
                 ));
                 if attempt + 1 < max_retries {
-                    let delay = if small_pool { Self::throttle_delay_long() } else { Self::throttle_delay() };
+                    let delay = Self::throttle_delay(attempt, small_pool);
                     sleep(delay).await;
                 }
                 continue;
@@ -795,38 +818,59 @@ impl KiroProvider {
         Duration::from_millis(backoff.saturating_add(jitter))
     }
 
-    /// 429 限流专用退避：2-5 秒随机，避免短间隔重试加重检测
-    fn throttle_delay() -> Duration {
-        Duration::from_millis(2000 + fastrand::u64(0..=3000))
-    }
-
-    /// 单账号池 429 退避：5-10 秒随机，给上游更长冷却时间
-    fn throttle_delay_long() -> Duration {
-        Duration::from_millis(5000 + fastrand::u64(0..=5000))
-    }
-
-    /// RPM 硬限制：超出时等待后放行（最多等 2 次，共 6 秒）
-    async fn wait_for_rpm_gate(&self, credential_id: u64, tag: &str) {
-        if let Some(rpm) = &self.rpm_tracker {
-            let max_rpm = self.token_manager.config().max_rpm_per_credential;
-            if max_rpm > 0 {
-                let mut rpm_waits = 0;
-                while rpm.credential_rpm(credential_id) >= max_rpm as u64 && rpm_waits < 2 {
-                    tracing::info!(
-                        "[RPM-GATE] credential={} rpm={} limit={}, waiting 3s{}",
-                        credential_id, rpm.credential_rpm(credential_id), max_rpm, tag
-                    );
-                    sleep(Duration::from_secs(3)).await;
-                    rpm_waits += 1;
-                }
-                if rpm.credential_rpm(credential_id) >= max_rpm as u64 {
-                    tracing::warn!(
-                        "[RPM-GATE] credential={} still over limit after wait{}, proceeding anyway",
-                        credential_id, tag
-                    );
-                }
-            }
+    /// 429 限流退避：随 attempt 递增，避免固定间隔反复命中同一限流窗口
+    fn throttle_delay(attempt: usize, small_pool: bool) -> Duration {
+        if small_pool {
+            // 单账号: 5s + attempt×1.5s（上限 15s）+ jitter
+            let base = 5000u64.saturating_add((attempt as u64).saturating_mul(1500));
+            let capped = base.min(15_000);
+            let jitter = fastrand::u64(0..=2000);
+            Duration::from_millis(capped.saturating_add(jitter))
+        } else {
+            // 多账号: 2s + attempt×1s（上限 8s）+ jitter
+            let base = 2000u64.saturating_add((attempt as u64).saturating_mul(1000));
+            let capped = base.min(8_000);
+            let jitter = fastrand::u64(0..=1500);
+            Duration::from_millis(capped.saturating_add(jitter))
         }
+    }
+
+    /// RPM 硬限制：精确等待到下一个 slot 释放（上限 60s）
+    ///
+    /// 返回 true 表示等待后已有 slot 可用或本身未满；返回 false 表示等待超时仍满
+    async fn wait_for_rpm_gate(&self, credential_id: u64, tag: &str) -> bool {
+        let Some(rpm) = &self.rpm_tracker else {
+            return true;
+        };
+        let max_rpm = self.token_manager.config().max_rpm_per_credential;
+        if max_rpm == 0 || rpm.credential_rpm(credential_id) < max_rpm as u64 {
+            return true;
+        }
+
+        // 精确计算等待时间
+        let wait_duration = rpm
+            .time_until_slot(credential_id, max_rpm)
+            .unwrap_or(Duration::from_secs(3))
+            .min(Duration::from_secs(60));
+
+        tracing::info!(
+            "[RPM-GATE] credential={} rpm={} limit={}, waiting {:.1}s{}",
+            credential_id,
+            rpm.credential_rpm(credential_id),
+            max_rpm,
+            wait_duration.as_secs_f64(),
+            tag
+        );
+        sleep(wait_duration).await;
+
+        if rpm.credential_rpm(credential_id) >= max_rpm as u64 {
+            tracing::warn!(
+                "[RPM-GATE] credential={} still over limit after wait{}, proceeding anyway",
+                credential_id, tag
+            );
+            return false;
+        }
+        true
     }
 
     fn is_monthly_request_limit(body: &str) -> bool {

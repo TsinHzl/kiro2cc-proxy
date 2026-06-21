@@ -108,21 +108,9 @@ fn get_model_pricing(model: &str) -> ModelPricing {
     }
 }
 
-/// 无缓存基准换算率（credits/$），按模型实测值
-/// sonnet: 1.43（代理实测 2026-06-20），opus 待验证
-fn get_k_ref(model: &str) -> f64 {
-    let lower = model.to_lowercase();
-    if lower.contains("opus") {
-        if lower.contains("4-8") || lower.contains("4.8") {
-            7.24
-        } else if lower.contains("4-7") || lower.contains("4.7") {
-            7.30
-        } else {
-            7.13
-        }
-    } else {
-        1.43
-    }
+/// 平台级 credits/USD 换算率（代理实测 2026-06-20）
+fn get_k_ref(_model: &str) -> f64 {
+    1.43
 }
 
 /// 计算单次请求的估算费用

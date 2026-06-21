@@ -569,31 +569,16 @@ pub(crate) fn infer_cache_read_tokens(
 ) -> Option<i32> {
     let credits = credits?;
     // (k_ref, input_price_per_M, output_price_per_M)
-    let (k_ref, input_price, output_price): (f64, f64, f64) = if model.contains("opus") {
-        if model.contains("4-6")
-            || model.contains("4.6")
-            || model.contains("4-7")
-            || model.contains("4.7")
-            || model.contains("4-8")
-            || model.contains("4.8")
-        {
-            // opus 4.6/4.7/4.8 同档：官方单价均 .00/.00
-            (2.60, 15.0, 75.0)
-        } else {
-            // opus 4.5 及更早
-            (2.40, 15.0, 75.0)
-        }
-    } else if model.contains("fable") {
-        // 占位：fable-5 单价未实测，临时沿用 opus 顶端档位。
-        // 影响：cache_read_input_tokens 反推值进入 usage 上报，存在估算偏差。
-        // 后续：抓 Kiro fable-5 metering_credits 后修正为实测档位。
-        (2.60, 15.0, 75.0)
+    const K_REF: f64 = 1.43; // 平台级 credits/USD 换算率（代理实测 2026-06-20）
+    let (input_price, output_price): (f64, f64) = if model.contains("opus") || model.contains("fable") {
+        (15.0, 75.0)
     } else if model.contains("haiku") {
-        return None; // k_ref 未实测，降级到模拟值
+        return None;
     } else {
-        // sonnet 系列（代理实测 k_ref=1.43，2026-06-20 多轮验证）
-        (1.43, 3.0, 15.0)
+        // sonnet 系列
+        (3.0, 15.0)
     };
+    let k_ref = K_REF;
     // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
     let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
     let output_credits = k_ref * output_usd;

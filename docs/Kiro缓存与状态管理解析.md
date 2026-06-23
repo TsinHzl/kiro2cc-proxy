@@ -10,6 +10,7 @@
 3. [会话粘性路由（Sticky Cache）](#3-会话粘性路由sticky-cache)
 4. [缓存命中验证与 Token 反推](#4-缓存命中验证与-token-反推)
 5. [底层性能优化实现（O(1) 淘汰与异步写）](#5-底层性能优化实现o1-淘汰与异步写)
+6. [Usage 终值合成（四层降级链 + ephemeral 拆分）](#6-usage-终值合成四层降级链--ephemeral-拆分)
 
 ---
 
@@ -149,7 +150,7 @@ AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_in
 - opus-4.7/4.8/sonnet-4.6 必须用 1M 窗口，否则 input_tokens 被压缩为 1/5，导致 credits_per_ktok 虚高，看起来像"无折扣全价"
 - 这是此前错误地得出"Kiro 不传递 cache 折扣"结论的根本原因
 
-反推得出的 `cache_read_tokens` 最终封装进 `message_delta` SSE 帧的 `usage` 字段中，使 Claude Code 能准确显示缓存节省量。
+反推得出的 `cache_read_tokens` 只是终值合成链中的一层信号，最终注入到 SSE 帧 `usage` 字段的取值由四层降级链统一裁决 —— 详见 [§6 Usage 终值合成](#6-usage-终值合成四层降级链--ephemeral-拆分)。
 
 ---
 
@@ -172,3 +173,74 @@ AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_in
   - 引入 `tokio::sync::mpsc::unbounded_channel` 以无锁方式传递日志事件脏信号。
   - 后台衍生出专门的 `tokio::spawn` 异步任务，设定每 5 秒定期利用 `spawn_blocking` 进行批量防抖写盘（Debounce）。
   - **Graceful Shutdown**：接管应用退出信号，确保进程被关闭时，后台通道能被清空并执行最后一次强制落盘，确保财务级计费数据的绝对安全。
+
+---
+
+## 6. Usage 终值合成（四层降级链 + ephemeral 拆分）
+
+> 引入时间：v2.6.12（2026-06-24）
+> 关联模块：`src/cache/mod.rs::select_final_usage` · `src/cache/simulation.rs::{scale_to, clamp_to_total}` · `src/anthropic/handlers.rs`
+
+回包给客户端的 `usage` 字段并非由单一来源直接产出，而是经过一条**四层降级链**统一裁决，并由 `clamp_to_total` 保证多个 token 字段之间的算术不变性。该模块由 `select_final_usage` 纯函数承担，便于单元测试覆盖所有分支。
+
+### 6.1 四层降级链优先级
+
+| 层级 | 信号来源 | 触发条件 | 数据特征 |
+|------|---------|----------|---------|
+| ① metering 真值 | `meteringEvent.cache_read` / `cache_creation` | Kiro 上游直接返回 metering 字段 | 最权威；Kiro 不区分 5m/1h，默认全部归为 5m |
+| ② credits 反推 | `infer_cache_read_tokens(...)` 的结果 | metering 缺失但 credits 可用 | 反推由调用方在 `handlers.rs` 中**预先完成**后再传入；本层仅消费已反推的 `cache_read`，`cache_creation`/`cache_creation_5m`/`cache_creation_1h` 全部置 0 |
+| ③ fingerprint 命中 | 账号级前缀指纹追踪输出 | 上述两层均无，但本账号此前已观测到同一前缀 | 携带账号维度的真实命中历史 |
+| ④ ratio 兜底 | `from_ratio_config().scale_to(final_input_tokens)` | 完全无观测数据 | 按配置比例模拟，由 `scale_to` 保留 5m/1h 原始比例 |
+
+四层依次降级，**任一层命中则短路返回**，并统一经过 `clamp_to_total(final_input_tokens)` 做边界裁剪。
+
+### 6.2 纯函数签名与不变性
+
+```rust
+/// 四层降级链选择终值 usage：
+///
+/// 优先级（高→低）：
+/// 1. metering 真值        —— 上游 Kiro 返回的 cache_read / cache_creation 原始值
+/// 2. credits 反推结果     —— 调用方提前用 infer_cache_read_tokens 反推后的 cache_read
+/// 3. fingerprint 命中     —— 账号级前缀指纹追踪输出
+/// 4. ratio 兜底           —— 比例模拟（from_ratio_config）的产出
+///
+/// 所有分支输出均经 clamp_to_total(final_input_tokens) 截断，保证 5m/1h 不变性。
+pub fn select_final_usage(
+    final_input_tokens: i32,
+    metering: Option<(i32, i32)>,          // (cache_read, cache_creation)
+    credits_inferred_read: Option<i32>,
+    fingerprint_usage: Option<PromptCacheUsage>,
+    ratio_fallback: PromptCacheUsage,
+) -> PromptCacheUsage;
+```
+
+**三条强不变性**（由 `clamp_to_total` 保证，单元测试通过 `assert_invariant` 校验）：
+
+1. `input_tokens ≥ 0` —— 非缓存 input 永不为负
+2. `cache_creation_5m + cache_creation_1h == cache_creation_input_tokens` —— ephemeral 层级拆分守恒
+3. `input_tokens + cache_creation + cache_read == final_input_tokens` —— **三段守恒恒等式**：clamp 优先保留 `cache_read`，再以 `remaining = total - cache_read` 为预算依次填充 `cache_creation` 和 `input_tokens`，三者之和严格等于传入的总输入。该恒等式同时蕴含 `cache_read + cache_creation ≤ final_input_tokens`
+
+### 6.3 ephemeral 5m / 1h 拆分语义
+
+Anthropic 2025-12 起的 ephemeral cache 区分 **5 分钟** 与 **1 小时** 两个 TTL 层，对应 `cache_creation_5m_input_tokens` 与 `cache_creation_1h_input_tokens`。代理在不同信号源下采用如下处理策略：
+
+| 信号源 | 5m / 1h 拆分策略 |
+|--------|-----------------|
+| metering（Kiro 上游） | Kiro 协议**不区分 TTL**，默认全部归为 5m，1h 置 0 |
+| credits 反推 | 反推只能得到 `cache_read`，creation 类字段为 0（无需拆分） |
+| fingerprint | 直接沿用账号历史观测到的 5m / 1h 比例 |
+| ratio 兜底 | `from_ratio_config` 按配置初始比例产出，`scale_to` 缩放时**保持原始 5m:1h 比例**不变 |
+
+`scale_to` 的比例守恒由 `scale_to_keeps_5m_1h_ratio_when_scaling_up` 单元测试覆盖（如 100→200 缩放后 30:70 → 60:140，仍为 30%:70%）。
+
+### 6.4 重构收益
+
+| 维度 | 重构前 | 重构后 |
+|------|--------|--------|
+| `handlers.rs` 终值合成代码 | ~40 行内联 if/else 链 | ~22 行调用纯函数 |
+| 单元测试覆盖 | 0（依赖整链 mock） | 7 个分支测试（覆盖 4 层 + 边界） |
+| 不变性校验 | 散落在调用点 | 集中由 `clamp_to_total` + `assert_invariant` 兜底 |
+| 5m/1h 拆分语义 | 隐式、易遗漏 | 显式守恒，缩放/截断均保持比例 |
+
+> 配套测试：`src/cache/mod.rs` 内 `mod tests`（7 例）+ `src/cache/simulation.rs` 内 `mod tests`（10 例，含 `scale_to_keeps_5m_1h_ratio_when_scaling_up`、`clamp_to_total_*` 等）。

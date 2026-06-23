@@ -137,8 +137,8 @@ impl FingerprintTracker {
             let tools_repr: Vec<String> = ts
                 .iter()
                 .map(|t| {
-                    let schema_val = serde_json::to_value(&t.input_schema)
-                        .unwrap_or(serde_json::Value::Null);
+                    let schema_val =
+                        serde_json::to_value(&t.input_schema).unwrap_or(serde_json::Value::Null);
                     format!(
                         "{}:{}:{}",
                         t.name,

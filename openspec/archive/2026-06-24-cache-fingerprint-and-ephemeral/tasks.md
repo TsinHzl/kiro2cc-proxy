@@ -1,6 +1,6 @@
 # 任务清单：cache-fingerprint-and-ephemeral
 
-## 状态：DONE
+## 状态：ARCHIVED
 
 ## 任务
 

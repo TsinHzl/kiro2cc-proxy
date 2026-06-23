@@ -237,7 +237,6 @@ pub struct Tool {
     pub max_uses: Option<i32>,
 }
 
-
 /// 内容块
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ContentBlock {

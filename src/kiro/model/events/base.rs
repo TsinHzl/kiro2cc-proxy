@@ -30,7 +30,7 @@ impl EventType {
             "assistantResponseEvent" => Self::AssistantResponse,
             "toolUseEvent" => Self::ToolUse,
             "meteringEvent" => Self::Metering,
-"contextUsageEvent" => Self::ContextUsage,
+            "contextUsageEvent" => Self::ContextUsage,
             "codeReferenceEvent" => Self::CodeReference,
             _ => Self::Unknown,
         }
@@ -42,7 +42,7 @@ impl EventType {
             Self::AssistantResponse => "assistantResponseEvent",
             Self::ToolUse => "toolUseEvent",
             Self::Metering => "meteringEvent",
-Self::ContextUsage => "contextUsageEvent",
+            Self::ContextUsage => "contextUsageEvent",
             Self::CodeReference => "codeReferenceEvent",
             Self::Unknown => "unknown",
         }
@@ -124,12 +124,18 @@ impl Event {
                 Ok(Self::ToolUse(payload))
             }
             EventType::Metering => {
-                tracing::debug!("[raw-event] meteringEvent payload: {}", frame.payload_as_str());
+                tracing::debug!(
+                    "[raw-event] meteringEvent payload: {}",
+                    frame.payload_as_str()
+                );
                 let payload = super::MeteringEvent::from_frame(&frame)?;
                 Ok(Self::Metering(payload))
             }
             EventType::ContextUsage => {
-                tracing::debug!("[raw-event] contextUsageEvent payload: {}", frame.payload_as_str());
+                tracing::debug!(
+                    "[raw-event] contextUsageEvent payload: {}",
+                    frame.payload_as_str()
+                );
                 let payload = super::ContextUsageEvent::from_frame(&frame)?;
                 Ok(Self::ContextUsage(payload))
             }

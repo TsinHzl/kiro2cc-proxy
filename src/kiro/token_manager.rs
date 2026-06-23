@@ -705,10 +705,10 @@ impl MultiTokenManager {
                 if cred.machine_id.is_none()
                     && let Some(machine_id) =
                         machine_id::generate_from_credentials(&cred, config_ref)
-                    {
-                        cred.machine_id = Some(machine_id);
-                        has_new_machine_ids = true;
-                    }
+                {
+                    cred.machine_id = Some(machine_id);
+                    has_new_machine_ids = true;
+                }
                 CredentialEntry {
                     id,
                     credentials: cred.clone(),
@@ -825,7 +825,11 @@ impl MultiTokenManager {
     ///
     /// # 参数
     /// - `model`: 可选的模型名称，用于过滤支持该模型的账号（如 opus 模型需要付费订阅）
-    fn select_next_credential(&self, model: Option<&str>, allowed_ids: &[u64]) -> Option<(u64, KiroCredentials)> {
+    fn select_next_credential(
+        &self,
+        model: Option<&str>,
+        allowed_ids: &[u64],
+    ) -> Option<(u64, KiroCredentials)> {
         let entries = self.entries.lock();
 
         // 检查是否是 opus 模型
@@ -862,7 +866,11 @@ impl MultiTokenManager {
             .filter(|e| Self::compute_health(e) != HealthStatus::Unhealthy)
             .copied()
             .collect();
-        let pool: &[&CredentialEntry] = if preferred.is_empty() { &available } else { &preferred };
+        let pool: &[&CredentialEntry] = if preferred.is_empty() {
+            &available
+        } else {
+            &preferred
+        };
 
         let mode = self.load_balancing_mode.lock().clone();
         let mode = mode.as_str();
@@ -871,7 +879,11 @@ impl MultiTokenManager {
             "balanced" => {
                 // Round-Robin + rotation_bias：优先选 bias 最小的子集，再 round-robin
                 let min_bias = pool.iter().map(|e| e.rotation_bias).min().unwrap_or(0);
-                let low_bias: Vec<&CredentialEntry> = pool.iter().filter(|e| e.rotation_bias == min_bias).copied().collect();
+                let low_bias: Vec<&CredentialEntry> = pool
+                    .iter()
+                    .filter(|e| e.rotation_bias == min_bias)
+                    .copied()
+                    .collect();
                 let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
                 let entry = low_bias[idx % low_bias.len()];
                 Some((entry.id, entry.credentials.clone()))
@@ -888,7 +900,11 @@ impl MultiTokenManager {
                     Some((top_tier[0].id, top_tier[0].credentials.clone()))
                 } else {
                     let min_bias = top_tier.iter().map(|e| e.rotation_bias).min().unwrap_or(0);
-                    let low_bias: Vec<&CredentialEntry> = top_tier.iter().filter(|e| e.rotation_bias == min_bias).copied().collect();
+                    let low_bias: Vec<&CredentialEntry> = top_tier
+                        .iter()
+                        .filter(|e| e.rotation_bias == min_bias)
+                        .copied()
+                        .collect();
                     let idx = self.rr_counter.fetch_add(1, Ordering::Relaxed) as usize;
                     let entry = low_bias[idx % low_bias.len()];
                     Some((entry.id, entry.credentials.clone()))
@@ -932,7 +948,11 @@ impl MultiTokenManager {
                     let current_id = *self.current_id.lock();
                     entries
                         .iter()
-                        .find(|e| e.id == current_id && !e.disabled && Self::compute_health(e) != HealthStatus::Unhealthy)
+                        .find(|e| {
+                            e.id == current_id
+                                && !e.disabled
+                                && Self::compute_health(e) != HealthStatus::Unhealthy
+                        })
                         .map(|e| (e.id, e.credentials.clone()))
                 };
 
@@ -1012,10 +1032,7 @@ impl MultiTokenManager {
 
         loop {
             if tried_ids.len() >= allowed_ids.len() {
-                anyhow::bail!(
-                    "绑定的账号均不可用（共 {} 个）",
-                    allowed_ids.len()
-                );
+                anyhow::bail!("绑定的账号均不可用（共 {} 个）", allowed_ids.len());
             }
 
             // 从白名单中排除已尝试过的账号
@@ -1089,13 +1106,20 @@ impl MultiTokenManager {
                 Ok(ctx) => {
                     // 命中成功，续期
                     self.sticky_hits.fetch_add(1, Ordering::Relaxed);
-                    self.sticky_cache.lock().entry(cid.to_string()).and_modify(|e| {
-                        e.inserted_at = Instant::now();
-                    });
+                    self.sticky_cache
+                        .lock()
+                        .entry(cid.to_string())
+                        .and_modify(|e| {
+                            e.inserted_at = Instant::now();
+                        });
                     return Ok(ctx);
                 }
                 Err(e) => {
-                    tracing::warn!("sticky cache 账号 #{} token 刷新失败，驱逐并重选: {}", id, e);
+                    tracing::warn!(
+                        "sticky cache 账号 #{} token 刷新失败，驱逐并重选: {}",
+                        id,
+                        e
+                    );
                     self.sticky_cache.lock().remove(cid);
                     self.sticky_misses.fetch_add(1, Ordering::Relaxed);
                 }
@@ -1169,15 +1193,16 @@ impl MultiTokenManager {
             .iter()
             .filter(|e| !e.disabled)
             .min_by_key(|e| e.credentials.priority)
-            && best.id != *current_id {
-                tracing::info!(
-                    "优先级变更后切换账号: #{} -> #{}（优先级 {}）",
-                    *current_id,
-                    best.id,
-                    best.credentials.priority
-                );
-                *current_id = best.id;
-            }
+            && best.id != *current_id
+        {
+            tracing::info!(
+                "优先级变更后切换账号: #{} -> #{}（优先级 {}）",
+                *current_id,
+                best.id,
+                best.credentials.priority
+            );
+            *current_id = best.id;
+        }
     }
 
     /// 尝试使用指定账号获取有效 Token
@@ -1213,7 +1238,9 @@ impl MultiTokenManager {
                 // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
                 let skip_for_cooldown = !is_token_expired(&current_creds) && {
                     let entries = self.entries.lock();
-                    entries.iter().find(|e| e.id == id)
+                    entries
+                        .iter()
+                        .find(|e| e.id == id)
                         .and_then(|e| e.last_refreshed_at)
                         .map(|t| t.elapsed() < TOKEN_REFRESH_COOLDOWN)
                         .unwrap_or(false)
@@ -1225,7 +1252,8 @@ impl MultiTokenManager {
                     // 确实需要刷新
                     let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
                     let new_creds =
-                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
+                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref())
+                            .await?;
 
                     if is_token_expired(&new_creds) {
                         anyhow::bail!("刷新后的 Token 仍然无效或已过期");
@@ -1327,7 +1355,10 @@ impl MultiTokenManager {
         if let Err(e) = write_result {
             let detail = format!(
                 "回写账号文件失败: path={:?}, credentials_count={}, json_bytes={}, os_error={:?}",
-                path, credentials.len(), json.len(), e
+                path,
+                credentials.len(),
+                json.len(),
+                e
             );
             tracing::error!("{}", detail);
             anyhow::bail!(detail);
@@ -1492,11 +1523,7 @@ impl MultiTokenManager {
             entry.throttle_count += 1;
             entry.last_throttled_at = Some(Instant::now());
             entry.last_throttled_wall = Some(Utc::now());
-            tracing::debug!(
-                "账号 #{} 被限流（累计 {} 次）",
-                id,
-                entry.throttle_count
-            );
+            tracing::debug!("账号 #{} 被限流（累计 {} 次）", id, entry.throttle_count);
         }
         // throttle_count 在下次 success/failure 时随 debounce 一起落盘
         self.stats_dirty.store(true, Ordering::Relaxed);
@@ -1510,11 +1537,7 @@ impl MultiTokenManager {
         let mut entries = self.entries.lock();
         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
             entry.rotation_bias = entry.rotation_bias.saturating_add(1);
-            tracing::debug!(
-                "账号 #{} rotation_bias 递增至 {}",
-                id,
-                entry.rotation_bias
-            );
+            tracing::debug!("账号 #{} rotation_bias 递增至 {}", id, entry.rotation_bias);
         }
     }
 
@@ -1826,7 +1849,9 @@ impl MultiTokenManager {
                 // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
                 let skip_for_cooldown = !is_token_expired(&current_creds) && {
                     let entries = self.entries.lock();
-                    entries.iter().find(|e| e.id == id)
+                    entries
+                        .iter()
+                        .find(|e| e.id == id)
                         .and_then(|e| e.last_refreshed_at)
                         .map(|t| t.elapsed() < TOKEN_REFRESH_COOLDOWN)
                         .unwrap_or(false)
@@ -1840,7 +1865,8 @@ impl MultiTokenManager {
                 } else {
                     let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
                     let new_creds =
-                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref()).await?;
+                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref())
+                            .await?;
                     {
                         let mut entries = self.entries.lock();
                         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
@@ -1877,7 +1903,8 @@ impl MultiTokenManager {
         };
 
         let effective_proxy = credentials.effective_proxy(self.proxy.as_ref());
-        let usage_limits = get_usage_limits(&credentials, &self.config, &token, effective_proxy.as_ref()).await?;
+        let usage_limits =
+            get_usage_limits(&credentials, &self.config, &token, effective_proxy.as_ref()).await?;
 
         // 更新订阅等级到账号（仅在发生变化时持久化）
         if let Some(subscription_title) = usage_limits.subscription_title() {
@@ -1886,8 +1913,7 @@ impl MultiTokenManager {
                 if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
                     let old_title = entry.credentials.subscription_title.clone();
                     if old_title.as_deref() != Some(subscription_title) {
-                        entry.credentials.subscription_title =
-                            Some(subscription_title.to_string());
+                        entry.credentials.subscription_title = Some(subscription_title.to_string());
                         tracing::info!(
                             "账号 #{} 订阅等级已更新: {:?} -> {}",
                             id,
@@ -1903,10 +1929,9 @@ impl MultiTokenManager {
                 }
             };
 
-            if changed
-                && let Err(e) = self.persist_credentials() {
-                    tracing::warn!("订阅等级更新后持久化失败（不影响本次请求）: {}", e);
-                }
+            if changed && let Err(e) = self.persist_credentials() {
+                tracing::warn!("订阅等级更新后持久化失败（不影响本次请求）: {}", e);
+            }
         }
 
         Ok(usage_limits)
@@ -2010,9 +2035,11 @@ impl MultiTokenManager {
 
         // 7. 持久化（失败不阻塞，账号已在内存中生效）
         match self.persist_credentials() {
-            Ok(true) => tracing::info!("账号 #{} 已持久化到文件（共 {} 个账号）", new_id, {
-                self.entries.lock().len()
-            }),
+            Ok(true) => tracing::info!(
+                "账号 #{} 已持久化到文件（共 {} 个账号）",
+                new_id,
+                { self.entries.lock().len() }
+            ),
             Ok(false) => tracing::warn!("账号 #{} 未持久化（非多账号格式或路径未设置）", new_id),
             Err(e) => tracing::error!("账号 #{} 持久化失败: {}", new_id, e),
         }
@@ -2060,10 +2087,18 @@ impl MultiTokenManager {
                     cred.client_secret = Some(cs.clone());
                 }
                 if let Some(ref ar) = update.auth_region {
-                    cred.auth_region = if ar.is_empty() { None } else { Some(ar.clone()) };
+                    cred.auth_region = if ar.is_empty() {
+                        None
+                    } else {
+                        Some(ar.clone())
+                    };
                 }
                 if let Some(ref ar) = update.api_region {
-                    cred.api_region = if ar.is_empty() { None } else { Some(ar.clone()) };
+                    cred.api_region = if ar.is_empty() {
+                        None
+                    } else {
+                        Some(ar.clone())
+                    };
                 }
                 cred
             };
@@ -2107,41 +2142,83 @@ impl MultiTokenManager {
         update: &crate::admin::types::UpdateCredentialRequest,
     ) {
         if let Some(ref am) = update.auth_method {
-            cred.auth_method = Some(if am.eq_ignore_ascii_case("builder-id") || am.eq_ignore_ascii_case("iam") {
-                "idc".to_string()
-            } else {
-                am.clone()
-            });
+            cred.auth_method = Some(
+                if am.eq_ignore_ascii_case("builder-id") || am.eq_ignore_ascii_case("iam") {
+                    "idc".to_string()
+                } else {
+                    am.clone()
+                },
+            );
         }
         if let Some(ref ci) = update.client_id {
-            cred.client_id = if ci.is_empty() { None } else { Some(ci.clone()) };
+            cred.client_id = if ci.is_empty() {
+                None
+            } else {
+                Some(ci.clone())
+            };
         }
         if let Some(ref cs) = update.client_secret {
-            cred.client_secret = if cs.is_empty() { None } else { Some(cs.clone()) };
+            cred.client_secret = if cs.is_empty() {
+                None
+            } else {
+                Some(cs.clone())
+            };
         }
         if let Some(ref ar) = update.auth_region {
-            cred.auth_region = if ar.is_empty() { None } else { Some(ar.clone()) };
+            cred.auth_region = if ar.is_empty() {
+                None
+            } else {
+                Some(ar.clone())
+            };
         }
         if let Some(ref ar) = update.api_region {
-            cred.api_region = if ar.is_empty() { None } else { Some(ar.clone()) };
+            cred.api_region = if ar.is_empty() {
+                None
+            } else {
+                Some(ar.clone())
+            };
         }
         if let Some(ref mi) = update.machine_id {
-            cred.machine_id = if mi.is_empty() { None } else { Some(mi.clone()) };
+            cred.machine_id = if mi.is_empty() {
+                None
+            } else {
+                Some(mi.clone())
+            };
         }
         if let Some(ref em) = update.email {
-            cred.email = if em.is_empty() { None } else { Some(em.clone()) };
+            cred.email = if em.is_empty() {
+                None
+            } else {
+                Some(em.clone())
+            };
         }
         if let Some(ref nn) = update.nickname {
-            cred.nickname = if nn.is_empty() { None } else { Some(nn.clone()) };
+            cred.nickname = if nn.is_empty() {
+                None
+            } else {
+                Some(nn.clone())
+            };
         }
         if let Some(ref pu) = update.proxy_url {
-            cred.proxy_url = if pu.is_empty() { None } else { Some(pu.clone()) };
+            cred.proxy_url = if pu.is_empty() {
+                None
+            } else {
+                Some(pu.clone())
+            };
         }
         if let Some(ref pu) = update.proxy_username {
-            cred.proxy_username = if pu.is_empty() { None } else { Some(pu.clone()) };
+            cred.proxy_username = if pu.is_empty() {
+                None
+            } else {
+                Some(pu.clone())
+            };
         }
         if let Some(ref pp) = update.proxy_password {
-            cred.proxy_password = if pp.is_empty() { None } else { Some(pp.clone()) };
+            cred.proxy_password = if pp.is_empty() {
+                None
+            } else {
+                Some(pp.clone())
+            };
         }
     }
 
@@ -2496,21 +2573,14 @@ mod tests {
 
     #[test]
     fn test_set_load_balancing_mode_persists_to_config_file() {
-        let config_path = std::env::temp_dir().join(format!(
-            "kiro-load-balancing-{}.json",
-            uuid::Uuid::new_v4()
-        ));
+        let config_path =
+            std::env::temp_dir().join(format!("kiro-load-balancing-{}.json", uuid::Uuid::new_v4()));
         std::fs::write(&config_path, r#"{"loadBalancingMode":"priority"}"#).unwrap();
 
         let config = Config::load(&config_path).unwrap();
-        let manager = MultiTokenManager::new(
-            config,
-            vec![KiroCredentials::default()],
-            None,
-            None,
-            false,
-        )
-        .unwrap();
+        let manager =
+            MultiTokenManager::new(config, vec![KiroCredentials::default()], None, None, false)
+                .unwrap();
 
         manager
             .set_load_balancing_mode("balanced".to_string())
@@ -2584,7 +2654,12 @@ mod tests {
         manager.report_quota_exhausted(2);
         assert_eq!(manager.available_count(), 0);
 
-        let err = manager.acquire_context(None).await.err().unwrap().to_string();
+        let err = manager
+            .acquire_context(None)
+            .await
+            .err()
+            .unwrap()
+            .to_string();
         assert!(
             err.contains("所有账号均已禁用"),
             "错误应提示所有账号禁用，实际: {}",

@@ -1,14 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! User API 处理器
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Json,
-};
-use std::collections::HashMap;
+use axum::{Extension, Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::middleware::{UserContext, UserErrorResponse, UserState};
 use crate::model::api_key::ApiKeyAuthResult;
@@ -19,8 +14,16 @@ pub async fn login(
     State(state): State<UserState>,
     Json(payload): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    match state.api_key_manager.authenticate_readonly(&payload.api_key) {
-        ApiKeyAuthResult::Valid { id, name, spending_limit, .. } => {
+    match state
+        .api_key_manager
+        .authenticate_readonly(&payload.api_key)
+    {
+        ApiKeyAuthResult::Valid {
+            id,
+            name,
+            spending_limit,
+            ..
+        } => {
             // 查询用量
             let summary = state.usage_tracker.get_summary(id);
             // 查询 key 详情（过期时间等）
@@ -40,16 +43,25 @@ pub async fn login(
         }
         ApiKeyAuthResult::Disabled => (
             StatusCode::FORBIDDEN,
-            Json(UserErrorResponse { error: "API Key 已被禁用".into() }),
-        ).into_response(),
+            Json(UserErrorResponse {
+                error: "API Key 已被禁用".into(),
+            }),
+        )
+            .into_response(),
         ApiKeyAuthResult::Expired => (
             StatusCode::FORBIDDEN,
-            Json(UserErrorResponse { error: "API Key 已过期".into() }),
-        ).into_response(),
+            Json(UserErrorResponse {
+                error: "API Key 已过期".into(),
+            }),
+        )
+            .into_response(),
         ApiKeyAuthResult::NotFound => (
             StatusCode::UNAUTHORIZED,
-            Json(UserErrorResponse { error: "无效的 API Key".into() }),
-        ).into_response(),
+            Json(UserErrorResponse {
+                error: "无效的 API Key".into(),
+            }),
+        )
+            .into_response(),
     }
 }
 
@@ -88,13 +100,21 @@ pub async fn get_usage_records(
     Extension(ctx): Extension<UserContext>,
     axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let page = params.get("page").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1);
+    let page = params
+        .get("page")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(1);
     let page_size = params
         .get("page_size")
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(50)
         .min(500);
-    Json(state.usage_tracker.get_records_paged(ctx.key_id, page, page_size, &std::collections::HashMap::new()))
+    Json(state.usage_tracker.get_records_paged(
+        ctx.key_id,
+        page,
+        page_size,
+        &std::collections::HashMap::new(),
+    ))
 }
 
 #[derive(Deserialize)]

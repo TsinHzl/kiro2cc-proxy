@@ -170,11 +170,24 @@ fn sample_triangular_ratio(min: f64, max: f64, peak: f64) -> f64 {
 }
 
 /// 模拟出的 Anthropic prompt cache usage 字段。
+///
+/// 不变性：`cache_creation_5m_input_tokens + cache_creation_1h_input_tokens == cache_creation_input_tokens`
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PromptCacheUsage {
     pub input_tokens: i32,
     pub cache_creation_input_tokens: i32,
     pub cache_read_input_tokens: i32,
+    pub cache_creation_5m_input_tokens: i32,
+    pub cache_creation_1h_input_tokens: i32,
+}
+
+/// 按 ephemeral1hRatio 拆分 cache_creation 到 5m / 1h tier（确定性分配）。
+pub fn split_creation_by_ephemeral_ratio(creation: i32, ratio_1h: f64) -> (i32, i32) {
+    let ratio = ratio_1h.clamp(0.0, 1.0);
+    let one_h = ((creation as f64 * ratio) + 0.5).floor() as i32;
+    let one_h = one_h.clamp(0, creation.max(0));
+    let five_m = creation.saturating_sub(one_h);
+    (five_m, one_h)
 }
 
 impl PromptCacheUsage {
@@ -183,6 +196,8 @@ impl PromptCacheUsage {
             input_tokens: input_tokens.max(0),
             cache_creation_input_tokens: 0,
             cache_read_input_tokens: 0,
+            cache_creation_5m_input_tokens: 0,
+            cache_creation_1h_input_tokens: 0,
         }
     }
 
@@ -191,13 +206,31 @@ impl PromptCacheUsage {
         cache_simulation_ratio: f64,
         cache_creation_ratio: f64,
     ) -> Self {
+        Self::from_ratios_with_ephemeral(
+            input_tokens,
+            cache_simulation_ratio,
+            cache_creation_ratio,
+            0.0,
+        )
+    }
+
+    pub fn from_ratios_with_ephemeral(
+        input_tokens: i32,
+        cache_simulation_ratio: f64,
+        cache_creation_ratio: f64,
+        ephemeral_1h_ratio: f64,
+    ) -> Self {
         let cached_total = ((input_tokens as f64) * cache_simulation_ratio.clamp(0.0, 1.0)) as i32;
         let cache_creation = ((cached_total as f64) * cache_creation_ratio.clamp(0.0, 1.0)) as i32;
         let cache_read = cached_total.saturating_sub(cache_creation);
+        let (creation_5m, creation_1h) =
+            split_creation_by_ephemeral_ratio(cache_creation, ephemeral_1h_ratio);
         Self {
             input_tokens: input_tokens.saturating_sub(cached_total),
             cache_creation_input_tokens: cache_creation,
             cache_read_input_tokens: cache_read,
+            cache_creation_5m_input_tokens: creation_5m,
+            cache_creation_1h_input_tokens: creation_1h,
         }
     }
 
@@ -210,6 +243,21 @@ impl PromptCacheUsage {
             input_tokens,
             cache_simulation_ratio.sample_ratio(),
             cache_creation_ratio,
+        )
+    }
+
+    #[allow(dead_code)]
+    pub fn from_ratio_config_with_ephemeral(
+        input_tokens: i32,
+        cache_simulation_ratio: CacheSimulationRatioConfig,
+        cache_creation_ratio: f64,
+        ephemeral_1h_ratio: f64,
+    ) -> Self {
+        Self::from_ratios_with_ephemeral(
+            input_tokens,
+            cache_simulation_ratio.sample_ratio(),
+            cache_creation_ratio,
+            ephemeral_1h_ratio,
         )
     }
 
@@ -235,12 +283,51 @@ impl PromptCacheUsage {
         cache_read = cache_read.clamp(0, total_input_tokens.max(0));
         cache_creation = cache_creation.clamp(0, total_input_tokens.saturating_sub(cache_read));
 
+        // 按原 5m/1h 比例同步缩放，保持 5m + 1h == creation 不变性
+        let (creation_5m, creation_1h) = if self.cache_creation_input_tokens > 0 {
+            let ratio_1h = self.cache_creation_1h_input_tokens as f64
+                / self.cache_creation_input_tokens as f64;
+            split_creation_by_ephemeral_ratio(cache_creation, ratio_1h)
+        } else {
+            (0, 0)
+        };
+
         Self {
             input_tokens: total_input_tokens
                 .saturating_sub(cache_read)
                 .saturating_sub(cache_creation),
             cache_creation_input_tokens: cache_creation,
             cache_read_input_tokens: cache_read,
+            cache_creation_5m_input_tokens: creation_5m,
+            cache_creation_1h_input_tokens: creation_1h,
+        }
+    }
+
+    /// 强制截断保证 `cache_read + cache_creation <= total_input`、`input_tokens >= 0`。
+    /// 截断时优先保留 cache_read。
+    #[allow(dead_code)]
+    pub fn clamp_to_total(self, total_input: i32) -> Self {
+        let total = total_input.max(0);
+        let cache_read = self.cache_read_input_tokens.clamp(0, total);
+        let remaining = total.saturating_sub(cache_read);
+        let cache_creation = self.cache_creation_input_tokens.clamp(0, remaining);
+        let input_tokens = remaining.saturating_sub(cache_creation);
+
+        // 按原比例同步缩放 5m/1h
+        let (creation_5m, creation_1h) = if self.cache_creation_input_tokens > 0 {
+            let ratio_1h = self.cache_creation_1h_input_tokens as f64
+                / self.cache_creation_input_tokens as f64;
+            split_creation_by_ephemeral_ratio(cache_creation, ratio_1h)
+        } else {
+            (0, 0)
+        };
+
+        Self {
+            input_tokens,
+            cache_creation_input_tokens: cache_creation,
+            cache_read_input_tokens: cache_read,
+            cache_creation_5m_input_tokens: creation_5m,
+            cache_creation_1h_input_tokens: creation_1h,
         }
     }
 }

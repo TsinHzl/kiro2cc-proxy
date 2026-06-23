@@ -44,6 +44,8 @@ pub struct AppState {
     pub usage_tracker: Option<Arc<UsageTracker>>,
     /// RPM 追踪器（可选，启用 RPM 实时监控）
     pub rpm_tracker: Option<Arc<RpmTracker>>,
+    /// Prompt cache 指纹追踪器（替代末层兜底）
+    pub fingerprint_tracker: Option<Arc<crate::cache::fingerprint::FingerprintTracker>>,
 }
 
 impl AppState {
@@ -56,6 +58,7 @@ impl AppState {
             api_key_manager: None,
             usage_tracker: None,
             rpm_tracker: None,
+            fingerprint_tracker: None,
         }
     }
 
@@ -88,6 +91,15 @@ impl AppState {
         self.rpm_tracker = Some(tracker);
         self
     }
+
+    /// 设置 Prompt cache 指纹追踪器
+    pub fn with_fingerprint_tracker(
+        mut self,
+        tracker: Arc<crate::cache::fingerprint::FingerprintTracker>,
+    ) -> Self {
+        self.fingerprint_tracker = Some(tracker);
+        self
+    }
 }
 
 /// API Key 认证中间件
@@ -118,7 +130,12 @@ pub async fn auth_middleware(
     // 2. 尝试子 API Key 认证
     if let Some(manager) = &state.api_key_manager {
         match manager.authenticate(&key) {
-            ApiKeyAuthResult::Valid { id, name, spending_limit, bound_credential_ids } => {
+            ApiKeyAuthResult::Valid {
+                id,
+                name,
+                spending_limit,
+                bound_credential_ids,
+            } => {
                 // 懒激活：首次使用时激活 key
                 if let Err(e) = manager.activate_key(id) {
                     tracing::warn!(api_key_id = id, error = %e, "激活 API Key 失败");

@@ -185,14 +185,18 @@ impl RpmTracker {
         let global = inner.global.count(now_secs);
 
         // 获取并顺便清理废弃为空的键，防止长时间未用的 map 残留
-        inner.by_credential.retain(|_, queue| queue.count(now_secs) > 0);
+        inner
+            .by_credential
+            .retain(|_, queue| queue.count(now_secs) > 0);
         let by_credential: HashMap<u64, u64> = inner
             .by_credential
             .iter()
             .map(|(&id, queue)| (id, queue.count(now_secs)))
             .collect();
 
-        inner.by_api_key.retain(|_, queue| queue.count(now_secs) > 0);
+        inner
+            .by_api_key
+            .retain(|_, queue| queue.count(now_secs) > 0);
         let by_api_key: HashMap<u32, u64> = inner
             .by_api_key
             .iter()
@@ -216,28 +220,28 @@ mod tests {
         let mut queue = TimestampQueue::new();
         // 模拟当前时间
         let now_secs = 1000;
-        
+
         queue.record(now_secs);
         queue.record(now_secs);
-        
+
         assert_eq!(queue.count(now_secs), 2);
         assert_eq!(queue.count(now_secs + 10), 2); // 10秒后依然在 60 秒窗口内
-        
+
         // 测试过期的边界
         assert_eq!(queue.count(now_secs + 60), 0); // 正好 60 秒（已过期）
         assert_eq!(queue.count(now_secs + 61), 0);
-        
+
         // 模拟一分钟后同一槽位被复用
         queue.record(now_secs + 60);
         assert_eq!(queue.count(now_secs + 60), 1);
-        
+
         // 模拟多个不同秒数的请求
         queue.record(now_secs + 60);
         queue.record(now_secs + 61);
         queue.record(now_secs + 62);
-        
+
         assert_eq!(queue.count(now_secs + 62), 4);
-        
+
         // 当 now_secs 推进到 now_secs + 123 时，所有数据均应过期（最后一次记录在 1062）
         assert_eq!(queue.count(now_secs + 123), 0);
     }

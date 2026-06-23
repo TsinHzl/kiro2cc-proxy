@@ -314,9 +314,7 @@ where
 
 /// 区分 JSON 中"字段缺失"与"字段为 null"（f64 版本）
 /// 缺失 → None（不更新），null → Some(None)（不限额），有值 → Some(Some(limit))
-fn deserialize_optional_f64<'de, D>(
-    deserializer: D,
-) -> Result<Option<Option<f64>>, D::Error>
+fn deserialize_optional_f64<'de, D>(deserializer: D) -> Result<Option<Option<f64>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

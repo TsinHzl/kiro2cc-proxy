@@ -7,10 +7,10 @@ use std::time::Duration;
 
 use axum::{
     extract::{Query, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{
-        sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
+        sse::{Event, KeepAlive, Sse},
     },
 };
 use futures::stream::{self, StreamExt};
@@ -56,10 +56,7 @@ pub async fn stream_logs(
                     let Ok(json) = serde_json::to_string(&entry) else {
                         continue;
                     };
-                    return Some((
-                        Ok(Event::default().event("log").data(json)),
-                        rx,
-                    ));
+                    return Some((Ok(Event::default().event("log").data(json)), rx));
                 }
                 Err(RecvError::Lagged(n)) => {
                     // 广播通道溢出，跳过丢失的消息继续

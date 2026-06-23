@@ -19,9 +19,9 @@
 //! ```
 
 mod api_keys;
-mod log_handler;
 mod error;
 mod handlers;
+mod log_handler;
 mod middleware;
 mod router;
 mod service;

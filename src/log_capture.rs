@@ -8,8 +8,8 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tracing::{Event, Level, Subscriber};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 const BROADCAST_CAPACITY: usize = 256;
 

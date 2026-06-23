@@ -121,21 +121,22 @@ async fn main() {
         .parent()
         .unwrap_or(std::path::Path::new("."));
     let throttle_log_store = Arc::new(
-        ThrottleLogStore::load(throttle_data_dir.join("throttle_log.json"))
-            .unwrap_or_else(|e| {
-                tracing::warn!("加载限流日志失败（将使用空日志）: {}", e);
-                ThrottleLogStore::empty(throttle_data_dir.join("throttle_log.json"))
-            }),
+        ThrottleLogStore::load(throttle_data_dir.join("throttle_log.json")).unwrap_or_else(|e| {
+            tracing::warn!("加载限流日志失败（将使用空日志）: {}", e);
+            ThrottleLogStore::empty(throttle_data_dir.join("throttle_log.json"))
+        }),
     );
 
     let failure_log_store = Arc::new(
-        FailureLogStore::load(throttle_data_dir.join("failure_log.json"))
-            .unwrap_or_else(|e| {
-                tracing::warn!("加载失败日志失败（将使用空日志）: {}", e);
-                FailureLogStore::empty(throttle_data_dir.join("failure_log.json"))
-            }),
+        FailureLogStore::load(throttle_data_dir.join("failure_log.json")).unwrap_or_else(|e| {
+            tracing::warn!("加载失败日志失败（将使用空日志）: {}", e);
+            FailureLogStore::empty(throttle_data_dir.join("failure_log.json"))
+        }),
     );
-    tracing::info!("failure_log_store 已启用: {:?}", throttle_data_dir.join("failure_log.json"));
+    tracing::info!(
+        "failure_log_store 已启用: {:?}",
+        throttle_data_dir.join("failure_log.json")
+    );
 
     let kiro_provider = KiroProvider::with_proxy(token_manager.clone(), proxy_config.clone())
         .with_rpm_tracker(rpm_tracker.clone())
@@ -163,18 +164,16 @@ async fn main() {
             .parent()
             .unwrap_or(std::path::Path::new("."));
 
-        let manager = ApiKeyManager::load(data_dir.join("api_keys.json"))
-            .unwrap_or_else(|e| {
-                tracing::error!("加载 API Key 数据失败: {}", e);
-                std::process::exit(1);
-            });
+        let manager = ApiKeyManager::load(data_dir.join("api_keys.json")).unwrap_or_else(|e| {
+            tracing::error!("加载 API Key 数据失败: {}", e);
+            std::process::exit(1);
+        });
         let manager = Arc::new(manager);
 
-        let tracker = UsageTracker::load(data_dir.join("api_key_usage.json"))
-            .unwrap_or_else(|e| {
-                tracing::error!("加载用量数据失败: {}", e);
-                std::process::exit(1);
-            });
+        let tracker = UsageTracker::load(data_dir.join("api_key_usage.json")).unwrap_or_else(|e| {
+            tracing::error!("加载用量数据失败: {}", e);
+            std::process::exit(1);
+        });
         let tracker = Arc::new(tracker);
 
         tracing::info!("API Key 多用户管理已启用");
@@ -183,8 +182,20 @@ async fn main() {
         (None, None)
     };
 
+    // 启动 prompt cache 指纹追踪器（生产模式自动启动 30s 周期 evict 后台任务）
+    let fingerprint_tracker = cache::fingerprint::FingerprintTracker::new(config.cache_simulation);
+    tracing::info!(
+        "FingerprintTracker 启动 (enabled={}, ttl_5m={}s, max_breakpoints={})",
+        config.cache_simulation.fingerprint_enabled,
+        config.cache_simulation.fingerprint_ttl_5m,
+        config
+            .cache_simulation
+            .fingerprint_max_breakpoints_per_account
+    );
+
     let mut anthropic_app_state = anthropic::middleware::AppState::new(api_key_shared.clone())
-        .with_rpm_tracker(rpm_tracker.clone());
+        .with_rpm_tracker(rpm_tracker.clone())
+        .with_fingerprint_tracker(fingerprint_tracker.clone());
     if let Some(ref manager) = api_key_manager {
         anthropic_app_state = anthropic_app_state.with_api_key_manager(manager.clone());
     }
@@ -251,7 +262,10 @@ async fn main() {
     // 启动服务器
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("启动 Anthropic API 端点: {}", addr);
-    tracing::info!("API Key: {}***", api_key.chars().take(6).collect::<String>());
+    tracing::info!(
+        "API Key: {}***",
+        api_key.chars().take(6).collect::<String>()
+    );
     tracing::info!("可用 API:");
     tracing::info!("  GET  /v1/models");
     tracing::info!("  POST /v1/messages");
@@ -273,5 +287,10 @@ async fn main() {
     }
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

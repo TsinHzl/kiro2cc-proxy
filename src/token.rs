@@ -45,14 +45,8 @@ fn get_config() -> Option<&'static CountTokensConfig> {
     COUNT_TOKENS_CONFIG.get()
 }
 
-/// 判断字符是否为非西文字符
-///
-/// 西文字符包括：
-/// - ASCII 字符 (U+0000..U+007F)
-/// - 拉丁字母扩展 (U+0080..U+024F)
-/// - 拉丁字母扩展附加 (U+1E00..U+1EFF)
-///
-/// 返回 true 表示该字符是非西文字符（如中文、日文、韩文、阿拉伯文等）
+/// 判断字符是否为非西文字符（已不再被 count_tokens 使用，保留供历史调用方）
+#[allow(dead_code)]
 fn is_non_western_char(c: char) -> bool {
     !matches!(c,
         // 基本 ASCII
@@ -70,23 +64,35 @@ fn is_non_western_char(c: char) -> bool {
     )
 }
 
-/// 计算文本的 token 数量
+/// 计算文本的 token 数量（四分类加权）
 ///
 /// # 计算规则
-/// - 非西文字符：每个计 4.0 个字符单位
-/// - 西文字符：每个计 1 个字符单位
-/// - 4 个字符单位 = 1 token（向上取整）
-/// ```
+/// - ASCII 字母 (A-Za-z): 每字符 / 4.5（英文 BPE 平均 ~4.5 chars/token）
+/// - 数字 (0-9): 每字符 / 2.0（数字 BPE 拆分粒度细）
+/// - 其他 ASCII (符号、空白): 每字符 / 1.5（符号常单独成 token）
+/// - 非 ASCII (CJK 等): 每字符 / 1.5（中文 BPE 平均 ~1.5 chars/token）
+/// - 向上取整，最少 1 token
 pub fn count_tokens(text: &str) -> u64 {
-    // println!("text: {}", text);
+    let mut letters: usize = 0;
+    let mut digits: usize = 0;
+    let mut ascii_symbols: usize = 0;
+    let mut non_ascii: usize = 0;
 
-    let char_units: f64 = text
-        .chars()
-        .map(|c| if is_non_western_char(c) { 4.0 } else { 1.0 })
-        .sum();
+    for c in text.chars() {
+        match c {
+            'A'..='Z' | 'a'..='z' => letters += 1,
+            '0'..='9' => digits += 1,
+            c if (c as u32) < 0x80 => ascii_symbols += 1,
+            _ => non_ascii += 1,
+        }
+    }
 
-    // 4 个字符单位 = 1 token，向上取整，最少 1 token
-    ((char_units / 4.0).ceil() as u64).max(1)
+    let units = letters as f64 / 4.5
+        + digits as f64 / 2.0
+        + ascii_symbols as f64 / 1.5
+        + non_ascii as f64 / 1.5;
+
+    (units.ceil() as u64).max(1)
 }
 
 /// 估算请求的输入 tokens
@@ -100,24 +106,25 @@ pub(crate) fn count_all_tokens(
 ) -> u64 {
     // 检查是否配置了远程 API
     if let Some(config) = get_config()
-        && let Some(api_url) = &config.api_url {
-            // 尝试调用远程 API
-            let result = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(call_remote_count_tokens(
-                    api_url, config, model, &system, &messages, &tools,
-                ))
-            });
+        && let Some(api_url) = &config.api_url
+    {
+        // 尝试调用远程 API
+        let result = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(call_remote_count_tokens(
+                api_url, config, model, &system, &messages, &tools,
+            ))
+        });
 
-            match result {
-                Ok(tokens) => {
-                    tracing::debug!("远程 count_tokens API 返回: {}", tokens);
-                    return tokens;
-                }
-                Err(e) => {
-                    tracing::warn!("远程 count_tokens API 调用失败，回退到本地计算: {}", e);
-                }
+        match result {
+            Ok(tokens) => {
+                tracing::debug!("远程 count_tokens API 返回: {}", tokens);
+                return tokens;
+            }
+            Err(e) => {
+                tracing::warn!("远程 count_tokens API 调用失败，回退到本地计算: {}", e);
             }
         }
+    }
 
     // 本地计算
     count_all_tokens_local(system, messages, tools)
@@ -214,40 +221,90 @@ fn count_all_tokens_local(
 mod tests {
     use super::*;
 
+    // 新公式（四分类加权）测试：
+    //   ASCII 字母 / 4.5
+    //   数字 / 2.0
+    //   其他 ASCII (符号、空白) / 1.5
+    //   非 ASCII (CJK 等) / 1.5
+
     #[test]
-    fn test_count_tokens_no_inflation() {
-        // 短文本（< 100 tokens 区间）不应该有膨胀系数
-        // "Hello world" 约 3 个 token（11 chars / 4 = 2.75，向上取整 = 3）
-        // "Hello world" = 11 chars, 11 / 4.0 = 2.75, ceil = 3
-        assert_eq!(count_tokens("Hello world"), 3, "11 chars should be 3 tokens");
+    fn test_count_tokens_hello_world() {
+        // "Hello world" = 10 字母 + 1 空格
+        // = 10/4.5 + 1/1.5 = 2.222 + 0.667 = 2.889 → ceil = 3
+        assert_eq!(count_tokens("Hello world"), 3);
     }
 
     #[test]
-    fn test_count_tokens_medium_text_no_inflation() {
-        // 中等长度文本（100-800 tokens 区间）
-        let text = "a".repeat(400); // 400 chars = 100 tokens
+    fn test_count_tokens_400_letters() {
+        // 400 个 ASCII 字母 = 400/4.5 = 88.89 → ceil = 89
+        let text = "a".repeat(400);
+        assert_eq!(count_tokens(&text), 89);
+    }
+
+    #[test]
+    fn test_count_tokens_4000_letters() {
+        // 4000 个 ASCII 字母 = 4000/4.5 = 888.89 → ceil = 889
+        let text = "a".repeat(4000);
+        assert_eq!(count_tokens(&text), 889);
+    }
+
+    #[test]
+    fn test_count_tokens_chinese() {
+        // 4 个 CJK = 4/1.5 = 2.67 → ceil = 3
+        assert_eq!(count_tokens("你好世界"), 3);
+    }
+
+    // ---------- B4 新增覆盖 ----------
+
+    #[test]
+    fn test_count_tokens_1000_letters_range() {
+        let text = "a".repeat(1000);
         let result = count_tokens(&text);
-        // 400 chars / 4.0 = 100.0, ceil = 100
-        assert_eq!(result, 100, "400 chars should be exactly 100 tokens");
+        // 1000/4.5 = 222.2 → ceil = 223
+        assert!((200..=240).contains(&result), "got {}", result);
     }
 
     #[test]
-    fn test_count_tokens_large_text_no_inflation() {
-        // 大文本（>= 800 tokens）原本就没有膨胀，修复后应保持一致
-        let text = "a".repeat(4000); // 4000 chars = 1000 tokens
+    fn test_count_tokens_1000_digits_range() {
+        let text = "1".repeat(1000);
         let result = count_tokens(&text);
-        // 4000 chars / 4.0 = 1000.0, ceil = 1000
-        assert_eq!(result, 1000, "4000 chars should be exactly 1000 tokens");
+        // 1000/2.0 = 500
+        assert!((480..=520).contains(&result), "got {}", result);
     }
 
     #[test]
-    fn test_count_tokens_chinese_no_inflation() {
-        // 中文字符：每个计 4.0 字符单位，4 单位 = 1 token
-        // 4 个中文字符 = 4 * 4.0 / 4 = 4 tokens
-        let text = "你好世界"; // 4 个中文字符
-        let result = count_tokens(text);
-        // 4 Chinese chars × 4.0 units = 16.0 / 4.0 = 4.0, ceil = 4
-        assert_eq!(result, 4, "4 Chinese chars should be exactly 4 tokens");
+    fn test_count_tokens_100_symbols_range() {
+        let text = "!".repeat(100);
+        let result = count_tokens(&text);
+        // 100/1.5 = 66.7 → ceil = 67
+        assert!((60..=80).contains(&result), "got {}", result);
+    }
+
+    #[test]
+    fn test_count_tokens_1000_cjk_range() {
+        let text = "中".repeat(1000);
+        let result = count_tokens(&text);
+        // 1000/1.5 = 666.7 → ceil = 667
+        assert!((660..=700).contains(&result), "got {}", result);
+    }
+
+    #[test]
+    fn test_count_tokens_empty_string_min_1() {
+        assert_eq!(count_tokens(""), 1);
+    }
+
+    #[test]
+    fn test_count_tokens_single_char_min_1() {
+        assert_eq!(count_tokens("a"), 1);
+    }
+
+    #[test]
+    fn test_count_tokens_mixed() {
+        // 10 字母 + 5 数字 + 3 符号 + 2 CJK
+        // = 10/4.5 + 5/2.0 + 3/1.5 + 2/1.5
+        // = 2.222 + 2.5 + 2.0 + 1.333 = 8.056 → ceil = 9
+        let text = "abcdefghij12345!@#中文";
+        assert_eq!(count_tokens(text), 9);
     }
 }
 

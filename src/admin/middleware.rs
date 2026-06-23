@@ -18,8 +18,8 @@ use super::types::AdminErrorResponse;
 use crate::common::auth;
 use crate::log_capture::LogCapture;
 use crate::model::api_key::ApiKeyManager;
-use crate::model::rpm::RpmTracker;
 use crate::model::failure_log::FailureLogStore;
+use crate::model::rpm::RpmTracker;
 use crate::model::throttle_log::ThrottleLogStore;
 use crate::model::usage::UsageTracker;
 
@@ -114,7 +114,9 @@ pub async fn admin_auth_middleware(
     let api_key = auth::extract_api_key(&request);
 
     match api_key {
-        Some(key) if auth::constant_time_eq(&key, &state.admin_api_key.read()) => next.run(request).await,
+        Some(key) if auth::constant_time_eq(&key, &state.admin_api_key.read()) => {
+            next.run(request).await
+        }
         _ => {
             let error = AdminErrorResponse::authentication_error();
             (StatusCode::UNAUTHORIZED, Json(error)).into_response()

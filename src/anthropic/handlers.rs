@@ -3,30 +3,32 @@
 
 use std::convert::Infallible;
 
-use anyhow::Error;
 use crate::kiro::model::events::Event;
 use crate::kiro::model::requests::kiro::KiroRequest;
 use crate::kiro::parser::decoder::EventStreamDecoder;
 use crate::token;
+use anyhow::Error;
 use axum::{
-    Json as JsonExtractor,
+    Extension, Json as JsonExtractor,
     body::Body,
     extract::State,
     http::{StatusCode, header},
     response::{IntoResponse, Json, Response},
-    Extension,
 };
 use bytes::Bytes;
 use futures::{Stream, StreamExt, stream};
 use serde_json::json;
 use std::time::Duration;
-use tokio::time::{interval_at, Instant};
+use tokio::time::{Instant, interval_at};
 use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
-use super::middleware::{AppState, ApiKeyContext};
+use super::middleware::{ApiKeyContext, AppState};
 use super::stream::{BufferedStreamContext, SseEvent, StreamContext};
-use super::types::{CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse, OutputConfig, Thinking};
+use super::types::{
+    CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse,
+    OutputConfig, Thinking,
+};
 use super::websearch;
 
 /// GET /v1/ping
@@ -61,7 +63,11 @@ pub async fn ping(request: axum::http::Request<Body>) -> impl IntoResponse {
     }))
 }
 
-fn map_provider_error_with_context(err: Error, model: &str, estimated_input_tokens: i32) -> Response {
+fn map_provider_error_with_context(
+    err: Error,
+    model: &str,
+    estimated_input_tokens: i32,
+) -> Response {
     let err_str = err.to_string();
 
     // 上下文窗口满了（对话历史累积超出模型上下文窗口限制）
@@ -452,9 +458,7 @@ fn build_model_list() -> Vec<Model> {
 /// GET /v1/models/:model_id
 ///
 /// 返回指定模型的信息
-pub async fn get_model(
-    axum::extract::Path(model_id): axum::extract::Path<String>,
-) -> Response {
+pub async fn get_model(axum::extract::Path(model_id): axum::extract::Path<String>) -> Response {
     tracing::info!(model_id = %model_id, "Received GET /v1/models/:model_id request");
 
     // 复用 get_models 的模型列表，查找匹配的模型
@@ -542,7 +546,8 @@ pub async fn post_messages(
             payload.tools.clone(),
         ) as i32;
 
-        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids).await;
+        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids)
+            .await;
     }
 
     // 转换请求
@@ -590,6 +595,16 @@ pub async fn post_messages(
 
     tracing::debug!("Kiro request body: {}", request_body);
 
+    // 构造 fingerprint profile（在消耗 payload 前 clone system/messages）
+    let fp_tracker = state.fingerprint_tracker.clone();
+    let fp_profile = fp_tracker.as_ref().map(|_| {
+        crate::cache::fingerprint::FingerprintTracker::build_profile_with_tools(
+            payload.system.as_deref(),
+            &payload.messages,
+            payload.tools.as_deref(),
+        )
+    });
+
     // 估算输入 tokens
     let input_tokens = token::count_all_tokens(
         payload.model.clone(),
@@ -610,7 +625,7 @@ pub async fn post_messages(
     let usage_tracker = state.usage_tracker.clone();
     let client_ip = extract_client_ip(&headers, Some(&addr));
 
-    // 计算 prompt cache 模拟 usage
+    // 计算 prompt cache 模拟 usage（message_start 早期值；终值会被降级链覆盖）
     let prompt_cache_usage = crate::cache::PromptCacheUsage::from_ratio_config(
         input_tokens,
         crate::cache::CacheSimulationRatioConfig::fixed(0.85),
@@ -652,6 +667,8 @@ pub async fn post_messages(
             bound_ids,
             client_ip,
             json_schema_requested,
+            fp_tracker,
+            fp_profile,
         )
         .await
     }
@@ -839,8 +856,6 @@ fn create_sse_stream(
     initial_stream.chain(processing_stream)
 }
 
-use super::stream::context_window_for_model;
-
 /// 处理非流式请求
 #[allow(clippy::too_many_arguments)]
 async fn handle_non_stream_request(
@@ -854,6 +869,8 @@ async fn handle_non_stream_request(
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
     json_schema_requested: bool,
+    fp_tracker: Option<std::sync::Arc<crate::cache::fingerprint::FingerprintTracker>>,
+    fp_profile: Option<Vec<crate::cache::fingerprint::ContentSegment>>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
@@ -887,8 +904,8 @@ async fn handle_non_stream_request(
     let mut tool_uses: Vec<serde_json::Value> = Vec::new();
     let mut has_tool_use = false;
     let mut stop_reason = "end_turn".to_string();
-    // 从 contextUsageEvent 计算的实际输入 tokens
-    let mut context_input_tokens: Option<i32> = None;
+    // 从 contextUsageEvent 计算的实际输入 tokens（已弃用，保留诊断字段恒为 None）
+    let context_input_tokens: Option<i32> = None;
     let mut metering_cache_read_tokens: Option<i32> = None;
     let mut metering_cache_creation_tokens: Option<i32> = None;
     let mut metering_usage: Option<f64> = None;
@@ -919,14 +936,14 @@ async fn handle_non_stream_request(
                                 let input: serde_json::Value = if buffer.is_empty() {
                                     serde_json::json!({})
                                 } else {
-                                    serde_json::from_str(buffer)
-                                        .unwrap_or_else(|e| {
-                                            tracing::warn!(
-                                                "工具输入 JSON 解析失败: {}, tool_use_id: {}",
-                                                e, tool_use.tool_use_id
-                                            );
-                                            serde_json::json!({})
-                                        })
+                                    serde_json::from_str(buffer).unwrap_or_else(|e| {
+                                        tracing::warn!(
+                                            "工具输入 JSON 解析失败: {}, tool_use_id: {}",
+                                            e,
+                                            tool_use.tool_use_id
+                                        );
+                                        serde_json::json!({})
+                                    })
                                 };
 
                                 tool_uses.push(json!({
@@ -938,20 +955,14 @@ async fn handle_non_stream_request(
                             }
                         }
                         Event::ContextUsage(context_usage) => {
-                            let window = context_window_for_model(model);
-                            let actual_input_tokens = (context_usage.context_usage_percentage
-                                * (window as f64)
-                                / 100.0)
-                                as i32;
-                            context_input_tokens = Some(actual_input_tokens);
+                            // contextUsage 本地化：弃用 percentage × window 反算，
+                            // 仅保留 100% 触发 stop_reason 兜底
                             if context_usage.context_usage_percentage >= 100.0 {
                                 stop_reason = "model_context_window_exceeded".to_string();
                             }
-                            tracing::info!(
-                                "[P0] contextUsageEvent: {:.2}% → input_tokens={} ({}窗口)",
+                            tracing::debug!(
+                                "[deprecated] contextUsageEvent: {:.2}% (仅记录, 不参与 input_tokens 反算)",
                                 context_usage.context_usage_percentage,
-                                actual_input_tokens,
-                                window
                             );
                         }
                         Event::Metering(metering) => {
@@ -960,9 +971,10 @@ async fn handle_non_stream_request(
                             metering_usage = Some(metering.usage);
                         }
                         Event::Exception { exception_type, .. }
-                            if exception_type == "ContentLengthExceededException" => {
-                                stop_reason = "max_tokens".to_string();
-                            }
+                            if exception_type == "ContentLengthExceededException" =>
+                        {
+                            stop_reason = "max_tokens".to_string();
+                        }
                         _ => {}
                     }
                 }
@@ -1008,36 +1020,90 @@ async fn handle_non_stream_request(
     // 估算输出 tokens
     let output_tokens = token::estimate_output_tokens(&content);
 
-    // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
-    let raw_final_input_tokens = context_input_tokens.unwrap_or(input_tokens);
-    let final_input_tokens = super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens, model);
+    // contextUsage 本地化后 input_tokens 来源优先级：metering 真值 → 本地 count_all_tokens 估算
+    // `context_input_tokens` 已弃用（始终为 None），保留参数仅供 cap_input_tokens 签名兼容
+    let _ = context_input_tokens; // 标记已读以避免 unused
+    let raw_final_input_tokens = input_tokens;
+    let final_input_tokens =
+        super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens, model);
+
+    // 本地估算 ≥ 1M 兜底触发 stop_reason
+    if final_input_tokens >= 1_000_000 && stop_reason == "end_turn" {
+        stop_reason = "model_context_window_exceeded".to_string();
+    }
+
     tracing::info!(
-        "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
-        context_input_tokens, input_tokens, final_input_tokens
+        "[input_tokens] 本地化: estimated={} final={}",
+        input_tokens,
+        final_input_tokens
     );
 
     // 对外报告的 output_tokens 限制在安全范围
     let reported_output_tokens = output_tokens.min(380);
 
-    // 优先使用 meteringEvent 中的真实 cache token，次选 credits 反推，最后降级到模拟值
+    // 四层降级链：metering 真值 → credits 反推 → 指纹追踪 → 比例模拟
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
-    let (report_input, report_cache_creation, report_cache_read) =
-        if let (Some(read), Some(creation)) = (metering_cache_read_tokens, metering_cache_creation_tokens) {
-            (final_input_tokens.saturating_sub(read).saturating_sub(creation), creation, read)
-        } else if let Some(inferred) = crate::anthropic::stream::infer_cache_read_tokens(
-            final_input_tokens, metering_usage, output_tokens, model) {
-            (final_input_tokens.saturating_sub(inferred), 0, inferred)
-        } else {
-            (sim_usage.input_tokens, sim_usage.cache_creation_input_tokens, sim_usage.cache_read_input_tokens)
-        };
+    let metering_pair = match (metering_cache_read_tokens, metering_cache_creation_tokens) {
+        (Some(read), Some(creation)) => Some((read, creation)),
+        _ => None,
+    };
+    let credits_inferred = crate::anthropic::stream::infer_cache_read_tokens(
+        final_input_tokens,
+        metering_usage,
+        output_tokens,
+        model,
+    );
+    let fingerprint_usage = match (fp_tracker.as_ref(), fp_profile.as_ref()) {
+        (Some(tracker), Some(profile)) => {
+            let account_id = credential_id.to_string();
+            tracker.compute(&account_id, profile, final_input_tokens)
+        }
+        _ => None,
+    };
+    let final_usage = crate::cache::select_final_usage(
+        final_input_tokens,
+        metering_pair,
+        credits_inferred,
+        fingerprint_usage,
+        sim_usage,
+    );
+
+    // 流结束后写入指纹表（仅当 credential_id 确定）
+    if let (Some(tracker), Some(profile)) = (fp_tracker.as_ref(), fp_profile.clone()) {
+        let account_id = credential_id.to_string();
+        tracker.update(&account_id, profile);
+    }
+
+    let report_input = final_usage.input_tokens;
+    let report_cache_creation = final_usage.cache_creation_input_tokens;
+    let report_cache_read = final_usage.cache_read_input_tokens;
+    let report_creation_5m = final_usage.cache_creation_5m_input_tokens;
+    let report_creation_1h = final_usage.cache_creation_1h_input_tokens;
 
     // 记录用量（内部使用真实值）
     if let (Some(tracker), Some(key_id)) = (&usage_tracker, api_key_id) {
         tracing::info!(
             "[usage] 入库: model={} input={} output={} metering_credits={:?} cache_read={} cache_creation={} api_key={} credential=Some({})",
-            model, final_input_tokens, output_tokens, metering_usage, report_cache_read, report_cache_creation, key_id, credential_id
+            model,
+            final_input_tokens,
+            output_tokens,
+            metering_usage,
+            report_cache_read,
+            report_cache_creation,
+            key_id,
+            credential_id
         );
-        tracker.record(key_id, Some(credential_id), model.to_string(), final_input_tokens, output_tokens, client_ip, metering_usage, Some(report_cache_read), Some(report_cache_creation));
+        tracker.record(
+            key_id,
+            Some(credential_id),
+            model.to_string(),
+            final_input_tokens,
+            output_tokens,
+            client_ip,
+            metering_usage,
+            Some(report_cache_read),
+            Some(report_cache_creation),
+        );
     }
 
     // 构建 Anthropic 响应
@@ -1049,11 +1115,16 @@ async fn handle_non_stream_request(
         "model": model,
         "stop_reason": stop_reason,
         "stop_sequence": null,
+        // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值
         "usage": {
-            "input_tokens": report_input,
+            "input_tokens": super::stream::scale_for_client(report_input),
             "output_tokens": reported_output_tokens,
-            "cache_creation_input_tokens": report_cache_creation,
-            "cache_read_input_tokens": report_cache_read
+            "cache_creation_input_tokens": super::stream::scale_for_client(report_cache_creation),
+            "cache_read_input_tokens": super::stream::scale_for_client(report_cache_read),
+            "cache_creation": {
+                "ephemeral_5m_input_tokens": super::stream::scale_for_client(report_creation_5m),
+                "ephemeral_1h_input_tokens": super::stream::scale_for_client(report_creation_1h)
+            }
         }
     });
 
@@ -1089,21 +1160,26 @@ fn strip_json_fences(text: String) -> String {
 }
 
 /// 从请求头或连接信息提取客户端真实 IP
-fn extract_client_ip(headers: &axum::http::HeaderMap, connect_info: Option<&std::net::SocketAddr>) -> Option<String> {
+fn extract_client_ip(
+    headers: &axum::http::HeaderMap,
+    connect_info: Option<&std::net::SocketAddr>,
+) -> Option<String> {
     if let Some(val) = headers.get("x-forwarded-for")
-        && let Ok(s) = val.to_str() {
-            let ip = s.split(',').next().unwrap_or("").trim();
-            if !ip.is_empty() {
-                return Some(ip.to_string());
-            }
+        && let Ok(s) = val.to_str()
+    {
+        let ip = s.split(',').next().unwrap_or("").trim();
+        if !ip.is_empty() {
+            return Some(ip.to_string());
         }
+    }
     if let Some(val) = headers.get("x-real-ip")
-        && let Ok(s) = val.to_str() {
-            let ip = s.trim();
-            if !ip.is_empty() {
-                return Some(ip.to_string());
-            }
+        && let Ok(s) = val.to_str()
+    {
+        let ip = s.trim();
+        if !ip.is_empty() {
+            return Some(ip.to_string());
         }
+    }
     connect_info.map(|addr| addr.ip().to_string())
 }
 
@@ -1119,8 +1195,10 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
     }
 
     let is_opus_adaptive = model_lower.contains("opus")
-        && (model_lower.contains("4-6") || model_lower.contains("4.6")
-            || model_lower.contains("4-8") || model_lower.contains("4.8"));
+        && (model_lower.contains("4-6")
+            || model_lower.contains("4.6")
+            || model_lower.contains("4-8")
+            || model_lower.contains("4.8"));
 
     let thinking_type = if is_opus_adaptive {
         "adaptive"
@@ -1138,7 +1216,7 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
         thinking_type: thinking_type.to_string(),
         budget_tokens: 20000,
     });
-    
+
     if is_opus_adaptive {
         payload.output_config = Some(OutputConfig {
             effort: "high".to_string(),
@@ -1236,7 +1314,8 @@ pub async fn post_messages_cc(
             payload.tools.clone(),
         ) as i32;
 
-        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids).await;
+        return websearch::handle_websearch_request(provider, &payload, input_tokens, &bound_ids)
+            .await;
     }
 
     // 转换请求
@@ -1283,6 +1362,16 @@ pub async fn post_messages_cc(
     };
 
     tracing::debug!("Kiro request body: {}", request_body);
+
+    // 构造 fingerprint profile（cc 端点同样接入指纹追踪）
+    let fp_tracker = state.fingerprint_tracker.clone();
+    let fp_profile = fp_tracker.as_ref().map(|_| {
+        crate::cache::fingerprint::FingerprintTracker::build_profile_with_tools(
+            payload.system.as_deref(),
+            &payload.messages,
+            payload.tools.as_deref(),
+        )
+    });
 
     // 估算输入 tokens
     let input_tokens = token::count_all_tokens(
@@ -1346,6 +1435,8 @@ pub async fn post_messages_cc(
             bound_ids,
             client_ip,
             json_schema_requested,
+            fp_tracker,
+            fp_profile,
         )
         .await
     }

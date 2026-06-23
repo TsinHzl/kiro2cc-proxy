@@ -18,8 +18,8 @@ use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
-use crate::model::rpm::RpmTracker;
 use crate::model::failure_log::FailureLogStore;
+use crate::model::rpm::RpmTracker;
 use crate::model::throttle_log::ThrottleLogStore;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
@@ -72,8 +72,8 @@ impl KiroProvider {
     pub fn with_proxy(token_manager: Arc<MultiTokenManager>, proxy: Option<ProxyConfig>) -> Self {
         let tls_backend = token_manager.config().tls_backend;
         // 预热：构建全局代理对应的 Client
-        let initial_client = build_client(proxy.as_ref(), 180, tls_backend)
-            .expect("创建 HTTP 客户端失败");
+        let initial_client =
+            build_client(proxy.as_ref(), 180, tls_backend).expect("创建 HTTP 客户端失败");
         let mut cache = HashMap::new();
         cache.insert(proxy.clone(), initial_client);
 
@@ -151,7 +151,10 @@ impl KiroProvider {
 
     /// 获取 API 基础域名（使用 config 级 api_region）
     pub fn base_domain(&self) -> String {
-        format!("q.{}.amazonaws.com", self.token_manager.config().effective_api_region())
+        format!(
+            "q.{}.amazonaws.com",
+            self.token_manager.config().effective_api_region()
+        )
     }
 
     /// 获取账号级 API 基础 URL
@@ -226,7 +229,12 @@ impl KiroProvider {
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含账号和 token
     /// * `request_body` - 请求体，用于提取 agentTaskType
-    fn build_headers(&self, ctx: &CallContext, request_body: &str, attempt: usize) -> anyhow::Result<HeaderMap> {
+    fn build_headers(
+        &self,
+        ctx: &CallContext,
+        request_body: &str,
+        attempt: usize,
+    ) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
         let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
@@ -252,7 +260,10 @@ impl KiroProvider {
             "x-amzn-codewhisperer-optout",
             HeaderValue::from_static("true"),
         );
-        headers.insert("x-amzn-kiro-agent-mode", HeaderValue::from_static(agent_mode));
+        headers.insert(
+            "x-amzn-kiro-agent-mode",
+            HeaderValue::from_static(agent_mode),
+        );
         headers.insert(
             "x-amz-user-agent",
             HeaderValue::from_str(&x_amz_user_agent).unwrap(),
@@ -261,7 +272,10 @@ impl KiroProvider {
             reqwest::header::USER_AGENT,
             HeaderValue::from_str(&user_agent).unwrap(),
         );
-        headers.insert(HOST, HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap());
+        headers.insert(
+            HOST,
+            HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap(),
+        );
         headers.insert(
             "amz-sdk-invocation-id",
             HeaderValue::from_str(&Uuid::new_v4().to_string()).unwrap(),
@@ -304,7 +318,10 @@ impl KiroProvider {
             HeaderValue::from_str(&x_amz_user_agent).unwrap(),
         );
         headers.insert("user-agent", HeaderValue::from_str(&user_agent).unwrap());
-        headers.insert("host", HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap());
+        headers.insert(
+            "host",
+            HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap(),
+        );
         headers.insert(
             "amz-sdk-invocation-id",
             HeaderValue::from_str(&Uuid::new_v4().to_string()).unwrap(),
@@ -333,8 +350,13 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
-    pub async fn call_api(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
-        self.call_api_with_retry(request_body, false, bound_ids).await
+    pub async fn call_api(
+        &self,
+        request_body: &str,
+        bound_ids: &[u64],
+    ) -> anyhow::Result<(reqwest::Response, u64)> {
+        self.call_api_with_retry(request_body, false, bound_ids)
+            .await
     }
 
     /// 发送流式 API 请求
@@ -350,8 +372,13 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
-    pub async fn call_api_stream(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
-        self.call_api_with_retry(request_body, true, bound_ids).await
+    pub async fn call_api_stream(
+        &self,
+        request_body: &str,
+        bound_ids: &[u64],
+    ) -> anyhow::Result<(reqwest::Response, u64)> {
+        self.call_api_with_retry(request_body, true, bound_ids)
+            .await
     }
 
     /// 发送 MCP API 请求
@@ -363,12 +390,20 @@ impl KiroProvider {
     ///
     /// # Returns
     /// 返回原始的 HTTP Response
-    pub async fn call_mcp(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    pub async fn call_mcp(
+        &self,
+        request_body: &str,
+        bound_ids: &[u64],
+    ) -> anyhow::Result<(reqwest::Response, u64)> {
         self.call_mcp_with_retry(request_body, bound_ids).await
     }
 
     /// 内部方法：带重试逻辑的 MCP API 调用
-    async fn call_mcp_with_retry(&self, request_body: &str, bound_ids: &[u64]) -> anyhow::Result<(reqwest::Response, u64)> {
+    async fn call_mcp_with_retry(
+        &self,
+        request_body: &str,
+        bound_ids: &[u64],
+    ) -> anyhow::Result<(reqwest::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
         let effective_pool = if bound_ids.is_empty() {
             self.token_manager.total_count()
@@ -383,7 +418,11 @@ impl KiroProvider {
 
         for attempt in 0..max_retries {
             // 获取调用上下文（MCP 不涉及模型选择，但同样应用 sticky 路由）
-            let ctx = match self.token_manager.acquire_context_sticky(None, bound_ids, continuation_id.as_deref()).await {
+            let ctx = match self
+                .token_manager
+                .acquire_context_sticky(None, bound_ids, continuation_id.as_deref())
+                .await
+            {
                 Ok(c) => c,
                 Err(e) => {
                     last_error = Some(e);
@@ -397,12 +436,18 @@ impl KiroProvider {
             // RPM 硬限制：精确等待或多账号时 skip
             let rpm_ok = self.wait_for_rpm_gate(ctx.id, " (mcp)").await;
             if !rpm_ok && !small_pool {
-                tracing::info!("[RPM-GATE] credential={} RPM 满（MCP），跳过切换下一账号", ctx.id);
+                tracing::info!(
+                    "[RPM-GATE] credential={} RPM 满（MCP），跳过切换下一账号",
+                    ctx.id
+                );
                 self.token_manager.report_throttled_for_rotation(ctx.id);
                 if let Some(cid) = continuation_id.as_deref() {
                     self.token_manager.evict_sticky(cid);
                 }
-                last_error = Some(anyhow::anyhow!("RPM limit exceeded for credential {}", ctx.id));
+                last_error = Some(anyhow::anyhow!(
+                    "RPM limit exceeded for credential {}",
+                    ctx.id
+                ));
                 continue;
             }
 
@@ -492,7 +537,11 @@ impl KiroProvider {
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "MCP 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
-                    if small_pool { "单账号延长间隔" } else { "切换账号" },
+                    if small_pool {
+                        "单账号延长间隔"
+                    } else {
+                        "切换账号"
+                    },
                     attempt + 1,
                     max_retries,
                     status,
@@ -577,7 +626,11 @@ impl KiroProvider {
 
         for attempt in 0..max_retries {
             // 获取调用上下文（优先路由到同一会话的缓存账号）
-            let ctx = match self.token_manager.acquire_context_sticky(model.as_deref(), bound_ids, continuation_id.as_deref()).await {
+            let ctx = match self
+                .token_manager
+                .acquire_context_sticky(model.as_deref(), bound_ids, continuation_id.as_deref())
+                .await
+            {
                 Ok(c) => c,
                 Err(e) => {
                     last_error = Some(e);
@@ -596,7 +649,10 @@ impl KiroProvider {
                 if let Some(cid) = continuation_id.as_deref() {
                     self.token_manager.evict_sticky(cid);
                 }
-                last_error = Some(anyhow::anyhow!("RPM limit exceeded for credential {}", ctx.id));
+                last_error = Some(anyhow::anyhow!(
+                    "RPM limit exceeded for credential {}",
+                    ctx.id
+                ));
                 continue;
             }
 
@@ -724,7 +780,11 @@ impl KiroProvider {
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "API 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
-                    if small_pool { "单账号延长间隔" } else { "切换账号" },
+                    if small_pool {
+                        "单账号延长间隔"
+                    } else {
+                        "切换账号"
+                    },
                     attempt + 1,
                     max_retries,
                     status,
@@ -866,7 +926,8 @@ impl KiroProvider {
         if rpm.credential_rpm(credential_id) >= max_rpm as u64 {
             tracing::warn!(
                 "[RPM-GATE] credential={} still over limit after wait{}, proceeding anyway",
-                credential_id, tag
+                credential_id,
+                tag
             );
             return false;
         }
@@ -979,20 +1040,32 @@ mod tests {
 
     #[test]
     fn test_extract_agent_task_type_vibe_default() {
-        assert_eq!(KiroProvider::extract_agent_task_type_from_request("{}"), "vibe");
-        assert_eq!(KiroProvider::extract_agent_task_type_from_request("invalid json"), "vibe");
+        assert_eq!(
+            KiroProvider::extract_agent_task_type_from_request("{}"),
+            "vibe"
+        );
+        assert_eq!(
+            KiroProvider::extract_agent_task_type_from_request("invalid json"),
+            "vibe"
+        );
     }
 
     #[test]
     fn test_extract_agent_task_type_spectask() {
         let body = r#"{"conversationState":{"agentTaskType":"spectask","conversationId":"abc"}}"#;
-        assert_eq!(KiroProvider::extract_agent_task_type_from_request(body), "spectask");
+        assert_eq!(
+            KiroProvider::extract_agent_task_type_from_request(body),
+            "spectask"
+        );
     }
 
     #[test]
     fn test_extract_agent_task_type_vibe_explicit() {
         let body = r#"{"conversationState":{"agentTaskType":"vibe","conversationId":"abc"}}"#;
-        assert_eq!(KiroProvider::extract_agent_task_type_from_request(body), "vibe");
+        assert_eq!(
+            KiroProvider::extract_agent_task_type_from_request(body),
+            "vibe"
+        );
     }
 
     #[test]

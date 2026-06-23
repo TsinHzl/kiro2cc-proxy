@@ -52,8 +52,7 @@ pub fn create_router_with_provider_and_state(
 
 fn build_router(state: AppState) -> Router {
     // 不需要认证的公开路由
-    let public_routes = Router::new()
-        .route("/v1/ping", get(ping));
+    let public_routes = Router::new().route("/v1/ping", get(ping));
 
     // 需要认证的 /v1 路由
     let v1_routes = Router::new()

@@ -409,6 +409,7 @@ impl SseStateManager {
     }
 
     /// 生成最终事件序列
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_final_events(
         &mut self,
         input_tokens: i32,
@@ -416,6 +417,8 @@ impl SseStateManager {
         cache_creation_input_tokens: Option<i32>,
         cache_read_input_tokens: Option<i32>,
         context_usage_percentage: Option<f64>,
+        cache_creation_5m_input_tokens: Option<i32>,
+        cache_creation_1h_input_tokens: Option<i32>,
     ) -> Vec<SseEvent> {
         let mut events = Vec::new();
 
@@ -473,13 +476,37 @@ impl SseStateManager {
             }
 
             let mut usage = serde_json::Map::new();
-            usage.insert("input_tokens".into(), json!(input_tokens));
+            // 客户端展示缩放（output_tokens 不缩放，避免影响 max_tokens 计算）
+            usage.insert("input_tokens".into(), json!(scale_for_client(input_tokens)));
             usage.insert("output_tokens".into(), json!(output_tokens));
             if let Some(v) = cache_creation_input_tokens {
-                usage.insert("cache_creation_input_tokens".into(), json!(v));
+                usage.insert(
+                    "cache_creation_input_tokens".into(),
+                    json!(scale_for_client(v)),
+                );
             }
             if let Some(v) = cache_read_input_tokens {
-                usage.insert("cache_read_input_tokens".into(), json!(v));
+                usage.insert("cache_read_input_tokens".into(), json!(scale_for_client(v)));
+            }
+            // 与非流式响应对齐：输出 ephemeral 5m/1h 嵌套字段
+            if cache_creation_input_tokens.is_some()
+                || cache_creation_5m_input_tokens.is_some()
+                || cache_creation_1h_input_tokens.is_some()
+            {
+                let mut cc = serde_json::Map::new();
+                cc.insert(
+                    "ephemeral_5m_input_tokens".into(),
+                    json!(scale_for_client(
+                        cache_creation_5m_input_tokens.unwrap_or(0)
+                    )),
+                );
+                cc.insert(
+                    "ephemeral_1h_input_tokens".into(),
+                    json!(scale_for_client(
+                        cache_creation_1h_input_tokens.unwrap_or(0)
+                    )),
+                );
+                usage.insert("cache_creation".into(), serde_json::Value::Object(cc));
             }
             if let Some(p) = context_usage_percentage {
                 usage.insert("contextUsagePercentage".into(), json!(p));
@@ -510,26 +537,13 @@ impl SseStateManager {
     }
 }
 
-/// Kiro contextUsagePercentage 的基准窗口大小。
-/// opus-4.6/4.7/4.8、sonnet-4.6、fable-5 按 1M 窗口（Anthropic 官方公布值；
-/// opus-4.6 与 fable-5 未在 Kiro 上游实测，仅按官方对齐）。
-pub(crate) fn context_window_for_model(model: &str) -> i32 {
-    match model {
-        m if m.contains("opus-4-8")
-            || m.contains("opus-4.8")
-            || m.contains("opus-4-7")
-            || m.contains("opus-4.7")
-            || m.contains("opus-4-6")
-            || m.contains("opus-4.6")
-            || m.contains("sonnet-4-6")
-            || m.contains("sonnet-4.6")
-            || m.contains("fable-5")
-            || m.contains("fable_5") =>
-        {
-            1_000_000
-        }
-        _ => 200_000,
-    }
+/// 所有模型统一按 100 万 token 上下文窗口计算。
+///
+/// 历史上按模型分支返回 200K/1M；本变更改为统一 1M，与"contextUsage 本地化"决策一致：
+/// final_input_tokens 不再依赖 Kiro `contextUsageEvent` 反算；如需差异化窗口
+/// 可恢复 match 分支。
+pub(crate) fn context_window_for_model(_model: &str) -> i32 {
+    1_000_000
 }
 
 /// 空响应判定为「上下文过大」的输入 token 阈值（取窗口的 45%）。
@@ -542,6 +556,21 @@ fn empty_response_oversized_threshold(model: &str) -> i32 {
 /// 检测工具对 output_tokens 总和 > 800 扣 15 分，> 500 扣 8 分。
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
+
+/// 返回给客户端的 token 类字段缩放系数。
+///
+/// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段，
+/// 让客户端按内置窗口（200K）计算的上下文百分比按比例下降，营造"窗口未满"的视觉。
+/// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
+const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.2;
+
+/// 对客户端展示用的 token 值缩放（向上取整保证非零）
+pub(crate) fn scale_for_client(n: i32) -> i32 {
+    if n <= 0 {
+        return n.max(0);
+    }
+    ((n as f64) * CLIENT_TOKEN_DISPLAY_SCALE).ceil() as i32
+}
 
 fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {
     let cap = context_window_for_model(model);
@@ -570,14 +599,15 @@ pub(crate) fn infer_cache_read_tokens(
     let credits = credits?;
     // (k_ref, input_price_per_M, output_price_per_M)
     const K_REF: f64 = 1.43; // 平台级 credits/USD 换算率（代理实测 2026-06-20）
-    let (input_price, output_price): (f64, f64) = if model.contains("opus") || model.contains("fable") {
-        (15.0, 75.0)
-    } else if model.contains("haiku") {
-        return None;
-    } else {
-        // sonnet 系列
-        (3.0, 15.0)
-    };
+    let (input_price, output_price): (f64, f64) =
+        if model.contains("opus") || model.contains("fable") {
+            (15.0, 75.0)
+        } else if model.contains("haiku") {
+            return None;
+        } else {
+            // sonnet 系列
+            (3.0, 15.0)
+        };
     let k_ref = K_REF;
     // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
     let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
@@ -716,10 +746,10 @@ impl StreamContext {
                 "stop_reason": null,
                 "stop_sequence": null,
                 "usage": {
-                    "input_tokens": usage.input_tokens,
+                    "input_tokens": scale_for_client(usage.input_tokens),
                     "output_tokens": 1,
-                    "cache_creation_input_tokens": usage.cache_creation_input_tokens,
-                    "cache_read_input_tokens": usage.cache_read_input_tokens
+                    "cache_creation_input_tokens": scale_for_client(usage.cache_creation_input_tokens),
+                    "cache_read_input_tokens": scale_for_client(usage.cache_read_input_tokens)
                 }
             }
         })
@@ -770,21 +800,17 @@ impl StreamContext {
             Event::AssistantResponse(resp) => self.process_assistant_response(&resp.content),
             Event::ToolUse(tool_use) => self.process_tool_use(tool_use),
             Event::ContextUsage(context_usage) => {
-                let window = context_window_for_model(&self.model);
-                let actual_input_tokens = (context_usage.context_usage_percentage
-                    * (window as f64)
-                    / 100.0) as i32;
-                self.context_input_tokens = Some(actual_input_tokens);
+                // contextUsage 本地化：仅保留事件接收用于 stop_reason 兜底判定，
+                // 不再用 percentage × window 反算 input_tokens。
+                // final_input_tokens 来源改为：metering.inputTokens 真值 → 本地 count_all_tokens。
                 self.context_usage_percentage = Some(context_usage.context_usage_percentage);
                 if context_usage.context_usage_percentage >= 100.0 {
                     self.state_manager
                         .set_stop_reason("model_context_window_exceeded");
                 }
-                tracing::info!(
-                    "[P0] contextUsageEvent: {:.2}% → input_tokens={} ({}窗口)",
+                tracing::debug!(
+                    "[deprecated] contextUsageEvent: {:.2}% (仅记录, 不参与 input_tokens 反算)",
                     context_usage.context_usage_percentage,
-                    actual_input_tokens,
-                    window
                 );
                 Vec::new()
             }
@@ -804,8 +830,11 @@ impl StreamContext {
                 } else {
                     tracing::info!(
                         "[metering] meteringEvent: usage={} {} model={} cache_read={:?} cache_creation={:?}",
-                        metering.usage, metering.unit_plural, self.model,
-                        metering.cache_read_input_tokens, metering.cache_creation_input_tokens
+                        metering.usage,
+                        metering.unit_plural,
+                        self.model,
+                        metering.cache_read_input_tokens,
+                        metering.cache_creation_input_tokens
                     );
                 }
                 Vec::new()
@@ -944,11 +973,12 @@ impl StreamContext {
                     // 提取 thinking 内容
                     let thinking_content = self.thinking_buffer[..end_pos].to_string();
                     if !thinking_content.is_empty()
-                        && let Some(thinking_index) = self.thinking_block_index {
-                            events.push(
-                                self.create_thinking_delta_event(thinking_index, &thinking_content),
-                            );
-                        }
+                        && let Some(thinking_index) = self.thinking_block_index
+                    {
+                        events.push(
+                            self.create_thinking_delta_event(thinking_index, &thinking_content),
+                        );
+                    }
 
                     // 结束 thinking 块
                     self.in_thinking_block = false;
@@ -986,11 +1016,12 @@ impl StreamContext {
                     if safe_len > 0 {
                         let safe_content = self.thinking_buffer[..safe_len].to_string();
                         if !safe_content.is_empty()
-                            && let Some(thinking_index) = self.thinking_block_index {
-                                events.push(
-                                    self.create_thinking_delta_event(thinking_index, &safe_content),
-                                );
-                            }
+                            && let Some(thinking_index) = self.thinking_block_index
+                        {
+                            events.push(
+                                self.create_thinking_delta_event(thinking_index, &safe_content),
+                            );
+                        }
                         self.thinking_buffer = self.thinking_buffer[safe_len..].to_string();
                     }
                     break;
@@ -1021,9 +1052,10 @@ impl StreamContext {
         // 如果当前 text_block_index 指向的块已经被关闭（例如 tool_use 开始时自动 stop），
         // 则丢弃该索引并创建新的文本块继续输出，避免 delta 被状态机拒绝导致“吞字”。
         if let Some(idx) = self.text_block_index
-            && !self.state_manager.is_block_open_of_type(idx, "text") {
-                self.text_block_index = None;
-            }
+            && !self.state_manager.is_block_open_of_type(idx, "text")
+        {
+            self.text_block_index = None;
+        }
 
         // 获取或创建文本块索引
         let text_index = if let Some(idx) = self.text_block_index {
@@ -1096,41 +1128,42 @@ impl StreamContext {
         // 但当 `</thinking>` 后面没有 `\n\n`（例如紧跟 tool_use 或流结束）时，
         // thinking 结束标签会滞留在 thinking_buffer，导致后续 flush 时把 `</thinking>` 当作内容输出。
         // 这里在开始 tool_use block 前做一次“边界场景”的结束标签识别与过滤。
-        if self.thinking_enabled && self.in_thinking_block
-            && let Some(end_pos) = find_real_thinking_end_tag_at_buffer_end(&self.thinking_buffer) {
-                let thinking_content = self.thinking_buffer[..end_pos].to_string();
-                if !thinking_content.is_empty()
-                    && let Some(thinking_index) = self.thinking_block_index {
-                        events.push(
-                            self.create_thinking_delta_event(thinking_index, &thinking_content),
-                        );
-                    }
+        if self.thinking_enabled
+            && self.in_thinking_block
+            && let Some(end_pos) = find_real_thinking_end_tag_at_buffer_end(&self.thinking_buffer)
+        {
+            let thinking_content = self.thinking_buffer[..end_pos].to_string();
+            if !thinking_content.is_empty()
+                && let Some(thinking_index) = self.thinking_block_index
+            {
+                events.push(self.create_thinking_delta_event(thinking_index, &thinking_content));
+            }
 
-                // 结束 thinking 块
-                self.in_thinking_block = false;
-                self.thinking_extracted = true;
+            // 结束 thinking 块
+            self.in_thinking_block = false;
+            self.thinking_extracted = true;
 
-                if let Some(thinking_index) = self.thinking_block_index {
-                    // 先发送空的 thinking_delta
-                    events.push(self.create_thinking_delta_event(thinking_index, ""));
-                    // 注入 signature_delta（必须在 content_block_stop 之前）
-                    events.extend(self.take_signature_events());
-                    // 再发送 content_block_stop
-                    if let Some(stop_event) =
-                        self.state_manager.handle_content_block_stop(thinking_index)
-                    {
-                        events.push(stop_event);
-                    }
-                }
-
-                // 把结束标签后的内容当作普通文本（通常为空或空白）
-                let after_pos = end_pos + "</thinking>".len();
-                let remaining = self.thinking_buffer[after_pos..].trim_start().to_string();
-                self.thinking_buffer.clear();
-                if !remaining.is_empty() {
-                    events.extend(self.create_text_delta_events(&remaining));
+            if let Some(thinking_index) = self.thinking_block_index {
+                // 先发送空的 thinking_delta
+                events.push(self.create_thinking_delta_event(thinking_index, ""));
+                // 注入 signature_delta（必须在 content_block_stop 之前）
+                events.extend(self.take_signature_events());
+                // 再发送 content_block_stop
+                if let Some(stop_event) =
+                    self.state_manager.handle_content_block_stop(thinking_index)
+                {
+                    events.push(stop_event);
                 }
             }
+
+            // 把结束标签后的内容当作普通文本（通常为空或空白）
+            let after_pos = end_pos + "</thinking>".len();
+            let remaining = self.thinking_buffer[after_pos..].trim_start().to_string();
+            self.thinking_buffer.clear();
+            if !remaining.is_empty() {
+                events.extend(self.create_text_delta_events(&remaining));
+            }
+        }
 
         // thinking 模式下，process_content_with_thinking 可能会为了探测 `<thinking>` 而暂存一小段尾部文本。
         // 如果此时直接开始 tool_use，状态机会自动关闭 text block，导致这段"待输出文本"看起来被 tool_use 吞掉。
@@ -1192,9 +1225,10 @@ impl StreamContext {
 
         // 如果是完整的工具调用（stop=true），发送 content_block_stop
         if tool_use.stop
-            && let Some(stop_event) = self.state_manager.handle_content_block_stop(block_index) {
-                events.push(stop_event);
-            }
+            && let Some(stop_event) = self.state_manager.handle_content_block_stop(block_index)
+        {
+            events.push(stop_event);
+        }
 
         events
     }
@@ -1283,11 +1317,12 @@ impl StreamContext {
                 {
                     let thinking_content = self.thinking_buffer[..end_pos].to_string();
                     if !thinking_content.is_empty()
-                        && let Some(thinking_index) = self.thinking_block_index {
-                            events.push(
-                                self.create_thinking_delta_event(thinking_index, &thinking_content),
-                            );
-                        }
+                        && let Some(thinking_index) = self.thinking_block_index
+                    {
+                        events.push(
+                            self.create_thinking_delta_event(thinking_index, &thinking_content),
+                        );
+                    }
 
                     // 关闭 thinking 块：先发送空的 thinking_delta，再发送 content_block_stop
                     if let Some(thinking_index) = self.thinking_block_index {
@@ -1350,13 +1385,22 @@ impl StreamContext {
             events.extend(self.create_text_delta_events(" "));
         }
 
-        // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
-        // 约束到合理范围，避免 Kiro 后端的系统提示导致值远超预期
-        let raw_final_input_tokens = self.context_input_tokens.unwrap_or(self.input_tokens);
-        let final_input_tokens = cap_input_tokens(raw_final_input_tokens, self.input_tokens, &self.model);
+        // contextUsage 本地化：input_tokens 来源改为 metering 真值 → 本地估算（self.input_tokens）
+        // self.context_input_tokens 已弃用（始终为 None），保留诊断字段
+        let raw_final_input_tokens = self.input_tokens;
+        let final_input_tokens =
+            cap_input_tokens(raw_final_input_tokens, self.input_tokens, &self.model);
+
+        // 本地估算 ≥ 1M 兜底触发 stop_reason
+        if final_input_tokens >= 1_000_000 {
+            self.state_manager
+                .set_stop_reason("model_context_window_exceeded");
+        }
+
         tracing::info!(
-            "[P0] input_tokens 决策: context_event={:?} estimated={} final={} (context_event 有值说明 contextUsageEvent 正常工作)",
-            self.context_input_tokens, self.input_tokens, final_input_tokens
+            "[input_tokens] 本地化: estimated={} final={}",
+            self.input_tokens,
+            final_input_tokens
         );
 
         // 对外报告的 output_tokens 需要限制在合理范围
@@ -1377,6 +1421,12 @@ impl StreamContext {
                 // Kiro 未透传真实 cache token（cache_read=None cache_creation=None），
                 // 用 metering credits 反推 cache_read，比固定 85% 模拟更贴近真实。
                 // haiku 或 k_ref 未知时降级到固定比例模拟值。
+                //
+                // TODO(fingerprint): 流式 SSE 路径接入指纹追踪需要异步把
+                // fp_tracker + credential_id 传入 StreamContext。
+                // 当前版本仅 /v1/messages 非流式与 /cc/v1/messages 非流式接入了指纹层；
+                // 流式路径走 metering → credits → ratio 三层（缺指纹层）。
+                // 见 openspec/changes/cache-fingerprint-and-ephemeral 任务 D4。
                 match infer_cache_read_tokens(
                     final_input_tokens,
                     self.metering_usage,
@@ -1403,18 +1453,20 @@ impl StreamContext {
             });
             let effective_rate = self.metering_usage.map(|c| {
                 let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
-                if denom > 0.0 {
-                    c / denom * 1000.0
-                } else {
-                    0.0
-                }
+                if denom > 0.0 { c / denom * 1000.0 } else { 0.0 }
             });
             tracing::info!(
                 "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
-                self.model, final_input_tokens, self.output_tokens, self.metering_usage,
-                credits_per_ktok, effective_rate,
-                report_cache_read, report_cache_creation,
-                key_id, self.credential_id
+                self.model,
+                final_input_tokens,
+                self.output_tokens,
+                self.metering_usage,
+                credits_per_ktok,
+                effective_rate,
+                report_cache_read,
+                report_cache_creation,
+                key_id,
+                self.credential_id
             );
             tracker.record(
                 key_id,
@@ -1428,12 +1480,18 @@ impl StreamContext {
                 report_cache_creation,
             );
         }
+        // 流式 SSE 路径暂未接入 fingerprint，cache_creation 不区分 5m/1h tier，
+        // 这里把 report_cache_creation 全部归到 5m（与非流式 metering Layer 1 一致）
+        let report_creation_5m = report_cache_creation;
+        let report_creation_1h = Some(0);
         events.extend(self.state_manager.generate_final_events(
             report_input,
             reported_output_tokens,
             report_cache_creation,
             report_cache_read,
             self.context_usage_percentage,
+            report_creation_5m,
+            report_creation_1h,
         ));
 
         events
@@ -1546,8 +1604,11 @@ impl BufferedStreamContext {
             .inner
             .context_input_tokens
             .unwrap_or(self.estimated_input_tokens);
-        let final_input_tokens =
-            cap_input_tokens(raw_final_input_tokens, self.estimated_input_tokens, &self.inner.model);
+        let final_input_tokens = cap_input_tokens(
+            raw_final_input_tokens,
+            self.estimated_input_tokens,
+            &self.inner.model,
+        );
 
         // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
         let sim_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);
@@ -1568,16 +1629,18 @@ impl BufferedStreamContext {
                 )
             };
 
-        // 更正 message_start 事件中的 usage 字段
+        // 更正 message_start 事件中的 usage 字段（客户端展示缩放）
         for event in &mut self.event_buffer {
             if event.event == "message_start"
                 && let Some(message) = event.data.get_mut("message")
-                    && let Some(usage) = message.get_mut("usage") {
-                        usage["input_tokens"] = serde_json::json!(report_input);
-                        usage["cache_creation_input_tokens"] =
-                            serde_json::json!(report_cache_creation);
-                        usage["cache_read_input_tokens"] = serde_json::json!(report_cache_read);
-                    }
+                && let Some(usage) = message.get_mut("usage")
+            {
+                usage["input_tokens"] = serde_json::json!(scale_for_client(report_input));
+                usage["cache_creation_input_tokens"] =
+                    serde_json::json!(scale_for_client(report_cache_creation));
+                usage["cache_read_input_tokens"] =
+                    serde_json::json!(scale_for_client(report_cache_read));
+            }
         }
 
         std::mem::take(&mut self.event_buffer)
@@ -1621,6 +1684,33 @@ fn estimate_tokens(text: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_scale_for_client_basic() {
+        // 100k → 20k（0.2 × 整除）
+        assert_eq!(scale_for_client(100_000), 20_000);
+        // 85k → 17000
+        assert_eq!(scale_for_client(85_000), 17_000);
+        // 0 → 0
+        assert_eq!(scale_for_client(0), 0);
+        // 1 → ceil(0.2) = 1（小数向上取整保证非零）
+        assert_eq!(scale_for_client(1), 1);
+        // 负值 clamp 到 0
+        assert_eq!(scale_for_client(-100), 0);
+    }
+
+    #[test]
+    fn test_scale_for_client_non_round() {
+        // 11 → ceil(2.2) = 3
+        assert_eq!(scale_for_client(11), 3);
+        // 9 → ceil(1.8) = 2
+        assert_eq!(scale_for_client(9), 2);
+        // 10 → ceil(2.0) = 2（整除边界）
+        assert_eq!(scale_for_client(10), 2);
+        // i32::MAX 不溢出（2_147_483_647 * 0.2 ceil ≈ 429_496_730）
+        let r = scale_for_client(i32::MAX);
+        assert!(r > 0 && r < i32::MAX);
+    }
 
     #[test]
     fn test_sse_event_format() {
@@ -2371,7 +2461,10 @@ mod tests {
             stop: true,
         });
         let finals = ctx.generate_final_events();
-        let md = finals.iter().find(|e| e.event == "message_delta").expect("message_delta");
+        let md = finals
+            .iter()
+            .find(|e| e.event == "message_delta")
+            .expect("message_delta");
         assert_eq!(
             md.data["delta"]["stop_reason"], "tool_use",
             "存在 tool_use 时 stop_reason 必须是 tool_use，不能被 max_tokens 覆盖"
@@ -2385,7 +2478,9 @@ mod tests {
         let _ = ctx.generate_initial_events();
 
         ctx.process_kiro_event(&crate::kiro::model::events::Event::ContextUsage(
-            crate::kiro::model::events::ContextUsageEvent { context_usage_percentage: 100.0 },
+            crate::kiro::model::events::ContextUsageEvent {
+                context_usage_percentage: 100.0,
+            },
         ));
         ctx.process_tool_use(&crate::kiro::model::events::ToolUseEvent {
             name: "Read".to_string(),
@@ -2394,7 +2489,10 @@ mod tests {
             stop: true,
         });
         let finals = ctx.generate_final_events();
-        let md = finals.iter().find(|e| e.event == "message_delta").expect("message_delta");
+        let md = finals
+            .iter()
+            .find(|e| e.event == "message_delta")
+            .expect("message_delta");
         assert_eq!(
             md.data["delta"]["stop_reason"], "tool_use",
             "存在 tool_use 时 stop_reason 必须是 tool_use，不能被 model_context_window_exceeded 覆盖"
@@ -2414,17 +2512,18 @@ mod tests {
 
     #[test]
     fn test_empty_response_oversized_context_by_threshold() {
-        // 大输入(>=9万)的空响应 → 判定为上下文过大
-        let big = StreamContext::new_with_thinking("test-model", 110_000, true);
+        // contextUsage 本地化后所有模型按 1M 窗口，阈值 = 1M * 0.45 = 450_000
+        // 大输入(>=45万)的空响应 → 判定为上下文过大
+        let big = StreamContext::new_with_thinking("test-model", 500_000, true);
         assert!(
             big.empty_response_is_oversized_context(),
-            "input 11万应判定为上下文过大"
+            "input 50万应判定为上下文过大"
         );
         // 小输入的空响应 → 视为偶发，可重试
-        let small = StreamContext::new_with_thinking("test-model", 5_000, true);
+        let small = StreamContext::new_with_thinking("test-model", 100_000, true);
         assert!(
             !small.empty_response_is_oversized_context(),
-            "input 5千不应判定为上下文过大"
+            "input 10万不应判定为上下文过大"
         );
     }
 
@@ -2434,10 +2533,7 @@ mod tests {
         let mut ctx = StreamContext::new_with_thinking("test-model", 1, false);
         let _ = ctx.generate_initial_events();
         ctx.process_assistant_response("hello");
-        assert!(
-            !ctx.is_empty_response(),
-            "已产生文本内容时不应判定为空响应"
-        );
+        assert!(!ctx.is_empty_response(), "已产生文本内容时不应判定为空响应");
     }
 
     #[test]
@@ -2451,10 +2547,7 @@ mod tests {
             input: "{}".to_string(),
             stop: true,
         });
-        assert!(
-            !ctx.is_empty_response(),
-            "仅有工具调用时不应判定为空响应"
-        );
+        assert!(!ctx.is_empty_response(), "仅有工具调用时不应判定为空响应");
     }
 
     #[test]
@@ -2476,11 +2569,14 @@ mod tests {
     }
 
     #[test]
-    fn test_context_window_haiku_is_200k() {
+    fn test_context_window_all_models_unified_to_1m() {
+        // contextUsage 本地化后所有模型统一返回 1M
         assert_eq!(
             context_window_for_model("claude-haiku-4-5-20251001"),
-            200_000
+            1_000_000
         );
+        assert_eq!(context_window_for_model("unknown-model"), 1_000_000);
+        assert_eq!(context_window_for_model(""), 1_000_000);
     }
 
     #[test]

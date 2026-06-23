@@ -99,7 +99,10 @@ impl FailureLogStore {
         })
     }
 
-    async fn save_internal(events: &Arc<RwLock<Vec<FailureEvent>>>, file_path: &Path) -> anyhow::Result<()> {
+    async fn save_internal(
+        events: &Arc<RwLock<Vec<FailureEvent>>>,
+        file_path: &Path,
+    ) -> anyhow::Result<()> {
         let content = {
             let e = events.read();
             serde_json::to_string(&*e)?
@@ -149,7 +152,10 @@ impl FailureLogStore {
             events.push(event);
 
             // 按 credential_id 裁剪
-            let count = events.iter().filter(|e| e.credential_id == credential_id).count();
+            let count = events
+                .iter()
+                .filter(|e| e.credential_id == credential_id)
+                .count();
             if count > MAX_EVENTS_PER_CREDENTIAL {
                 let excess = count - MAX_EVENTS_PER_CREDENTIAL;
                 let mut removed = 0;

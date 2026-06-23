@@ -1,6 +1,6 @@
 # 任务清单：cache-fingerprint-and-ephemeral
 
-## 状态：IN_PROGRESS
+## 状态：DONE
 
 ## 任务
 
@@ -73,9 +73,9 @@
 
 ### 阶段 I：CR 与提交
 
-- [ ] I1. Sub-agent 独立 Code Review（`/code-review-single`），按变更规模决定 1 轮或 2 轮
-- [ ] I2. 修复 Critical / High 问题，Medium 视情况修复
-- [ ] I3. Git 分支：`feature/cache-fingerprint-and-ephemeral`，Conventional Commits 提交，结尾追加 `Refs: openspec/changes/cache-fingerprint-and-ephemeral`
+- [x] I1. Sub-agent CR 第一轮 FAIL（1 critical + 3 high）；第二轮 PASS
+- [x] I2. 修复 finding-1 (LRU 排序破坏前缀链)、finding-8 (重复 clamp)、finding-9 (tools 纳入指纹)、finding-11 (流式 TODO 注释)
+- [x] I3. Commit `f3d41f2` on branch `feature/cache-fingerprint-and-ephemeral`
 
 ## 验收标准
 

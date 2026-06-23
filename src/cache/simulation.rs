@@ -305,7 +305,6 @@ impl PromptCacheUsage {
 
     /// 强制截断保证 `cache_read + cache_creation <= total_input`、`input_tokens >= 0`。
     /// 截断时优先保留 cache_read。
-    #[allow(dead_code)]
     pub fn clamp_to_total(self, total_input: i32) -> Self {
         let total = total_input.max(0);
         let cache_read = self.cache_read_input_tokens.clamp(0, total);
@@ -329,5 +328,149 @@ impl PromptCacheUsage {
             cache_creation_5m_input_tokens: creation_5m,
             cache_creation_1h_input_tokens: creation_1h,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn usage(input: i32, creation: i32, read: i32, c_5m: i32, c_1h: i32) -> PromptCacheUsage {
+        PromptCacheUsage {
+            input_tokens: input,
+            cache_creation_input_tokens: creation,
+            cache_read_input_tokens: read,
+            cache_creation_5m_input_tokens: c_5m,
+            cache_creation_1h_input_tokens: c_1h,
+        }
+    }
+
+    fn assert_invariant(u: PromptCacheUsage) {
+        assert!(u.input_tokens >= 0, "input_tokens 不可为负: {:?}", u);
+        assert!(
+            u.cache_creation_input_tokens
+                == u.cache_creation_5m_input_tokens + u.cache_creation_1h_input_tokens,
+            "5m + 1h 不等于 creation: {:?}",
+            u
+        );
+        assert!(
+            u.cache_read_input_tokens + u.cache_creation_input_tokens <= u.total_input_tokens(),
+            "read+creation 不应超 total: {:?}",
+            u
+        );
+    }
+
+    #[test]
+    fn scale_to_keeps_5m_1h_ratio_when_scaling_up() {
+        // 原始：creation=100 (5m=70, 1h=30)，read=50，input=50，total=200
+        let u = usage(50, 100, 50, 70, 30);
+        // 放大到 total=400 → scale=2.0：creation≈200 (5m≈140, 1h≈60)，read≈100
+        let scaled = u.scale_to(400);
+        assert_eq!(scaled.total_input_tokens(), 400);
+        assert_eq!(scaled.cache_read_input_tokens, 100);
+        assert_eq!(scaled.cache_creation_input_tokens, 200);
+        // 1h 比例为 30/100 = 0.3，缩放后 200 * 0.3 = 60
+        assert_eq!(scaled.cache_creation_1h_input_tokens, 60);
+        assert_eq!(scaled.cache_creation_5m_input_tokens, 140);
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_keeps_5m_1h_ratio_when_scaling_down() {
+        // 原始：creation=200 (5m=140, 1h=60)，read=100，input=100，total=400
+        let u = usage(100, 200, 100, 140, 60);
+        let scaled = u.scale_to(200);
+        assert_eq!(scaled.total_input_tokens(), 200);
+        assert_eq!(scaled.cache_creation_input_tokens, 100);
+        // 1h 比例 60/200 = 0.3 → 100*0.3 = 30
+        assert_eq!(scaled.cache_creation_1h_input_tokens, 30);
+        assert_eq!(scaled.cache_creation_5m_input_tokens, 70);
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_pure_5m_stays_pure_5m() {
+        let u = usage(50, 100, 50, 100, 0);
+        let scaled = u.scale_to(400);
+        assert_eq!(scaled.cache_creation_1h_input_tokens, 0);
+        assert_eq!(
+            scaled.cache_creation_5m_input_tokens,
+            scaled.cache_creation_input_tokens
+        );
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_pure_1h_stays_pure_1h() {
+        let u = usage(50, 100, 50, 0, 100);
+        let scaled = u.scale_to(400);
+        assert_eq!(scaled.cache_creation_5m_input_tokens, 0);
+        assert_eq!(
+            scaled.cache_creation_1h_input_tokens,
+            scaled.cache_creation_input_tokens
+        );
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_zero_creation_keeps_zero() {
+        let u = usage(100, 0, 100, 0, 0);
+        let scaled = u.scale_to(50);
+        assert_eq!(scaled.cache_creation_input_tokens, 0);
+        assert_eq!(scaled.cache_creation_5m_input_tokens, 0);
+        assert_eq!(scaled.cache_creation_1h_input_tokens, 0);
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_zero_total_returns_uncached() {
+        let u = usage(0, 0, 0, 0, 0);
+        let scaled = u.scale_to(123);
+        assert_eq!(scaled.total_input_tokens(), 123);
+        assert_eq!(scaled.input_tokens, 123);
+        assert_eq!(scaled.cache_creation_input_tokens, 0);
+        assert_eq!(scaled.cache_read_input_tokens, 0);
+        assert_invariant(scaled);
+    }
+
+    #[test]
+    fn scale_to_same_total_is_identity() {
+        let u = usage(50, 100, 50, 70, 30);
+        let scaled = u.scale_to(200);
+        assert_eq!(scaled, u);
+    }
+
+    #[test]
+    fn clamp_to_total_keeps_5m_1h_ratio() {
+        // 给定 read=100, creation=100 (5m=80, 1h=20)，total_input=150 → creation 截断到 50
+        let u = usage(0, 100, 100, 80, 20);
+        let clamped = u.clamp_to_total(150);
+        assert_eq!(clamped.cache_read_input_tokens, 100);
+        assert_eq!(clamped.cache_creation_input_tokens, 50);
+        // 1h 比例 20/100 = 0.2 → 50*0.2 = 10
+        assert_eq!(clamped.cache_creation_1h_input_tokens, 10);
+        assert_eq!(clamped.cache_creation_5m_input_tokens, 40);
+        assert_invariant(clamped);
+    }
+
+    #[test]
+    fn clamp_to_total_zero_creation_keeps_zero_split() {
+        let u = usage(0, 0, 80, 0, 0);
+        let clamped = u.clamp_to_total(100);
+        assert_eq!(clamped.cache_creation_5m_input_tokens, 0);
+        assert_eq!(clamped.cache_creation_1h_input_tokens, 0);
+        assert_invariant(clamped);
+    }
+
+    #[test]
+    fn split_creation_by_ephemeral_ratio_boundaries() {
+        assert_eq!(split_creation_by_ephemeral_ratio(100, 0.0), (100, 0));
+        assert_eq!(split_creation_by_ephemeral_ratio(100, 1.0), (0, 100));
+        assert_eq!(split_creation_by_ephemeral_ratio(100, 0.3), (70, 30));
+        assert_eq!(split_creation_by_ephemeral_ratio(0, 0.5), (0, 0));
+        // clamp 负数 ratio
+        assert_eq!(split_creation_by_ephemeral_ratio(100, -0.5), (100, 0));
+        // clamp > 1 ratio
+        assert_eq!(split_creation_by_ephemeral_ratio(100, 1.5), (0, 100));
     }
 }

@@ -1043,46 +1043,30 @@ async fn handle_non_stream_request(
 
     // 四层降级链：metering 真值 → credits 反推 → 指纹追踪 → 比例模拟
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
-    let final_usage: crate::cache::PromptCacheUsage = if let (Some(read), Some(creation)) =
-        (metering_cache_read_tokens, metering_cache_creation_tokens)
-    {
-        // Layer 1: metering 真值
-        crate::cache::PromptCacheUsage {
-            input_tokens: final_input_tokens
-                .saturating_sub(read)
-                .saturating_sub(creation),
-            cache_creation_input_tokens: creation,
-            cache_read_input_tokens: read,
-            cache_creation_5m_input_tokens: creation, // metering 不拆分，默认全 5m
-            cache_creation_1h_input_tokens: 0,
-        }
-        .clamp_to_total(final_input_tokens)
-    } else if let Some(inferred) = crate::anthropic::stream::infer_cache_read_tokens(
+    let metering_pair = match (metering_cache_read_tokens, metering_cache_creation_tokens) {
+        (Some(read), Some(creation)) => Some((read, creation)),
+        _ => None,
+    };
+    let credits_inferred = crate::anthropic::stream::infer_cache_read_tokens(
         final_input_tokens,
         metering_usage,
         output_tokens,
         model,
-    ) {
-        // Layer 2: credits 反推 cache_read（cache_creation = 0）
-        crate::cache::PromptCacheUsage {
-            input_tokens: final_input_tokens.saturating_sub(inferred),
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: inferred,
-            cache_creation_5m_input_tokens: 0,
-            cache_creation_1h_input_tokens: 0,
+    );
+    let fingerprint_usage = match (fp_tracker.as_ref(), fp_profile.as_ref()) {
+        (Some(tracker), Some(profile)) => {
+            let account_id = credential_id.to_string();
+            tracker.compute(&account_id, profile, final_input_tokens)
         }
-        .clamp_to_total(final_input_tokens)
-    } else if let (Some(tracker), Some(profile)) = (fp_tracker.as_ref(), fp_profile.as_ref()) {
-        // Layer 3: 指纹追踪（credential_id 已确定，可写入与查询）
-        // compute() 内部已 clamp_to_total，外层不重复 clamp
-        let account_id = credential_id.to_string();
-        tracker
-            .compute(&account_id, profile, final_input_tokens)
-            .unwrap_or(sim_usage)
-    } else {
-        // Layer 4: 比例模拟兜底
-        sim_usage.clamp_to_total(final_input_tokens)
+        _ => None,
     };
+    let final_usage = crate::cache::select_final_usage(
+        final_input_tokens,
+        metering_pair,
+        credits_inferred,
+        fingerprint_usage,
+        sim_usage,
+    );
 
     // 流结束后写入指纹表（仅当 credential_id 确定）
     if let (Some(tracker), Some(profile)) = (fp_tracker.as_ref(), fp_profile.clone()) {

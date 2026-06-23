@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::env;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -14,6 +14,58 @@ pub enum TlsBackend {
     NativeTls,
 }
 
+/// Prompt cache 模拟与指纹追踪配置
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheSimulationConfig {
+    /// 是否启用指纹追踪（替代 from_ratio_config 末层兜底）
+    #[serde(default = "default_fingerprint_enabled")]
+    pub fingerprint_enabled: bool,
+
+    /// 5m ephemeral TTL（秒）
+    #[serde(default = "default_fingerprint_ttl_5m")]
+    pub fingerprint_ttl_5m: u64,
+
+    /// 1h ephemeral TTL（秒）
+    #[serde(default = "default_fingerprint_ttl_1h")]
+    pub fingerprint_ttl_1h: u64,
+
+    /// 新建 cache_creation 中 1h tier 占比（0.0~1.0，默认 0.0 全部 5m）
+    #[serde(default = "default_ephemeral_1h_ratio")]
+    pub ephemeral_1h_ratio: f64,
+
+    /// 单账号指纹断点上限（超出按 LRU 淘汰）
+    #[serde(default = "default_fingerprint_max_breakpoints")]
+    pub fingerprint_max_breakpoints_per_account: usize,
+}
+
+fn default_fingerprint_enabled() -> bool {
+    true
+}
+fn default_fingerprint_ttl_5m() -> u64 {
+    300
+}
+fn default_fingerprint_ttl_1h() -> u64 {
+    3600
+}
+fn default_ephemeral_1h_ratio() -> f64 {
+    0.0
+}
+fn default_fingerprint_max_breakpoints() -> usize {
+    256
+}
+
+impl Default for CacheSimulationConfig {
+    fn default() -> Self {
+        Self {
+            fingerprint_enabled: default_fingerprint_enabled(),
+            fingerprint_ttl_5m: default_fingerprint_ttl_5m(),
+            fingerprint_ttl_1h: default_fingerprint_ttl_1h(),
+            ephemeral_1h_ratio: default_ephemeral_1h_ratio(),
+            fingerprint_max_breakpoints_per_account: default_fingerprint_max_breakpoints(),
+        }
+    }
+}
 
 /// KNA 应用配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +145,10 @@ pub struct Config {
     #[serde(default = "default_max_rpm_per_credential")]
     pub max_rpm_per_credential: u32,
 
+    /// Prompt cache 模拟与指纹追踪配置
+    #[serde(default)]
+    pub cache_simulation: CacheSimulationConfig,
+
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
@@ -161,6 +217,7 @@ impl Default for Config {
             admin_api_key: None,
             load_balancing_mode: default_load_balancing_mode(),
             max_rpm_per_credential: default_max_rpm_per_credential(),
+            cache_simulation: CacheSimulationConfig::default(),
             config_path: None,
         }
     }
@@ -214,7 +271,8 @@ impl Config {
             .ok_or_else(|| anyhow::anyhow!("配置文件路径未知，无法保存配置"))?;
 
         let content = serde_json::to_string_pretty(self).context("序列化配置失败")?;
-        fs::write(path, content).with_context(|| format!("写入配置文件失败: {}", path.display()))?;
+        fs::write(path, content)
+            .with_context(|| format!("写入配置文件失败: {}", path.display()))?;
         Ok(())
     }
 
@@ -240,9 +298,10 @@ impl Config {
             self.host = v;
         }
         if let Ok(v) = env::var("PORT")
-            && let Ok(p) = v.parse::<u16>() {
-                self.port = p;
-            }
+            && let Ok(p) = v.parse::<u16>()
+        {
+            self.port = p;
+        }
         if let Ok(v) = env::var("REGION") {
             self.region = v;
         }
@@ -266,6 +325,34 @@ impl Config {
         }
         if let Ok(v) = env::var("LOAD_BALANCING_MODE") {
             self.load_balancing_mode = v;
+        }
+
+        // CacheSimulationConfig 嵌套字段覆盖
+        if let Ok(v) = env::var("CACHE_SIMULATION_FINGERPRINT_ENABLED")
+            && let Ok(b) = v.parse::<bool>()
+        {
+            self.cache_simulation.fingerprint_enabled = b;
+        }
+        if let Ok(v) = env::var("CACHE_SIMULATION_FINGERPRINT_TTL_5M")
+            && let Ok(n) = v.parse::<u64>()
+        {
+            self.cache_simulation.fingerprint_ttl_5m = n;
+        }
+        if let Ok(v) = env::var("CACHE_SIMULATION_FINGERPRINT_TTL_1H")
+            && let Ok(n) = v.parse::<u64>()
+        {
+            self.cache_simulation.fingerprint_ttl_1h = n;
+        }
+        if let Ok(v) = env::var("CACHE_SIMULATION_EPHEMERAL_1H_RATIO")
+            && let Ok(f) = v.parse::<f64>()
+        {
+            self.cache_simulation.ephemeral_1h_ratio = f.clamp(0.0, 1.0);
+        }
+        if let Ok(v) = env::var("CACHE_SIMULATION_FINGERPRINT_MAX_BREAKPOINTS")
+            && let Ok(n) = v.parse::<usize>()
+        {
+            self.cache_simulation
+                .fingerprint_max_breakpoints_per_account = n;
         }
     }
 }

@@ -64,7 +64,7 @@ Client (Anthropic SSE format)
 | `src/anthropic/stream.rs` | 流式状态机：Kiro events → Anthropic SSE，处理 thinking 标签、tool_use 块拼装 |
 | `src/kiro/token_manager.rs` | 多账号 token 池，支持 social/IDC 双认证方式，刷新后回写 credentials.json |
 | `src/model/config.rs` | 全局配置结构，`apply_env_overrides()` 支持容器环境变量覆盖 |
-| `src/cache.rs` | Prompt cache 用量追踪（区分缓存命中 vs 写入 token 计费） |
+| `src/cache/` | Prompt cache 模块：`simulation.rs` 比例模拟、`fingerprint.rs` 账号级指纹追踪、`mod.rs` 统一导出 |
 | `src/http_client.rs` | reqwest Client 构建器，支持账号级独立代理配置 |
 | `src/admin/` + `src/admin_ui/` | Admin REST API + rust-embed 嵌入前端静态资源 |
 

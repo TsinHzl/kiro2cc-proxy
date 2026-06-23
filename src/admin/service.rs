@@ -279,13 +279,18 @@ impl AdminService {
     /// 构建账号 ID -> 显示标签（nickname 优先，其次 email，都没有则用 #id）的映射
     pub fn credential_labels(&self) -> std::collections::HashMap<u64, String> {
         let snapshot = self.token_manager.snapshot();
-        snapshot.entries.into_iter().map(|e| {
-            let label = e.nickname
-                .filter(|s| !s.is_empty())
-                .or_else(|| e.email.filter(|s| !s.is_empty()))
-                .unwrap_or_else(|| format!("#{}", e.id));
-            (e.id, label)
-        }).collect()
+        snapshot
+            .entries
+            .into_iter()
+            .map(|e| {
+                let label = e
+                    .nickname
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| e.email.filter(|s| !s.is_empty()))
+                    .unwrap_or_else(|| format!("#{}", e.id));
+                (e.id, label)
+            })
+            .collect()
     }
 
     /// 获取负载均衡模式
@@ -447,7 +452,8 @@ impl AdminService {
         let msg = e.to_string();
         if msg.contains("不存在") {
             AdminServiceError::NotFound { id }
-        } else if msg.contains("只能删除已禁用的账号") || msg.contains("请先禁用账号") {
+        } else if msg.contains("只能删除已禁用的账号") || msg.contains("请先禁用账号")
+        {
             AdminServiceError::InvalidCredential(msg)
         } else {
             AdminServiceError::InternalError(msg)

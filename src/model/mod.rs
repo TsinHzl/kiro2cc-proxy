@@ -4,7 +4,7 @@
 pub mod api_key;
 pub mod arg;
 pub mod config;
+pub mod failure_log;
 pub mod rpm;
 pub mod throttle_log;
-pub mod failure_log;
 pub mod usage;

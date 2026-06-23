@@ -145,27 +145,29 @@ fn normalize_json_schema_inner(schema: serde_json::Value, root: bool) -> serde_j
     }
 
     if let Some(description) = obj.remove("description")
-        && let Some(description) = description.as_str() {
-            let description = match description.char_indices().nth(2000) {
-                Some((idx, _)) => description[..idx].to_string(),
-                None => description.to_string(),
-            };
-            obj.insert(
-                "description".to_string(),
-                serde_json::Value::String(description),
-            );
-        }
+        && let Some(description) = description.as_str()
+    {
+        let description = match description.char_indices().nth(2000) {
+            Some((idx, _)) => description[..idx].to_string(),
+            None => description.to_string(),
+        };
+        obj.insert(
+            "description".to_string(),
+            serde_json::Value::String(description),
+        );
+    }
 
     if let Some(enum_value) = obj.remove("enum")
-        && let serde_json::Value::Array(values) = enum_value {
-            let values: Vec<_> = values
-                .into_iter()
-                .filter(|v| v.is_string() || v.is_number() || v.is_boolean())
-                .collect();
-            if !values.is_empty() {
-                obj.insert("enum".to_string(), serde_json::Value::Array(values));
-            }
+        && let serde_json::Value::Array(values) = enum_value
+    {
+        let values: Vec<_> = values
+            .into_iter()
+            .filter(|v| v.is_string() || v.is_number() || v.is_boolean())
+            .collect();
+        if !values.is_empty() {
+            obj.insert("enum".to_string(), serde_json::Value::Array(values));
         }
+    }
 
     obj.retain(|key, _| {
         matches!(
@@ -215,7 +217,10 @@ struct CacheEntry<T: Clone> {
 
 impl<T: Clone> CacheEntry<T> {
     fn new(value: T) -> Self {
-        Self { value, last_used: Instant::now() }
+        Self {
+            value,
+            last_used: Instant::now(),
+        }
     }
 }
 
@@ -414,14 +419,16 @@ pub(super) fn is_valid_uuid(s: &str) -> bool {
 fn extract_session_id(user_id: &str) -> Option<String> {
     // 尝试 JSON 格式解析（Claude Code 新版本发送 JSON 字符串作为 user_id）
     if user_id.trim_start().starts_with('{')
-        && let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id) {
-            for key in &["session_id", "id"] {
-                if let Some(id) = v.get(key).and_then(|v| v.as_str())
-                    && is_valid_uuid(id) {
-                        return Some(id.to_string());
-                    }
+        && let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id)
+    {
+        for key in &["session_id", "id"] {
+            if let Some(id) = v.get(key).and_then(|v| v.as_str())
+                && is_valid_uuid(id)
+            {
+                return Some(id.to_string());
             }
         }
+    }
     // 标准格式: 查找 "session_" 后面的 UUID
     if let Some(pos) = user_id.find("session_") {
         let session_part = &user_id[pos + 8..]; // "session_" 长度为 8
@@ -447,11 +454,22 @@ fn derive_agent_continuation_id(conversation_id: &str) -> String {
     let result = hasher.finalize();
     format!(
         "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        result[0], result[1], result[2], result[3],
-        result[4], result[5],
-        result[6], result[7],
-        result[8], result[9],
-        result[10], result[11], result[12], result[13], result[14], result[15]
+        result[0],
+        result[1],
+        result[2],
+        result[3],
+        result[4],
+        result[5],
+        result[6],
+        result[7],
+        result[8],
+        result[9],
+        result[10],
+        result[11],
+        result[12],
+        result[13],
+        result[14],
+        result[15]
     )
 }
 
@@ -462,7 +480,12 @@ fn derive_fallback_conversation_id(req: &MessagesRequest) -> Option<String> {
     let system_seed = req
         .system
         .as_ref()
-        .map(|s| s.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n"))
+        .map(|s| {
+            s.iter()
+                .map(|b| b.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
         .unwrap_or_default();
     let mut tool_names: Vec<&str> = req
         .tools
@@ -503,13 +526,14 @@ fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
 
     for msg in history {
         if let Message::Assistant(assistant_msg) = msg
-            && let Some(ref tool_uses) = assistant_msg.assistant_response_message.tool_uses {
-                for tool_use in tool_uses {
-                    if !tool_names.contains(&tool_use.name) {
-                        tool_names.push(tool_use.name.clone());
-                    }
+            && let Some(ref tool_uses) = assistant_msg.assistant_response_message.tool_uses
+        {
+            for tool_use in tool_uses {
+                if !tool_names.contains(&tool_use.name) {
+                    tool_names.push(tool_use.name.clone());
                 }
             }
+        }
     }
 
     tool_names
@@ -575,7 +599,8 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let agent_continuation_id = derive_agent_continuation_id(&conversation_id);
     tracing::info!(
         "[session] conversationId={} agentContinuationId={} (同一会话的连续请求这两个值应保持不变)",
-        conversation_id, agent_continuation_id
+        conversation_id,
+        agent_continuation_id
     );
 
     // 4. 确定触发类型
@@ -726,28 +751,30 @@ fn process_message_content(
                         }
                         "image" => {
                             if let Some(source) = block.source
-                                && let Some(format) = get_image_format(&source.media_type) {
-                                    images.push(KiroImage::from_base64(format, source.data));
-                                }
+                                && let Some(format) = get_image_format(&source.media_type)
+                            {
+                                images.push(KiroImage::from_base64(format, source.data));
+                            }
                         }
                         "document" => {
                             if let Some(source) = block.source
-                                && source.media_type == "application/pdf" {
-                                    match extract_pdf_text_from_base64(&source.data) {
-                                        Some(text) if !text.is_empty() => {
-                                            text_parts.push(format!(
+                                && source.media_type == "application/pdf"
+                            {
+                                match extract_pdf_text_from_base64(&source.data) {
+                                    Some(text) if !text.is_empty() => {
+                                        text_parts.push(format!(
                                                 "<document media_type=\"application/pdf\">\n{}\n</document>",
                                                 text
                                             ));
-                                        }
-                                        _ => {
-                                            text_parts.push(
-                                                "[PDF document attached; text extraction unavailable]"
-                                                    .to_string(),
-                                            );
-                                        }
+                                    }
+                                    _ => {
+                                        text_parts.push(
+                                            "[PDF document attached; text extraction unavailable]"
+                                                .to_string(),
+                                        );
                                     }
                                 }
+                            }
                         }
                         "tool_result" => {
                             if let Some(tool_use_id) = block.tool_use_id {
@@ -1151,20 +1178,21 @@ fn remove_orphaned_tool_uses(
 
     for msg in history.iter_mut() {
         if let Message::Assistant(assistant_msg) = msg
-            && let Some(ref mut tool_uses) = assistant_msg.assistant_response_message.tool_uses {
-                let original_len = tool_uses.len();
-                tool_uses.retain(|tu| !orphaned_ids.contains(&tu.tool_use_id));
+            && let Some(ref mut tool_uses) = assistant_msg.assistant_response_message.tool_uses
+        {
+            let original_len = tool_uses.len();
+            tool_uses.retain(|tu| !orphaned_ids.contains(&tu.tool_use_id));
 
-                // 如果移除后为空，设置为 None
-                if tool_uses.is_empty() {
-                    assistant_msg.assistant_response_message.tool_uses = None;
-                } else if tool_uses.len() != original_len {
-                    tracing::debug!(
-                        "从 assistant 消息中移除了 {} 个孤立的 tool_use",
-                        original_len - tool_uses.len()
-                    );
-                }
+            // 如果移除后为空，设置为 None
+            if tool_uses.is_empty() {
+                assistant_msg.assistant_response_message.tool_uses = None;
+            } else if tool_uses.len() != original_len {
+                tracing::debug!(
+                    "从 assistant 消息中移除了 {} 个孤立的 tool_use",
+                    original_len - tool_uses.len()
+                );
             }
+        }
     }
 }
 
@@ -1386,7 +1414,10 @@ fn build_history(
                         final_content.len(),
                         session_id
                     );
-                    map.insert(session_id.to_string(), CacheEntry::new(final_content.clone()));
+                    map.insert(
+                        session_id.to_string(),
+                        CacheEntry::new(final_content.clone()),
+                    );
                     evict_oldest_if_full(&mut map);
                     final_content
                 }
@@ -1560,8 +1591,22 @@ fn convert_assistant_message(
         let hash = Sha256::digest(seed.as_bytes());
         format!(
             "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-            hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
-            hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+            hash[0],
+            hash[1],
+            hash[2],
+            hash[3],
+            hash[4],
+            hash[5],
+            hash[6],
+            hash[7],
+            hash[8],
+            hash[9],
+            hash[10],
+            hash[11],
+            hash[12],
+            hash[13],
+            hash[14],
+            hash[15]
         )
     };
 
@@ -1619,8 +1664,22 @@ fn merge_assistant_messages(
         let hash = Sha256::digest(seed.as_bytes());
         format!(
             "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-            hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
-            hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+            hash[0],
+            hash[1],
+            hash[2],
+            hash[3],
+            hash[4],
+            hash[5],
+            hash[6],
+            hash[7],
+            hash[8],
+            hash[9],
+            hash[10],
+            hash[11],
+            hash[12],
+            hash[13],
+            hash[14],
+            hash[15]
         )
     };
 
@@ -1895,7 +1954,10 @@ mod tests {
         let req = MessagesRequest {
             model: "claude-sonnet-4".to_string(),
             max_tokens: 1024,
-            messages: vec![AnthropicMessage { role: "user".to_string(), content: serde_json::json!("hi") }],
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("hi"),
+            }],
             stream: false,
             system: None,
             tools: None,
@@ -1913,12 +1975,27 @@ mod tests {
         let req = MessagesRequest {
             model: "claude-sonnet-4".to_string(),
             max_tokens: 1024,
-            messages: vec![AnthropicMessage { role: "user".to_string(), content: serde_json::json!("hi") }],
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("hi"),
+            }],
             stream: false,
             system: None,
             tools: Some(vec![
-                Tool { tool_type: None, name: "Read".to_string(), description: "Read a file".to_string(), input_schema: Default::default(), max_uses: None },
-                Tool { tool_type: None, name: "Write".to_string(), description: "Write a file".to_string(), input_schema: Default::default(), max_uses: None },
+                Tool {
+                    tool_type: None,
+                    name: "Read".to_string(),
+                    description: "Read a file".to_string(),
+                    input_schema: Default::default(),
+                    max_uses: None,
+                },
+                Tool {
+                    tool_type: None,
+                    name: "Write".to_string(),
+                    description: "Write a file".to_string(),
+                    input_schema: Default::default(),
+                    max_uses: None,
+                },
             ]),
             tool_choice: None,
             thinking: None,
@@ -1934,12 +2011,19 @@ mod tests {
         let req = MessagesRequest {
             model: "claude-sonnet-4".to_string(),
             max_tokens: 1024,
-            messages: vec![AnthropicMessage { role: "user".to_string(), content: serde_json::json!("hi") }],
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("hi"),
+            }],
             stream: false,
             system: None,
-            tools: Some(vec![
-                Tool { tool_type: None, name: "calculator".to_string(), description: "Do math".to_string(), input_schema: Default::default(), max_uses: None },
-            ]),
+            tools: Some(vec![Tool {
+                tool_type: None,
+                name: "calculator".to_string(),
+                description: "Do math".to_string(),
+                input_schema: Default::default(),
+                max_uses: None,
+            }]),
             tool_choice: None,
             thinking: None,
             output_config: None,
@@ -1954,12 +2038,19 @@ mod tests {
         let req = MessagesRequest {
             model: "claude-sonnet-4".to_string(),
             max_tokens: 1024,
-            messages: vec![AnthropicMessage { role: "user".to_string(), content: serde_json::json!("hi") }],
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("hi"),
+            }],
             stream: false,
             system: None,
-            tools: Some(vec![
-                Tool { tool_type: None, name: "Bash".to_string(), description: "Run bash".to_string(), input_schema: Default::default(), max_uses: None },
-            ]),
+            tools: Some(vec![Tool {
+                tool_type: None,
+                name: "Bash".to_string(),
+                description: "Run bash".to_string(),
+                input_schema: Default::default(),
+                max_uses: None,
+            }]),
             tool_choice: None,
             thinking: None,
             output_config: None,
@@ -2107,7 +2198,9 @@ mod tests {
             Some("3d69af26-0a80-483f-baa0-b4ccaaa07e81".to_string())
         );
         // 验证污染值本身不是合法 UUID
-        assert!(!super::is_valid_uuid(r#"id":"3d69af26-0a80-483f-baa0-b4ccaaa"#));
+        assert!(!super::is_valid_uuid(
+            r#"id":"3d69af26-0a80-483f-baa0-b4ccaaa"#
+        ));
     }
 
     #[test]

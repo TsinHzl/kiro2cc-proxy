@@ -39,6 +39,12 @@ pub struct UsageRecord {
     /// 缓存创建的输入 token 数（来自 meteringEvent，None 表示旧数据）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_creation_input_tokens: Option<i32>,
+    /// 5m ephemeral tier 的 cache_creation 拆分（默认 0，向后兼容）
+    #[serde(default)]
+    pub cache_creation_5m_input_tokens: i32,
+    /// 1h ephemeral tier 的 cache_creation 拆分（默认 0，向后兼容）
+    #[serde(default)]
+    pub cache_creation_1h_input_tokens: i32,
     /// 记录时间
     pub created_at: DateTime<Utc>,
     /// 客户端 IP（None 表示旧数据或未知）
@@ -189,7 +195,10 @@ impl UsageTracker {
     }
 
     /// 内部真正的异步落地方法
-    async fn save_internal(records: &Arc<RwLock<Vec<UsageRecord>>>, file_path: &Path) -> anyhow::Result<()> {
+    async fn save_internal(
+        records: &Arc<RwLock<Vec<UsageRecord>>>,
+        file_path: &Path,
+    ) -> anyhow::Result<()> {
         let content = {
             let r = records.read();
             serde_json::to_string(&*r)?
@@ -231,6 +240,8 @@ impl UsageTracker {
             credits_used,
             cache_read_input_tokens,
             cache_creation_input_tokens,
+            cache_creation_5m_input_tokens: 0,
+            cache_creation_1h_input_tokens: 0,
             created_at: Utc::now(),
             client_ip,
         };
@@ -239,7 +250,10 @@ impl UsageTracker {
             records.push(record);
 
             // 按 api_key_id 裁剪：保留最新的 MAX_RECORDS_PER_KEY 条
-            let key_count = records.iter().filter(|r| r.api_key_id == api_key_id).count();
+            let key_count = records
+                .iter()
+                .filter(|r| r.api_key_id == api_key_id)
+                .count();
             if key_count > MAX_RECORDS_PER_KEY {
                 let excess = key_count - MAX_RECORDS_PER_KEY;
                 let mut removed = 0;
@@ -255,7 +269,10 @@ impl UsageTracker {
 
             // 按 credential_id 裁剪
             if let Some(cid) = credential_id {
-                let cred_count = records.iter().filter(|r| r.credential_id == Some(cid)).count();
+                let cred_count = records
+                    .iter()
+                    .filter(|r| r.credential_id == Some(cid))
+                    .count();
                 if cred_count > MAX_RECORDS_PER_KEY {
                     let excess = cred_count - MAX_RECORDS_PER_KEY;
                     let mut removed = 0;
@@ -291,7 +308,10 @@ impl UsageTracker {
 
         let total_credits_saved: f64 = filtered
             .iter()
-            .filter_map(|r| r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu))
+            .filter_map(|r| {
+                r.credits_used
+                    .map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu)
+            })
             .sum();
 
         UsageSummary {
@@ -398,8 +418,12 @@ impl UsageTracker {
             .skip(start)
             .take(page_size)
             .map(|r| {
-                let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
-                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
+                let credential_label = r
+                    .credential_id
+                    .and_then(|cid| credential_labels.get(&cid).cloned());
+                let credits_saved = r
+                    .credits_used
+                    .map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,
@@ -522,8 +546,12 @@ impl UsageTracker {
             .skip(start)
             .take(page_size)
             .map(|r| {
-                let credential_label = r.credential_id.and_then(|cid| credential_labels.get(&cid).cloned());
-                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
+                let credential_label = r
+                    .credential_id
+                    .and_then(|cid| credential_labels.get(&cid).cloned());
+                let credits_saved = r
+                    .credits_used
+                    .map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,
@@ -571,7 +599,11 @@ impl UsageTracker {
         let records = self.records.read();
         let mut map: BTreeMap<String, (u64, f64, f64, f64)> = BTreeMap::new();
         for r in records.iter() {
-            let date = r.created_at.with_timezone(&cst).format("%Y-%m-%d").to_string();
+            let date = r
+                .created_at
+                .with_timezone(&cst)
+                .format("%Y-%m-%d")
+                .to_string();
             let entry = map.entry(date).or_default();
             entry.0 += 1;
             entry.1 += r.estimated_cost;
@@ -610,7 +642,13 @@ impl UsageTracker {
             let records = self.records.read();
             records
                 .iter()
-                .filter(|r| r.created_at.with_timezone(&cst).format("%Y-%m-%d").to_string() == date)
+                .filter(|r| {
+                    r.created_at
+                        .with_timezone(&cst)
+                        .format("%Y-%m-%d")
+                        .to_string()
+                        == date
+                })
                 .cloned()
                 .collect()
         };
@@ -642,7 +680,9 @@ impl UsageTracker {
                 let credential_label = r
                     .credential_id
                     .and_then(|cid| credential_labels.get(&cid).cloned());
-                let credits_saved = r.credits_used.map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
+                let credits_saved = r
+                    .credits_used
+                    .map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu);
                 UsageRecordItem {
                     model: r.model,
                     input_tokens: r.input_tokens,

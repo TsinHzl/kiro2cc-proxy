@@ -562,7 +562,7 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段，
 /// 让客户端按内置窗口（200K）计算的上下文百分比按比例下降，营造"窗口未满"的视觉。
 /// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
-const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.1;
+const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.2;
 
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）
 pub(crate) fn scale_for_client(n: i32) -> i32 {
@@ -1687,13 +1687,13 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_basic() {
-        // 100k → 10k（ceil 整除）
-        assert_eq!(scale_for_client(100_000), 10_000);
-        // 85k → 8500
-        assert_eq!(scale_for_client(85_000), 8_500);
+        // 100k → 20k（0.2 × 整除）
+        assert_eq!(scale_for_client(100_000), 20_000);
+        // 85k → 17000
+        assert_eq!(scale_for_client(85_000), 17_000);
         // 0 → 0
         assert_eq!(scale_for_client(0), 0);
-        // 1 → ceil(0.1) = 1（小数向上取整保证非零）
+        // 1 → ceil(0.2) = 1（小数向上取整保证非零）
         assert_eq!(scale_for_client(1), 1);
         // 负值 clamp 到 0
         assert_eq!(scale_for_client(-100), 0);
@@ -1701,13 +1701,13 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_non_round() {
-        // 11 → ceil(1.1) = 2
-        assert_eq!(scale_for_client(11), 2);
-        // 9 → ceil(0.9) = 1
-        assert_eq!(scale_for_client(9), 1);
-        // 10 → 1（整除边界）
-        assert_eq!(scale_for_client(10), 1);
-        // i32::MAX 不溢出（2_147_483_647 * 0.1 ceil ≈ 214_748_365）
+        // 11 → ceil(2.2) = 3
+        assert_eq!(scale_for_client(11), 3);
+        // 9 → ceil(1.8) = 2
+        assert_eq!(scale_for_client(9), 2);
+        // 10 → ceil(2.0) = 2（整除边界）
+        assert_eq!(scale_for_client(10), 2);
+        // i32::MAX 不溢出（2_147_483_647 * 0.2 ceil ≈ 429_496_730）
         let r = scale_for_client(i32::MAX);
         assert!(r > 0 && r < i32::MAX);
     }

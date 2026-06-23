@@ -1133,13 +1133,13 @@ async fn handle_non_stream_request(
         "stop_sequence": null,
         // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值
         "usage": {
-            "input_tokens": super::stream::scale_for_client_pub(report_input),
+            "input_tokens": super::stream::scale_for_client(report_input),
             "output_tokens": reported_output_tokens,
-            "cache_creation_input_tokens": super::stream::scale_for_client_pub(report_cache_creation),
-            "cache_read_input_tokens": super::stream::scale_for_client_pub(report_cache_read),
+            "cache_creation_input_tokens": super::stream::scale_for_client(report_cache_creation),
+            "cache_read_input_tokens": super::stream::scale_for_client(report_cache_read),
             "cache_creation": {
-                "ephemeral_5m_input_tokens": super::stream::scale_for_client_pub(report_creation_5m),
-                "ephemeral_1h_input_tokens": super::stream::scale_for_client_pub(report_creation_1h)
+                "ephemeral_5m_input_tokens": super::stream::scale_for_client(report_creation_5m),
+                "ephemeral_1h_input_tokens": super::stream::scale_for_client(report_creation_1h)
             }
         }
     });

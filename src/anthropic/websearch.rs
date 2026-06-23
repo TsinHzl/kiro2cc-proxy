@@ -255,7 +255,8 @@ fn generate_websearch_events(
                 "stop_reason": null,
                 "stop_sequence": null,
                 "usage": {
-                    "input_tokens": input_tokens,
+                    // 客户端展示缩放（与 /v1/messages 主路径一致）
+                    "input_tokens": crate::anthropic::stream::scale_for_client(input_tokens),
                     "output_tokens": 0,
                     "cache_creation_input_tokens": 0,
                     "cache_read_input_tokens": 0

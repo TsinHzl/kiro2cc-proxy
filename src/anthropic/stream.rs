@@ -409,6 +409,7 @@ impl SseStateManager {
     }
 
     /// 生成最终事件序列
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_final_events(
         &mut self,
         input_tokens: i32,
@@ -416,6 +417,8 @@ impl SseStateManager {
         cache_creation_input_tokens: Option<i32>,
         cache_read_input_tokens: Option<i32>,
         context_usage_percentage: Option<f64>,
+        cache_creation_5m_input_tokens: Option<i32>,
+        cache_creation_1h_input_tokens: Option<i32>,
     ) -> Vec<SseEvent> {
         let mut events = Vec::new();
 
@@ -485,6 +488,26 @@ impl SseStateManager {
             if let Some(v) = cache_read_input_tokens {
                 usage.insert("cache_read_input_tokens".into(), json!(scale_for_client(v)));
             }
+            // 与非流式响应对齐：输出 ephemeral 5m/1h 嵌套字段
+            if cache_creation_input_tokens.is_some()
+                || cache_creation_5m_input_tokens.is_some()
+                || cache_creation_1h_input_tokens.is_some()
+            {
+                let mut cc = serde_json::Map::new();
+                cc.insert(
+                    "ephemeral_5m_input_tokens".into(),
+                    json!(scale_for_client(
+                        cache_creation_5m_input_tokens.unwrap_or(0)
+                    )),
+                );
+                cc.insert(
+                    "ephemeral_1h_input_tokens".into(),
+                    json!(scale_for_client(
+                        cache_creation_1h_input_tokens.unwrap_or(0)
+                    )),
+                );
+                usage.insert("cache_creation".into(), serde_json::Value::Object(cc));
+            }
             if let Some(p) = context_usage_percentage {
                 usage.insert("contextUsagePercentage".into(), json!(p));
             }
@@ -542,16 +565,11 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.1;
 
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）
-fn scale_for_client(n: i32) -> i32 {
+pub(crate) fn scale_for_client(n: i32) -> i32 {
     if n <= 0 {
         return n.max(0);
     }
     ((n as f64) * CLIENT_TOKEN_DISPLAY_SCALE).ceil() as i32
-}
-
-/// 公开版本供其他模块使用
-pub fn scale_for_client_pub(n: i32) -> i32 {
-    scale_for_client(n)
 }
 
 fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {
@@ -1462,12 +1480,18 @@ impl StreamContext {
                 report_cache_creation,
             );
         }
+        // 流式 SSE 路径暂未接入 fingerprint，cache_creation 不区分 5m/1h tier，
+        // 这里把 report_cache_creation 全部归到 5m（与非流式 metering Layer 1 一致）
+        let report_creation_5m = report_cache_creation;
+        let report_creation_1h = Some(0);
         events.extend(self.state_manager.generate_final_events(
             report_input,
             reported_output_tokens,
             report_cache_creation,
             report_cache_read,
             self.context_usage_percentage,
+            report_creation_5m,
+            report_creation_1h,
         ));
 
         events
@@ -1681,6 +1705,11 @@ mod tests {
         assert_eq!(scale_for_client(11), 2);
         // 9 → ceil(0.9) = 1
         assert_eq!(scale_for_client(9), 1);
+        // 10 → 1（整除边界）
+        assert_eq!(scale_for_client(10), 1);
+        // i32::MAX 不溢出（2_147_483_647 * 0.1 ceil ≈ 214_748_365）
+        let r = scale_for_client(i32::MAX);
+        assert!(r > 0 && r < i32::MAX);
     }
 
     #[test]

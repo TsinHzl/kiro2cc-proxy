@@ -103,6 +103,7 @@ impl FingerprintTracker {
         });
     }
 
+    #[cfg(test)]
     pub fn build_profile(
         system: Option<&[SystemMessage]>,
         messages: &[Message],
@@ -110,7 +111,7 @@ impl FingerprintTracker {
         Self::build_profile_with_tools(system, messages, None)
     }
 
-    /// 与 `build_profile` 同，但额外把 tools 纳入指纹链
+    /// 生成包含 system + tools + messages 的完整指纹链
     /// （不同 tools 集应产生不同指纹，避免误报命中）
     pub fn build_profile_with_tools(
         system: Option<&[SystemMessage]>,

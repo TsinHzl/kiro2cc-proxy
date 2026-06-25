@@ -597,18 +597,22 @@ pub(crate) fn infer_cache_read_tokens(
     model: &str,
 ) -> Option<i32> {
     let credits = credits?;
-    // (k_ref, input_price_per_M, output_price_per_M)
-    const K_REF: f64 = 1.43; // 平台级 credits/USD 换算率（代理实测 2026-06-20）
-    let (input_price, output_price): (f64, f64) =
+    // 模型名匹配统一走小写，与 usage.rs::get_k_ref / get_model_pricing 大小写策略对齐，
+    // 避免 "Claude-Opus-4-8" 落入 sonnet 分支导致两边 k_ref 漂移。
+    let model = model.to_lowercase();
+    // 平台级 credits/USD 换算率，按模型档位差异化（2026-06-25 实测）：
+    // - opus/fable：1.1（旧 1.43 会让大请求反推 R > input 被 clamp，掩盖命中率梯度）
+    // - sonnet：1.43（首条/中等命中样本验证仍贴合）
+    // - haiku：未实测，返回 None 降级到模拟值
+    let (input_price, output_price, k_ref): (f64, f64, f64) =
         if model.contains("opus") || model.contains("fable") {
-            (15.0, 75.0)
+            (15.0, 75.0, 1.1)
         } else if model.contains("haiku") {
             return None;
         } else {
             // sonnet 系列
-            (3.0, 15.0)
+            (3.0, 15.0, 1.43)
         };
-    let k_ref = K_REF;
     // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
     let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
     let output_credits = k_ref * output_usd;

@@ -35,8 +35,9 @@
 | 模型 | k_ref | input_price ($/M) | cache_read 折扣 |
 |------|-------|-------------------|----------------|
 | sonnet 系列 | 1.43 | $3.0 | 50% 全价 |
-| opus-4.7 / 4.8 | 2.60 | $15.0 | 50% 全价 |
-| opus-4.5 / 4.6 | 2.40 | $15.0 | 50% 全价 |
+| opus / fable 系列 | 1.1 | $15.0 | 50% 全价 |
+| opus-4.7 / 4.8 (模型档位) | 2.60 | $15.0 | 50% 全价 |
+| opus-4.5 / 4.6 (模型档位) | 2.40 | $15.0 | 50% 全价 |
 
 ### 1.2 核心标识符：`agentContinuationId`
 Kiro 识别“同一会话连续请求”的唯一凭证是 `agentContinuationId`。如果每次请求这个 ID 都发生变化，Kiro 后端就会将其视为全新会话，前缀缓存将完全失效。
@@ -129,7 +130,8 @@ AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_in
 
 - **首轮（跨会话缓存命中 system+tools）**：sonnet-4.6 约 `0.0044`（已享受 ~88% 缓存折扣）
 - **后续 turn（高缓存命中）**：降至 `0.0022-0.0025`（~97-99% 命中率）
-- **理论无缓存全价**：`k_ref × input_price / 1M = 1.43 × 3.0 / 1,000,000 = 0.00000429` credits/token
+- **理论无缓存全价 (sonnet)**：`k_ref × input_price / 1M = 1.43 × 3.0 / 1,000,000 = 0.00000429` credits/token
+- **理论无缓存全价 (opus/fable)**：`k_ref × input_price / 1M = 1.1 × 15.0 / 1,000,000 = 0.0000165` credits/token
 
 ### 4.2 反推公式 (`infer_cache_read_tokens`)
 代理通过以下三步逆向工程，精确还原 Kiro 服务端的缓存命中 token 数：

@@ -30,11 +30,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     onLogout()
   }
 
-  const formatTokens = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-    return n.toString()
-  }
+  const formatTokens = (n: number) => n.toLocaleString('zh-CN')
 
   const formatCost = (n: number) => `$${n.toFixed(4)}`
 

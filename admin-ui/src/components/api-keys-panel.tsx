@@ -112,9 +112,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   usageData?.forEach((u) => usageMap.set(u.apiKeyId, u))
 
   const formatTokens = (tokens: number): string => {
-    if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
-    if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`
-    return tokens.toString()
+    return tokens.toLocaleString('zh-CN')
   }
 
   const formatCost = (cost: number): string => {

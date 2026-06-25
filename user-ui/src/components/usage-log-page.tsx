@@ -216,7 +216,6 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                 <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, r.inputTokens - (r.cacheReadInputTokens ?? 0)))}</span></div>
                                 <div>输出 Tokens：<span className="tabular-nums">{formatTokens(r.outputTokens)}</span></div>
                                 <div className="text-green-600 dark:text-green-400">缓存读取：<span className="tabular-nums">{formatTokens(r.cacheReadInputTokens ?? 0)}</span></div>
-                                <div className="text-green-600 dark:text-green-400">缓存写入：<span className="tabular-nums">{formatTokens(r.cacheCreationInputTokens ?? 0)}</span></div>
                                 <div className="font-medium">输入总计：<span className="tabular-nums">{formatTokens(r.inputTokens)}</span></div>
                               </div>
                             </td>

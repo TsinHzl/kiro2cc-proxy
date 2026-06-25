@@ -229,7 +229,6 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                             <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
                             <div>输出 Tokens：<span className="tabular-nums">{formatTokens(record.outputTokens)}</span></div>
                             <div className="text-green-600 dark:text-green-400">缓存读取：<span className="tabular-nums">{formatTokens(record.cacheReadInputTokens ?? 0)}</span></div>
-                            <div className="text-green-600 dark:text-green-400">缓存写入：<span className="tabular-nums">{formatTokens(record.cacheCreationInputTokens ?? 0)}</span></div>
                             <div className="font-medium">输入总计：<span className="tabular-nums">{formatTokens(record.inputTokens)}</span></div>
                           </div>
                         </td>

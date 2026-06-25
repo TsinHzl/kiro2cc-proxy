@@ -196,9 +196,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">IP</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">账号</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">Input</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">Output</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">缓存命中</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Token 用量</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">费用</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground">Kiro Credits</th>
                     </tr>
@@ -226,21 +224,14 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                         <td className={`px-4 py-2 font-mono text-xs ${getModelColor(record.model)}`}>
                           {record.model}
                         </td>
-                        <td className="px-4 py-2 text-right tabular-nums">
-                          {formatTokens(record.inputTokens)}
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums">
-                          {formatTokens(record.outputTokens)}
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums text-green-600 dark:text-green-400">
-                          {record.cacheReadInputTokens != null && record.inputTokens > 0 ? (
-                            <>
-                              <span>{formatTokens(record.cacheReadInputTokens)}</span>
-                              <span className="block text-xs text-muted-foreground">
-                                {(record.cacheReadInputTokens / record.inputTokens * 100).toFixed(1)}%
-                              </span>
-                            </>
-                          ) : '—'}
+                        <td className="px-4 py-2 text-xs whitespace-nowrap">
+                          <div className="space-y-0.5 text-left">
+                            <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
+                            <div>输出 Tokens：<span className="tabular-nums">{formatTokens(record.outputTokens)}</span></div>
+                            <div className="text-green-600 dark:text-green-400">缓存读取：<span className="tabular-nums">{formatTokens(record.cacheReadInputTokens ?? 0)}</span></div>
+                            <div className="text-green-600 dark:text-green-400">缓存写入：<span className="tabular-nums">{formatTokens(record.cacheCreationInputTokens ?? 0)}</span></div>
+                            <div className="font-medium">输入总计：<span className="tabular-nums">{formatTokens(record.inputTokens)}</span></div>
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(record.estimatedCost)}

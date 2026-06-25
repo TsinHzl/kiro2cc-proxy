@@ -114,9 +114,19 @@ fn get_model_pricing(model: &str) -> ModelPricing {
     }
 }
 
-/// 平台级 credits/USD 换算率（代理实测 2026-06-20）
-fn get_k_ref(_model: &str) -> f64 {
-    1.43
+/// 平台级 credits/USD 换算率，按模型档位差异化（代理实测 2026-06-25）。
+/// 与 stream.rs:infer_cache_read_tokens 中的 k_ref 必须保持一致。
+///
+/// haiku 注意：此处返回 1.43 仅为 credits_saved 报表兜底；stream.rs 对 haiku
+/// 返回 None 跳过反推。两边语义不对称是已知设计，待 haiku 实测后再统一。
+fn get_k_ref(model: &str) -> f64 {
+    let m = model.to_lowercase();
+    if m.contains("opus") || m.contains("fable") {
+        1.1
+    } else {
+        // sonnet 系列（默认）；haiku 暂沿用 sonnet 值作兜底
+        1.43
+    }
 }
 
 /// 计算单次请求的估算费用
@@ -607,7 +617,9 @@ impl UsageTracker {
             let entry = map.entry(date).or_default();
             entry.0 += 1;
             entry.1 += r.estimated_cost;
-            entry.2 += r.credits_used.unwrap_or(r.estimated_cost / 0.72);
+            entry.2 += r
+                .credits_used
+                .unwrap_or(r.estimated_cost * get_k_ref(&r.model));
             if let Some(cu) = r.credits_used {
                 entry.3 += r.estimated_cost * get_k_ref(&r.model) - cu;
             }

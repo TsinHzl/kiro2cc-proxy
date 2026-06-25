@@ -43,6 +43,7 @@ export interface UsageRecordItem {
   creditsUsed?: number
   creditsSaved?: number
   cacheReadInputTokens?: number
+  cacheCreationInputTokens?: number
   createdAt: string
   clientIp?: string
   credentialLabel?: string

@@ -185,9 +185,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">时间</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">IP</th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">模型</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Input</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Output</th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">缓存读取</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Token 用量</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">费用</th>
                         <th className="text-right px-4 py-3 font-medium text-muted-foreground">Kiro Credits</th>
                       </tr>
@@ -213,14 +211,14 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                             <td className={`px-4 py-3 font-mono text-xs max-w-[200px] truncate ${getModelColor(r.model)}`} title={r.model}>
                               {r.model}
                             </td>
-                            <td className="px-4 py-3 text-right tabular-nums">
-                              {formatTokens(r.inputTokens)}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums">
-                              {formatTokens(r.outputTokens)}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-green-600 dark:text-green-400">
-                              {r.cacheReadInputTokens != null ? formatTokens(r.cacheReadInputTokens) : '—'}
+                            <td className="px-4 py-3 text-xs whitespace-nowrap">
+                              <div className="space-y-0.5 text-left">
+                                <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, r.inputTokens - (r.cacheReadInputTokens ?? 0)))}</span></div>
+                                <div>输出 Tokens：<span className="tabular-nums">{formatTokens(r.outputTokens)}</span></div>
+                                <div className="text-green-600 dark:text-green-400">缓存读取：<span className="tabular-nums">{formatTokens(r.cacheReadInputTokens ?? 0)}</span></div>
+                                <div className="text-green-600 dark:text-green-400">缓存写入：<span className="tabular-nums">{formatTokens(r.cacheCreationInputTokens ?? 0)}</span></div>
+                                <div className="font-medium">输入总计：<span className="tabular-nums">{formatTokens(r.inputTokens)}</span></div>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
                               {formatCost(r.estimatedCost)}

@@ -176,6 +176,54 @@ async fn call_remote_count_tokens(
     Ok(result.input_tokens as u64)
 }
 
+/// 统计单个 content block 的 token 数。
+///
+/// 覆盖三类 block：
+/// - `text` —— 取 `text` 字段
+/// - `tool_use` —— 取 `name` + `input` 的 JSON 序列化
+/// - `tool_result` —— `content` 是字符串则直接计数；是数组则递归取每个 text 子项
+///
+/// 其它类型（如 `image`）无法字符估算，跳过。
+fn count_content_block(item: &serde_json::Value) -> u64 {
+    let block_type = item.get("type").and_then(|v| v.as_str());
+
+    match block_type {
+        Some("tool_use") => {
+            let mut t = 0;
+            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
+                t += count_tokens(name);
+            }
+            if let Some(input) = item.get("input") {
+                let input_json = serde_json::to_string(input).unwrap_or_default();
+                t += count_tokens(&input_json);
+            }
+            t
+        }
+        Some("tool_result") => {
+            let mut t = 0;
+            match item.get("content") {
+                Some(serde_json::Value::String(s)) => {
+                    t += count_tokens(s);
+                }
+                Some(serde_json::Value::Array(arr)) => {
+                    for sub in arr {
+                        // 递归:子元素也按 block 处理,与 image 等类型扩展时保持一致行为。
+                        // 低估方向安全(clamp 由上游保证)。
+                        t += count_content_block(sub);
+                    }
+                }
+                _ => {}
+            }
+            t
+        }
+        _ => item
+            .get("text")
+            .and_then(|v| v.as_str())
+            .map(count_tokens)
+            .unwrap_or(0),
+    }
+}
+
 /// 本地计算请求的输入 tokens
 fn count_all_tokens_local(
     system: Option<Vec<SystemMessage>>,
@@ -197,9 +245,7 @@ fn count_all_tokens_local(
             total += count_tokens(s);
         } else if let serde_json::Value::Array(arr) = &msg.content {
             for item in arr {
-                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                    total += count_tokens(text);
-                }
+                total += count_content_block(item);
             }
         }
     }
@@ -242,9 +288,7 @@ pub(crate) fn count_prefix_tokens(
             total += count_tokens(s);
         } else if let serde_json::Value::Array(arr) = &msg.content {
             for item in arr {
-                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                    total += count_tokens(text);
-                }
+                total += count_content_block(item);
             }
         }
     }
@@ -349,6 +393,133 @@ mod tests {
         // = 2.222 + 2.5 + 2.0 + 1.333 = 8.056 → ceil = 9
         let text = "abcdefghij12345!@#中文";
         assert_eq!(count_tokens(text), 9);
+    }
+
+    // ---------- content block 覆盖（tool_use / tool_result） ----------
+
+    #[test]
+    fn test_count_content_block_text() {
+        let block = serde_json::json!({"type": "text", "text": "Hello world"});
+        assert_eq!(count_content_block(&block), 3);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_use() {
+        // name="Read" + input={"file_path":"/foo/bar.txt"}
+        // 应包含 name 和 input JSON 序列化两部分,合计远大于 1
+        let block = serde_json::json!({
+            "type": "tool_use",
+            "id": "toolu_x",
+            "name": "Read",
+            "input": {"file_path": "/foo/bar.txt"}
+        });
+        let n = count_content_block(&block);
+        assert!(n > 5, "tool_use block 应计入 name + input JSON, got {}", n);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_result_string() {
+        let block = serde_json::json!({
+            "type": "tool_result",
+            "tool_use_id": "toolu_x",
+            "content": "Hello world"
+        });
+        // "Hello world" 估算 = 3
+        assert_eq!(count_content_block(&block), 3);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_result_array() {
+        let block = serde_json::json!({
+            "type": "tool_result",
+            "tool_use_id": "toolu_x",
+            "content": [
+                {"type": "text", "text": "Hello world"},
+                {"type": "text", "text": "你好世界"}
+            ]
+        });
+        // 3 + 3 = 6
+        assert_eq!(count_content_block(&block), 6);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_use_missing_name() {
+        // 缺 name:仅计入 input
+        let block = serde_json::json!({
+            "type": "tool_use",
+            "id": "toolu_x",
+            "input": {"file_path": "/foo/bar.txt"}
+        });
+        let n = count_content_block(&block);
+        assert!(n > 0, "缺 name 时应仅计 input,got {}", n);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_use_missing_input() {
+        // 缺 input:仅计入 name
+        let block = serde_json::json!({
+            "type": "tool_use",
+            "id": "toolu_x",
+            "name": "Read"
+        });
+        let n = count_content_block(&block);
+        // "Read" = 4 字母 / 4.5 = 0.89 → ceil = 1
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn test_count_content_block_tool_result_null_content() {
+        // content 为 null:返回 0,不 panic
+        let block = serde_json::json!({
+            "type": "tool_result",
+            "tool_use_id": "toolu_x",
+            "content": null
+        });
+        assert_eq!(count_content_block(&block), 0);
+    }
+
+    #[test]
+    fn test_count_prefix_tokens_with_tool_messages() {
+        use crate::anthropic::types::Message;
+        // 仅 text 基线
+        let baseline_msgs = vec![Message {
+            role: "user".into(),
+            content: serde_json::json!([{"type": "text", "text": "hi"}]),
+        }];
+        let baseline = count_prefix_tokens(None, &baseline_msgs, None);
+
+        // 含 tool_use + tool_result 的对话
+        let with_tools = vec![
+            Message {
+                role: "user".into(),
+                content: serde_json::json!([{"type": "text", "text": "hi"}]),
+            },
+            Message {
+                role: "assistant".into(),
+                content: serde_json::json!([{
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "Read",
+                    "input": {"file_path": "/very/long/path/to/file.txt"}
+                }]),
+            },
+            Message {
+                role: "user".into(),
+                content: serde_json::json!([{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_1",
+                    "content": "file contents with some words and numbers 12345"
+                }]),
+            },
+        ];
+        let extended = count_prefix_tokens(None, &with_tools, None);
+
+        assert!(
+            extended > baseline,
+            "含 tool_use+tool_result 的前缀估算应显著大于纯 text 基线: extended={}, baseline={}",
+            extended,
+            baseline
+        );
     }
 }
 

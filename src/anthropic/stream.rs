@@ -581,52 +581,6 @@ pub fn cap_input_tokens_pub(context_input_tokens: i32, local_estimate: i32, mode
     cap_input_tokens(context_input_tokens, local_estimate, model)
 }
 
-/// 从 metering credits 反推 cache_read_input_tokens。
-///
-/// Kiro 缓存前缀含 system + tools，缓存命中 token 按全价 50% 收费（代理实测 2026-06-20），因此：
-///   credits = rate × (total - 0.50 × R)
-///   → R = (rate × total - credits) / (0.50 × rate)
-///
-/// 其中 rate = k_ref × input_price / 1_000_000（credits per token）
-///
-/// 仅 sonnet/opus 系列有可靠 k_ref；haiku 返回 None，由调用方降级到模拟值。
-pub(crate) fn infer_cache_read_tokens(
-    total: i32,
-    credits: Option<f64>,
-    output_tokens: i32,
-    model: &str,
-) -> Option<i32> {
-    let credits = credits?;
-    // 模型名匹配统一走小写，与 usage.rs::get_k_ref / get_model_pricing 大小写策略对齐，
-    // 避免 "Claude-Opus-4-8" 落入 sonnet 分支导致两边 k_ref 漂移。
-    let model = model.to_lowercase();
-    // 平台级 credits/USD 换算率，按模型档位差异化（2026-06-25 实测）：
-    // - opus/fable：1.1（旧 1.43 会让大请求反推 R > input 被 clamp，掩盖命中率梯度）
-    // - sonnet：1.43（首条/中等命中样本验证仍贴合）
-    // - haiku：未实测，返回 None 降级到模拟值
-    let (input_price, output_price, k_ref): (f64, f64, f64) =
-        if model.contains("opus") || model.contains("fable") {
-            (15.0, 75.0, 1.1)
-        } else if model.contains("haiku") {
-            return None;
-        } else {
-            // sonnet 系列
-            (3.0, 15.0, 1.43)
-        };
-    // 从总 credits 中扣除 output 部分，仅反推 input 的缓存节省
-    let output_usd = output_price * output_tokens as f64 / 1_000_000.0;
-    let output_credits = k_ref * output_usd;
-    let input_credits = (credits - output_credits).max(0.0);
-
-    let rate = k_ref * input_price / 1_000_000.0; // credits per input token（无缓存基准）
-    let baseline = rate * total as f64;
-    if baseline <= input_credits {
-        return Some(0);
-    }
-    let r = ((baseline - input_credits) / (0.50 * rate)).round() as i32;
-    Some(r.clamp(0, total))
-}
-
 /// 流处理上下文
 pub struct StreamContext {
     /// SSE 状态管理器
@@ -678,6 +632,11 @@ pub struct StreamContext {
     metering_cache_creation_tokens: Option<i32>,
     /// 从 contextUsageEvent 获取的上下文使用百分比（0-100）
     context_usage_percentage: Option<f64>,
+    /// 缓存前缀估算 token 数：system + tools + history[0..n-1] 的本地字符估算。
+    /// cache_read 派生主路径 —— 优先级高于 PromptCacheUsage 模拟兜底。
+    /// `Some(0)` 表示"已估算且无前缀"（首条请求且无 system/tools），cache_read=0；
+    /// `None` 表示"未注入估算"，降级到模拟值。
+    prefix_estimated_tokens: Option<i32>,
 }
 
 impl StreamContext {
@@ -712,12 +671,20 @@ impl StreamContext {
             metering_cache_read_tokens: None,
             metering_cache_creation_tokens: None,
             context_usage_percentage: None,
+            prefix_estimated_tokens: None,
         }
     }
 
     /// 设置 prompt cache usage
     pub fn with_prompt_cache_usage(mut self, usage: PromptCacheUsage) -> Self {
         self.prompt_cache_usage = usage;
+        self
+    }
+
+    /// 设置缓存前缀估算 token 数（system + tools + history[0..n-1] 本地估算）。
+    /// 显式注入后，即使前缀 = 0 也会被选用（cache_read=0，全部计为 new_input）。
+    pub fn with_prefix_estimated_tokens(mut self, prefix: i32) -> Self {
+        self.prefix_estimated_tokens = Some(prefix);
         self
     }
 
@@ -1410,7 +1377,10 @@ impl StreamContext {
         // 对外报告的 output_tokens 需要限制在合理范围
         let reported_output_tokens = self.output_tokens.min(OUTPUT_TOKENS_REPORT_CAP);
 
-        // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+        // cache_read 派生优先级：
+        //   1. Kiro metering 透传 cache_read/creation（实测当前版本不透传，保留兜底）
+        //   2. 前缀估算 prefix_estimated_tokens.min(final_input_tokens)  ← 主路径
+        //   3. PromptCacheUsage 模拟值（仅当前缀=0，例如无 system/tools 的单条请求）
         let sim_usage = self.prompt_cache_usage.scale_to(final_input_tokens);
         let (report_input, report_cache_creation, report_cache_read) =
             if let (Some(read), Some(creation)) = (
@@ -1421,29 +1391,16 @@ impl StreamContext {
                     .saturating_sub(read)
                     .saturating_sub(creation);
                 (non_cached, Some(creation), Some(read))
+            } else if let Some(prefix) = self.prefix_estimated_tokens {
+                let read = prefix.max(0).min(final_input_tokens);
+                let non_cached = final_input_tokens.saturating_sub(read);
+                (non_cached, Some(0_i32), Some(read))
             } else {
-                // Kiro 未透传真实 cache token（cache_read=None cache_creation=None），
-                // 用 metering credits 反推 cache_read，比固定 85% 模拟更贴近真实。
-                // haiku 或 k_ref 未知时降级到固定比例模拟值。
-                //
-                // TODO(fingerprint): 流式 SSE 路径接入指纹追踪需要异步把
-                // fp_tracker + credential_id 传入 StreamContext。
-                // 当前版本仅 /v1/messages 非流式与 /cc/v1/messages 非流式接入了指纹层；
-                // 流式路径走 metering → credits → ratio 三层（缺指纹层）。
-                // 见 openspec/changes/cache-fingerprint-and-ephemeral 任务 D4。
-                match infer_cache_read_tokens(
-                    final_input_tokens,
-                    self.metering_usage,
-                    self.output_tokens,
-                    &self.model,
-                ) {
-                    Some(r) => (final_input_tokens.saturating_sub(r), Some(0_i32), Some(r)),
-                    None => (
-                        sim_usage.input_tokens,
-                        Some(sim_usage.cache_creation_input_tokens),
-                        Some(sim_usage.cache_read_input_tokens),
-                    ),
-                }
+                (
+                    sim_usage.input_tokens,
+                    Some(sim_usage.cache_creation_input_tokens),
+                    Some(sim_usage.cache_read_input_tokens),
+                )
             };
 
         // 记录用量（内部记录使用真实值）
@@ -1559,6 +1516,11 @@ impl BufferedStreamContext {
         self
     }
 
+    pub fn with_prefix_estimated_tokens(mut self, prefix: i32) -> Self {
+        self.inner = self.inner.with_prefix_estimated_tokens(prefix);
+        self
+    }
+
     /// 处理 Kiro 事件并缓冲结果
     ///
     /// 复用 StreamContext 的事件处理逻辑，但把结果缓存而不是立即发送。
@@ -1614,7 +1576,7 @@ impl BufferedStreamContext {
             &self.inner.model,
         );
 
-        // 优先使用 meteringEvent 中的真实 cache token，无则降级到模拟值
+        // cache_read 派生优先级（同 StreamContext）：metering 透传 → 前缀估算 → 模拟兜底
         let sim_usage = self.inner.prompt_cache_usage.scale_to(final_input_tokens);
         let (report_input, report_cache_creation, report_cache_read) =
             if let (Some(read), Some(creation)) = (
@@ -1625,6 +1587,10 @@ impl BufferedStreamContext {
                     .saturating_sub(read)
                     .saturating_sub(creation);
                 (non_cached, creation, read)
+            } else if let Some(prefix) = self.inner.prefix_estimated_tokens {
+                let read = prefix.max(0).min(final_input_tokens);
+                let non_cached = final_input_tokens.saturating_sub(read);
+                (non_cached, 0_i32, read)
             } else {
                 (
                     sim_usage.input_tokens,
@@ -2591,29 +2557,4 @@ mod tests {
         assert_eq!(context_window_for_model("claude-sonnet-4-6"), 1_000_000);
     }
 
-    #[test]
-    fn test_infer_cache_read_tokens_opus_4_6_returns_some() {
-        // opus-4.6 应进入 (2.60, 15.0, 75.0) 分支，返回 Some(v) 且 0 <= v <= total
-        let result = infer_cache_read_tokens(1000, Some(0.0234), 0, "claude-opus-4-6");
-        assert!(result.is_some(), "opus-4.6 不应返回 None");
-        let v = result.unwrap();
-        assert!(
-            (0..=1000).contains(&v),
-            "opus-4.6 反推值应在 [0, 1000]，实际 {}",
-            v
-        );
-    }
-
-    #[test]
-    fn test_infer_cache_read_tokens_fable_returns_some() {
-        // fable-5 应进入新增 fable 分支，返回 Some(v) 且 0 <= v <= total
-        let result = infer_cache_read_tokens(1000, Some(0.0234), 0, "claude-fable-5");
-        assert!(result.is_some(), "fable-5 不应返回 None");
-        let v = result.unwrap();
-        assert!(
-            (0..=1000).contains(&v),
-            "fable-5 反推值应在 [0, 1000]，实际 {}",
-            v
-        );
-    }
 }

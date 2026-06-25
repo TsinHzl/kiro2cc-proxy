@@ -5,6 +5,9 @@
 //! - `fingerprint` - 账号级前缀指纹追踪（替代末层兜底）
 //!
 //! 公共 API 保持 `crate::cache::PromptCacheUsage` 路径不变。
+//!
+//! cache_read 派生主路径已切换为 `token::count_prefix_tokens` 前缀字符估算，
+//! `simulation` 模拟与 `fingerprint` 追踪降级为兜底分支。
 
 pub mod fingerprint;
 pub mod simulation;
@@ -21,7 +24,8 @@ pub use simulation::{
 ///
 /// 优先级（高→低）：
 /// 1. **metering 真值**：上游 Kiro 返回的 cache_read / cache_creation 原始值
-/// 2. **credits 反推结果**：调用方提前用 `infer_cache_read_tokens` 反推后的 cache_read
+/// 2. **prefix 估算结果**：调用方用 `token::count_prefix_tokens` 估算的 system+tools+history[0..n-1]
+///    本地 token 数（饱和裁剪到 final_input_tokens）
 /// 3. **fingerprint 命中**：账号级前缀指纹追踪输出
 /// 4. **ratio 兜底**：比例模拟（`from_ratio_config`）的产出
 ///
@@ -29,7 +33,7 @@ pub use simulation::{
 pub fn select_final_usage(
     final_input_tokens: i32,
     metering: Option<(i32, i32)>,
-    credits_inferred_read: Option<i32>,
+    prefix_estimated_read: Option<i32>,
     fingerprint_usage: Option<PromptCacheUsage>,
     ratio_fallback: PromptCacheUsage,
 ) -> PromptCacheUsage {
@@ -46,11 +50,12 @@ pub fn select_final_usage(
         }
         .clamp_to_total(final_input_tokens);
     }
-    if let Some(inferred) = credits_inferred_read {
+    if let Some(estimated) = prefix_estimated_read {
+        let read = estimated.min(final_input_tokens);
         return PromptCacheUsage {
-            input_tokens: final_input_tokens.saturating_sub(inferred),
+            input_tokens: final_input_tokens.saturating_sub(read),
             cache_creation_input_tokens: 0,
-            cache_read_input_tokens: inferred,
+            cache_read_input_tokens: read,
             cache_creation_5m_input_tokens: 0,
             cache_creation_1h_input_tokens: 0,
         }

@@ -133,26 +133,32 @@ AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_in
 - **理论无缓存全价 (sonnet)**：`k_ref × input_price / 1M = 1.43 × 3.0 / 1,000,000 = 0.00000429` credits/token
 - **理论无缓存全价 (opus/fable)**：`k_ref × input_price / 1M = 1.1 × 15.0 / 1,000,000 = 0.0000165` credits/token
 
-### 4.2 反推公式 (`infer_cache_read_tokens`)
-代理通过以下三步逆向工程，精确还原 Kiro 服务端的缓存命中 token 数：
+### 4.2 cache_read 派生：前缀字符估算（`token::count_prefix_tokens`）
+> 替换时间：2026-06-25。旧的 `infer_cache_read_tokens(credits 反推)` 已废弃 ——
+> 反推路径在大请求上会因 `baseline - input_credits` 接近 0 或单价跌破 50% 折扣价被
+> clamp 触顶（恒显示 100% 命中），掩盖真实命中梯度。
 
-1. **剔除输出成本**：Output 部分没有缓存折扣，先从总 credits 中减去。
-   `output_credits = k_ref * output_price * output_tokens / 1,000,000`
-2. **计算基准期望**：如果完全没有缓存，Input 本该消耗的 credits。
-   `baseline = rate * total_input_tokens`（rate = k_ref × input_price / 1,000,000）
-3. **计算折扣 Token**：由于 Cache Read 按 50% 全价收费（50% 折扣），baseline 与 actual 的差额即为缓存节省。
-   `cache_read_tokens = (baseline - actual_input_credits) / (0.50 * rate)`
+新算法直接按 Anthropic prompt cache 协议语义估算：
 
-**精度验证（2026-06-15 实测）**：
-- Turn 11：反推 cache_read = 90,598，日志报告 90,608（取整误差 10 tokens）
-- Turn 1：反推 cache_read = 62,435，日志报告 62,436（误差 1 token）
+```
+new_input  = estimate(messages.last())                       # 当前 user turn
+cache_read = estimate(system) + estimate(tools) + Σ estimate(messages[0..n-1])
+total      = cache_read + new_input
+cache_creation = 0                                           # 简化，不再模拟
+```
 
-**上下文窗口对结果的影响**：
-- `input_tokens` 来自 `contextUsagePercentage × window_size`，窗口大小直接决定 input_tokens 绝对值
-- opus-4.7/4.8/sonnet-4.6 必须用 1M 窗口，否则 input_tokens 被压缩为 1/5，导致 credits_per_ktok 虚高，看起来像"无折扣全价"
-- 这是此前错误地得出"Kiro 不传递 cache 折扣"结论的根本原因
+要点：
+- **tools 永远不计入 new_input**：跨请求基本稳定，恒视为前缀（即使首条请求 messages.len()==1 也只把 system+tools 计入 cache_read，messages[0] 计入 new_input）
+- **估算口径**：与 `count_all_tokens_local` 完全一致（四分类加权 `count_tokens`），保证 `prefix.min(input_total)` 不溢出
+- **优先级**：在 `select_final_usage` 四层降级链中替代了原 credits 反推位（第 2 层），仍排在 metering 真值（第 1 层）之后
 
-反推得出的 `cache_read_tokens` 只是终值合成链中的一层信号，最终注入到 SSE 帧 `usage` 字段的取值由四层降级链统一裁决 —— 详见 [§6 Usage 终值合成](#6-usage-终值合成四层降级链--ephemeral-拆分)。
+**与 Anthropic 协议的偏差**：
+- Anthropic 真值由服务端 token tokenizer 算出，这里是本地字符估算，差异 ±15-30%
+- Kiro 内部前缀缓存按 hash 分块，理论命中可能小于消息边界；估算只能给出"理论上界"
+
+精度与平均值上展示的"反推"接近，但永不再 clamp 至 100%。
+
+历史日志中的 `effective_rate` / `credits_per_ktok` 仍由 metering credits 计算，保留作为账单核对参考。
 
 ---
 

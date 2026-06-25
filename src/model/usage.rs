@@ -115,10 +115,8 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 }
 
 /// 平台级 credits/USD 换算率，按模型档位差异化（代理实测 2026-06-25）。
-/// 与 stream.rs:infer_cache_read_tokens 中的 k_ref 必须保持一致。
-///
-/// haiku 注意：此处返回 1.43 仅为 credits_saved 报表兜底；stream.rs 对 haiku
-/// 返回 None 跳过反推。两边语义不对称是已知设计，待 haiku 实测后再统一。
+/// 仅 usage 报表 credits_saved 字段使用（estimated_cost × k_ref - credits_used）。
+/// cache_read 派生已切换为前缀估算路径，不再依赖此值。
 fn get_k_ref(model: &str) -> f64 {
     let m = model.to_lowercase();
     if m.contains("opus") || m.contains("fable") {

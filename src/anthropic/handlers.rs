@@ -605,6 +605,18 @@ pub async fn post_messages(
         )
     });
 
+    // 估算"缓存前缀" token 数（system + tools + history 除最后一条 user 外的全部）
+    // 必须在 count_all_tokens 消费 payload 之前先借用计算。
+    let prefix_estimated_tokens = {
+        let n = payload.messages.len();
+        let prior: &[_] = if n > 0 { &payload.messages[..n - 1] } else { &[] };
+        token::count_prefix_tokens(
+            payload.system.as_deref(),
+            prior,
+            payload.tools.as_deref(),
+        ) as i32
+    };
+
     // 估算输入 tokens
     let input_tokens = token::count_all_tokens(
         payload.model.clone(),
@@ -646,6 +658,7 @@ pub async fn post_messages(
             &request_body,
             &payload.model,
             input_tokens,
+            prefix_estimated_tokens,
             thinking_enabled,
             usage_tracker,
             api_key_id,
@@ -661,6 +674,7 @@ pub async fn post_messages(
             &request_body,
             &payload.model,
             input_tokens,
+            prefix_estimated_tokens,
             usage_tracker,
             api_key_id,
             prompt_cache_usage,
@@ -681,6 +695,7 @@ async fn handle_stream_request(
     request_body: &str,
     model: &str,
     input_tokens: i32,
+    prefix_estimated_tokens: i32,
     thinking_enabled: bool,
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
@@ -697,7 +712,8 @@ async fn handle_stream_request(
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
         .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
-        .with_prompt_cache_usage(prompt_cache_usage);
+        .with_prompt_cache_usage(prompt_cache_usage)
+        .with_prefix_estimated_tokens(prefix_estimated_tokens);
 
     // 生成初始事件
     let initial_events = ctx.generate_initial_events();
@@ -863,6 +879,7 @@ async fn handle_non_stream_request(
     request_body: &str,
     model: &str,
     input_tokens: i32,
+    prefix_estimated_tokens: i32,
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
     prompt_cache_usage: crate::cache::PromptCacheUsage,
@@ -1041,18 +1058,15 @@ async fn handle_non_stream_request(
     // 对外报告的 output_tokens 限制在安全范围
     let reported_output_tokens = output_tokens.min(380);
 
-    // 四层降级链：metering 真值 → credits 反推 → 指纹追踪 → 比例模拟
+    // 四层降级链：metering 真值 → prefix 估算 → 指纹追踪 → 比例模拟
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
     let metering_pair = match (metering_cache_read_tokens, metering_cache_creation_tokens) {
         (Some(read), Some(creation)) => Some((read, creation)),
         _ => None,
     };
-    let credits_inferred = crate::anthropic::stream::infer_cache_read_tokens(
-        final_input_tokens,
-        metering_usage,
-        output_tokens,
-        model,
-    );
+    // 显式注入：handler 始终算出了 prefix_estimated_tokens（可能为 0），
+    // 直接用 Some 让 select_final_usage 选用 prefix 分支而非降级到 fingerprint/模拟
+    let prefix_estimated = Some(prefix_estimated_tokens.max(0));
     let fingerprint_usage = match (fp_tracker.as_ref(), fp_profile.as_ref()) {
         (Some(tracker), Some(profile)) => {
             let account_id = credential_id.to_string();
@@ -1063,7 +1077,7 @@ async fn handle_non_stream_request(
     let final_usage = crate::cache::select_final_usage(
         final_input_tokens,
         metering_pair,
-        credits_inferred,
+        prefix_estimated,
         fingerprint_usage,
         sim_usage,
     );
@@ -1373,6 +1387,17 @@ pub async fn post_messages_cc(
         )
     });
 
+    // 估算"缓存前缀" token 数（与 post_messages 同口径，先借用后消费）
+    let prefix_estimated_tokens = {
+        let n = payload.messages.len();
+        let prior: &[_] = if n > 0 { &payload.messages[..n - 1] } else { &[] };
+        token::count_prefix_tokens(
+            payload.system.as_deref(),
+            prior,
+            payload.tools.as_deref(),
+        ) as i32
+    };
+
     // 估算输入 tokens
     let input_tokens = token::count_all_tokens(
         payload.model.clone(),
@@ -1414,6 +1439,7 @@ pub async fn post_messages_cc(
             &request_body,
             &payload.model,
             input_tokens,
+            prefix_estimated_tokens,
             thinking_enabled,
             usage_tracker.clone(),
             api_key_id,
@@ -1429,6 +1455,7 @@ pub async fn post_messages_cc(
             &request_body,
             &payload.model,
             input_tokens,
+            prefix_estimated_tokens,
             usage_tracker,
             api_key_id,
             prompt_cache_usage,
@@ -1452,6 +1479,7 @@ async fn handle_stream_request_buffered(
     request_body: &str,
     model: &str,
     estimated_input_tokens: i32,
+    prefix_estimated_tokens: i32,
     thinking_enabled: bool,
     usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
     api_key_id: Option<u32>,
@@ -1468,7 +1496,8 @@ async fn handle_stream_request_buffered(
     // 创建缓冲流处理上下文
     let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled)
         .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
-        .with_prompt_cache_usage(prompt_cache_usage);
+        .with_prompt_cache_usage(prompt_cache_usage)
+        .with_prefix_estimated_tokens(prefix_estimated_tokens);
 
     // 创建缓冲 SSE 流
     let stream = create_buffered_sse_stream(response, ctx);

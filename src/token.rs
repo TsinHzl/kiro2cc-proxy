@@ -217,6 +217,50 @@ fn count_all_tokens_local(
     total.max(1)
 }
 
+/// 估算"缓存前缀"token 数：system + tools + history 中除最后一条 user 之外的全部内容。
+///
+/// 用于 cache_read 派生：Anthropic 协议下 prompt cache 仅覆盖前缀，
+/// 当前 user turn 不进缓存。tools 跨请求基本稳定，恒视为前缀（即使首条请求也不计入新输入）。
+///
+/// 估算口径与 `count_all_tokens_local` 完全一致（同一 `count_tokens` 加权公式），
+/// 保证 `prefix.min(input_total)` 不会因口径差异溢出。
+pub(crate) fn count_prefix_tokens(
+    system: Option<&[SystemMessage]>,
+    prior_messages: &[Message],
+    tools: Option<&[Tool]>,
+) -> u64 {
+    let mut total = 0;
+
+    if let Some(system) = system {
+        for msg in system {
+            total += count_tokens(&msg.text);
+        }
+    }
+
+    for msg in prior_messages {
+        if let serde_json::Value::String(s) = &msg.content {
+            total += count_tokens(s);
+        } else if let serde_json::Value::Array(arr) = &msg.content {
+            for item in arr {
+                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                    total += count_tokens(text);
+                }
+            }
+        }
+    }
+
+    if let Some(tools) = tools {
+        for tool in tools {
+            total += count_tokens(&tool.name);
+            total += count_tokens(&tool.description);
+            let input_schema_json = serde_json::to_string(&tool.input_schema).unwrap_or_default();
+            total += count_tokens(&input_schema_json);
+        }
+    }
+
+    total
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

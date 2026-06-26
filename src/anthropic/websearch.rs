@@ -540,6 +540,7 @@ mod tests {
                 description: String::new(),
                 input_schema: Default::default(),
                 max_uses: Some(8),
+                defer_loading: None,
             }]),
             tool_choice: None,
             thinking: None,
@@ -570,6 +571,7 @@ mod tests {
                     description: String::new(),
                     input_schema: Default::default(),
                     max_uses: Some(8),
+                    defer_loading: None,
                 },
                 Tool {
                     tool_type: None,
@@ -577,6 +579,7 @@ mod tests {
                     description: "Other tool".to_string(),
                     input_schema: Default::default(),
                     max_uses: None,
+                    defer_loading: None,
                 },
             ]),
             tool_choice: None,

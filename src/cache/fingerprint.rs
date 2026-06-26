@@ -132,11 +132,15 @@ impl FingerprintTracker {
         }
 
         // tools 段：以稳定序列化纳入指纹（tools 集变化 → 全部命中失效）
+        // Tool Search 例外：带 defer_loading=true 的工具不进入 T: 段，
+        // 其完整定义改由对应 user 消息中的 `tool_reference` 块展开后挂载到 message 段，
+        // 让 deferred 工具随对话历史一起进入 cache 前缀。
         if let Some(ts) = tools
             && !ts.is_empty()
         {
             let tools_repr: Vec<String> = ts
                 .iter()
+                .filter(|t| !t.defer_loading.unwrap_or(false))
                 .map(|t| {
                     let schema_val =
                         serde_json::to_value(&t.input_schema).unwrap_or(serde_json::Value::Null);
@@ -148,11 +152,13 @@ impl FingerprintTracker {
                     )
                 })
                 .collect();
-            segments.push(format!("T:{}", tools_repr.join("\u{1F}")));
+            if !tools_repr.is_empty() {
+                segments.push(format!("T:{}", tools_repr.join("\u{1F}")));
+            }
         }
 
         for msg in messages {
-            let content_repr = canonicalize_message_content(&msg.content);
+            let content_repr = canonicalize_message_content(&msg.content, tools);
             segments.push(format!("M:{}:{}", msg.role, content_repr));
         }
 
@@ -312,19 +318,19 @@ impl FingerprintTracker {
     }
 }
 
-fn canonicalize_message_content(content: &serde_json::Value) -> String {
+fn canonicalize_message_content(content: &serde_json::Value, tools: Option<&[Tool]>) -> String {
     match content {
         serde_json::Value::String(s) => s.trim().to_string(),
         serde_json::Value::Array(arr) => arr
             .iter()
-            .map(canonicalize_content_block)
+            .map(|b| canonicalize_content_block(b, tools))
             .collect::<Vec<_>>()
             .join("\u{1F}"),
         _ => content.to_string(),
     }
 }
 
-fn canonicalize_content_block(block: &serde_json::Value) -> String {
+fn canonicalize_content_block(block: &serde_json::Value, tools: Option<&[Tool]>) -> String {
     let ty = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match ty {
         "text" => block
@@ -352,8 +358,32 @@ fn canonicalize_content_block(block: &serde_json::Value) -> String {
             format!(
                 "tool_result:{}:{}",
                 id,
-                canonicalize_message_content(&inner)
+                canonicalize_message_content(&inner, tools)
             )
+        }
+        // Tool Search 协议：tool_reference 块代表"此处加载了某个 deferred 工具"。
+        // 我们在哈希里把它展开为该工具的完整定义（name+description+schema），
+        // 让 deferred 工具的 schema 随当前 message 段一起进入 cache 前缀。
+        // 后续轮次只要相同 tool_reference 块仍在同位置，命中即可继承该工具的 cache。
+        "tool_reference" => {
+            let name = block
+                .get("tool_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if let Some(ts) = tools
+                && let Some(t) = ts.iter().find(|t| t.name == name)
+            {
+                let schema_val =
+                    serde_json::to_value(&t.input_schema).unwrap_or(serde_json::Value::Null);
+                format!(
+                    "tool_reference_expanded:{}:{}:{}",
+                    t.name,
+                    t.description,
+                    canonical_json(&schema_val)
+                )
+            } else {
+                format!("tool_reference:{}", name)
+            }
         }
         "image" | "document" => {
             let source = block.get("source");
@@ -574,5 +604,274 @@ mod tests {
         let u = tracker.compute("a", &p, 50).unwrap();
         assert!(u.cache_read_input_tokens + u.cache_creation_input_tokens <= 50);
         assert!(u.input_tokens >= 0);
+    }
+
+    /// 测试辅助：构造带可选 defer_loading 的 Anthropic Tool
+    fn tool(name: &str, description: &str, defer_loading: Option<bool>) -> Tool {
+        use std::collections::HashMap;
+        let mut schema = HashMap::new();
+        schema.insert(
+            "type".to_string(),
+            serde_json::Value::String("object".to_string()),
+        );
+        Tool {
+            tool_type: None,
+            name: name.to_string(),
+            description: description.to_string(),
+            input_schema: schema,
+            max_uses: None,
+            defer_loading,
+        }
+    }
+
+    /// Tool Search 契约：tools 数组追加 defer_loading=true 工具,
+    /// 且对应 user 消息含 tool_reference 锚点 → 前缀指纹保持稳定,
+    /// 且 deferred 工具的 schema 通过 message 段被锁入 cache 前缀。
+    #[test]
+    fn test_deferred_tool_via_reference_enters_cache() {
+        let tracker = FingerprintTracker::new_for_test(cfg(true, 300));
+        let sys_msgs = vec![sysm("sys")];
+
+        // Round 1: 只有常驻工具
+        let tools_r1 = vec![tool("Bash", "Run shell", None)];
+        let msgs_r1 = vec![umsg("user", "想找点事做")];
+
+        // Round 2: Tool Search 加载了 AskUserQuestion,
+        //   tools[] 多了 defer_loading=true 工具,
+        //   末尾 user 消息追加 tool_reference 锚点。
+        let tools_r2 = vec![
+            tool("Bash", "Run shell", None),
+            tool("AskUserQuestion", "Ask user a question", Some(true)),
+        ];
+        let msgs_r2 = vec![
+            umsg("user", "想找点事做"),
+            Message {
+                role: "user".into(),
+                content: json!([
+                    { "type": "text", "text": "上一轮加载工具" },
+                    { "type": "tool_reference", "tool_name": "AskUserQuestion" }
+                ]),
+            },
+        ];
+
+        let p1 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs_r1,
+            Some(&tools_r1),
+        );
+        tracker.update("acct", p1.clone());
+
+        let p2 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs_r2,
+            Some(&tools_r2),
+        );
+
+        // sys + tools(过滤后只剩 Bash) + msg[0] 共 3 段应整段命中 r1
+        assert!(p1.len() >= 3);
+        assert!(p2.len() >= 4);
+        for i in 0..p1.len() {
+            assert_eq!(
+                p1[i].hash, p2[i].hash,
+                "segment {} 应保持稳定 (deferred 工具不应进 T: 段)",
+                i
+            );
+        }
+        let u = tracker.compute("acct", &p2, 1000).unwrap();
+        assert!(
+            u.cache_read_input_tokens > 0,
+            "deferred 工具不应破坏 cache prefix"
+        );
+
+        // Round 3: 同样 tools[] + 追加新 msg, msg[1] 的 tool_reference 锚点稳定
+        //   → 通过 msg[1] 段把 AskUserQuestion 的 schema 锁入 cache
+        tracker.update("acct", p2.clone());
+        let msgs_r3 = {
+            let mut m = msgs_r2.clone();
+            m.push(umsg("assistant", "好的我帮你"));
+            m
+        };
+        let p3 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs_r3,
+            Some(&tools_r2),
+        );
+        // p2 的所有段应在 p3 头部完全命中（含 tool_reference 展开后的 msg[1] 段）
+        for i in 0..p2.len() {
+            assert_eq!(
+                p2[i].hash, p3[i].hash,
+                "segment {} tool_reference 展开后应跨轮稳定",
+                i
+            );
+        }
+        let u3 = tracker.compute("acct", &p3, 2000).unwrap();
+        assert!(u3.cache_read_input_tokens > u.cache_read_input_tokens);
+    }
+
+    /// 边界：defer_loading=true 但 message 里无 tool_reference 锚点
+    /// → 工具既不入 T: 段也不入 msg 段，等同未声明此工具。
+    #[test]
+    fn test_deferred_tool_without_reference_stays_out_of_cache() {
+        let sys_msgs = vec![sysm("sys")];
+        let msgs = vec![umsg("user", "hello")];
+
+        let tools_a = vec![tool("Bash", "Run shell", None)];
+        let tools_b = vec![
+            tool("Bash", "Run shell", None),
+            // 客户端把 schema 塞进 tools 但 user message 没有 tool_reference
+            tool("AskUserQuestion", "Ask user a question", Some(true)),
+        ];
+
+        let p_a = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools_a),
+        );
+        let p_b = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools_b),
+        );
+
+        assert_eq!(p_a.len(), p_b.len());
+        for i in 0..p_a.len() {
+            assert_eq!(
+                p_a[i].hash, p_b[i].hash,
+                "无 tool_reference 锚点时 deferred 工具不应影响任何段哈希",
+            );
+        }
+    }
+
+    /// 防回归：不带 defer_loading 标记的新工具应破坏前缀。
+    #[test]
+    fn test_non_deferred_tool_addition_breaks_prefix() {
+        let tracker = FingerprintTracker::new_for_test(cfg(true, 300));
+        let sys_msgs = vec![sysm("sys")];
+        let msgs = vec![umsg("user", "hi")];
+
+        let tools_v1 = vec![tool("Bash", "Run shell", None)];
+        let tools_v2 = vec![
+            tool("Bash", "Run shell", None),
+            tool("AskUserQuestion", "Ask user", None), // 注意：未带 defer_loading
+        ];
+
+        let p1 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools_v1),
+        );
+        tracker.update("acct", p1);
+        let p2 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools_v2),
+        );
+
+        let u = tracker.compute("acct", &p2, 1000).unwrap();
+        // tools 段被破坏 → 仅 system 段（极少 token）命中
+        assert!(
+            u.cache_read_input_tokens < 50,
+            "新增非 deferred 工具应破坏前缀, got read={}",
+            u.cache_read_input_tokens
+        );
+    }
+
+    /// 边界：同一 user 消息里出现多个 tool_reference 块（顺序加载多个 deferred 工具）。
+    /// → 每个块独立展开，整体 hash 跨轮稳定。
+    #[test]
+    fn test_multiple_tool_reference_blocks_stable() {
+        let tracker = FingerprintTracker::new_for_test(cfg(true, 300));
+        let sys_msgs = vec![sysm("sys")];
+        let tools = vec![
+            tool("Bash", "Run shell", None),
+            tool("AskUserQuestion", "Ask user", Some(true)),
+            tool("WebSearch", "Search web", Some(true)),
+        ];
+        let msgs = vec![Message {
+            role: "user".into(),
+            content: json!([
+                { "type": "text", "text": "go" },
+                { "type": "tool_reference", "tool_name": "AskUserQuestion" },
+                { "type": "tool_reference", "tool_name": "WebSearch" }
+            ]),
+        }];
+
+        let p1 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools),
+        );
+        tracker.update("acct", p1.clone());
+
+        let p2 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools),
+        );
+        for i in 0..p1.len() {
+            assert_eq!(p1[i].hash, p2[i].hash, "multi tool_reference 应跨轮稳定");
+        }
+        let u = tracker.compute("acct", &p2, 800).unwrap();
+        assert!(u.cache_read_input_tokens > 0);
+    }
+
+    /// 边界：tools 为 None 但 message 含 tool_reference 块
+    /// → 走 fallback 分支输出 "tool_reference:<name>"，跨轮稳定。
+    #[test]
+    fn test_tool_reference_with_no_tools_param() {
+        let tracker = FingerprintTracker::new_for_test(cfg(true, 300));
+        let sys_msgs = vec![sysm("sys")];
+        let msgs = vec![Message {
+            role: "user".into(),
+            content: json!([
+                { "type": "text", "text": "hi" },
+                { "type": "tool_reference", "tool_name": "AskUserQuestion" }
+            ]),
+        }];
+
+        let p1 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, None);
+        tracker.update("acct", p1.clone());
+
+        let p2 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, None);
+        for i in 0..p1.len() {
+            assert_eq!(p1[i].hash, p2[i].hash);
+        }
+        let u = tracker.compute("acct", &p2, 300).unwrap();
+        assert!(u.cache_read_input_tokens > 0);
+    }
+
+    /// 边界：tool_reference 引用 tools[] 里没有的工具
+    /// → 降级为 "tool_reference:<name>" 文本，跨轮位置稳定仍可命中。
+    #[test]
+    fn test_tool_reference_to_unknown_tool_falls_back() {
+        let tracker = FingerprintTracker::new_for_test(cfg(true, 300));
+        let sys_msgs = vec![sysm("sys")];
+        let msgs = vec![Message {
+            role: "user".into(),
+            content: json!([
+                { "type": "text", "text": "hi" },
+                { "type": "tool_reference", "tool_name": "MissingTool" }
+            ]),
+        }];
+
+        let tools = vec![tool("Bash", "Run shell", None)];
+
+        let p1 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools),
+        );
+        tracker.update("acct", p1.clone());
+
+        let p2 = FingerprintTracker::build_profile_with_tools(
+            Some(&sys_msgs),
+            &msgs,
+            Some(&tools),
+        );
+        for i in 0..p1.len() {
+            assert_eq!(p1[i].hash, p2[i].hash, "未知工具的 tool_reference 仍应稳定");
+        }
+        let u = tracker.compute("acct", &p2, 500).unwrap();
+        assert!(u.cache_read_input_tokens > 0);
     }
 }

@@ -235,6 +235,11 @@ pub struct Tool {
     /// 最大使用次数（仅 WebSearch 工具）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_uses: Option<i32>,
+    /// Anthropic Tool Search 标记。客户端把工具延迟加载时携带 true。
+    /// 协议契约：带 true 的工具不进入 prompt cache 前缀的 `T:` 段，
+    /// 其完整定义通过对应 user 消息中的 `tool_reference` 块展开后挂载到 message 段。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defer_loading: Option<bool>,
 }
 
 /// 内容块

@@ -170,8 +170,9 @@ fn default_kiro_version() -> String {
     "2.2.2".to_string()
 }
 
+// 0 = 关闭单账号 RPM 硬限（仅依赖上游 429 + throttle_delay 兜底）
 fn default_max_rpm_per_credential() -> u32 {
-    20
+    0
 }
 
 fn default_system_version() -> String {

@@ -34,7 +34,7 @@ const MAX_TOTAL_RETRIES: usize = 9;
 const MAX_CONCURRENT_REQUESTS: usize = 50;
 
 /// 单账号最大并发请求数
-const MAX_CONCURRENT_PER_CREDENTIAL: usize = 5;
+const MAX_CONCURRENT_PER_CREDENTIAL: usize = 20;
 
 /// Kiro API Provider
 ///
@@ -557,7 +557,7 @@ impl KiroProvider {
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
-                    let delay = Self::throttle_delay(attempt, small_pool);
+                    let delay = Self::throttle_delay(attempt);
                     sleep(delay).await;
                 }
                 continue;
@@ -805,7 +805,7 @@ impl KiroProvider {
                     body
                 ));
                 if attempt + 1 < max_retries {
-                    let delay = Self::throttle_delay(attempt, small_pool);
+                    let delay = Self::throttle_delay(attempt);
                     sleep(delay).await;
                 }
                 continue;
@@ -879,23 +879,15 @@ impl KiroProvider {
     }
 
     /// 429 限流退避：随 attempt 递增，避免固定间隔反复命中同一限流窗口
-    fn throttle_delay(attempt: usize, small_pool: bool) -> Duration {
-        if small_pool {
-            // 单账号: 5s + attempt×1.5s（上限 15s）+ jitter
-            let base = 5000u64.saturating_add((attempt as u64).saturating_mul(1500));
-            let capped = base.min(15_000);
-            let jitter = fastrand::u64(0..=2000);
-            Duration::from_millis(capped.saturating_add(jitter))
-        } else {
-            // 多账号: 2s + attempt×1s（上限 8s）+ jitter
-            let base = 2000u64.saturating_add((attempt as u64).saturating_mul(1000));
-            let capped = base.min(8_000);
-            let jitter = fastrand::u64(0..=1500);
-            Duration::from_millis(capped.saturating_add(jitter))
-        }
+    fn throttle_delay(attempt: usize) -> Duration {
+        // 2s + attempt×1s（上限 8s）+ jitter
+        let base = 2000u64.saturating_add((attempt as u64).saturating_mul(1000));
+        let capped = base.min(8_000);
+        let jitter = fastrand::u64(0..=1500);
+        Duration::from_millis(capped.saturating_add(jitter))
     }
 
-    /// RPM 硬限制：精确等待到下一个 slot 释放（上限 60s）
+    /// RPM 硬限制：精确等待到下一个 slot 释放（上限 5s，短兜底避免长尾阻塞）
     ///
     /// 返回 true 表示等待后已有 slot 可用或本身未满；返回 false 表示等待超时仍满
     async fn wait_for_rpm_gate(&self, credential_id: u64, tag: &str) -> bool {
@@ -911,7 +903,7 @@ impl KiroProvider {
         let wait_duration = rpm
             .time_until_slot(credential_id, max_rpm)
             .unwrap_or(Duration::from_secs(3))
-            .min(Duration::from_secs(60));
+            .min(Duration::from_secs(5));
 
         tracing::info!(
             "[RPM-GATE] credential={} rpm={} limit={}, waiting {:.1}s{}",

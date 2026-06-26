@@ -468,10 +468,11 @@ impl KiroProvider {
                     continue;
                 }
             };
+            let effective_mcp_body = Self::rewrite_profile_arn(request_body, &ctx.credentials);
             let response = match client
                 .post(&url)
                 .headers(headers)
-                .body(request_body.to_string())
+                .body(effective_mcp_body)
                 .send()
                 .await
             {
@@ -657,7 +658,8 @@ impl KiroProvider {
             }
 
             let url = self.base_url_for(&ctx.credentials);
-            let headers = match self.build_headers(&ctx, request_body, attempt) {
+            let effective_body = Self::rewrite_profile_arn(request_body, &ctx.credentials);
+            let headers = match self.build_headers(&ctx, &effective_body, attempt) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -676,7 +678,7 @@ impl KiroProvider {
             let response = match client
                 .post(&url)
                 .headers(headers)
-                .body(request_body.to_string())
+                .body(effective_body)
                 .send()
                 .await
             {
@@ -948,6 +950,33 @@ impl KiroProvider {
             .and_then(|v| v.as_str())
             .is_some_and(|v| v == "MONTHLY_REQUEST_COUNT")
     }
+
+    /// 将请求 body 中的 `profileArn` 替换为当前选中账号的值。
+    ///
+    /// - 账号有 profile_arn → 设置 / 覆盖字段
+    /// - 账号无 profile_arn → 移除字段（上游要求字段缺失而非 null）
+    /// - JSON 解析失败 → 原样返回，不阻断请求
+    fn rewrite_profile_arn(body: &str, credentials: &KiroCredentials) -> String {
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(body) else {
+            return body.to_string();
+        };
+        let obj = match value.as_object_mut() {
+            Some(o) => o,
+            None => return body.to_string(),
+        };
+        match &credentials.profile_arn {
+            Some(arn) => {
+                obj.insert(
+                    "profileArn".to_string(),
+                    serde_json::Value::String(arn.clone()),
+                );
+            }
+            None => {
+                obj.remove("profileArn");
+            }
+        }
+        serde_json::to_string(&value).unwrap_or_else(|_| body.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -1079,5 +1108,44 @@ mod tests {
         let spectask_body = r#"{"conversationState":{"agentTaskType":"spectask"}}"#;
         let headers = provider.build_headers(&ctx, spectask_body, 0).unwrap();
         assert_eq!(headers.get("x-amzn-kiro-agent-mode").unwrap(), "spectask");
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_overwrites_existing_field() {
+        let body = r#"{"conversationState":{},"profileArn":"old-arn"}"#;
+        let mut cred = KiroCredentials::default();
+        cred.profile_arn = Some("arn:aws:sso::111:profile/new".to_string());
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["profileArn"].as_str(), Some("arn:aws:sso::111:profile/new"));
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_adds_field_when_missing() {
+        // refresh_token 账号首次请求：body 无 profileArn，账号有 ARN → 应新增字段
+        let body = r#"{"conversationState":{}}"#;
+        let mut cred = KiroCredentials::default();
+        cred.profile_arn = Some("arn:aws:sso::111:profile/new".to_string());
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["profileArn"].as_str(), Some("arn:aws:sso::111:profile/new"));
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_removes_field_when_none() {
+        let body = r#"{"conversationState":{},"profileArn":"some-arn"}"#;
+        let cred = KiroCredentials::default(); // profile_arn is None
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(v.get("profileArn").is_none());
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_invalid_json_falls_back() {
+        let body = "not-json";
+        let mut cred = KiroCredentials::default();
+        cred.profile_arn = Some("arn:aws:sso::111:profile/x".to_string());
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        assert_eq!(result, "not-json");
     }
 }

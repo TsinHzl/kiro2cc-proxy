@@ -17,6 +17,7 @@ import type {
   RpmSnapshot,
   UsageRecordsResponse,
   DailySummary,
+  CredentialDaySummary,
   ThrottleLogsResponse,
   FailureLogsResponse,
 } from '@/types/api'
@@ -189,6 +190,16 @@ export async function getCredentialUsageRecords(
   const { data } = await api.get<UsageRecordsResponse>(
     `/credentials/${id}/usage/records`,
     { params: { page, page_size: pageSize } }
+  )
+  return data
+}
+
+// 获取单账号 CST 今日的用量汇总
+export async function getCredentialTodaySummary(
+  id: number
+): Promise<CredentialDaySummary> {
+  const { data } = await api.get<CredentialDaySummary>(
+    `/credentials/${id}/usage/today`
   )
   return data
 }

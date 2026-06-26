@@ -599,7 +599,79 @@ pub struct DailySummary {
     pub total_credits_saved: f64,
 }
 
+/// 指定账号在指定 CST 日期的用量汇总
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialDaySummary {
+    pub date: String,
+    pub credential_id: u64,
+    pub total_requests: u64,
+    pub total_input_tokens: u64,
+    pub total_output_tokens: u64,
+    pub total_cost: f64,
+    pub total_credits: f64,
+    /// 节省的 credits 总量（仅含有 credits_used 的记录）
+    pub total_credits_saved: f64,
+}
+
 impl UsageTracker {
+    /// 按 CST（UTC+8）当前日期聚合指定 credential 的用量。
+    ///
+    /// 返回结构包含今日的请求数、输入/输出 token、估算费用、credits 用量及节省值。
+    /// 当 credential 在今日没有记录时返回零值汇总（不报错）。
+    pub fn get_today_summary_for_credential(
+        &self,
+        credential_id: u64,
+    ) -> CredentialDaySummary {
+        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
+        let today = chrono::Utc::now()
+            .with_timezone(&cst)
+            .format("%Y-%m-%d")
+            .to_string();
+
+        let mut requests: u64 = 0;
+        let mut input_tokens: u64 = 0;
+        let mut output_tokens: u64 = 0;
+        let mut cost: f64 = 0.0;
+        let mut credits: f64 = 0.0;
+        let mut credits_saved: f64 = 0.0;
+
+        let records = self.records.read();
+        for r in records.iter() {
+            if r.credential_id != Some(credential_id) {
+                continue;
+            }
+            let date = r
+                .created_at
+                .with_timezone(&cst)
+                .format("%Y-%m-%d")
+                .to_string();
+            if date != today {
+                continue;
+            }
+            requests += 1;
+            input_tokens = input_tokens.saturating_add(r.input_tokens.max(0) as u64);
+            output_tokens = output_tokens.saturating_add(r.output_tokens.max(0) as u64);
+            cost += r.estimated_cost;
+            let k_ref = get_k_ref(&r.model);
+            credits += r.credits_used.unwrap_or(r.estimated_cost * k_ref);
+            if let Some(cu) = r.credits_used {
+                credits_saved += r.estimated_cost * k_ref - cu;
+            }
+        }
+
+        CredentialDaySummary {
+            date: today,
+            credential_id,
+            total_requests: requests,
+            total_input_tokens: input_tokens,
+            total_output_tokens: output_tokens,
+            total_cost: cost,
+            total_credits: credits,
+            total_credits_saved: credits_saved,
+        }
+    }
+
     /// 按 CST（UTC+8）日期聚合所有记录，返回按日期降序的汇总列表
     pub fn get_daily_summaries(&self) -> Vec<DailySummary> {
         use std::collections::BTreeMap;

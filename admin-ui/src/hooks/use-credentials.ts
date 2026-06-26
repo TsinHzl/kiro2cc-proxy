@@ -23,6 +23,7 @@ import {
   setAuthKeys,
   getKeyUsageRecords,
   getCredentialUsageRecords,
+  getCredentialTodaySummary,
   getDailyUsage,
   getDailyUsageRecords,
   getThrottleLogs,
@@ -243,6 +244,16 @@ export function useCredentialUsageRecords(id: number, page: number, pageSize = 5
     queryKey: ['credentialUsageRecords', id, page, pageSize],
     queryFn: () => getCredentialUsageRecords(id, page, pageSize),
     enabled: id > 0,
+  })
+}
+
+// 查询单账号 CST 今日用量汇总（60s 自动刷新）
+export function useCredentialTodaySummary(id: number) {
+  return useQuery({
+    queryKey: ['credentialTodaySummary', id],
+    queryFn: () => getCredentialTodaySummary(id),
+    enabled: id > 0,
+    refetchInterval: 60000,
   })
 }
 

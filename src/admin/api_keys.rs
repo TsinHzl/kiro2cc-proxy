@@ -214,6 +214,19 @@ pub async fn get_credential_usage_records(
     Json(tracker.get_records_paged_by_credential(id, page, page_size, &labels)).into_response()
 }
 
+/// GET /api/admin/credentials/:id/usage/today
+/// 获取单个账号在 CST 今日的用量汇总
+pub async fn get_credential_today_summary(
+    State(state): State<AdminState>,
+    Path(id): Path<u64>,
+) -> impl IntoResponse {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    Json(tracker.get_today_summary_for_credential(id)).into_response()
+}
+
 /// GET /api/admin/rpm
 /// 获取实时 RPM 数据（含 sticky cache 命中/未命中统计）
 pub async fn get_rpm(State(state): State<AdminState>) -> impl IntoResponse {

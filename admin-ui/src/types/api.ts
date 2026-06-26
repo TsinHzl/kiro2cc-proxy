@@ -194,6 +194,18 @@ export interface DailySummary {
   totalCreditsSaved?: number
 }
 
+// 单账号在某 CST 日期的用量汇总（后端 /credentials/:id/usage/today）
+export interface CredentialDaySummary {
+  date: string           // "2026-06-26" CST (UTC+8)
+  credentialId: number
+  totalRequests: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCost: number
+  totalCredits: number
+  totalCreditsSaved?: number
+}
+
 // 单条限流日志记录
 export interface ThrottleLogRecord {
   credentialId: number

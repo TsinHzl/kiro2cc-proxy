@@ -4,7 +4,7 @@ import { ArrowLeft, BarChart3, DollarSign, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useCredentials, useCredentialUsageRecords } from '@/hooks/use-credentials'
+import { useCredentials, useCredentialUsageRecords, useCredentialTodaySummary } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
 
 interface CredentialDetailPageProps {
@@ -48,6 +48,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
 
   const { data: credentialsData } = useCredentials()
   const { data: recordsData, isLoading, refetch } = useCredentialUsageRecords(credentialId, page, PAGE_SIZE)
+  const { data: todaySummary } = useCredentialTodaySummary(credentialId)
 
   const credential = credentialsData?.credentials.find((c) => c.id === credentialId)
 
@@ -87,7 +88,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
       </div>
 
       {/* 汇总卡片 */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
@@ -139,6 +140,26 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                 </div>
               ) : null
             })()}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">今日 Credits</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
+              {(todaySummary?.totalCredits ?? 0).toFixed(4)}
+            </div>
+            {(todaySummary?.totalCreditsSaved ?? 0) > 0 && (
+              <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                省 {(todaySummary?.totalCreditsSaved ?? 0).toFixed(4)}
+              </div>
+            )}
+            {(todaySummary?.totalRequests ?? 0) > 0 && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                今日 {todaySummary?.totalRequests} 请求
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

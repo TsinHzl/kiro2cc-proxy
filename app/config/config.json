@@ -3,6 +3,7 @@
   "apiKey": "",
   "host": "0.0.0.0",
   "loadBalancingMode": "balanced",
+  "maxRpmPerCredential": 8,
   "port": 5678,
   "proxyUrl": "http://127.0.0.1:10089",
   "region": "us-east-1",

@@ -825,8 +825,17 @@ fn create_sse_stream(
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
-                            // 发送最终事件并结束
-                            let final_events = ctx.generate_final_events();
+                            let final_events = if ctx.is_empty_response() {
+                                let oversized = ctx.empty_response_is_oversized_context();
+                                tracing::warn!(
+                                    oversized_context = oversized,
+                                    est_input_tokens = ctx.input_tokens,
+                                    "流解码错误且无内容，补发 error 事件"
+                                );
+                                vec![empty_response_error_event(oversized)]
+                            } else {
+                                ctx.generate_final_events()
+                            };
                             let bytes: Vec<Result<Bytes, Infallible>> = final_events
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
@@ -1593,8 +1602,16 @@ fn create_buffered_sse_stream(
                             }
                             Some(Err(e)) => {
                                 tracing::error!("读取响应流失败: {}", e);
-                                // 发生错误，完成处理并返回所有事件
-                                let all_events = ctx.finish_and_get_all_events();
+                                let all_events = if ctx.is_empty_response() {
+                                    let oversized = ctx.empty_response_is_oversized_context();
+                                    tracing::warn!(
+                                        oversized_context = oversized,
+                                        "流解码错误且无内容（buffered 路径），补发 error 事件"
+                                    );
+                                    vec![empty_response_error_event(oversized)]
+                                } else {
+                                    ctx.finish_and_get_all_events()
+                                };
                                 let bytes: Vec<Result<Bytes, Infallible>> = all_events
                                     .into_iter()
                                     .map(|e| Ok(Bytes::from(e.to_sse_string())))

@@ -117,10 +117,22 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 /// 平台级 credits/USD 换算率，按模型档位差异化（代理实测 2026-06-25）。
 /// 仅 usage 报表 credits_saved 字段使用（estimated_cost × k_ref - credits_used）。
 /// cache_read 派生已切换为前缀估算路径，不再依赖此值。
+/// 2026-06-30 重校：按 opus 版本分档，基于实测 d=0.50 缓存折扣反推。
 fn get_k_ref(model: &str) -> f64 {
     let m = model.to_lowercase();
-    if m.contains("opus") || m.contains("fable") {
-        1.1
+    if m.contains("opus-4-7") || m.contains("opus-4.7")
+        || m.contains("opus-4-8") || m.contains("opus-4.8")
+    {
+        // opus 4.7/4.8 共用同档（实测 4.8 ≈ 2.36，4.7 暂沿用 4.8）
+        2.36
+    } else if m.contains("opus-4-5") || m.contains("opus-4.5")
+        || m.contains("opus-4-6") || m.contains("opus-4.6")
+    {
+        // 旧 opus 4.5/4.6（实测 4.6 ≈ 1.90）
+        1.90
+    } else if m.contains("opus") || m.contains("fable") {
+        // 未知 opus / fable 兜底沿用最新档
+        2.36
     } else {
         // sonnet 系列（默认）；haiku 暂沿用 sonnet 值作兜底
         1.43

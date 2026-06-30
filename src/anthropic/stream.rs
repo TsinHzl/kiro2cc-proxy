@@ -1514,7 +1514,7 @@ impl StreamContext {
             && self.output_tokens > 0
             && let Some(credits) = self.metering_usage
         {
-            let cost_text = format!("\n\n---\n`⚡ {:.4} credits | {}`", credits, self.model);
+            let cost_text = format!("\n\n---\n`⚡ {:.4} credits`", credits);
             events.extend(self.create_text_delta_events(&cost_text));
         }
 

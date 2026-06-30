@@ -1507,6 +1507,17 @@ impl StreamContext {
         // 这里把 report_cache_creation 全部归到 5m（与非流式 metering Layer 1 一致）
         let report_creation_5m = report_cache_creation;
         let report_creation_1h = Some(0);
+
+        // 在纯文本回复末尾追加 credits 消耗信息（类似 Kiro IDE 的费用展示）
+        // 仅当：无 tool_use（纯文本 end_turn）、有 metering 数据、非空响应
+        if !self.state_manager.has_tool_use()
+            && self.output_tokens > 0
+            && let Some(credits) = self.metering_usage
+        {
+            let cost_text = format!("\n\n---\n`⚡ {:.4} credits | {}`", credits, self.model);
+            events.extend(self.create_text_delta_events(&cost_text));
+        }
+
         events.extend(self.state_manager.generate_final_events(
             report_input,
             reported_output_tokens,

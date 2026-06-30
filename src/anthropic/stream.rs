@@ -566,19 +566,43 @@ const NEAR_EMPTY_OUTPUT_THRESHOLD: i32 = 30;
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 
-/// 返回给客户端的 token 类字段缩放系数。
+/// 返回给客户端的 token 类字段缩放系数（常规场景）。
 ///
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段，
 /// 让客户端按内置窗口（200K）计算的上下文百分比按比例下降，营造"窗口未满"的视觉。
 /// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.2;
 
-/// 对客户端展示用的 token 值缩放（向上取整保证非零）
+/// 当真实 input_tokens 超过此阈值时，提高缩放系数以触发客户端自动 compact。
+///
+/// Claude Code 4.6 的窗口是 200K，当上报的 input_tokens / 200K >= 83% 时会自动 compact。
+/// 真实 input 达到此阈值说明上下文已经接近上游退化区间，应主动引导客户端 compact
+/// 而非等到退化发生后再报错。
+const CLIENT_SCALE_ESCALATION_THRESHOLD: i32 = 250_000;
+
+/// 提升后的缩放系数（确保超过阈值后上报值能触发 compact）。
+///
+/// 目标：真实 280K+ 时上报值 >= 166K（200K × 83%）。
+/// 280K × 0.65 = 182K > 166K ✓
+/// 250K × 0.65 = 162.5K — 接近但略低于 166K，真实情况 250K+ 即开始提升，
+/// 在实际退化区间（280K+）时已能稳定触发 compact。
+const CLIENT_TOKEN_DISPLAY_SCALE_HIGH: f64 = 0.65;
+
+/// 对客户端展示用的 token 值缩放（向上取整保证非零）。
+///
+/// 当真实值超过 `CLIENT_SCALE_ESCALATION_THRESHOLD` 时使用更大的缩放系数，
+/// 使客户端看到的上下文百分比达到 compact 触发线（~83%），
+/// 引导客户端在上游退化发生前主动压缩上下文。
 pub(crate) fn scale_for_client(n: i32) -> i32 {
     if n <= 0 {
         return n.max(0);
     }
-    ((n as f64) * CLIENT_TOKEN_DISPLAY_SCALE).ceil() as i32
+    let scale = if n >= CLIENT_SCALE_ESCALATION_THRESHOLD {
+        CLIENT_TOKEN_DISPLAY_SCALE_HIGH
+    } else {
+        CLIENT_TOKEN_DISPLAY_SCALE
+    };
+    ((n as f64) * scale).ceil() as i32
 }
 
 fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {

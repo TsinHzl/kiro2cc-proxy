@@ -419,6 +419,7 @@ impl SseStateManager {
         context_usage_percentage: Option<f64>,
         cache_creation_5m_input_tokens: Option<i32>,
         cache_creation_1h_input_tokens: Option<i32>,
+        model: &str,
     ) -> Vec<SseEvent> {
         let mut events = Vec::new();
 
@@ -477,16 +478,16 @@ impl SseStateManager {
 
             let mut usage = serde_json::Map::new();
             // 客户端展示缩放（output_tokens 不缩放，避免影响 max_tokens 计算）
-            usage.insert("input_tokens".into(), json!(scale_for_client(input_tokens)));
+            usage.insert("input_tokens".into(), json!(scale_for_client(input_tokens, model)));
             usage.insert("output_tokens".into(), json!(output_tokens));
             if let Some(v) = cache_creation_input_tokens {
                 usage.insert(
                     "cache_creation_input_tokens".into(),
-                    json!(scale_for_client(v)),
+                    json!(scale_for_client(v, model)),
                 );
             }
             if let Some(v) = cache_read_input_tokens {
-                usage.insert("cache_read_input_tokens".into(), json!(scale_for_client(v)));
+                usage.insert("cache_read_input_tokens".into(), json!(scale_for_client(v, model)));
             }
             // 与非流式响应对齐：输出 ephemeral 5m/1h 嵌套字段
             if cache_creation_input_tokens.is_some()
@@ -497,13 +498,15 @@ impl SseStateManager {
                 cc.insert(
                     "ephemeral_5m_input_tokens".into(),
                     json!(scale_for_client(
-                        cache_creation_5m_input_tokens.unwrap_or(0)
+                        cache_creation_5m_input_tokens.unwrap_or(0),
+                        model
                     )),
                 );
                 cc.insert(
                     "ephemeral_1h_input_tokens".into(),
                     json!(scale_for_client(
-                        cache_creation_1h_input_tokens.unwrap_or(0)
+                        cache_creation_1h_input_tokens.unwrap_or(0),
+                        model
                     )),
                 );
                 usage.insert("cache_creation".into(), serde_json::Value::Object(cc));
@@ -566,7 +569,7 @@ const NEAR_EMPTY_OUTPUT_THRESHOLD: i32 = 30;
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 
-/// 返回给客户端的 token 类字段缩放系数。
+/// 返回给客户端的 token 类字段缩放系数（默认）。
 ///
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段。
 /// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
@@ -575,12 +578,27 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 /// 真实 255K+ × 0.65 = 166K+ → 触发 compact。
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.65;
 
+/// 4.7/4.8 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
+const CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW: f64 = 0.15;
+
+fn is_large_window_model(model: &str) -> bool {
+    model.contains("opus-4-7")
+        || model.contains("opus-4-8")
+        || model.contains("claude-4-7")
+        || model.contains("claude-4-8")
+}
+
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。
-pub(crate) fn scale_for_client(n: i32) -> i32 {
+pub(crate) fn scale_for_client(n: i32, model: &str) -> i32 {
     if n <= 0 {
         return n.max(0);
     }
-    ((n as f64) * CLIENT_TOKEN_DISPLAY_SCALE).ceil() as i32
+    let scale = if is_large_window_model(model) {
+        CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW
+    } else {
+        CLIENT_TOKEN_DISPLAY_SCALE
+    };
+    ((n as f64) * scale).ceil() as i32
 }
 
 fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {
@@ -728,10 +746,10 @@ impl StreamContext {
                 "stop_reason": null,
                 "stop_sequence": null,
                 "usage": {
-                    "input_tokens": scale_for_client(usage.input_tokens),
+                    "input_tokens": scale_for_client(usage.input_tokens, &self.model),
                     "output_tokens": 1,
-                    "cache_creation_input_tokens": scale_for_client(usage.cache_creation_input_tokens),
-                    "cache_read_input_tokens": scale_for_client(usage.cache_read_input_tokens)
+                    "cache_creation_input_tokens": scale_for_client(usage.cache_creation_input_tokens, &self.model),
+                    "cache_read_input_tokens": scale_for_client(usage.cache_read_input_tokens, &self.model)
                 }
             }
         })
@@ -1494,6 +1512,7 @@ impl StreamContext {
             self.context_usage_percentage,
             report_creation_5m,
             report_creation_1h,
+            &self.model,
         ));
 
         events
@@ -1646,11 +1665,11 @@ impl BufferedStreamContext {
                 && let Some(message) = event.data.get_mut("message")
                 && let Some(usage) = message.get_mut("usage")
             {
-                usage["input_tokens"] = serde_json::json!(scale_for_client(report_input));
+                usage["input_tokens"] = serde_json::json!(scale_for_client(report_input, &self.inner.model));
                 usage["cache_creation_input_tokens"] =
-                    serde_json::json!(scale_for_client(report_cache_creation));
+                    serde_json::json!(scale_for_client(report_cache_creation, &self.inner.model));
                 usage["cache_read_input_tokens"] =
-                    serde_json::json!(scale_for_client(report_cache_read));
+                    serde_json::json!(scale_for_client(report_cache_read, &self.inner.model));
             }
         }
 
@@ -1698,29 +1717,35 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_basic() {
-        // 100k × 0.65 = 65k
-        assert_eq!(scale_for_client(100_000), 65_000);
-        // 85k × 0.65 = 55250
-        assert_eq!(scale_for_client(85_000), 55_250);
-        // 0 → 0
-        assert_eq!(scale_for_client(0), 0);
-        // 1 → ceil(0.65) = 1（小数向上取整保证非零）
-        assert_eq!(scale_for_client(1), 1);
-        // 负值 clamp 到 0
-        assert_eq!(scale_for_client(-100), 0);
+        // 默认模型（非 4.7/4.8）：× 0.65
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 65_000);
+        assert_eq!(scale_for_client(85_000, "claude-sonnet-4-6"), 55_250);
+        assert_eq!(scale_for_client(0, "claude-opus-4-6"), 0);
+        assert_eq!(scale_for_client(1, "claude-opus-4-6"), 1);
+        assert_eq!(scale_for_client(-100, "claude-opus-4-6"), 0);
+    }
+
+    #[test]
+    fn test_scale_for_client_large_window_model() {
+        // 4.7/4.8 模型：× 0.15
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 15_000);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 15_000);
+        assert_eq!(scale_for_client(200_000, "claude-opus-4-7"), 30_000);
+        assert_eq!(scale_for_client(1, "claude-opus-4-8"), 1);
+        assert_eq!(scale_for_client(0, "claude-opus-4-7"), 0);
     }
 
     #[test]
     fn test_scale_for_client_non_round() {
-        // 11 → ceil(7.15) = 8
-        assert_eq!(scale_for_client(11), 8);
-        // 9 → ceil(5.85) = 6
-        assert_eq!(scale_for_client(9), 6);
-        // 10 → ceil(6.5) = 7
-        assert_eq!(scale_for_client(10), 7);
+        // 11 × 0.65 = ceil(7.15) = 8
+        assert_eq!(scale_for_client(11, "claude-opus-4-6"), 8);
+        // 11 × 0.15 = ceil(1.65) = 2
+        assert_eq!(scale_for_client(11, "claude-opus-4-7"), 2);
         // i32::MAX 不溢出
-        let r = scale_for_client(i32::MAX);
+        let r = scale_for_client(i32::MAX, "claude-opus-4-6");
         assert!(r > 0 && r < i32::MAX);
+        let r2 = scale_for_client(i32::MAX, "claude-opus-4-8");
+        assert!(r2 > 0 && r2 < i32::MAX);
     }
 
     #[test]

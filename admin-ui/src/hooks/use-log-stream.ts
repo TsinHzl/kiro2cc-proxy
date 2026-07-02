@@ -22,10 +22,14 @@ export function useLogStream(enabled: boolean): {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(1000)
 
+  const historyReceivedRef = useRef(false)
+
   const connect = useCallback(() => {
     if (esRef.current) return
     const apiKey = storage.getApiKey()
     if (!apiKey) return
+
+    historyReceivedRef.current = false
 
     const es = new EventSource(
       `/api/admin/logs/stream?api_key=${encodeURIComponent(apiKey)}`
@@ -35,12 +39,23 @@ export function useLogStream(enabled: boolean): {
     es.onopen = () => {
       setConnected(true)
       reconnectDelay.current = 1000
+      // REST 获取初始快照，规避反向代理对 SSE body 的缓冲
+      fetch(`/api/admin/logs/snapshot?api_key=${encodeURIComponent(apiKey!)}`)
+        .then((r) => r.json())
+        .then((entries: LogEntry[]) => {
+          if (!historyReceivedRef.current && Array.isArray(entries)) {
+            historyReceivedRef.current = true
+            setLogs(entries)
+          }
+        })
+        .catch(() => {})
     }
 
     es.addEventListener('history', (e: MessageEvent) => {
       try {
         const entries: LogEntry[] = JSON.parse(e.data)
         if (Array.isArray(entries)) {
+          historyReceivedRef.current = true
           setLogs(entries)
         }
       } catch {

@@ -68,13 +68,47 @@ pub async fn stream_logs(
         }
     });
 
-    Sse::new(history_stream.chain(live_stream))
+    let mut response = Sse::new(history_stream.chain(live_stream))
         .keep_alive(
             KeepAlive::new()
-                .interval(Duration::from_secs(30))
+                .interval(Duration::from_secs(15))
                 .text("ping"),
         )
-        .into_response()
+        .into_response();
+
+    // 禁止反向代理（Nginx/Caddy/Cloudflare）缓冲 SSE 响应体
+    let headers = response.headers_mut();
+    headers.insert("X-Accel-Buffering", "no".parse().unwrap());
+    headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+
+    response
+}
+
+/// GET /api/admin/logs/snapshot?api_key=<key>
+///
+/// 返回当前 ring buffer 内全部日志的 JSON 数组（与 SSE history 事件格式一致）。
+/// 前端在 SSE 连接建立后立即调用此接口获取初始数据，规避代理对 SSE body 的缓冲。
+pub async fn snapshot_logs(
+    State(state): State<AdminState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    if !check_api_key(&state, &params) {
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+    }
+
+    let Some(log_capture) = &state.log_capture else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "Log capture not enabled").into_response();
+    };
+
+    let snapshot = log_capture.snapshot();
+    let json = serde_json::to_string(&snapshot).unwrap_or_else(|_| "[]".to_string());
+
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("application/json; charset=utf-8"),
+    );
+    (headers, json).into_response()
 }
 
 /// GET /api/admin/logs/download?api_key=<key>

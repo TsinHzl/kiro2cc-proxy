@@ -19,7 +19,7 @@ use super::{
         set_credential_disabled, set_credential_priority, set_load_balancing_mode,
         update_credential,
     },
-    log_handler::{download_logs, stream_logs},
+    log_handler::{download_logs, snapshot_logs, stream_logs},
     middleware::{AdminState, admin_auth_middleware},
 };
 
@@ -75,6 +75,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
     // 日志路由使用 Query Param 内联认证（EventSource API 不支持自定义 Header）
     let log_routes = Router::new()
         .route("/logs/stream", get(stream_logs))
+        .route("/logs/snapshot", get(snapshot_logs))
         .route("/logs/download", get(download_logs))
         .with_state(state);
 

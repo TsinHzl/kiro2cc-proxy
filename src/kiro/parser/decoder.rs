@@ -192,7 +192,9 @@ impl EventStreamDecoder {
 
         match parse_frame(&self.buffer) {
             Ok(Some((frame, consumed))) => {
-                // 成功解析
+                // 成功解析。契约：consumed == total_length >= MIN_MESSAGE_SIZE(16) > 0
+                // （见 frame.rs 的 total_length 下限校验）。consumed > 0 是迭代器
+                // 终止的前提——advance(0) 会使 decode_iter 在成功路径上无限吐帧。
                 self.buffer.advance(consumed);
                 self.state = DecoderState::Ready;
                 self.frames_decoded += 1;
@@ -380,11 +382,12 @@ impl<'a> Iterator for DecodeIter<'a> {
     type Item = ParseResult<Frame>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // 如果处于 Stopped 或 Recovering 状态，停止迭代
-        match self.decoder.state {
-            DecoderState::Stopped => return None,
-            DecoderState::Recovering => return None,
-            _ => {}
+        // 仅 Stopped（错误过多终止态）停止迭代。
+        // Recovering 不再提前返回 None：try_recover 已 advance 缓冲区，
+        // 应在同一 chunk 内立即重试解析后续帧，否则坏帧之后的有效帧
+        // 会被推迟到下个 chunk；若当前是最后一个 chunk，将永久丢失。
+        if self.decoder.state == DecoderState::Stopped {
+            return None;
         }
 
         match self.decoder.decode() {
@@ -463,5 +466,43 @@ mod tests {
         decoder.try_resume();
         assert!(decoder.is_ready());
         assert_eq!(decoder.error_count(), 0);
+    }
+
+    /// 构造一个最小合法空帧（total_length=16，无 header 无 payload）
+    fn minimal_valid_frame() -> Vec<u8> {
+        use crate::kiro::parser::crc::crc32;
+        let mut buf = vec![0u8; 16];
+        buf[0..4].copy_from_slice(&16u32.to_be_bytes()); // total_length
+        buf[4..8].copy_from_slice(&0u32.to_be_bytes()); // header_length
+        let prelude_crc = crc32(&buf[0..8]);
+        buf[8..12].copy_from_slice(&prelude_crc.to_be_bytes());
+        let message_crc = crc32(&buf[0..12]); // 整个消息不含最后 4 字节
+        buf[12..16].copy_from_slice(&message_crc.to_be_bytes());
+        buf
+    }
+
+    /// 回归：坏字节前缀 + 合法帧在同一次 decode_iter 中都应被处理。
+    /// 修复前 Recovering 状态会让迭代器提前 return None，导致坏帧之后
+    /// 的有效帧被丢弃（若是最后一个 chunk 则永久丢失）。
+    #[test]
+    fn test_decode_iter_continues_after_recovery() {
+        let mut decoder = EventStreamDecoder::new();
+        let mut data = vec![0xFFu8]; // 1 个坏字节，触发 Prelude 错误 + 逐字节跳过
+        data.extend_from_slice(&minimal_valid_frame());
+        decoder.feed(&data).unwrap();
+
+        let mut frames = 0;
+        let mut errors = 0;
+        for result in decoder.decode_iter() {
+            match result {
+                Ok(_) => frames += 1,
+                Err(_) => errors += 1,
+            }
+        }
+
+        // 坏字节产生 1 次错误，但合法帧仍在同一次迭代中被解出
+        assert_eq!(frames, 1, "坏字节之后的合法帧应在同一 chunk 内被解码");
+        assert!(errors >= 1, "坏字节应产生至少一次错误");
+        assert_eq!(decoder.frames_decoded(), 1);
     }
 }

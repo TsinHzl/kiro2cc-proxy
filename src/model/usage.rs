@@ -106,7 +106,8 @@ fn get_model_pricing(model: &str) -> ModelPricing {
             output_per_mtok: 5.0,
         }
     } else {
-        // Sonnet 4: $3 / $15（默认）
+        // Sonnet 4 / sonnet-5 兜底 $3 / $15
+        // TODO(sonnet-5): sonnet-5 上线后需实测定价并添加专属分支
         ModelPricing {
             input_per_mtok: 3.0,
             output_per_mtok: 15.0,
@@ -134,7 +135,8 @@ fn get_k_ref(model: &str) -> f64 {
         // 未知 opus / fable 兜底沿用最新档
         2.36
     } else {
-        // sonnet 系列（默认）；haiku 暂沿用 sonnet 值作兜底
+        // sonnet 系列（默认）；haiku / sonnet-5 暂沿用此值作兜底
+        // TODO(sonnet-5): sonnet-5 上线后需实测 k_ref 并添加专属分支
         1.43
     }
 }

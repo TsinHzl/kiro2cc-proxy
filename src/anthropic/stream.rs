@@ -586,6 +586,7 @@ fn is_large_window_model(model: &str) -> bool {
         || model.contains("opus-4-8")
         || model.contains("claude-4-7")
         || model.contains("claude-4-8")
+        || model.contains("sonnet-5")
 }
 
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。

@@ -423,6 +423,10 @@ pub fn map_model(model: &str) -> Option<String> {
     if model_lower.contains("sonnet") {
         if model_lower.contains("4-6") || model_lower.contains("4.6") {
             Some("claude-sonnet-4.6".to_string())
+        } else if model_lower.contains("sonnet-5") || model_lower.contains("sonnet.5") {
+            // Kiro 尚未上线 sonnet-5，映射预埋；上线后无需修改此处，但需同步校准
+            // model_max_output_tokens / get_k_ref / get_model_pricing 中的 sonnet-5 分支
+            Some("claude-sonnet-5".to_string())
         } else {
             Some("claude-sonnet-4.5".to_string())
         }
@@ -1337,6 +1341,7 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
 }
 
 /// 根据模型返回 Kiro 允许的 max_tokens 上限
+/// TODO(sonnet-5): sonnet-5 上线后需实测最大输出 token 并在此处添加专属分支
 fn model_max_output_tokens(model: &str) -> i32 {
     let m = model.to_lowercase();
     if m.contains("opus-4-7") || m.contains("opus-4.7")

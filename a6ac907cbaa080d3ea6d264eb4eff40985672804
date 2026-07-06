@@ -1,0 +1,31 @@
+Cargo.toml
+  bf65c620f20093f4 3
+src/anthropic/handlers.rs
+  bf65c620f20093f4 311-327
+src/anthropic/converter.rs
+  bf65c620f20093f4 426-429,1344
+src/anthropic/stream.rs
+  bf65c620f20093f4 589
+src/model/usage.rs
+  bf65c620f20093f4 109-110,138-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a6ac907cbaa080d3ea6d264eb4eff40985672804",
+  "prompts": {
+    "bf65c620f20093f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f0d66e9-e060-419e-a7f7-363b705f6fc2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 5,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

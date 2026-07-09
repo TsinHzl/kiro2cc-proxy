@@ -1,0 +1,57 @@
+src/user/handlers.rs
+  bbeda06339d3437c 25,38,40,87,95,137,139,151,159
+src/user/middleware.rs
+  bbeda06339d3437c 32,65,72
+admin-ui/src/components/add-credential-dialog.tsx
+  bbeda06339d3437c 31,48,80,215-231
+admin-ui/src/types/api.ts
+  bbeda06339d3437c 73,91,117,127,137,149
+admin-ui/src/components/edit-credential-dialog.tsx
+  bbeda06339d3437c 30,47,66,175-188
+src/admin/api_keys.rs
+  bbeda06339d3437c 59,89
+admin-ui/src/components/api-keys-panel.tsx
+  bbeda06339d3437c 36,44,186,198,224,266,271,529-531,721-728,730,738,743-745,760,896-903,905,917
+src/model/usage.rs
+  bbeda06339d3437c 69-70,343-350,357,402-415,835-952
+user-ui/src/types/api.ts
+  bbeda06339d3437c 10,12,30,38
+user-ui/src/components/dashboard.tsx
+  bbeda06339d3437c 46-48,55,62,65,143-146
+src/anthropic/middleware.rs
+  bbeda06339d3437c 137,145,147-153,157,159,162,164-167,170-173
+src/kiro/token_manager.rs
+  bbeda06339d3437c 1992-1996,2165-2171
+src/admin/service.rs
+  bbeda06339d3437c 200
+Cargo.toml
+  bbeda06339d3437c 3
+README.md
+  bbeda06339d3437c 715-722
+src/admin/types.rs
+  bbeda06339d3437c 97-99,167-169,264,267-269,294-296
+README.en.md
+  bbeda06339d3437c 711-718
+src/model/api_key.rs
+  bbeda06339d3437c 21-22,26-28,47-50,53,59,71,133,195,213,225,231,242,252,261,281-282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "590e78cfe0fb9402295d1462321ccac4af4ca273",
+  "prompts": {
+    "bbeda06339d3437c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f737156e-c0df-4946-a725-9fb70d5dba37",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 345,
+      "total_deletions": 42,
+      "accepted_lines": 345,
+      "overriden_lines": 0
+    }
+  }
+}

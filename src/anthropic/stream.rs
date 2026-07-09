@@ -574,19 +574,20 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段。
 /// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
 ///
-/// Claude Code 4.6 窗口 200K，83% 触发 compact = 166K。
-/// 真实 255K+ × 0.65 = 166K+ → 触发 compact。
-const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.65;
+/// Claude Code 4.6 窗口 200K，85% 触发 compact = 170K（原假设 83%，按实测更新）。
+/// 缩放系数按比例上调以保持原真实触发点不变：0.65 × (85/83) ≈ 0.6657。
+/// 真实 255K+ × 0.6657 ≈ 170K+ → 触发 compact。
+const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 
 /// 4.7/4.8 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
 const CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW: f64 = 0.15;
 
+/// sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支，统一走默认 CLIENT_TOKEN_DISPLAY_SCALE。
 fn is_large_window_model(model: &str) -> bool {
     model.contains("opus-4-7")
         || model.contains("opus-4-8")
         || model.contains("claude-4-7")
         || model.contains("claude-4-8")
-        || model.contains("sonnet-5")
 }
 
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。
@@ -1718,9 +1719,11 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_basic() {
-        // 默认模型（非 4.7/4.8）：× 0.65
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 65_000);
-        assert_eq!(scale_for_client(85_000, "claude-sonnet-4-6"), 55_250);
+        // 默认模型（非 4.7/4.8）：× 0.6657
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 66_570);
+        assert_eq!(scale_for_client(85_000, "claude-sonnet-4-6"), 56_585);
+        // sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支
+        assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);
         assert_eq!(scale_for_client(0, "claude-opus-4-6"), 0);
         assert_eq!(scale_for_client(1, "claude-opus-4-6"), 1);
         assert_eq!(scale_for_client(-100, "claude-opus-4-6"), 0);
@@ -1738,7 +1741,7 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_non_round() {
-        // 11 × 0.65 = ceil(7.15) = 8
+        // 11 × 0.6657 = ceil(7.3227) = 8
         assert_eq!(scale_for_client(11, "claude-opus-4-6"), 8);
         // 11 × 0.15 = ceil(1.65) = 2
         assert_eq!(scale_for_client(11, "claude-opus-4-7"), 2);

@@ -106,8 +106,8 @@ fn get_model_pricing(model: &str) -> ModelPricing {
             output_per_mtok: 5.0,
         }
     } else {
-        // Sonnet 4 / sonnet-5 兜底 $3 / $15
-        // TODO(sonnet-5): sonnet-5 上线后需实测定价并添加专属分支
+        // Sonnet 4 / sonnet-5 / haiku: $3 / $15
+        // claude-sonnet-5 Rate = 1.3 Credit，与 sonnet-4.x 同档，定价一致
         ModelPricing {
             input_per_mtok: 3.0,
             output_per_mtok: 15.0,
@@ -134,9 +134,11 @@ fn get_k_ref(model: &str) -> f64 {
     } else if m.contains("opus") || m.contains("fable") {
         // 未知 opus / fable 兜底沿用最新档
         2.36
+    } else if m.contains("sonnet-5") || m.contains("sonnet.5") {
+        // claude-sonnet-5: Rate = 1.3 Credit，与 sonnet-4.5/4.6 同档（实测确认）
+        1.43
     } else {
-        // sonnet 系列（默认）；haiku / sonnet-5 暂沿用此值作兜底
-        // TODO(sonnet-5): sonnet-5 上线后需实测 k_ref 并添加专属分支
+        // sonnet 系列 / haiku 默认
         1.43
     }
 }

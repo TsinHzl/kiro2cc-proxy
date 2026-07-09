@@ -1,0 +1,31 @@
+README.md
+  bbeda06339d3437c 5,650,656
+src/anthropic/converter.rs
+  bbeda06339d3437c 427,1343
+src/model/usage.rs
+  bbeda06339d3437c 109-110,137-139,141
+README.en.md
+  bbeda06339d3437c 5,646,652
+Cargo.toml
+  bbeda06339d3437c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8cd476de4743d25575ae7dca0b5d9cad91e975ed",
+  "prompts": {
+    "bbeda06339d3437c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f737156e-c0df-4946-a725-9fb70d5dba37",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 10,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}

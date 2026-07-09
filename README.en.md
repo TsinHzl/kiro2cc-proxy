@@ -2,7 +2,7 @@
 
 A Rust-based Anthropic Claude API-compatible proxy that converts Anthropic API requests into Kiro API requests.
 
-> **✅ Supported Models: Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder**
+> **✅ Supported Models: Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder**
 
 [中文](README.md) | English
 
@@ -643,11 +643,13 @@ Any model name containing the following keywords is automatically mapped to the 
 | Request model name (keyword) | Kiro model used |
 |------------------------------|----------------|
 | `*sonnet*` (including 4.6/4-6) | `claude-sonnet-4.6` |
+| `*sonnet*` (including 5/sonnet-5) | `claude-sonnet-5` |
 | `*sonnet*` (others) | `claude-sonnet-4.5` |
 | `*opus*` (including 4.5/4-5) | `claude-opus-4.5` |
 | `*opus*` (including 4.7/4-7) | `claude-opus-4.7` |
 | `*opus*` (including 4.8/4-8) | `claude-opus-4.8` |
 | `*opus*` (others) | `claude-opus-4.6` |
+| `*fable*` | `claude-fable-5` |
 | `*haiku*` | `claude-haiku-4.5` |
 | `*deepseek*` | `deepseek-3.2` |
 | `*glm*` | `glm-5` |

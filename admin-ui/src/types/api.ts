@@ -70,6 +70,7 @@ export interface AddCredentialRequest {
   nickname?: string
   clientId?: string
   clientSecret?: string
+  profileArn?: string
   priority?: number
   authRegion?: string
   apiRegion?: string
@@ -87,6 +88,7 @@ export interface UpdateCredentialRequest {
   nickname?: string
   clientId?: string
   clientSecret?: string
+  profileArn?: string
   authRegion?: string
   apiRegion?: string
   machineId?: string
@@ -112,6 +114,7 @@ export interface ApiKeyItem {
   createdAt: string
   expiresAt: string | null
   spendingLimit: number | null
+  limitUnit: 'usd' | 'credits'
   durationDays: number | null
   activatedAt: string | null
   boundCredentialIds?: number[]
@@ -121,6 +124,7 @@ export interface CreateApiKeyRequest {
   name: string
   expiresAt?: string | null
   spendingLimit?: number | null
+  limitUnit?: 'usd' | 'credits'
   durationDays?: number | null
   boundCredentialIds?: number[] | null
 }
@@ -130,6 +134,7 @@ export interface UpdateApiKeyRequest {
   enabled?: boolean
   expiresAt?: string | null
   spendingLimit?: number | null
+  limitUnit?: 'usd' | 'credits'
   durationDays?: number | null
   boundCredentialIds?: number[] | null
 }
@@ -141,6 +146,7 @@ export interface UsageSummary {
   totalInputTokens: number
   totalOutputTokens: number
   totalCost: number
+  totalCredits: number
   totalCreditsSaved?: number
   byModel: ModelUsage[]
 }

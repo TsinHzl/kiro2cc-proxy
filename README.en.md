@@ -708,6 +708,14 @@ Solutions:
 - **Recommended:** Bind a domain name to your server and configure HTTPS, then access via `https://`
 - **Temporary workaround:** Chrome: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`; Edge: open `edge://flags/#unsafely-treat-insecure-origin-as-secure`. Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box, set to **Enabled**, click **Relaunch**
 
+**Q: Enterprise IdC account requests return 502 with `profileArn is required for this request` in the logs**
+
+Enterprise IdC accounts calling the Q endpoint require a `profileArn`, but the IdC token refresh response doesn't include it — it must be entered manually. The admin panel's "Add Account / Edit Account" dialog now has a **Profile ARN** field; fill in a value like `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>`. You can obtain the `profileArn` from the Kiro IDE local cache or via `ListAvailableProfiles`; its region must match the account's `apiRegion`. Social accounts usually don't need this field.
+
+**Q: Can sub-API-Key spending limits be metered in real Kiro credits instead of estimated USD?**
+
+Yes. When creating/editing a sub API Key, the limit unit can be set to "USD estimate" or "real credits" (`limitUnit`: usd/credits). With credits, the limit is checked against the real `credits_used` accumulated in usage records (falls back to `estimated_cost × k_ref` for older records without `credits_used`). Defaults to `usd`, fully backward compatible.
+
 **Q: Port already in use**
 
 `run-local-service-mac.sh` automatically kills the process occupying the configured port. If it still fails:

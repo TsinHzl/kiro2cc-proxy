@@ -27,6 +27,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
   const [email, setEmail] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [profileArn, setProfileArn] = useState('')
   const [machineId, setMachineId] = useState('')
   const [proxyUrl, setProxyUrl] = useState('')
   const [proxyUsername, setProxyUsername] = useState('')
@@ -43,6 +44,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
       setEmail(credential.email || '')
       setClientId('')
       setClientSecret('')
+      setProfileArn('')
       setMachineId('')
       setProxyUrl(credential.proxyUrl || '')
       setProxyUsername('')
@@ -61,6 +63,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (email !== (credential.email || '')) data.email = email
     if (clientId !== '') data.clientId = clientId
     if (clientSecret !== '') data.clientSecret = clientSecret
+    if (profileArn !== '') data.profileArn = profileArn
     if (machineId !== '') data.machineId = machineId
     if (proxyUrl !== (credential.proxyUrl || '')) data.proxyUrl = proxyUrl
     if (proxyUsername !== '') data.proxyUsername = proxyUsername
@@ -168,6 +171,20 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
                 </div>
               </>
             )}
+
+            {/* Profile ARN */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Profile ARN</label>
+              <Input
+                placeholder={credential.hasProfileArn ? '已配置，留空不修改' : '留空不修改'}
+                value={profileArn}
+                onChange={(e) => setProfileArn(e.target.value)}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                企业版 IdC 账号调用时通常必填，格式如 arn:aws:codewhisperer:&lt;region&gt;:&lt;account-id&gt;:profile/&lt;profile-id&gt;
+              </p>
+            </div>
 
             {/* Machine ID */}
             <div className="space-y-2">

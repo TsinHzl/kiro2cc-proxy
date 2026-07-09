@@ -1989,6 +1989,11 @@ impl MultiTokenManager {
 
         // 5. 设置 ID 并保留用户输入的元数据
         validated_cred.id = Some(new_id);
+        // 用户显式填写的 profileArn 优先；否则保留刷新响应中自动获取到的值
+        // （企业版 IdC 刷新通常不返回 profileArn，必须由用户手动提供）
+        if new_cred.profile_arn.is_some() {
+            validated_cred.profile_arn = new_cred.profile_arn;
+        }
         validated_cred.priority = new_cred.priority;
         validated_cred.auth_method = new_cred.auth_method.map(|m| {
             if m.eq_ignore_ascii_case("builder-id") || m.eq_ignore_ascii_case("iam") {
@@ -2155,6 +2160,13 @@ impl MultiTokenManager {
                 None
             } else {
                 Some(ci.clone())
+            };
+        }
+        if let Some(ref pa) = update.profile_arn {
+            cred.profile_arn = if pa.is_empty() {
+                None
+            } else {
+                Some(pa.clone())
             };
         }
         if let Some(ref cs) = update.client_secret {

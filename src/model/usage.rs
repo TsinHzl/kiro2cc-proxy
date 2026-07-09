@@ -66,6 +66,8 @@ pub struct UsageSummary {
     pub total_output_tokens: i64,
     /// 总估算费用（美元）
     pub total_cost: f64,
+    /// 累计真实 credits 消耗（旧记录按 estimated_cost * k_ref 回退估算）
+    pub total_credits: f64,
     /// 节省的 credits 总量（仅含有 credits_used 的记录）
     pub total_credits_saved: f64,
     /// 按模型分组的用量
@@ -338,12 +340,21 @@ impl UsageTracker {
             })
             .sum();
 
+        let total_credits: f64 = filtered
+            .iter()
+            .map(|r| {
+                r.credits_used
+                    .unwrap_or_else(|| r.estimated_cost * get_k_ref(&r.model))
+            })
+            .sum();
+
         UsageSummary {
             api_key_id,
             total_requests: filtered.len() as u64,
             total_input_tokens: filtered.iter().map(|r| r.input_tokens as i64).sum(),
             total_output_tokens: filtered.iter().map(|r| r.output_tokens as i64).sum(),
             total_cost: filtered.iter().map(|r| r.estimated_cost).sum(),
+            total_credits,
             total_credits_saved,
             by_model: by_model
                 .into_iter()
@@ -385,6 +396,20 @@ impl UsageTracker {
             .iter()
             .filter(|r| r.api_key_id == api_key_id)
             .map(|r| r.estimated_cost)
+            .sum()
+    }
+
+    /// 获取指定 API Key 的累计真实 credits 消耗（轻量版）
+    /// 旧记录无 credits_used 时按 estimated_cost * k_ref 回退估算（与日报汇总口径一致）
+    pub fn get_total_credits(&self, api_key_id: u32) -> f64 {
+        let records = self.records.read();
+        records
+            .iter()
+            .filter(|r| r.api_key_id == api_key_id)
+            .map(|r| {
+                r.credits_used
+                    .unwrap_or_else(|| r.estimated_cost * get_k_ref(&r.model))
+            })
             .sum()
     }
 
@@ -805,5 +830,123 @@ impl UsageTracker {
             page_size,
             total_pages,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_usage_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "kiro2cc_usage_test_{}_{}.json",
+            name,
+            uuid::Uuid::new_v4()
+        ))
+    }
+
+    #[tokio::test]
+    async fn test_get_total_credits_uses_real_credits_when_present() {
+        let path = temp_usage_path("credits_present");
+        let tracker = UsageTracker::load(&path).unwrap();
+        // credits_used 显式提供时，应直接累加该值而非回退估算
+        tracker.record(
+            1,
+            None,
+            "claude-opus-4.6".to_string(),
+            1000,
+            100,
+            None,
+            Some(3.43),
+            None,
+            None,
+        );
+        tracker.record(
+            1,
+            None,
+            "claude-opus-4.6".to_string(),
+            1000,
+            100,
+            None,
+            Some(1.0),
+            None,
+            None,
+        );
+        assert!((tracker.get_total_credits(1) - 4.43).abs() < 1e-9);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn test_get_total_credits_falls_back_to_estimated_cost_times_k_ref() {
+        let path = temp_usage_path("credits_fallback");
+        let tracker = UsageTracker::load(&path).unwrap();
+        // 旧记录无 credits_used 时按 estimated_cost * k_ref 回退估算
+        tracker.record(
+            1,
+            None,
+            "claude-sonnet-4.5".to_string(),
+            1_000_000,
+            0,
+            None,
+            None,
+            None,
+            None,
+        );
+        let expected_cost = calculate_cost("claude-sonnet-4.5", 1_000_000, 0);
+        let expected_credits = expected_cost * get_k_ref("claude-sonnet-4.5");
+        assert!((tracker.get_total_credits(1) - expected_credits).abs() < 1e-9);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn test_get_total_credits_only_counts_matching_api_key() {
+        let path = temp_usage_path("credits_scoped");
+        let tracker = UsageTracker::load(&path).unwrap();
+        tracker.record(
+            1,
+            None,
+            "claude-opus-4.6".to_string(),
+            100,
+            10,
+            None,
+            Some(5.0),
+            None,
+            None,
+        );
+        tracker.record(
+            2,
+            None,
+            "claude-opus-4.6".to_string(),
+            100,
+            10,
+            None,
+            Some(99.0),
+            None,
+            None,
+        );
+        assert!((tracker.get_total_credits(1) - 5.0).abs() < 1e-9);
+        assert!((tracker.get_total_credits(2) - 99.0).abs() < 1e-9);
+        assert_eq!(tracker.get_total_credits(3), 0.0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn test_get_summary_total_credits_matches_get_total_credits() {
+        let path = temp_usage_path("summary_credits");
+        let tracker = UsageTracker::load(&path).unwrap();
+        tracker.record(
+            1,
+            None,
+            "claude-opus-4.8".to_string(),
+            500,
+            50,
+            None,
+            Some(2.5),
+            None,
+            None,
+        );
+        let summary = tracker.get_summary(1);
+        assert!((summary.total_credits - tracker.get_total_credits(1)).abs() < 1e-9);
+        let _ = std::fs::remove_file(&path);
     }
 }

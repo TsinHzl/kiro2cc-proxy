@@ -134,6 +134,7 @@ pub async fn auth_middleware(
                 id,
                 name,
                 spending_limit,
+                limit_unit,
                 bound_credential_ids,
             } => {
                 // 懒激活：首次使用时激活 key
@@ -141,24 +142,35 @@ pub async fn auth_middleware(
                     tracing::warn!(api_key_id = id, error = %e, "激活 API Key 失败");
                 }
 
-                // 额度检查
+                // 额度检查：limit_unit = "credits" 按真实 credits 累计计量，否则按美元估算计量
                 if let (Some(limit), Some(tracker)) = (spending_limit, &state.usage_tracker) {
-                    let total_cost = tracker.get_total_cost(id);
-                    if total_cost >= limit {
+                    let is_credits = limit_unit.eq_ignore_ascii_case("credits");
+                    let used = if is_credits {
+                        tracker.get_total_credits(id)
+                    } else {
+                        tracker.get_total_cost(id)
+                    };
+                    if used >= limit {
                         tracing::warn!(
                             api_key_id = id,
                             api_key_name = %name,
-                            total_cost = total_cost,
+                            used = used,
                             spending_limit = limit,
+                            limit_unit = %limit_unit,
                             "API Key 额度已用尽"
                         );
-                        let error = ErrorResponse::new(
-                            "forbidden",
+                        let message = if is_credits {
+                            format!(
+                                "API key spending limit exceeded. Used: {:.2} credits, Limit: {:.2} credits",
+                                used, limit
+                            )
+                        } else {
                             format!(
                                 "API key spending limit exceeded. Used: ${:.2}, Limit: ${:.2}",
-                                total_cost, limit
-                            ),
-                        );
+                                used, limit
+                            )
+                        };
+                        let error = ErrorResponse::new("forbidden", message);
                         return (StatusCode::FORBIDDEN, Json(error)).into_response();
                     }
                 }

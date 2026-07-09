@@ -712,6 +712,14 @@ Authorization: Bearer your-api-key
 - **推荐**：为服务器绑定域名并配置 HTTPS，通过 `https://` 访问管理面板
 - **临时绕过**：Chrome 打开 `chrome://flags/#unsafely-treat-insecure-origin-as-secure`，Edge 打开 `edge://flags/#unsafely-treat-insecure-origin-as-secure`，在文本框填入完整地址（如 `http://43.153.11.66:8990`），改为 Enabled 后重启浏览器
 
+**Q：企业版 IdC 账号请求返回 502，日志显示 `profileArn is required for this request`**
+
+企业版（Enterprise）IdC 账号调用 Q 端点强制要求 `profileArn`，但 IdC Token 刷新接口不会返回该字段，需要手动填写。管理面板「添加账号 / 编辑账号」对话框中已提供 **Profile ARN** 输入框，填入形如 `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>` 的值即可。`profileArn` 可从 Kiro IDE 本地缓存或 `ListAvailableProfiles` 获取，其所在 region 需与账号的 `apiRegion` 保持一致。Social 账号一般无需填写。
+
+**Q：子 API Key 消费额度能按真实 Kiro credits 计量吗（而不是估算的美元）**
+
+能。创建/编辑子 API Key 时，额度单位可选「美元估算」或「真实 Credits」（limitUnit：usd/credits）。选择 credits 时，额度按 usage 记录中的真实 credits_used 累加计量（旧记录无 credits_used 字段时按 estimated_cost × k_ref 回退估算）。默认为 usd，向后兼容现有配置。
+
 **Q：端口被占用**
 
 `run-local-service-mac.sh` 会自动终止占用端口的进程。如仍报错，手动执行：

@@ -56,6 +56,7 @@ pub async fn create_api_key(
         payload.name,
         payload.expires_at,
         payload.spending_limit,
+        payload.limit_unit,
         payload.duration_days,
         payload.bound_credential_ids,
     ) {
@@ -85,6 +86,7 @@ pub async fn update_api_key(
         payload.enabled,
         payload.expires_at,
         payload.spending_limit,
+        payload.limit_unit,
         payload.duration_days,
         payload.bound_credential_ids,
     ) {

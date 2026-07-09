@@ -43,21 +43,26 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
   }
 
+  const isCredits = data?.limitUnit === 'credits'
+  const usedAmount = isCredits ? data?.totalCredits ?? 0 : data?.totalCost ?? 0
+
   const getStatusBadge = () => {
     if (!data) return null
     if (data.expiresAt) {
       const expired = new Date(data.expiresAt) < new Date()
       if (expired) return <Badge variant="destructive">已过期</Badge>
     }
-    if (data.spendingLimit && data.totalCost >= data.spendingLimit) {
+    if (data.spendingLimit && usedAmount >= data.spendingLimit) {
       return <Badge variant="destructive">额度已用完</Badge>
     }
     return <Badge variant="success">正常</Badge>
   }
 
   const spendingPercent = data?.spendingLimit
-    ? Math.min((data.totalCost / data.spendingLimit) * 100, 100)
+    ? Math.min((usedAmount / data.spendingLimit) * 100, 100)
     : null
+
+  const formatLimitAmount = (n: number) => (isCredits ? n.toFixed(2) : formatCost(n))
 
   if (isLoading) {
     return (
@@ -135,8 +140,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
               {data.spendingLimit && spendingPercent !== null && (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">额度使用</span>
-                    <span>{formatCost(data.totalCost)} / {formatCost(data.spendingLimit)}</span>
+                    <span className="text-muted-foreground">
+                      额度使用{isCredits ? '（credits）' : ''}
+                    </span>
+                    <span>{formatLimitAmount(usedAmount)} / {formatLimitAmount(data.spendingLimit)}</span>
                   </div>
                   <Progress value={spendingPercent} />
                 </div>

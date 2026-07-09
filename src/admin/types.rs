@@ -94,6 +94,9 @@ pub struct AddCredentialRequest {
     /// OIDC Client Secret（IdC 认证需要）
     pub client_secret: Option<String>,
 
+    /// Profile ARN（可选，企业版 IdC 账号调用 Q 端点必需，Social 刷新会自动获取）
+    pub profile_arn: Option<String>,
+
     /// 优先级（可选，默认 0）
     #[serde(default)]
     pub priority: u32,
@@ -160,6 +163,9 @@ pub struct UpdateCredentialRequest {
 
     /// OIDC Client Secret（可选）
     pub client_secret: Option<String>,
+
+    /// Profile ARN（可选，企业版 IdC 账号调用 Q 端点必需；传空字符串表示清除该字段）
+    pub profile_arn: Option<String>,
 
     /// 账号级 Auth Region（用于 Token 刷新）
     pub auth_region: Option<String>,
@@ -255,9 +261,12 @@ pub struct CreateApiKeyRequest {
     /// 过期时间（可选，ISO 8601 格式）— 按日期模式
     #[serde(default)]
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// 额度限制（美元）— 按额度模式
+    /// 额度限制数值 — 按额度模式
     #[serde(default)]
     pub spending_limit: Option<f64>,
+    /// 额度计量单位（"usd" | "credits"），不传默认 "usd"
+    #[serde(default)]
+    pub limit_unit: Option<String>,
     /// 有效期天数（懒激活模式）
     #[serde(default)]
     pub duration_days: Option<f64>,
@@ -282,6 +291,9 @@ pub struct UpdateApiKeyRequest {
     /// 额度限制（null 表示不限额）
     #[serde(default, deserialize_with = "deserialize_optional_f64")]
     pub spending_limit: Option<Option<f64>>,
+    /// 额度计量单位（"usd" | "credits"）
+    #[serde(default)]
+    pub limit_unit: Option<String>,
     /// 有效期天数（懒激活模式）
     #[serde(default, deserialize_with = "deserialize_optional_f64")]
     pub duration_days: Option<Option<f64>>,

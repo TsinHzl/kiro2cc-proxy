@@ -29,6 +29,7 @@ pub struct UserContext {
     pub key_id: u32,
     pub key_name: String,
     pub spending_limit: Option<f64>,
+    pub limit_unit: String,
 }
 
 /// 错误响应
@@ -61,12 +62,14 @@ pub async fn user_auth_middleware(
             id,
             name,
             spending_limit,
+            limit_unit,
             ..
         } => {
             request.extensions_mut().insert(UserContext {
                 key_id: id,
                 key_name: name,
                 spending_limit,
+                limit_unit,
             });
             next.run(request).await
         }

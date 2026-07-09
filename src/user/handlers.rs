@@ -22,6 +22,7 @@ pub async fn login(
             id,
             name,
             spending_limit,
+            limit_unit,
             ..
         } => {
             // 查询用量
@@ -34,7 +35,9 @@ pub async fn login(
                 id,
                 name,
                 spending_limit,
+                limit_unit,
                 total_cost: summary.total_cost,
+                total_credits: summary.total_credits,
                 expires_at: key_info.and_then(|k| k.expires_at.map(|t| t.to_rfc3339())),
                 duration_days: key_info.and_then(|k| k.duration_days),
                 activated_at: key_info.and_then(|k| k.activated_at.map(|t| t.to_rfc3339())),
@@ -81,6 +84,7 @@ pub async fn get_usage(
         id: ctx.key_id,
         name: ctx.key_name,
         spending_limit: ctx.spending_limit,
+        limit_unit: ctx.limit_unit,
         expires_at: key_info.and_then(|k| k.expires_at.map(|t| t.to_rfc3339())),
         duration_days: key_info.and_then(|k| k.duration_days),
         activated_at: key_info.and_then(|k| k.activated_at.map(|t| t.to_rfc3339())),
@@ -88,6 +92,7 @@ pub async fn get_usage(
         total_input_tokens: summary.total_input_tokens,
         total_output_tokens: summary.total_output_tokens,
         total_cost: summary.total_cost,
+        total_credits: summary.total_credits,
         by_model: summary.by_model,
     };
     Json(response)
@@ -129,7 +134,9 @@ pub struct LoginResponse {
     pub id: u32,
     pub name: String,
     pub spending_limit: Option<f64>,
+    pub limit_unit: String,
     pub total_cost: f64,
+    pub total_credits: f64,
     pub expires_at: Option<String>,
     pub duration_days: Option<f64>,
     pub activated_at: Option<String>,
@@ -141,6 +148,7 @@ pub struct UsageResponse {
     pub id: u32,
     pub name: String,
     pub spending_limit: Option<f64>,
+    pub limit_unit: String,
     pub expires_at: Option<String>,
     pub duration_days: Option<f64>,
     pub activated_at: Option<String>,
@@ -148,5 +156,6 @@ pub struct UsageResponse {
     pub total_input_tokens: i64,
     pub total_output_tokens: i64,
     pub total_cost: f64,
+    pub total_credits: f64,
     pub by_model: Vec<crate::model::usage::ModelUsage>,
 }

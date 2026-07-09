@@ -28,6 +28,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
   const [apiRegion, setApiRegion] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [profileArn, setProfileArn] = useState('')
   const [priority, setPriority] = useState('0')
   const [machineId, setMachineId] = useState('')
   const [proxyUrl, setProxyUrl] = useState('')
@@ -44,6 +45,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
     setApiRegion('')
     setClientId('')
     setClientSecret('')
+    setProfileArn('')
     setPriority('0')
     setMachineId('')
     setProxyUrl('')
@@ -75,6 +77,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
         apiRegion: apiRegion.trim() || undefined,
         clientId: clientId.trim() || undefined,
         clientSecret: clientSecret.trim() || undefined,
+        profileArn: profileArn.trim() || undefined,
         priority: parseInt(priority) || 0,
         machineId: machineId.trim() || undefined,
         proxyUrl: proxyUrl.trim() || undefined,
@@ -208,6 +211,23 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 </div>
               </>
             )}
+
+            {/* Profile ARN */}
+            <div className="space-y-2">
+              <label htmlFor="profileArn" className="text-sm font-medium">
+                Profile ARN
+              </label>
+              <Input
+                id="profileArn"
+                placeholder="arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>"
+                value={profileArn}
+                onChange={(e) => setProfileArn(e.target.value)}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                企业版 IdC 账号调用时通常必填，可从 Kiro IDE 本地缓存或 ListAvailableProfiles 获取，Social 账号一般留空
+              </p>
+            </div>
 
             {/* 优先级 */}
             <div className="space-y-2">

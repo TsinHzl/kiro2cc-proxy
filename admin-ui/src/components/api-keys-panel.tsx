@@ -33,6 +33,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [newDuration, setNewDuration] = useState<number | null>(1) // 数值，null 表示永不过期
   const [newDurationUnit, setNewDurationUnit] = useState<'days' | 'hours'>('days')
   const [newSpendingLimit, setNewSpendingLimit] = useState(100)
+  const [newLimitUnit, setNewLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [newBoundCredentialIds, setNewBoundCredentialIds] = useState<number[]>([])
   const [editName, setEditName] = useState('')
   const [editMode, setEditMode] = useState<'date' | 'quota'>('date')
@@ -40,6 +41,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editDurationUnit, setEditDurationUnit] = useState<'days' | 'hours'>('days')
   const [editBoundCredentialIds, setEditBoundCredentialIds] = useState<number[]>([])
   const [editSpendingLimit, setEditSpendingLimit] = useState(50)
+  const [editLimitUnit, setEditLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [copiedMaster, setCopiedMaster] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
@@ -181,7 +183,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           ? newDuration !== null
             ? { durationDays: toDays(newDuration, newDurationUnit) }
             : {}
-          : { spendingLimit: newSpendingLimit }),
+          : { spendingLimit: newSpendingLimit, limitUnit: newLimitUnit }),
         boundCredentialIds: newBoundCredentialIds.length > 0 ? newBoundCredentialIds : null,
       },
       {
@@ -193,6 +195,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           setNewDuration(1)
           setNewDurationUnit('days')
           setNewSpendingLimit(100)
+          setNewLimitUnit('usd')
           setNewBoundCredentialIds([])
         },
         onError: (err) => toast.error(`创建失败: ${extractErrorMessage(err)}`),
@@ -218,6 +221,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       data.spendingLimit = null // 清除额度限制
     } else {
       data.spendingLimit = editSpendingLimit
+      data.limitUnit = editLimitUnit
       data.expiresAt = null // 清除过期时间
       data.durationDays = null // 清除懒激活
     }
@@ -259,10 +263,12 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     if (key.spendingLimit != null) {
       setEditMode('quota')
       setEditSpendingLimit(key.spendingLimit)
+      setEditLimitUnit(key.limitUnit ?? 'usd')
       setEditDuration(1)
     } else {
       setEditMode('date')
       setEditSpendingLimit(50)
+      setEditLimitUnit('usd')
       if (key.durationDays != null && key.durationDays < 1) {
         setEditDuration(Math.round(key.durationDays * 24 * 100) / 100)
         setEditDurationUnit('hours')
@@ -520,7 +526,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                         {apiKey.spendingLimit != null ? (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
-                            额度: ${(usage?.totalCost ?? 0).toFixed(2)} / ${apiKey.spendingLimit.toFixed(2)}
+                            {apiKey.limitUnit === 'credits'
+                              ? `额度: ${(usage?.totalCredits ?? 0).toFixed(2)} / ${apiKey.spendingLimit.toFixed(2)} credits`
+                              : `额度: $${(usage?.totalCost ?? 0).toFixed(2)} / $${apiKey.spendingLimit.toFixed(2)}`}
                           </span>
                         ) : apiKey.durationDays != null && !apiKey.activatedAt ? (
                           <span className="flex items-center gap-1">
@@ -710,9 +718,16 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               </div>
             ) : (
               <div>
-                <label className="text-sm font-medium">额度上限（美元）</label>
+                <label className="text-sm font-medium">计量单位</label>
+                <div className="flex gap-2 mt-2">
+                  <Button type="button" size="sm" variant={newLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('usd')}>美元估算</Button>
+                  <Button type="button" size="sm" variant={newLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('credits')}>真实 Credits</Button>
+                </div>
+                <label className="text-sm font-medium mt-3 block">
+                  额度上限（{newLimitUnit === 'credits' ? 'credits' : '美元'}）
+                </label>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {[100, 500, 1000].map((amount) => (
+                  {(newLimitUnit === 'credits' ? [1000, 5000, 10000] : [100, 500, 1000]).map((amount) => (
                     <Button
                       key={amount}
                       type="button"
@@ -720,12 +735,14 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       variant={newSpendingLimit === amount ? 'default' : 'outline'}
                       onClick={() => setNewSpendingLimit(amount)}
                     >
-                      ${amount}
+                      {newLimitUnit === 'credits' ? amount : `$${amount}`}
                     </Button>
                   ))}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm text-muted-foreground">自定义 $</span>
+                  <span className="text-sm text-muted-foreground">
+                    自定义{newLimitUnit === 'credits' ? '' : ' $'}
+                  </span>
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -740,7 +757,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  累计用量达到 ${newSpendingLimit} 后自动停用
+                  累计用量达到 {newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}`} 后自动停用
                 </div>
               </div>
             )}
@@ -876,9 +893,16 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               </div>
             ) : (
               <div>
-                <label className="text-sm font-medium">额度上限（美元）</label>
+                <label className="text-sm font-medium">计量单位</label>
+                <div className="flex gap-2 mt-2">
+                  <Button type="button" size="sm" variant={editLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('usd')}>美元估算</Button>
+                  <Button type="button" size="sm" variant={editLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('credits')}>真实 Credits</Button>
+                </div>
+                <label className="text-sm font-medium mt-3 block">
+                  额度上限（{editLimitUnit === 'credits' ? 'credits' : '美元'}）
+                </label>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-sm text-muted-foreground">{editLimitUnit === 'credits' ? '' : '$'}</span>
                   <Input
                     type="number"
                     min={1}
@@ -890,7 +914,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  累计用量达到 ${editSpendingLimit} 后自动停用
+                  累计用量达到 {editLimitUnit === 'credits' ? `${editSpendingLimit} credits` : `$${editSpendingLimit}`} 后自动停用
                 </div>
               </div>
             )}

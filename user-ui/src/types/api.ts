@@ -7,7 +7,9 @@ export interface LoginResponse {
   id: number
   name: string
   spendingLimit: number | null
+  limitUnit: 'usd' | 'credits'
   totalCost: number
+  totalCredits: number
   expiresAt: string | null
   durationDays: number | null
   activatedAt: string | null
@@ -25,6 +27,7 @@ export interface UsageResponse {
   id: number
   name: string
   spendingLimit: number | null
+  limitUnit: 'usd' | 'credits'
   expiresAt: string | null
   durationDays: number | null
   activatedAt: string | null
@@ -32,6 +35,7 @@ export interface UsageResponse {
   totalInputTokens: number
   totalOutputTokens: number
   totalCost: number
+  totalCredits: number
   byModel: ModelUsage[]
 }
 

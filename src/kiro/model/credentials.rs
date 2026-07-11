@@ -12,7 +12,7 @@ use crate::http_client::ProxyConfig;
 use crate::model::config::Config;
 
 /// Kiro OAuth 凭证
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct KiroCredentials {
     /// 账号唯一标识符（自增 ID）
@@ -101,6 +101,46 @@ pub struct KiroCredentials {
     /// 账号是否被禁用（默认为 false）
     #[serde(default)]
     pub disabled: bool,
+}
+
+/// 对邮箱做部分掩码（保留首字符与域名，如 u***@example.com）
+fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) => match local.chars().next() {
+            Some(first) => format!("{first}***@{domain}"),
+            None => format!("***@{domain}"),
+        },
+        None => "[REDACTED]".to_string(),
+    }
+}
+
+impl std::fmt::Debug for KiroCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let redact = |v: &Option<String>| v.as_ref().map(|_| "[REDACTED]");
+        let masked_email = self.email.as_deref().map(mask_email);
+        f.debug_struct("KiroCredentials")
+            .field("id", &self.id)
+            .field("access_token", &redact(&self.access_token))
+            .field("refresh_token", &redact(&self.refresh_token))
+            .field("profile_arn", &self.profile_arn)
+            .field("expires_at", &self.expires_at)
+            .field("auth_method", &self.auth_method)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &redact(&self.client_secret))
+            .field("priority", &self.priority)
+            .field("region", &self.region)
+            .field("auth_region", &self.auth_region)
+            .field("api_region", &self.api_region)
+            .field("machine_id", &self.machine_id)
+            .field("email", &masked_email)
+            .field("nickname", &self.nickname)
+            .field("subscription_title", &self.subscription_title)
+            .field("proxy_url", &self.proxy_url)
+            .field("proxy_username", &self.proxy_username)
+            .field("proxy_password", &redact(&self.proxy_password))
+            .field("disabled", &self.disabled)
+            .finish()
+    }
 }
 
 /// 判断是否为零（用于跳过序列化）
@@ -876,5 +916,34 @@ mod tests {
         let creds = KiroCredentials::default();
         let result = creds.effective_proxy(None);
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_debug_redacts_sensitive_fields() {
+        let mut creds = KiroCredentials::default();
+        creds.access_token = Some("secret_access".to_string());
+        creds.refresh_token = Some("secret_refresh".to_string());
+        creds.client_secret = Some("secret_client".to_string());
+        creds.proxy_password = Some("secret_proxy_pw".to_string());
+        creds.email = Some("user@example.com".to_string());
+
+        let debug_str = format!("{:?}", creds);
+        assert!(!debug_str.contains("secret_access"));
+        assert!(!debug_str.contains("secret_refresh"));
+        assert!(!debug_str.contains("secret_client"));
+        assert!(!debug_str.contains("secret_proxy_pw"));
+        assert!(!debug_str.contains("user@example.com"));
+        assert!(debug_str.contains("u***@example.com")); // 邮箱掩码，仅保留首字符与域名
+        assert_eq!(debug_str.matches("[REDACTED]").count(), 4);
+    }
+
+    #[test]
+    fn test_debug_none_sensitive_fields_shown_as_none() {
+        let creds = KiroCredentials::default();
+        let debug_str = format!("{:?}", creds);
+        assert!(debug_str.contains("access_token: None"));
+        assert!(debug_str.contains("refresh_token: None"));
+        assert!(debug_str.contains("client_secret: None"));
+        assert!(debug_str.contains("proxy_password: None"));
     }
 }

@@ -507,14 +507,14 @@ cache_control 断点注入（执行顺序）
 | 上游协议 | Anthropic API（直接控制请求体 JSON） | Kiro/AWS CodeWhisperer API（私有协议） |
 | 缓存控制字段 | `cache_control: {type: "ephemeral", ttl: "5m"/"1h"}` | **无此字段**，Kiro 协议不暴露；但服务端自动执行前缀缓存 |
 | TTL 延长手段 | 请求体注入 `"ttl":"1h"` | **不可行**，协议层不支持；TTL 由 Kiro 服务端决定 |
-| 缓存折扣 | Anthropic 直接报告 `cache_read_input_tokens`，10% 计费 | Kiro 折扣体现在 `meteringEvent.usage` credits 中，代理通过 `infer_cache_read_tokens()` 反推，实测确认同为 10% 计费 |
+| 缓存折扣 | Anthropic 直接报告 `cache_read_input_tokens`，10% 计费 | Kiro 折扣体现在 `meteringEvent` 的 credits 用量中；2026-06-30 按 `k_ref` 反推实测确认为 **50% 全价计费**（非 10%） |
 | Sticky Session | Redis，TTL=1h，基于 session hash | 内存，基于 `agentContinuationId` |
 | Billing Header | 注入 + CCH 签名，伪装为官方 CLI | 不需要（走 Kiro 协议，非 Anthropic 直连） |
 | 缓存命中率 | 取决于 TTL 和前缀稳定性 | 首轮 ~88%（跨会话前缀缓存），后续 ~97-99% |
-| cache.rs 的作用 | 无对应 | **反推层**：从 metering credits 反推 `cache_read` tokens，数学精度 <0.1%，非"伪造" |
+| cache 模块的作用 | 无对应 | `src/cache/` 目录，四层降级链依次尝试：① metering 真值（`MeteringEvent.cache_read_input_tokens`/`cache_creation_input_tokens`，Kiro 已开始返回）② `token::count_prefix_tokens` 前缀字符估算 ③ `fingerprint.rs` 账号级前缀指纹命中（SHA-256 累积哈希追踪跨请求共享前缀，与本节"Sticky Session"及 sub2api 的 `fingerprintUnification`/HTTP 指纹统一是完全不同的概念）④ `simulation.rs` 比例模拟兜底 |
 
-**结论**：两者底层的缓存计费模型一致（cache read = 10% 全价），差异在于控制方式：
+**结论**：两者底层的缓存折扣力度不同（sub2api/Anthropic 官方 cache read = 10% 全价，kiro2cc-proxy 实测为 50% 全价），控制方式也不同：
 - sub2api 通过 `cache_control` 字段**显式控制**缓存行为和 TTL
-- kiro2cc-proxy 通过**稳定请求前缀**（冻结 history[0] system prompt + history[2] tools）来**间接最大化** Kiro 服务端的自动前缀缓存命中率
+- kiro2cc-proxy 通过**稳定请求前缀**（冻结 history[0] system prompt + history[2] tools）来**间接最大化** Kiro 服务端的自动前缀缓存命中率，计费展示值走上述四层降级链而非单一"反推层"
 
 kiro2cc-proxy 无法控制缓存 TTL，但实测 Kiro 的缓存 TTL 足够长（跨会话仍能命中），且缓存命中率极高（97-99%），credits 节省效果与 sub2api 的 1h TTL 策略相当。

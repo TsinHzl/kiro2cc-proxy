@@ -408,18 +408,11 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
 5. The panel automatically recognizes the account info and displays it — confirm to save
 
-> ⚠️ **[CRITICAL] Importing accounts fails when accessing the admin panel over HTTP**
+> ℹ️ **Importing accounts over HTTP**
 >
-> If you access the admin panel via `http://server-ip:port/admin` (not HTTPS, not localhost), the browser's security policy disables the `crypto.subtle` encryption API, causing an error `Cannot read properties of undefined (reading 'digest')` during import. The backend will show no error logs.
+> Since v2.7.3, a pure-JS fallback is built in, so importing accounts works fine even when accessing the admin panel via `http://server-ip:port/admin` (not HTTPS, not localhost) — no need to configure HTTPS or browser flags.
 >
-> **Solution 1 (recommended):** Bind a domain name to your server and configure HTTPS, then access the admin panel via `https://`.
->
-> **Solution 2 (temporary workaround):** Force the browser to treat the HTTP address as secure.
->
-> Chrome: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
-> Edge: open `edge://flags/#unsafely-treat-insecure-origin-as-secure`
->
-> Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box under "Insecure origins treated as secure", set the toggle to **Enabled**, then click **Relaunch** to restart the browser and retry.
+> If you're on v2.7.2 or earlier, the browser's security policy still disables the `crypto.subtle` encryption API in this case, causing an error `Cannot read properties of undefined (reading 'digest')`. Please upgrade to the latest version.
 
 **Step 4 (optional): Create the accounts file manually**
 
@@ -705,11 +698,7 @@ Try changing `tlsBackend` to `native-tls` in `config.json` and restart the servi
 
 **Q: Importing accounts via the admin panel fails with `Cannot read properties of undefined (reading 'digest')`**
 
-This is a browser security policy restriction. The `crypto.subtle` encryption API is only available in HTTPS or localhost environments. Accessing the admin panel via a public IP + HTTP triggers this error — the backend will show no logs.
-
-Solutions:
-- **Recommended:** Bind a domain name to your server and configure HTTPS, then access via `https://`
-- **Temporary workaround:** Chrome: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`; Edge: open `edge://flags/#unsafely-treat-insecure-origin-as-secure`. Enter your full address (e.g. `http://43.153.11.66:8990`) in the text box, set to **Enabled**, click **Relaunch**
+This was fixed in v2.7.3: the `crypto.subtle` encryption API is only available in HTTPS or localhost environments, so accessing the admin panel via a public IP + HTTP used to trigger this error. Since v2.7.3, it automatically falls back to a pure-JS implementation — no need to configure HTTPS. If you still see this error, please upgrade to the latest version.
 
 **Q: Enterprise IdC account requests return 502 with `profileArn is required for this request` in the logs**
 

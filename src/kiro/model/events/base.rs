@@ -116,6 +116,10 @@ impl Event {
 
         match event_type {
             EventType::AssistantResponse => {
+                tracing::debug!(
+                    "[raw-event] assistantResponseEvent payload: {}",
+                    frame.payload_as_str()
+                );
                 let payload = super::AssistantResponseEvent::from_frame(&frame)?;
                 Ok(Self::AssistantResponse(payload))
             }

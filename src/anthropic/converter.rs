@@ -782,7 +782,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         .with_current_message(current_message)
         .with_history(history);
 
-    let additional_model_request_fields = build_additional_model_request_fields(req);
+    let additional_model_request_fields = build_additional_model_request_fields(req, &model_id);
 
     Ok(ConversionResult {
         conversation_state,
@@ -1353,7 +1353,18 @@ fn model_max_output_tokens(model: &str) -> i32 {
 }
 
 /// 构建 additionalModelRequestFields（thinking、output_config、max_tokens）
-fn build_additional_model_request_fields(req: &MessagesRequest) -> Option<serde_json::Value> {
+///
+/// 实测：claude-sonnet-4.5 / claude-opus-4.5 / claude-haiku-4.5 这三个 "4.5" 代际模型，
+/// Kiro 后端直接拒绝该字段（400 additionalModelRequestFields is not supported for this model），
+/// 需跳过整个字段构建。
+fn build_additional_model_request_fields(
+    req: &MessagesRequest,
+    model_id: &str,
+) -> Option<serde_json::Value> {
+    if model_id.ends_with("4.5") {
+        return None;
+    }
+
     let mut fields = serde_json::Map::new();
 
     if let Some(t) = &req.thinking {

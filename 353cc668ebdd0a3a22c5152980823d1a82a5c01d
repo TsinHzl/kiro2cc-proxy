@@ -1,0 +1,37 @@
+src/kiro/model/credentials.rs
+  b84c1f890aee3e26 117-119,121-134,136-145,920-934,937-948
+  3e8af8b3f6040ef6 106-116,120,135,935-936
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "353cc668ebdd0a3a22c5152980823d1a82a5c01d",
+  "prompts": {
+    "3e8af8b3f6040ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e66ced06-5120-4931-940d-5227b19b5770",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 2,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    },
+    "b84c1f890aee3e26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3229d148-5a38-4043-8389-48ba54e3ef2b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 54,
+      "overriden_lines": 0
+    }
+  }
+}

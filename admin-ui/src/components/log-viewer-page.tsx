@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLogStream, type LogEntry } from '@/hooks/use-log-stream'
 import { storage } from '@/lib/storage'
+import { copyToClipboard } from '@/lib/clipboard'
 
 type LevelFilter = 'ALL' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
 
@@ -103,7 +104,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
     const text = filteredLogs
       .map((e) => `${formatTimestamp(e.timestamp)} [${e.level}] ${e.target} ${e.message}`)
       .join('\n')
-    await navigator.clipboard.writeText(text)
+    await copyToClipboard(text)
     setCopyToast(true)
     setTimeout(() => setCopyToast(false), 2000)
   }

@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances } from '@/hooks/use-credentials'
 import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
+import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
 interface ApiKeysPanelProps {
@@ -161,7 +162,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   }
 
   const copyToClipboard = async (text: string, target: 'url' | 'master' | number) => {
-    await navigator.clipboard.writeText(text)
+    await writeToClipboard(text)
     if (target === 'url') {
       setCopiedUrl(true)
       setTimeout(() => setCopiedUrl(false), 2000)

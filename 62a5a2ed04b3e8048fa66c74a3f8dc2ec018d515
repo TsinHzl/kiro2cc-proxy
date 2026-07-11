@@ -1,0 +1,38 @@
+src/anthropic/converter.rs
+  3e8af8b3f6040ef6 785,1356-1367
+src/kiro/model/events/base.rs
+  3e8af8b3f6040ef6 119-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "62a5a2ed04b3e8048fa66c74a3f8dc2ec018d515",
+  "prompts": {
+    "3e8af8b3f6040ef6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e66ced06-5120-4931-940d-5227b19b5770",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 2,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "b84c1f890aee3e26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3229d148-5a38-4043-8389-48ba54e3ef2b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 57,
+      "total_deletions": 1,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}

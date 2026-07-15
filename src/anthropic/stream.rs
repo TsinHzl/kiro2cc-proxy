@@ -1604,6 +1604,11 @@ impl BufferedStreamContext {
         self.inner.is_empty_response()
     }
 
+    /// 估算的 input_tokens（用于诊断日志）。
+    pub fn input_tokens(&self) -> i32 {
+        self.estimated_input_tokens
+    }
+
     /// 空响应是否由上下文过大导致（委托给 inner StreamContext）。
     pub fn empty_response_is_oversized_context(&self) -> bool {
         self.inner.empty_response_is_oversized_context()

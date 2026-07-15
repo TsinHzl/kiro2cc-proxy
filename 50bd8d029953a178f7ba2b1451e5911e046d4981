@@ -1,0 +1,25 @@
+src/anthropic/handlers.rs
+  014b6e71119152d7 787-806,879-883,1663-1670,1760-1775
+src/anthropic/stream.rs
+  014b6e71119152d7 1607-1611
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "50bd8d029953a178f7ba2b1451e5911e046d4981",
+  "prompts": {
+    "014b6e71119152d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13b87d0a-2297-430a-bf00-6b625c2a1c55",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 2,
+      "accepted_lines": 54,
+      "overriden_lines": 0
+    }
+  }
+}

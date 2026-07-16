@@ -695,6 +695,10 @@ Authorization: Bearer your-api-key
 
 > ⚠️ **【重要】** 国内 IP 无法直接访问 Claude 模型。必须在 `app/config/config.json` 中配置 `proxyUrl`（如 `"proxyUrl": "http://127.0.0.1:7890"`），或使用境外服务器。这是国内用户最常见的问题。
 
+**Q：使用 GPT-5.6 系列模型（sol/terra/luna）时，thinking 模式、output effort 或 max_tokens 设定似乎没有生效**
+
+GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（涵盖 thinking / output_config effort / max_tokens 三个子字段），与 Claude 4.5 代际（Sonnet 4.5 / Opus 4.5 / Haiku 4.5）一样会被整体跳过，属已知限制，非本项目 bug。
+
 **Q：请求返回 401 Unauthorized**
 
 客户端使用的 API Key 与 `config.json` 中的 `apiKey` 不一致，检查并对齐。

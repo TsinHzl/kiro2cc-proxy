@@ -691,6 +691,10 @@ Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker)
 
 > ⚠️ **[CRITICAL]** Mainland China IPs cannot access Claude models directly. You must add `proxyUrl` to `app/config/config.json` (e.g. `"proxyUrl": "http://127.0.0.1:7890"`), or use an overseas server. This is the most common issue for users in China.
 
+**Q: When using GPT-5.6 models (sol/terra/luna), thinking mode / output effort / max_tokens settings seem to have no effect**
+
+The Kiro backend schema for the GPT-5.6 series does not support `additionalModelRequestFields` (covering the thinking / output_config effort / max_tokens sub-fields) — same as the Claude 4.5 generation (Sonnet 4.5 / Opus 4.5 / Haiku 4.5), this field is skipped entirely. This is a known upstream limitation, not a bug in this project.
+
 **Q: Requests return 401 Unauthorized**
 
 The API key used by the client doesn't match `apiKey` in `config.json`. Check and align them.

@@ -24,7 +24,7 @@
 //! ```
 
 mod converter;
-mod handlers;
+pub(crate) mod handlers;
 pub mod middleware;
 mod router;
 mod stream;

@@ -41,6 +41,7 @@ impl ErrorResponse {
 
 /// 模型信息
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
 pub struct Model {
     pub id: String,
     pub object: String,
@@ -54,6 +55,7 @@ pub struct Model {
 
 /// 模型列表响应
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
 pub struct ModelsResponse {
     pub object: String,
     pub data: Vec<Model>,

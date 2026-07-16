@@ -28,6 +28,7 @@ import {
   getDailyUsageRecords,
   getThrottleLogs,
   getFailureLogs,
+  getModels,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -284,6 +285,15 @@ export function useSetAuthKeys() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth-keys'] })
     },
+  })
+}
+
+// ============ 支持的模型 Hooks ============
+
+export function useModels() {
+  return useQuery({
+    queryKey: ['models'],
+    queryFn: getModels,
   })
 }
 

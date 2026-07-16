@@ -20,6 +20,7 @@ import type {
   CredentialDaySummary,
   ThrottleLogsResponse,
   FailureLogsResponse,
+  ModelsResponse,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -221,6 +222,13 @@ export async function getAuthKeys(): Promise<{ apiKey: string; adminApiKey: stri
 
 export async function setAuthKeys(payload: { apiKey?: string; adminApiKey?: string }): Promise<{ success: boolean; message: string }> {
   const { data } = await api.put<{ success: boolean; message: string }>('/config/auth-keys', payload)
+  return data
+}
+
+// ============ 支持的模型 ============
+
+export async function getModels(): Promise<ModelsResponse> {
+  const { data } = await api.get<ModelsResponse>('/models')
   return data
 }
 

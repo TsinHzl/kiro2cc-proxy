@@ -13,6 +13,7 @@ use super::{
     middleware::AdminState,
     types::{AdminErrorResponse, CreateApiKeyRequest, SuccessResponse, UpdateApiKeyRequest},
 };
+use crate::anthropic::{handlers::build_model_list, types::ModelsResponse};
 
 /// GET /api/admin/server-info
 /// 获取服务器连接信息（主 API Key）
@@ -229,6 +230,15 @@ pub async fn get_credential_today_summary(
     Json(tracker.get_today_summary_for_credential(id)).into_response()
 }
 
+/// GET /api/admin/models
+/// 获取当前代理支持的完整模型列表（admin 鉴权，数据源与 /v1/models 共用）
+pub async fn get_admin_models() -> impl IntoResponse {
+    Json(ModelsResponse {
+        object: "list".to_string(),
+        data: build_model_list(),
+    })
+}
+
 /// GET /api/admin/rpm
 /// 获取实时 RPM 数据（含 sticky cache 命中/未命中统计）
 pub async fn get_rpm(State(state): State<AdminState>) -> impl IntoResponse {
@@ -330,4 +340,39 @@ pub async fn get_throttle_logs(
         .unwrap_or(50)
         .min(500);
     Json(store.get_paged(id, page, page_size)).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::anthropic::handlers::build_model_list;
+
+    #[tokio::test]
+    async fn test_get_admin_models_matches_build_model_list() {
+        let response = get_admin_models().await.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("读取响应体失败");
+        let parsed: ModelsResponse = serde_json::from_slice(&body).expect("解析响应体失败");
+
+        assert_eq!(parsed.object, "list");
+
+        let expected_ids: std::collections::HashSet<String> =
+            build_model_list().into_iter().map(|m| m.id).collect();
+        let actual_ids: std::collections::HashSet<String> =
+            parsed.data.into_iter().map(|m| m.id).collect();
+        assert_eq!(actual_ids, expected_ids);
+
+        for id in [
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "claude-fable-5",
+            "claude-sonnet-5",
+        ] {
+            assert!(actual_ids.contains(id), "模型列表应包含 {id}");
+        }
+    }
 }

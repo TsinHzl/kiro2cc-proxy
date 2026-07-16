@@ -184,7 +184,7 @@ pub async fn get_models() -> impl IntoResponse {
 }
 
 /// 构建可用模型列表（供 get_models 和 get_model 共用）
-fn build_model_list() -> Vec<Model> {
+pub(crate) fn build_model_list() -> Vec<Model> {
     vec![
         // === 旧版模型 ID（兼容旧版 Claude Code 客户端） ===
         // 这些旧 ID 在 map_model() 中会被正确映射到对应的 Kiro 模型

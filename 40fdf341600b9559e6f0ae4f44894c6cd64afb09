@@ -1,0 +1,23 @@
+docs/源码全景解析.md
+  9133d3a19963565c 260,269-270,274-275,302-314,328-330,341-348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "40fdf341600b9559e6f0ae4f44894c6cd64afb09",
+  "prompts": {
+    "9133d3a19963565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16354e55-3c5a-41f9-a8de-7693daaa480a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 4,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}

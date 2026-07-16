@@ -32,6 +32,7 @@ export function ModelListPage() {
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">显示名称</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">提供方</th>
                     <th className="text-right px-4 py-2 font-medium text-muted-foreground">Max Tokens</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">费率倍率</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -41,6 +42,9 @@ export function ModelListPage() {
                       <td className="px-4 py-2">{model.display_name}</td>
                       <td className="px-4 py-2 text-muted-foreground">{model.owned_by}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{model.max_tokens.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {model.rate_multiplier != null ? `${model.rate_multiplier.toFixed(2)}x` : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

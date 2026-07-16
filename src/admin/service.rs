@@ -186,6 +186,25 @@ impl AdminService {
         })
     }
 
+    /// 获取当前支持模型的官方费率倍率表（modelId → rateMultiplier）
+    ///
+    /// 每次实时调用上游 ListAvailableModels，不做缓存；上游调用失败（无可用账号、
+    /// 网络错误、非 2xx）时记录日志并返回空表，不向上传播错误——模型列表的可用性
+    /// 优先于费率展示的完整性。
+    pub async fn list_model_rates(&self) -> HashMap<String, f64> {
+        match self.token_manager.list_available_models().await {
+            Ok(resp) => resp
+                .models
+                .into_iter()
+                .filter_map(|m| m.rate_multiplier.map(|rate| (m.model_id, rate)))
+                .collect(),
+            Err(e) => {
+                tracing::warn!("获取支持模型费率倍率失败，本次不展示费率: {}", e);
+                HashMap::new()
+            }
+        }
+    }
+
     /// 添加新账号
     pub async fn add_credential(
         &self,

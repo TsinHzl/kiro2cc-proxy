@@ -400,3 +400,23 @@ pub struct SetAuthKeysRequest {
     #[serde(default)]
     pub admin_api_key: Option<String>,
 }
+
+// ============ 支持模型 ============
+
+/// 支持模型条目（在 /v1/models 的 Model 基础上附加官方费率倍率）
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminModelItem {
+    #[serde(flatten)]
+    pub model: crate::anthropic::types::Model,
+    /// 官方费率倍率（实时查询，无法匹配或上游调用失败时为 None）
+    pub rate_multiplier: Option<f64>,
+}
+
+/// 支持模型列表响应
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminModelsResponse {
+    pub object: String,
+    pub data: Vec<AdminModelItem>,
+}

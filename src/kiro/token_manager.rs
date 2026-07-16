@@ -18,6 +18,7 @@ use std::time::{Duration as StdDuration, Instant};
 
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
+use crate::kiro::model::available_models::AvailableModelsResponse;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::model::token_refresh::{
     IdcRefreshRequest, IdcRefreshResponse, RefreshRequest, RefreshResponse,
@@ -421,6 +422,52 @@ pub(crate) async fn get_usage_limits(
     }
 
     let data: UsageLimitsResponse = response.json().await?;
+    Ok(data)
+}
+
+/// 获取当前支持的模型列表（含官方费率倍率）
+///
+/// 与 getUsageLimits 不同，这是 AWS JSON RPC 协议（POST + x-amz-target），
+/// 而非 REST 查询，两者协议格式互不通用。
+pub(crate) async fn list_available_models(
+    credentials: &KiroCredentials,
+    config: &Config,
+    token: &str,
+    proxy: Option<&ProxyConfig>,
+) -> anyhow::Result<AvailableModelsResponse> {
+    tracing::debug!("正在获取支持模型列表...");
+
+    let region = credentials.effective_api_region(config);
+    let host = format!("management.{}.kiro.dev", region);
+    let url = format!("https://{}/?origin=KIRO_CLI", host);
+    tracing::debug!("ListAvailableModels 请求 host: {}", host);
+
+    let mut body = serde_json::json!({ "origin": "KIRO_CLI" });
+    if let Some(profile_arn) = &credentials.profile_arn {
+        body["profileArn"] = serde_json::Value::String(profile_arn.clone());
+    }
+
+    let client = build_client(proxy, 15, config.tls_backend)?;
+
+    let response = client
+        .post(&url)
+        .header("content-type", "application/x-amz-json-1.0")
+        .header(
+            "x-amz-target",
+            "AmazonCodeWhispererService.ListAvailableModels",
+        )
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&body)
+        .send()
+        .await?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body_text = response.text().await.unwrap_or_default();
+        bail!("获取支持模型列表失败: {} {}", status, body_text);
+    }
+
+    let data: AvailableModelsResponse = response.json().await?;
     Ok(data)
 }
 
@@ -1709,6 +1756,19 @@ impl MultiTokenManager {
         let ctx = self.acquire_context(None).await?;
         let effective_proxy = ctx.credentials.effective_proxy(self.proxy.as_ref());
         get_usage_limits(
+            &ctx.credentials,
+            &self.config,
+            &ctx.token,
+            effective_proxy.as_ref(),
+        )
+        .await
+    }
+
+    /// 获取当前支持的模型列表（含官方费率倍率），取任意可用账号
+    pub async fn list_available_models(&self) -> anyhow::Result<AvailableModelsResponse> {
+        let ctx = self.acquire_context(None).await?;
+        let effective_proxy = ctx.credentials.effective_proxy(self.proxy.as_ref());
+        list_available_models(
             &ctx.credentials,
             &self.config,
             &ctx.token,

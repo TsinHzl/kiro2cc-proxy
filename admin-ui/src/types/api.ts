@@ -168,6 +168,7 @@ export interface ModelItem {
   display_name: string
   type: string
   max_tokens: number
+  rate_multiplier?: number | null
 }
 
 export interface ModelsResponse {

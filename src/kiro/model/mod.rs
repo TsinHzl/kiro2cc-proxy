@@ -8,7 +8,9 @@
 //! - `credentials`: OAuth 凭证
 //! - `token_refresh`: Token 刷新
 //! - `usage_limits`: 使用额度查询
+//! - `available_models`: 支持模型列表查询
 
+pub mod available_models;
 pub mod common;
 pub mod credentials;
 pub mod events;

@@ -457,6 +457,20 @@ pub fn map_model(model: &str) -> Option<String> {
         }
     } else if model_lower.contains("qwen") {
         Some("qwen3-coder-next".to_string())
+    } else if model_lower.contains("gpt") {
+        if model_lower.contains("terra") {
+            Some("gpt-5.6-terra".to_string())
+        } else if model_lower.contains("luna") {
+            Some("gpt-5.6-luna".to_string())
+        } else if model_lower.contains("sol")
+            || model_lower.contains("5.6")
+            || model_lower.contains("5-6")
+        {
+            // 未指定具体变体（sol/terra/luna）时默认落到旗舰档 sol
+            Some("gpt-5.6-sol".to_string())
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -1355,13 +1369,13 @@ fn model_max_output_tokens(model: &str) -> i32 {
 /// 构建 additionalModelRequestFields（thinking、output_config、max_tokens）
 ///
 /// 实测：claude-sonnet-4.5 / claude-opus-4.5 / claude-haiku-4.5 这三个 "4.5" 代际模型，
-/// Kiro 后端直接拒绝该字段（400 additionalModelRequestFields is not supported for this model），
-/// 需跳过整个字段构建。
+/// 以及 gpt-5.6-* 系列，Kiro 后端均拒绝该字段（先后遇到 400 REQUEST_BODY_INVALID：
+/// max_tokens、output_config 均不在 schema 定义内且不允许额外属性），需跳过整个字段构建。
 fn build_additional_model_request_fields(
     req: &MessagesRequest,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    if model_id.ends_with("4.5") {
+    if model_id.ends_with("4.5") || model_id.starts_with("gpt-") {
         return None;
     }
 
@@ -1835,6 +1849,14 @@ mod tests {
     #[test]
     fn test_map_model_unsupported() {
         assert!(map_model("gpt-4").is_none());
+    }
+
+    #[test]
+    fn test_map_model_gpt_5_6_variants() {
+        assert_eq!(map_model("gpt-5.6-sol").unwrap(), "gpt-5.6-sol");
+        assert_eq!(map_model("gpt-5.6-terra").unwrap(), "gpt-5.6-terra");
+        assert_eq!(map_model("gpt-5.6-luna").unwrap(), "gpt-5.6-luna");
+        assert_eq!(map_model("gpt-5.6").unwrap(), "gpt-5.6-sol");
     }
 
     #[test]
@@ -3067,6 +3089,35 @@ mod tests {
         assert_eq!(
             map_model("claude-opus-4-6"),
             Some("claude-opus-4.6".to_string())
+        );
+    }
+
+    #[test]
+    fn test_gpt_5_6_additional_model_request_fields_is_none() {
+        // 实测：gpt-5.6-* 的 additionalModelRequestFields schema 既不认识 max_tokens
+        // 也不认识 output_config（均返回 400 REQUEST_BODY_INVALID），需整体跳过该字段。
+        use super::super::types::Message as AnthropicMessage;
+
+        let req = MessagesRequest {
+            model: "gpt-5.6-sol".to_string(),
+            max_tokens: 128000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+        assert!(
+            result.additional_model_request_fields.is_none(),
+            "gpt-5.6 系列必须整体省略 additionalModelRequestFields 字段"
         );
     }
 }

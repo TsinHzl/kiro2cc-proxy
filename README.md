@@ -5,7 +5,7 @@
 
 一个用 Rust 编写的 Anthropic Claude API 兼容代理服务，将 Anthropic API 请求转换为 Kiro API 请求。
 
-> **✅ 支持模型：Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder**
+> **✅ 支持模型：Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
 
 [English](README.en.md) | 中文
 
@@ -656,6 +656,9 @@ Authorization: Bearer your-api-key
 | `*minimax*`（含 2.5/2-5） | `minimax-m2.5` |
 | `*minimax*`（其他） | `minimax-m2.1` |
 | `*qwen*` | `qwen3-coder-next` |
+| `*gpt*`（含 terra） | `gpt-5.6-terra` |
+| `*gpt*`（含 luna） | `gpt-5.6-luna` |
+| `*gpt*`（含 sol，或含 5.6/5-6 但无具体变体名，默认落到旗舰档） | `gpt-5.6-sol` |
 
 ---
 

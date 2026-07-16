@@ -1,0 +1,41 @@
+src/admin/router.rs
+  9133d3a19963565c 11-14,66
+src/anthropic/handlers.rs
+  9133d3a19963565c 187
+admin-ui/src/hooks/use-credentials.ts
+  9133d3a19963565c 31,291-296
+admin-ui/src/components/model-list-page.tsx
+  9133d3a19963565c 1-54
+src/anthropic/types.rs
+  9133d3a19963565c 44,58
+admin-ui/src/api/credentials.ts
+  9133d3a19963565c 23,228-234
+admin-ui/src/components/dashboard.tsx
+  9133d3a19963565c 3,26,37,61,686,735-736
+src/anthropic/mod.rs
+  9133d3a19963565c 27
+src/admin/api_keys.rs
+  9133d3a19963565c 16,233-241,344-378
+admin-ui/src/types/api.ts
+  9133d3a19963565c 162-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d458e7e521ce7cef0a0c36d02963207aef59fdf5",
+  "prompts": {
+    "9133d3a19963565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16354e55-3c5a-41f9-a8de-7693daaa480a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 394,
+      "total_deletions": 38,
+      "accepted_lines": 365,
+      "overriden_lines": 0
+    }
+  }
+}

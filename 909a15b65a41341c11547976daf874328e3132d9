@@ -1,0 +1,31 @@
+Cargo.toml
+  9133d3a19963565c 3
+README.md
+  9133d3a19963565c 8,659-661
+src/anthropic/converter.rs
+  9133d3a19963565c 460-473,1372-1373,1378,1855-1861,3094-3122
+src/anthropic/handlers.rs
+  9133d3a19963565c 473-498
+README.en.md
+  9133d3a19963565c 8,655-657
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "909a15b65a41341c11547976daf874328e3132d9",
+  "prompts": {
+    "9133d3a19963565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16354e55-3c5a-41f9-a8de-7693daaa480a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 107,
+      "total_deletions": 23,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    }
+  }
+}

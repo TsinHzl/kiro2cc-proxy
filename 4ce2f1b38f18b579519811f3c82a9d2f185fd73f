@@ -1,0 +1,31 @@
+src/admin/service.rs
+  9133d3a19963565c 34-81,83-89,245,247-249,251,253-257,558-563,565-571,573-603,605-704
+src/admin/api_keys.rs
+  9133d3a19963565c 236-237,241,400
+Cargo.toml
+  9133d3a19963565c 3
+src/kiro/model/available_models.rs
+  9133d3a19963565c 22-24,28-43
+openspec/specs/admin-api/spec.md
+  9133d3a19963565c 10,19,21,23-24,28-29,31,33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4ce2f1b38f18b579519811f3c82a9d2f185fd73f",
+  "prompts": {
+    "9133d3a19963565c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16354e55-3c5a-41f9-a8de-7693daaa480a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 396,
+      "total_deletions": 121,
+      "accepted_lines": 373,
+      "overriden_lines": 4
+    }
+  }
+}

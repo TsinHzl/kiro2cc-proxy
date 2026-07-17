@@ -12,11 +12,10 @@ use serde::Serialize;
 use super::{
     middleware::AdminState,
     types::{
-        AdminErrorResponse, AdminModelItem, AdminModelsResponse, CreateApiKeyRequest,
-        SuccessResponse, UpdateApiKeyRequest,
+        AdminErrorResponse, AdminModelsResponse, CreateApiKeyRequest, SuccessResponse,
+        UpdateApiKeyRequest,
     },
 };
-use crate::anthropic::{converter::map_model, handlers::build_model_list};
 
 /// GET /api/admin/server-info
 /// 获取服务器连接信息（主 API Key）
@@ -233,32 +232,13 @@ pub async fn get_credential_today_summary(
     Json(tracker.get_today_summary_for_credential(id)).into_response()
 }
 
-/// 将 `build_model_list()` 的每一项与费率表关联，生成 `AdminModelItem` 列表
-///
-/// 抽成独立函数以便单测覆盖"归一化命中"路径，无需真实网络调用
-fn build_admin_model_items(rates: &std::collections::HashMap<String, f64>) -> Vec<AdminModelItem> {
-    build_model_list()
-        .into_iter()
-        .map(|model| {
-            let rate_multiplier =
-                map_model(&model.id).and_then(|real_id| rates.get(&real_id).copied());
-            AdminModelItem {
-                model,
-                rate_multiplier,
-            }
-        })
-        .collect()
-}
-
 /// GET /api/admin/models
-/// 获取当前代理支持的完整模型列表（admin 鉴权，数据源与 /v1/models 共用），
-/// 附加实时查询的官方费率倍率
+/// 获取当前代理支持的完整模型列表（admin 鉴权），直接来源于上游 ListAvailableModels
+/// 实时响应；上游调用失败时回退到本地静态模型表
 pub async fn get_admin_models(State(state): State<AdminState>) -> impl IntoResponse {
-    let rates = state.service.list_model_rates().await;
-
     Json(AdminModelsResponse {
         object: "list".to_string(),
-        data: build_admin_model_items(&rates),
+        data: state.service.list_admin_models().await,
     })
 }
 
@@ -417,48 +397,13 @@ mod tests {
             assert!(actual_ids.contains(id), "模型列表应包含 {id}");
         }
 
-        // 零账号场景下 list_available_models 必然失败，覆盖优雅降级路径
+        // 零账号场景下 list_available_models 必然失败，触发回退到本地静态模型表
         assert!(
             parsed
                 .data
                 .iter()
                 .all(|item| item.rate_multiplier.is_none()),
             "无可用账号时所有模型的 rate_multiplier 应为 None"
-        );
-    }
-
-    #[test]
-    fn test_build_admin_model_items_fills_rate_multiplier_on_match() {
-        let sample = build_model_list()
-            .into_iter()
-            .find_map(|m| map_model(&m.id).map(|real_id| (m.id, real_id)))
-            .expect("模型列表中应至少存在一个可被 map_model 归一化的模型");
-        let (sample_id, sample_real_id) = sample;
-
-        let mut rates = std::collections::HashMap::new();
-        rates.insert(sample_real_id.clone(), 1.3);
-
-        let items = build_admin_model_items(&rates);
-
-        let matched = items
-            .iter()
-            .find(|item| item.model.id == sample_id)
-            .expect("应能在结果中找到样本模型");
-        assert_eq!(
-            matched.rate_multiplier,
-            Some(1.3),
-            "归一化命中费率表时应正确回填 rate_multiplier"
-        );
-
-        // 除样本模型外，只有恰好归一化到同一 real_id 的模型（如 thinking 变体）才应命中；
-        // 其余模型的归一化结果不等于 sample_real_id，rate_multiplier 必须为 None
-        let unexpected = items.iter().any(|item| {
-            item.rate_multiplier.is_some()
-                && map_model(&item.model.id).as_deref() != Some(sample_real_id.as_str())
-        });
-        assert!(
-            !unexpected,
-            "只有归一化命中费率表 key 的模型才应有 rate_multiplier"
         );
     }
 }

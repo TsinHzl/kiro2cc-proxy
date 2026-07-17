@@ -31,6 +31,62 @@ struct CachedBalance {
     data: BalanceResponse,
 }
 
+/// 根据模型 ID 前缀推断提供方（ListAvailableModels 响应不含厂商归属字段）
+///
+/// 命名规则与 `build_model_list()` 中手工维护的 `owned_by` 保持一致；未知前缀返回 `"unknown"`。
+fn guess_owned_by(model_id: &str) -> &'static str {
+    let id = model_id.to_lowercase();
+    if id.contains("claude") {
+        "anthropic"
+    } else if id.contains("gpt") {
+        "openai"
+    } else if id == "auto" {
+        "kiro"
+    } else if id.contains("deepseek") {
+        "deepseek"
+    } else if id.contains("minimax") {
+        "minimax"
+    } else if id.contains("glm") {
+        "glm"
+    } else if id.contains("qwen") {
+        "qwen"
+    } else {
+        "unknown"
+    }
+}
+
+/// 将上游 `ListAvailableModels` 返回的单条模型映射为 `AdminModelItem`（成功路径）
+///
+/// 纯函数，不涉及网络调用，可直接用 fake `AvailableModelInfo` 单测。
+fn live_model_to_admin_item(
+    info: &crate::kiro::model::available_models::AvailableModelInfo,
+) -> super::types::AdminModelItem {
+    super::types::AdminModelItem {
+        model: crate::anthropic::types::Model {
+            id: info.model_id.clone(),
+            object: "model".to_string(),
+            created: 0,
+            owned_by: guess_owned_by(&info.model_id).to_string(),
+            display_name: info.model_name.clone(),
+            model_type: "chat".to_string(),
+            max_tokens: info.token_limits.max_output_tokens as i32,
+        },
+        rate_multiplier: info.rate_multiplier,
+    }
+}
+
+/// 将本地静态模型条目映射为 `AdminModelItem`（上游调用失败时的回退路径）
+///
+/// 纯函数，不涉及网络调用，可直接用 fake `Model` 单测。
+fn fallback_model_to_admin_item(
+    model: crate::anthropic::types::Model,
+) -> super::types::AdminModelItem {
+    super::types::AdminModelItem {
+        model,
+        rate_multiplier: None,
+    }
+}
+
 /// Admin 服务
 ///
 /// 封装所有 Admin API 的业务逻辑
@@ -186,21 +242,19 @@ impl AdminService {
         })
     }
 
-    /// 获取当前支持模型的官方费率倍率表（modelId → rateMultiplier）
+    /// 获取当前支持模型列表（直接来源于上游 ListAvailableModels 实时响应）
     ///
-    /// 每次实时调用上游 ListAvailableModels，不做缓存；上游调用失败（无可用账号、
-    /// 网络错误、非 2xx）时记录日志并返回空表，不向上传播错误——模型列表的可用性
-    /// 优先于费率展示的完整性。
-    pub async fn list_model_rates(&self) -> HashMap<String, f64> {
+    /// 每次实时调用，不做缓存；上游调用失败（无可用账号、网络错误、非 2xx、
+    /// 反序列化失败）时记录日志并回退到本地静态模型表（`rate_multiplier` 全为 `None`）。
+    pub async fn list_admin_models(&self) -> Vec<super::types::AdminModelItem> {
         match self.token_manager.list_available_models().await {
-            Ok(resp) => resp
-                .models
-                .into_iter()
-                .filter_map(|m| m.rate_multiplier.map(|rate| (m.model_id, rate)))
-                .collect(),
+            Ok(resp) => resp.models.iter().map(live_model_to_admin_item).collect(),
             Err(e) => {
-                tracing::warn!("获取支持模型费率倍率失败，本次不展示费率: {}", e);
-                HashMap::new()
+                tracing::warn!("获取实时支持模型列表失败，回退到本地静态模型表: {}", e);
+                crate::anthropic::handlers::build_model_list()
+                    .into_iter()
+                    .map(fallback_model_to_admin_item)
+                    .collect()
             }
         }
     }
@@ -499,5 +553,152 @@ impl AdminService {
         } else {
             AdminServiceError::InvalidCredential(msg)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::anthropic::types::Model;
+    use crate::kiro::model::available_models::{
+        AvailableModelInfo, AvailableModelsResponse, TokenLimits,
+    };
+
+    fn fake_info(
+        model_id: &str,
+        model_name: &str,
+        rate: Option<f64>,
+        max_in: u64,
+        max_out: u64,
+    ) -> AvailableModelInfo {
+        AvailableModelInfo {
+            model_id: model_id.to_string(),
+            model_name: model_name.to_string(),
+            rate_multiplier: rate,
+            token_limits: TokenLimits {
+                max_input_tokens: max_in,
+                max_output_tokens: max_out,
+            },
+        }
+    }
+
+    #[test]
+    fn test_guess_owned_by_known_and_unknown_prefixes() {
+        assert_eq!(guess_owned_by("claude-sonnet-4.6"), "anthropic");
+        assert_eq!(guess_owned_by("gpt-5.6-sol"), "openai");
+        assert_eq!(guess_owned_by("auto"), "kiro");
+        assert_eq!(guess_owned_by("deepseek-3.2"), "deepseek");
+        assert_eq!(guess_owned_by("minimax-m2.5"), "minimax");
+        assert_eq!(guess_owned_by("glm-5"), "glm");
+        assert_eq!(guess_owned_by("qwen3-coder-next"), "qwen");
+        assert_eq!(guess_owned_by("foo-model"), "unknown");
+    }
+
+    #[test]
+    fn test_live_model_to_admin_item_maps_fields() {
+        let info = fake_info(
+            "claude-sonnet-4.6",
+            "Claude Sonnet 4.6",
+            Some(1.3),
+            1_000_000,
+            64_000,
+        );
+        let item = live_model_to_admin_item(&info);
+        assert_eq!(item.model.id, "claude-sonnet-4.6");
+        assert_eq!(item.model.display_name, "Claude Sonnet 4.6");
+        assert_eq!(item.model.max_tokens, 64_000);
+        assert_eq!(item.model.owned_by, "anthropic");
+        assert_eq!(item.rate_multiplier, Some(1.3));
+
+        let unknown = fake_info("foo-model", "Foo Model", None, 100, 50);
+        let unknown_item = live_model_to_admin_item(&unknown);
+        assert_eq!(unknown_item.model.owned_by, "unknown");
+        assert_eq!(unknown_item.rate_multiplier, None);
+    }
+
+    #[test]
+    fn test_fallback_model_to_admin_item_clears_rate_multiplier() {
+        let model = Model {
+            id: "claude-3-5-sonnet-20241022".to_string(),
+            object: "model".to_string(),
+            created: 1729555200,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude 3.5 Sonnet".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 8192,
+        };
+        let expected_id = model.id.clone();
+        let item = fallback_model_to_admin_item(model);
+        assert_eq!(item.model.id, expected_id);
+        assert_eq!(item.rate_multiplier, None);
+    }
+
+    /// 基于真实抓包响应体结构构造的 JSON 字面量（字段名/嵌套与
+    /// `ListAvailableModels` 实际返回一致），验证反序列化字段映射；
+    /// 第三条模型故意缺失 `modelName`/`tokenLimits`，验证 `#[serde(default)]`
+    /// 容错不会导致整个 `models[]` 解析失败
+    #[test]
+    fn test_available_models_response_deserializes_real_capture_shape() {
+        let raw = r#"{
+            "defaultModel": { "modelId": "auto" },
+            "models": [
+                {
+                    "description": "自动选择模型",
+                    "modelId": "auto",
+                    "modelName": "Auto",
+                    "promptCaching": {
+                        "maximumCacheCheckpointsPerRequest": 4,
+                        "minimumTokensPerCacheCheckpoint": 1024,
+                        "supportsPromptCaching": true
+                    },
+                    "rateMultiplier": 1.0,
+                    "rateUnit": "Credit",
+                    "supportedInputTypes": ["TEXT"],
+                    "tokenLimits": { "maxInputTokens": 1000000, "maxOutputTokens": 64000 }
+                },
+                {
+                    "description": "Claude Sonnet 5",
+                    "modelId": "claude-sonnet-5",
+                    "modelName": "Claude Sonnet 5",
+                    "promptCaching": {
+                        "maximumCacheCheckpointsPerRequest": 4,
+                        "minimumTokensPerCacheCheckpoint": 1024,
+                        "supportsPromptCaching": true
+                    },
+                    "rateMultiplier": 1.3,
+                    "rateUnit": "Credit",
+                    "supportedInputTypes": ["TEXT", "IMAGE"],
+                    "tokenLimits": { "maxInputTokens": 1000000, "maxOutputTokens": 64000 },
+                    "additionalModelRequestFieldsSchema": { "type": "object", "properties": {} }
+                },
+                {
+                    "modelId": "legacy-drift-model",
+                    "rateMultiplier": 0.5
+                }
+            ]
+        }"#;
+
+        let parsed: AvailableModelsResponse =
+            serde_json::from_str(raw).expect("应能反序列化真实抓包结构");
+        assert_eq!(parsed.models.len(), 3);
+
+        let auto = &parsed.models[0];
+        assert_eq!(auto.model_id, "auto");
+        assert_eq!(auto.model_name, "Auto");
+        assert_eq!(auto.rate_multiplier, Some(1.0));
+        assert_eq!(auto.token_limits.max_input_tokens, 1_000_000);
+        assert_eq!(auto.token_limits.max_output_tokens, 64_000);
+
+        let sonnet = &parsed.models[1];
+        assert_eq!(sonnet.model_id, "claude-sonnet-5");
+        assert_eq!(sonnet.rate_multiplier, Some(1.3));
+
+        // 缺失 modelName/tokenLimits 时应回退到默认值，反序列化不失败
+        let drift = &parsed.models[2];
+        assert_eq!(drift.model_id, "legacy-drift-model");
+        assert_eq!(drift.model_name, "");
+        assert_eq!(drift.token_limits.max_input_tokens, 0);
+        assert_eq!(drift.token_limits.max_output_tokens, 0);
+        assert_eq!(drift.rate_multiplier, Some(0.5));
     }
 }

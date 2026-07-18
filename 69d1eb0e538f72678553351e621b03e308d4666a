@@ -1,0 +1,23 @@
+src/anthropic/stream.rs
+  fcee88bdccedddff 2677-2685,2698-2733
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "69d1eb0e538f72678553351e621b03e308d4666a",
+  "prompts": {
+    "fcee88bdccedddff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8363fbf2-f97e-48d5-bbe4-94da796abd48",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 296,
+      "total_deletions": 2,
+      "accepted_lines": 291,
+      "overriden_lines": 0
+    }
+  }
+}

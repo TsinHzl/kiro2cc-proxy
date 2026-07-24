@@ -1,0 +1,37 @@
+src/anthropic/websearch.rs
+  fcee88bdccedddff 443,449-451,473-474,476,479,483-504,520,525,530,545
+src/anthropic/converter.rs
+  fcee88bdccedddff 36,39-42,119,122-125,205,207,227,760-762,773,1516-1518,1523,1530,1534-1546,2000-2015
+src/kiro/token_manager.rs
+  fcee88bdccedddff 1587-1590,1592-1594,1596-1597,1599-1600,1616,1623,1625-1627,2497-2551
+src/cache/fingerprint.rs
+  fcee88bdccedddff 63-65,185-187
+src/anthropic/handlers.rs
+  fcee88bdccedddff 107-119,607-620,1179-1182,1396-1401,1443-1456,1885-1912
+src/kiro/provider.rs
+  fcee88bdccedddff 39-62,147-153,155,157-159,441,453-455,508-511,521,549-550,656-657,666-668,675-677,679,712-713,730-732,742,758,771-773,787,789-793,807-810,828,830-834,905-908,931,937-944,1029-1047,1049-1050,1063-1070,1094-1114
+src/model/usage.rs
+  fcee88bdccedddff 163-184,189,191-195,198-213,229-230,271-274,279-303,305-309,364,366,369-377,387,392,394,404,476-477,479,481-482,941-1030
+src/anthropic/middleware.rs
+  fcee88bdccedddff 13,20,24-41,165-170,177-182,189,205-208,215-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "74ee6044c6e03df72a5f20c5497e40fe1952d7e1",
+  "prompts": {
+    "fcee88bdccedddff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8363fbf2-f97e-48d5-bbe4-94da796abd48",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 929,
+      "total_deletions": 197,
+      "accepted_lines": 853,
+      "overriden_lines": 5
+    }
+  }
+}

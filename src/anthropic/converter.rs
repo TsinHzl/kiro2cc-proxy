@@ -1361,11 +1361,13 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
 }
 
 /// 根据模型返回 Kiro 允许的 max_tokens 上限
+/// claude-opus-5 / claude-opus-4.7 / claude-opus-4.8 Max Output = 128K（1M 窗口代际）
 /// claude-sonnet-5 Max Output = 64K，与 sonnet-4.x 同档，走默认分支即可
 fn model_max_output_tokens(model: &str) -> i32 {
     let m = model.to_lowercase();
     if m.contains("opus-4-7") || m.contains("opus-4.7")
         || m.contains("opus-4-8") || m.contains("opus-4.8")
+        || m.contains("opus-5") || m.contains("opus.5")
     {
         128000
     } else {
@@ -3155,5 +3157,18 @@ mod tests {
             result.additional_model_request_fields.is_none(),
             "gpt-5.6 系列必须整体省略 additionalModelRequestFields 字段"
         );
+    }
+
+    #[test]
+    fn test_model_max_output_tokens_opus_5() {
+        assert_eq!(model_max_output_tokens("claude-opus-5"), 128000);
+        assert_eq!(model_max_output_tokens("claude-opus-5-thinking"), 128000);
+        assert_eq!(model_max_output_tokens("Claude-Opus-5"), 128000);
+
+        // 回归：其他档位不变
+        assert_eq!(model_max_output_tokens("claude-opus-4.6"), 64000);
+        assert_eq!(model_max_output_tokens("claude-opus-4.5"), 64000);
+        assert_eq!(model_max_output_tokens("claude-sonnet-5"), 64000);
+        assert_eq!(model_max_output_tokens("claude-haiku-4.5"), 64000);
     }
 }

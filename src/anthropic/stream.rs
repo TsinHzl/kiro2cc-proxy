@@ -582,12 +582,17 @@ const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 /// 4.7/4.8 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
 const CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW: f64 = 0.15;
 
+/// 4.7/4.8/opus-5 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
 /// sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支，统一走默认 CLIENT_TOKEN_DISPLAY_SCALE。
 fn is_large_window_model(model: &str) -> bool {
-    model.contains("opus-4-7")
-        || model.contains("opus-4-8")
-        || model.contains("claude-4-7")
-        || model.contains("claude-4-8")
+    let m = model.to_lowercase();
+    m.contains("opus-4-7")
+        || m.contains("opus-4-8")
+        || m.contains("opus-5")
+        || m.contains("opus.5")
+        || m.contains("opus 5")
+        || m.contains("claude-4-7")
+        || m.contains("claude-4-8")
 }
 
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。
@@ -1742,6 +1747,26 @@ mod tests {
         assert_eq!(scale_for_client(200_000, "claude-opus-4-7"), 30_000);
         assert_eq!(scale_for_client(1, "claude-opus-4-8"), 1);
         assert_eq!(scale_for_client(0, "claude-opus-4-7"), 0);
+    }
+
+    #[test]
+    fn test_is_large_window_model_includes_opus_5() {
+        // opus-5 走大窗口分支（× 0.15）
+        assert_eq!(scale_for_client(100_000, "claude-opus-5"), 15_000);
+        assert_eq!(scale_for_client(100_000, "claude-opus-5-thinking"), 15_000);
+        assert_eq!(scale_for_client(200_000, "Claude-Opus-5"), 30_000);
+        assert_eq!(scale_for_client(1, "claude-opus-5"), 1);
+        // opus-5 空格别名（如客户端发送 "Claude Opus 5"）同样归入大窗口分支
+        assert_eq!(scale_for_client(100_000, "Claude Opus 5"), 15_000);
+
+        // 回归：sonnet-5 不归入大窗口分支
+        assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);
+        // 回归：opus-4.5/4.6 不归入大窗口分支
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-5"), 66_570);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 66_570);
+        // 回归：opus-4.7/4.8 仍走大窗口分支
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 15_000);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 15_000);
     }
 
     #[test]

@@ -1,0 +1,23 @@
+src/anthropic/converter.rs
+  0d7737474b24cf44 417,436-442,2119-2146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "35275428b4c3accbeae77c7174896585e5a99df5",
+  "prompts": {
+    "0d7737474b24cf44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3bf588-d94a-4ded-b14d-2e9b14f4a8ba",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 4,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    }
+  }
+}

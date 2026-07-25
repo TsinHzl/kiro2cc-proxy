@@ -380,6 +380,24 @@ pub(crate) fn build_model_list() -> Vec<Model> {
             max_tokens: 128000,
         },
         Model {
+            id: "claude-opus-5".to_string(),
+            object: "model".to_string(),
+            created: 1777500000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Opus 5".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
+            id: "claude-opus-5-thinking".to_string(),
+            object: "model".to_string(),
+            created: 1777500000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Opus 5 (Thinking)".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
             id: "claude-fable-5".to_string(),
             object: "model".to_string(),
             created: 1772582400,
@@ -1777,6 +1795,38 @@ mod tests {
         // 回归
         assert_eq!(find_by_id("claude-opus-4-7").unwrap().max_tokens, 128000);
         assert_eq!(find_by_id("claude-opus-4-8").unwrap().max_tokens, 128000);
+    }
+
+    #[test]
+    fn test_build_model_list_includes_opus_5() {
+        let list = build_model_list();
+        let ids: std::collections::HashSet<&str> = list.iter().map(|m| m.id.as_str()).collect();
+
+        assert!(ids.contains("claude-opus-5"), "缺 claude-opus-5 静态表项");
+        assert!(
+            ids.contains("claude-opus-5-thinking"),
+            "缺 claude-opus-5-thinking 静态表项"
+        );
+
+        let opus5 = list.iter().find(|m| m.id == "claude-opus-5").unwrap();
+        assert_eq!(opus5.owned_by, "anthropic");
+        assert_eq!(opus5.display_name, "Claude Opus 5");
+        assert_eq!(opus5.max_tokens, 128000);
+
+        let opus5t = list
+            .iter()
+            .find(|m| m.id == "claude-opus-5-thinking")
+            .unwrap();
+        assert_eq!(opus5t.owned_by, "anthropic");
+        assert_eq!(opus5t.display_name, "Claude Opus 5 (Thinking)");
+        assert_eq!(opus5t.max_tokens, 128000);
+
+        // 回归：sonnet-5 仍在
+        assert!(ids.contains("claude-sonnet-5"));
+        assert!(ids.contains("claude-sonnet-5-thinking"));
+        // 回归：opus-4.7/4.8 仍在
+        assert!(ids.contains("claude-opus-4-7"));
+        assert!(ids.contains("claude-opus-4-8"));
     }
 
     #[test]

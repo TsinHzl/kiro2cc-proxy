@@ -1,0 +1,23 @@
+docs/superpowers/specs/2026-07-25-claude-opus-5-support-design.md
+  0d7737474b24cf44 1-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c34a18a4e518266b2ec7d36dd493057acca828ea",
+  "prompts": {
+    "0d7737474b24cf44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3bf588-d94a-4ded-b14d-2e9b14f4a8ba",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 213,
+      "total_deletions": 0,
+      "accepted_lines": 213,
+      "overriden_lines": 0
+    }
+  }
+}

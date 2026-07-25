@@ -1,0 +1,23 @@
+docs/superpowers/plans/2026-07-25-claude-opus-5-support.md
+  0d7737474b24cf44 1-835
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "180ee2e321d4ced1387a57948f2909175348fe4b",
+  "prompts": {
+    "0d7737474b24cf44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3bf588-d94a-4ded-b14d-2e9b14f4a8ba",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 835,
+      "total_deletions": 0,
+      "accepted_lines": 835,
+      "overriden_lines": 0
+    }
+  }
+}

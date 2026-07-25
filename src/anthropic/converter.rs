@@ -1367,7 +1367,7 @@ fn model_max_output_tokens(model: &str) -> i32 {
     let m = model.to_lowercase();
     if m.contains("opus-4-7") || m.contains("opus-4.7")
         || m.contains("opus-4-8") || m.contains("opus-4.8")
-        || m.contains("opus-5") || m.contains("opus.5")
+        || m.contains("opus-5") || m.contains("opus.5") || m.contains("opus 5")
     {
         128000
     } else {
@@ -3164,6 +3164,7 @@ mod tests {
         assert_eq!(model_max_output_tokens("claude-opus-5"), 128000);
         assert_eq!(model_max_output_tokens("claude-opus-5-thinking"), 128000);
         assert_eq!(model_max_output_tokens("Claude-Opus-5"), 128000);
+        assert_eq!(model_max_output_tokens("Claude Opus 5"), 128000);
 
         // 回归：其他档位不变
         assert_eq!(model_max_output_tokens("claude-opus-4.6"), 64000);

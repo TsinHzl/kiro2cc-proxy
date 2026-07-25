@@ -1299,7 +1299,7 @@ fn extract_client_ip(
 
 /// 检测模型名是否包含 "thinking" 后缀，若包含则覆写 thinking 配置
 ///
-/// - Opus 4.6：覆写为 adaptive 类型
+/// - Opus 4.6/4.7/4.8/5：覆写为 adaptive 类型
 /// - 其他模型：覆写为 enabled 类型
 /// - budget_tokens 固定为 20000
 fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
@@ -1311,8 +1311,13 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
     let is_opus_adaptive = model_lower.contains("opus")
         && (model_lower.contains("4-6")
             || model_lower.contains("4.6")
+            || model_lower.contains("4-7")
+            || model_lower.contains("4.7")
             || model_lower.contains("4-8")
-            || model_lower.contains("4.8"));
+            || model_lower.contains("4.8")
+            || model_lower.contains("opus-5")
+            || model_lower.contains("opus.5")
+            || model_lower.contains("opus 5"));
 
     let thinking_type = if is_opus_adaptive {
         "adaptive"

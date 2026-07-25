@@ -1412,7 +1412,11 @@ fn build_additional_model_request_fields(
 
     if req.max_tokens > 0 {
         let cap = model_max_output_tokens(&req.model);
-        let capped = req.max_tokens.min(cap);
+        let mut capped = req.max_tokens.min(cap);
+        if cap == 128000 {
+            // Kiro 侧 schema 对 opus-4.7/4.8/5 代际强制 max_tokens minimum = 1024
+            capped = capped.max(1024);
+        }
         fields.insert("max_tokens".into(), serde_json::json!(capped));
     }
 

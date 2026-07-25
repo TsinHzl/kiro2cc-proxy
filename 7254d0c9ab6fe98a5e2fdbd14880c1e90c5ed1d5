@@ -1,0 +1,25 @@
+docs/源码全景解析.md
+  0d7737474b24cf44 277-282,336
+docs/代码速查表.md
+  0d7737474b24cf44 496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7254d0c9ab6fe98a5e2fdbd14880c1e90c5ed1d5",
+  "prompts": {
+    "0d7737474b24cf44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3bf588-d94a-4ded-b14d-2e9b14f4a8ba",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 2,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -579,6 +579,7 @@ mod tests {
                 max_input_tokens: max_in,
                 max_output_tokens: max_out,
             },
+            additional_model_request_fields_schema: None,
         }
     }
 
@@ -672,6 +673,55 @@ mod tests {
                     "additionalModelRequestFieldsSchema": { "type": "object", "properties": {} }
                 },
                 {
+                    "additionalModelRequestFieldsSchema": {
+                        "type": "object",
+                        "properties": {
+                            "thinking": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["adaptive", "disabled"]
+                                    },
+                                    "display": {
+                                        "type": "string",
+                                        "enum": ["summarized", "omitted"]
+                                    }
+                                },
+                                "required": ["type"]
+                            },
+                            "output_config": {
+                                "type": "object",
+                                "properties": {
+                                    "effort": {
+                                        "type": "string",
+                                        "enum": ["low", "medium", "high", "xhigh", "max"],
+                                        "default": "high"
+                                    }
+                                }
+                            },
+                            "max_tokens": {
+                                "type": "integer",
+                                "minimum": 1024,
+                                "maximum": 128000
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "description": "Experimental preview of Claude Opus 5 model with 1M context window",
+                    "modelId": "claude-opus-5",
+                    "modelName": "claude-opus-5",
+                    "promptCaching": {
+                        "maximumCacheCheckpointsPerRequest": 4,
+                        "minimumTokensPerCacheCheckpoint": 1024,
+                        "supportsPromptCaching": true
+                    },
+                    "rateMultiplier": 2.2,
+                    "rateUnit": "Credit",
+                    "supportedInputTypes": ["TEXT", "IMAGE"],
+                    "tokenLimits": { "maxInputTokens": 1000000, "maxOutputTokens": 128000 }
+                },
+                {
                     "modelId": "legacy-drift-model",
                     "rateMultiplier": 0.5
                 }
@@ -680,7 +730,7 @@ mod tests {
 
         let parsed: AvailableModelsResponse =
             serde_json::from_str(raw).expect("应能反序列化真实抓包结构");
-        assert_eq!(parsed.models.len(), 3);
+        assert_eq!(parsed.models.len(), 4);
 
         let auto = &parsed.models[0];
         assert_eq!(auto.model_id, "auto");
@@ -693,8 +743,19 @@ mod tests {
         assert_eq!(sonnet.model_id, "claude-sonnet-5");
         assert_eq!(sonnet.rate_multiplier, Some(1.3));
 
+        let opus5 = parsed
+            .models
+            .iter()
+            .find(|m| m.model_id == "claude-opus-5")
+            .expect("claude-opus-5 抓包条目缺失");
+        assert_eq!(opus5.model_name, "claude-opus-5");
+        assert_eq!(opus5.rate_multiplier, Some(2.2));
+        assert_eq!(opus5.token_limits.max_input_tokens, 1_000_000);
+        assert_eq!(opus5.token_limits.max_output_tokens, 128_000);
+        assert!(opus5.additional_model_request_fields_schema.is_some());
+
         // 缺失 modelName/tokenLimits 时应回退到默认值，反序列化不失败
-        let drift = &parsed.models[2];
+        let drift = &parsed.models[3];
         assert_eq!(drift.model_id, "legacy-drift-model");
         assert_eq!(drift.model_name, "");
         assert_eq!(drift.token_limits.max_input_tokens, 0);

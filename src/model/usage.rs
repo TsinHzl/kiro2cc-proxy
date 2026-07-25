@@ -121,12 +121,14 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 /// 仅 usage 报表 credits_saved 字段使用（estimated_cost × k_ref - credits_used）。
 /// cache_read 派生已切换为前缀估算路径，不再依赖此值。
 /// 2026-06-30 重校：按 opus 版本分档，基于实测 d=0.50 缓存折扣反推。
+/// 2026-07-25 追加 opus-5 与 4.7/4.8 同档。
 fn get_k_ref(model: &str) -> f64 {
     let m = model.to_lowercase();
     if m.contains("opus-4-7") || m.contains("opus-4.7")
         || m.contains("opus-4-8") || m.contains("opus-4.8")
+        || m.contains("opus-5") || m.contains("opus.5")
     {
-        // opus 4.7/4.8 共用同档（实测 4.8 ≈ 2.36，4.7 暂沿用 4.8）
+        // opus 4.7/4.8/5 共用同档（实测 4.8 ≈ 2.36，5 沿用 4.8 档位）
         2.36
     } else if m.contains("opus-4-5") || m.contains("opus-4.5")
         || m.contains("opus-4-6") || m.contains("opus-4.6")
@@ -948,5 +950,21 @@ mod tests {
         let summary = tracker.get_summary(1);
         assert!((summary.total_credits - tracker.get_total_credits(1)).abs() < 1e-9);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_get_k_ref_opus_5() {
+        assert_eq!(get_k_ref("claude-opus-5"), 2.36);
+        assert_eq!(get_k_ref("claude-opus-5-thinking"), 2.36);
+        assert_eq!(get_k_ref("Claude-Opus-5"), 2.36);
+
+        // 回归：其他档位不变
+        assert_eq!(get_k_ref("claude-opus-4-7"), 2.36);
+        assert_eq!(get_k_ref("claude-opus-4-8"), 2.36);
+        assert_eq!(get_k_ref("claude-opus-4-6"), 1.90);
+        assert_eq!(get_k_ref("claude-opus-4-5"), 1.90);
+        assert_eq!(get_k_ref("claude-sonnet-5"), 1.43);
+        assert_eq!(get_k_ref("claude-sonnet-4.6"), 1.43);
+        assert_eq!(get_k_ref("claude-haiku-4.5"), 1.43);
     }
 }

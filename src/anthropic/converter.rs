@@ -414,6 +414,7 @@ fn normalize_billing_header(content: String) -> String {
 /// 按照用户要求：
 /// - sonnet 4.6/4-6 → claude-sonnet-4.6
 /// - 其他 sonnet → claude-sonnet-4.5
+/// - opus 5/5 → claude-opus-5
 /// - opus 4.5/4-5 → claude-opus-4.5
 /// - 其他 opus → claude-opus-4.6
 /// - 所有 haiku → claude-haiku-4.5
@@ -432,7 +433,13 @@ pub fn map_model(model: &str) -> Option<String> {
     } else if model_lower.contains("fable") {
         Some("claude-fable-5".to_string())
     } else if model_lower.contains("opus") {
-        if model_lower.contains("4-5") || model_lower.contains("4.5") {
+        if model_lower.contains("opus-5")
+            || model_lower.contains("opus.5")
+            || model_lower.contains("opus 5")
+        {
+            // claude-opus-5: Max Input 1M, Max Output 128K, Rate 2.2 Credit（与 4.7/4.8 同档）
+            Some("claude-opus-5".to_string())
+        } else if model_lower.contains("4-5") || model_lower.contains("4.5") {
             Some("claude-opus-4.5".to_string())
         } else if model_lower.contains("4-8") || model_lower.contains("4.8") {
             Some("claude-opus-4.8".to_string())
@@ -1354,11 +1361,13 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
 }
 
 /// 根据模型返回 Kiro 允许的 max_tokens 上限
+/// claude-opus-5 / claude-opus-4.7 / claude-opus-4.8 Max Output = 128K（1M 窗口代际）
 /// claude-sonnet-5 Max Output = 64K，与 sonnet-4.x 同档，走默认分支即可
 fn model_max_output_tokens(model: &str) -> i32 {
     let m = model.to_lowercase();
     if m.contains("opus-4-7") || m.contains("opus-4.7")
         || m.contains("opus-4-8") || m.contains("opus-4.8")
+        || m.contains("opus-5") || m.contains("opus.5") || m.contains("opus 5")
     {
         128000
     } else {
@@ -2106,6 +2115,35 @@ mod tests {
         // thinking 后缀不应影响 sonnet 模型映射
         let result = map_model("claude-sonnet-4-5-20250929-thinking");
         assert_eq!(result, Some("claude-sonnet-4.5".to_string()));
+    }
+
+    #[test]
+    fn test_map_model_opus_5_aliases() {
+        assert_eq!(map_model("claude-opus-5").unwrap(), "claude-opus-5");
+        assert_eq!(
+            map_model("claude-opus-5-thinking").unwrap(),
+            "claude-opus-5"
+        );
+        assert_eq!(map_model("Claude Opus 5").unwrap(), "claude-opus-5");
+        assert_eq!(
+            map_model("claude-opus-5-20260101").unwrap(),
+            "claude-opus-5"
+        );
+        assert_eq!(
+            map_model("claude-opus-5-thinking-20260101").unwrap(),
+            "claude-opus-5"
+        );
+        assert_eq!(map_model("claude-Opus-5").unwrap(), "claude-opus-5");
+
+        // 回归：现有 opus-4.7/4.8 不被 opus-5 分支误命中
+        assert_eq!(
+            map_model("claude-opus-4-7-20251115").unwrap(),
+            "claude-opus-4.7"
+        );
+        assert_eq!(map_model("claude-opus-4.8").unwrap(), "claude-opus-4.8");
+        assert_eq!(map_model("claude-opus-4.6").unwrap(), "claude-opus-4.6");
+        assert_eq!(map_model("claude-opus-4.5").unwrap(), "claude-opus-4.5");
+        assert_eq!(map_model("claude-sonnet-5").unwrap(), "claude-sonnet-5");
     }
 
     #[test]
@@ -3119,5 +3157,19 @@ mod tests {
             result.additional_model_request_fields.is_none(),
             "gpt-5.6 系列必须整体省略 additionalModelRequestFields 字段"
         );
+    }
+
+    #[test]
+    fn test_model_max_output_tokens_opus_5() {
+        assert_eq!(model_max_output_tokens("claude-opus-5"), 128000);
+        assert_eq!(model_max_output_tokens("claude-opus-5-thinking"), 128000);
+        assert_eq!(model_max_output_tokens("Claude-Opus-5"), 128000);
+        assert_eq!(model_max_output_tokens("Claude Opus 5"), 128000);
+
+        // 回归：其他档位不变
+        assert_eq!(model_max_output_tokens("claude-opus-4.6"), 64000);
+        assert_eq!(model_max_output_tokens("claude-opus-4.5"), 64000);
+        assert_eq!(model_max_output_tokens("claude-sonnet-5"), 64000);
+        assert_eq!(model_max_output_tokens("claude-haiku-4.5"), 64000);
     }
 }

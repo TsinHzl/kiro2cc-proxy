@@ -28,6 +28,10 @@ pub struct AvailableModelInfo {
     /// token 上限
     #[serde(default)]
     pub token_limits: TokenLimits,
+    /// Kiro 侧模型的额外请求字段 schema（如 thinking/output_config/max_tokens），当前仅解析用于反序列化校验，暂无消费方
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub additional_model_request_fields_schema: Option<serde_json::Value>,
 }
 
 /// 模型 token 上限

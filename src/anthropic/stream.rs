@@ -582,7 +582,7 @@ const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 /// 4.7/4.8 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
 const CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW: f64 = 0.15;
 
-/// 4.7/4.8/opus-5 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
+/// 判断是否为大窗口模型（4.7/4.8/opus-5 代际，窗口 1M，走 CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW 缩放分支）。
 /// sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支，统一走默认 CLIENT_TOKEN_DISPLAY_SCALE。
 fn is_large_window_model(model: &str) -> bool {
     let m = model.to_lowercase();
@@ -1758,6 +1758,8 @@ mod tests {
         assert_eq!(scale_for_client(1, "claude-opus-5"), 1);
         // opus-5 空格别名（如客户端发送 "Claude Opus 5"）同样归入大窗口分支
         assert_eq!(scale_for_client(100_000, "Claude Opus 5"), 15_000);
+        // opus-5 点号别名（如客户端发送 "claude-opus.5"）同样归入大窗口分支
+        assert_eq!(scale_for_client(100_000, "claude-opus.5"), 15_000);
 
         // 回归：sonnet-5 不归入大窗口分支
         assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);

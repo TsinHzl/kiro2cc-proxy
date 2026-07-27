@@ -1511,10 +1511,26 @@ fn build_history(
 
             // 同一会话复用首轮 history[0]，冻结 cc_version/gitStatus/currentDate 等易变字段，
             // 确保 Kiro 服务端跨轮次缓存命中。首轮写入，后续轮次直接返回首轮内容。
+            //
+            // key 不能只用 session_id：Claude Code 会在同一 session 下并发发送「标题生成」
+            // 等辅助请求（system 提示词与主对话完全不同），若共用一个冻结槽，先到的辅助
+            // 请求会把 history[0] 冻结成标题生成提示词，导致主对话被当作标题任务处理、
+            // 直接返回 {"title":...} 并提前 end_turn。故追加系统提示词稳定前缀指纹加以区分
+            // （前缀在同会话同类请求中逐轮稳定，照常命中缓存）。
             let final_content = {
                 let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
                 let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some(entry) = map.get_mut(session_id) {
+                let h0_key = {
+                    // 用已归一化(cch=0)的 final_content 取前缀：cch 计费哈希每轮都变，
+                    // 若混入指纹会导致同类请求 key 逐轮抖动、冻结永不命中。final_content
+                    // 前 512 字符落在稳定的 agent 提示词前言，gitStatus/currentDate 在尾部
+                    // reminders、cc_version 同会话内恒定，均不影响前缀稳定性。
+                    let prefix: String = final_content.chars().take(512).collect();
+                    let mut hasher = Sha256::new();
+                    hasher.update(prefix.as_bytes());
+                    format!("{}#{}", session_id, &format!("{:x}", hasher.finalize())[..8])
+                };
+                if let Some(entry) = map.get_mut(&h0_key) {
                     entry.last_used = Instant::now();
                     let frozen = entry.value.clone();
                     let h0_hash = {
@@ -1541,10 +1557,7 @@ fn build_history(
                         final_content.len(),
                         session_id
                     );
-                    map.insert(
-                        session_id.to_string(),
-                        CacheEntry::new(final_content.clone()),
-                    );
+                    map.insert(h0_key.clone(), CacheEntry::new(final_content.clone()));
                     evict_oldest_if_full(&mut map);
                     final_content
                 }

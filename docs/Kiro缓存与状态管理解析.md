@@ -33,7 +33,7 @@
 |------|-------|-------------------|----------------|
 | sonnet 系列 / sonnet-5 / haiku（默认档） | 1.43 | $3.0 | 50% 全价 |
 | opus-4.5 / opus-4.6 | 1.90 | $15.0 | 50% 全价 |
-| opus-4.7 / opus-4.8（及未知 opus/fable 兜底） | 2.36 | $15.0 | 50% 全价 |
+| opus-4.7 / opus-4.8 / opus-5（及未知 opus/fable 兜底） | 2.36 | $15.0 | 50% 全价 |
 
 ### 1.2 核心标识符：`agentContinuationId`
 Kiro 识别“同一会话连续请求”的唯一凭证是 `agentContinuationId`。如果每次请求这个 ID 都发生变化，Kiro 后端就会将其视为全新会话，前缀缓存将完全失效。
@@ -127,7 +127,7 @@ AWS Q / Kiro 的流式响应中，`meteringEvent` 不直接返回 `cache_read_in
 - **首轮（跨会话缓存命中 system+tools）**：sonnet-4.6 约 `0.0044`（已享受 ~88% 缓存折扣）
 - **后续 turn（高缓存命中）**：降至 `0.0022-0.0025`（~97-99% 命中率）
 - **理论无缓存全价 (sonnet)**：`k_ref × input_price / 1M = 1.43 × 3.0 / 1,000,000 = 0.00000429` credits/token
-- **理论无缓存全价 (opus-4.7/4.8)**：`k_ref × input_price / 1M = 2.36 × 15.0 / 1,000,000 = 0.0000354` credits/token
+- **理论无缓存全价 (opus-4.7/4.8/opus-5)**：`k_ref × input_price / 1M = 2.36 × 15.0 / 1,000,000 = 0.0000354` credits/token
 
 ### 4.2 cache_read 派生：前缀字符估算（`token::count_prefix_tokens`）
 > 替换时间：2026-06-25。旧的 `infer_cache_read_tokens(credits 反推)` 已废弃 ——

@@ -1,0 +1,40 @@
+README.md
+  0940e09d30a097d6 8,648
+README.en.md
+  0940e09d30a097d6 8,644
+docs/Kiro缓存与状态管理解析.md
+  0940e09d30a097d6 36,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9e3d43ab99306d0cc1bb733935f0a20f1b1f06b2",
+  "prompts": {
+    "0940e09d30a097d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9c8b801-b22f-4b9e-90fd-0dcd1e3a1bf6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 4,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "a76874206af3686b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f2d2e3c-5561-415f-a27b-46e99131cc95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 67,
+      "total_deletions": 81,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  }
+}

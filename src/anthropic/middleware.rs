@@ -18,7 +18,18 @@ use crate::model::api_key::{ApiKeyAuthResult, ApiKeyManager};
 use crate::model::rpm::RpmTracker;
 use crate::model::usage::UsageTracker;
 
-use super::types::ErrorResponse;
+use super::types::{ErrorResponse, Model};
+
+/// `/v1/models` 动态列表缓存条目
+///
+/// `fetched_at` 用于 TTL 判断（`Instant::elapsed()`）；TTL 秒数取自 `Config::model_cache_ttl_secs`。
+#[derive(Clone)]
+pub struct CachedModels {
+    /// 缓存的模型列表
+    pub models: Vec<Model>,
+    /// 缓存写入时刻
+    pub fetched_at: std::time::Instant,
+}
 
 /// 已认证的 API Key 上下文（注入到 request extensions）
 #[derive(Clone, Debug)]
@@ -46,6 +57,8 @@ pub struct AppState {
     pub rpm_tracker: Option<Arc<RpmTracker>>,
     /// Prompt cache 指纹追踪器（替代末层兜底）
     pub fingerprint_tracker: Option<Arc<crate::cache::fingerprint::FingerprintTracker>>,
+    /// `/v1/models` 动态列表缓存（TTL 见 `Config::model_cache_ttl_secs`），初始为空
+    pub model_cache: Arc<RwLock<Option<CachedModels>>>,
 }
 
 impl AppState {
@@ -59,6 +72,7 @@ impl AppState {
             usage_tracker: None,
             rpm_tracker: None,
             fingerprint_tracker: None,
+            model_cache: Arc::new(RwLock::new(None)),
         }
     }
 

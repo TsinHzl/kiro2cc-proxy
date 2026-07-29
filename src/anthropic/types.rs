@@ -40,7 +40,7 @@ impl ErrorResponse {
 // === Models 端点类型 ===
 
 /// 模型信息
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[cfg_attr(test, derive(serde::Deserialize))]
 pub struct Model {
     pub id: String,

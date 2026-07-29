@@ -37,9 +37,7 @@ fn normalize_json_schema(schema: serde_json::Value) -> serde_json::Value {
 }
 
 /// 提取顶层 `$defs` / `definitions` 作为 $ref 解析表。
-fn extract_schema_defs(
-    schema: &serde_json::Value,
-) -> serde_json::Map<String, serde_json::Value> {
+fn extract_schema_defs(schema: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
     let mut defs = serde_json::Map::new();
     if let Some(obj) = schema.as_object() {
         for key in ["$defs", "definitions"] {
@@ -476,10 +474,28 @@ pub fn map_model(model: &str) -> Option<String> {
             // 未指定具体变体（sol/terra/luna）时默认落到旗舰档 sol
             Some("gpt-5.6-sol".to_string())
         } else {
-            None
+            // gpt-* 未命中已知变体：走开放透传兜底
+            passthrough_model(model)
         }
     } else {
+        // 未命中任何内置关键词规则：开放透传，可用性交由上游判断
+        passthrough_model(model)
+    }
+}
+
+/// 开放透传兜底：对未命中内置规则的模型 ID 剥离 `-thinking` 后原样透传；
+/// 空字符串仍返回 `None`（上层转为 `UnsupportedModel`）。
+///
+/// thinking 由 `req.thinking` / additionalModelRequestFields 单独控制，
+/// 透传给上游的后端模型 ID 不应携带 `-thinking` 标记。
+fn passthrough_model(model: &str) -> Option<String> {
+    let stripped = model.replace("-thinking", "");
+    let trimmed = stripped.trim();
+    if trimmed.is_empty() {
         None
+    } else {
+        tracing::info!(target: "model_passthrough", original = %model, passthrough = %trimmed, "未知模型开放透传");
+        Some(trimmed.to_string())
     }
 }
 
@@ -1365,9 +1381,13 @@ fn convert_tools(tools: &Option<Vec<super::types::Tool>>) -> Vec<Tool> {
 /// claude-sonnet-5 Max Output = 64K，与 sonnet-4.x 同档，走默认分支即可
 fn model_max_output_tokens(model: &str) -> i32 {
     let m = model.to_lowercase();
-    if m.contains("opus-4-7") || m.contains("opus-4.7")
-        || m.contains("opus-4-8") || m.contains("opus-4.8")
-        || m.contains("opus-5") || m.contains("opus.5") || m.contains("opus 5")
+    if m.contains("opus-4-7")
+        || m.contains("opus-4.7")
+        || m.contains("opus-4-8")
+        || m.contains("opus-4.8")
+        || m.contains("opus-5")
+        || m.contains("opus.5")
+        || m.contains("opus 5")
     {
         128000
     } else {
@@ -1528,7 +1548,11 @@ fn build_history(
                     let prefix: String = final_content.chars().take(512).collect();
                     let mut hasher = Sha256::new();
                     hasher.update(prefix.as_bytes());
-                    format!("{}#{}", session_id, &format!("{:x}", hasher.finalize())[..8])
+                    format!(
+                        "{}#{}",
+                        session_id,
+                        &format!("{:x}", hasher.finalize())[..8]
+                    )
                 };
                 if let Some(entry) = map.get_mut(&h0_key) {
                     entry.last_used = Instant::now();
@@ -1873,8 +1897,39 @@ mod tests {
     }
 
     #[test]
-    fn test_map_model_unsupported() {
-        assert!(map_model("gpt-4").is_none());
+    fn test_map_model_passthrough_unknown() {
+        // 开放透传：未命中内置规则的非空模型 ID 原样透传
+        assert_eq!(map_model("gpt-4").unwrap(), "gpt-4");
+        assert_eq!(
+            map_model("some-brand-new-model").unwrap(),
+            "some-brand-new-model"
+        );
+    }
+
+    #[test]
+    fn test_map_model_passthrough_strips_thinking() {
+        // 透传时剥离 -thinking 标记（thinking 由 req.thinking 单独控制）
+        assert_eq!(map_model("gpt-4-thinking").unwrap(), "gpt-4");
+        assert_eq!(
+            map_model("brand-new-thinking-model").unwrap(),
+            "brand-new-model"
+        );
+    }
+
+    #[test]
+    fn test_map_model_empty_rejected() {
+        // 空字符串仍拒绝
+        assert!(map_model("").is_none());
+        assert!(map_model("   ").is_none());
+        assert!(map_model("-thinking").is_none());
+    }
+
+    #[test]
+    fn test_map_model_builtin_rules_unaffected() {
+        // 内置规则优先级不变
+        assert_eq!(map_model("claude-sonnet-4-5").unwrap(), "claude-sonnet-4.5");
+        assert_eq!(map_model("gpt-5.6-sol").unwrap(), "gpt-5.6-sol");
+        assert_eq!(map_model("glm-4.6").unwrap(), "glm-5");
     }
 
     #[test]

@@ -37,19 +37,20 @@ jobs:
             echo "should_build=true" >> $GITHUB_OUTPUT
           fi
 
-  build:
+  version:
     needs: pre-check
     if: needs.pre-check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_beta: ${{ steps.version.outputs.is_beta }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Determine version
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "is_beta=false" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
             echo "is_beta=false" >> $GITHUB_OUTPUT
@@ -58,6 +59,23 @@ jobs:
             echo "version=beta-${SHORT_SHA}" >> $GITHUB_OUTPUT
             echo "is_beta=true" >> $GITHUB_OUTPUT
           fi
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            name: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            name: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -72,18 +90,73 @@ jobs:
       - name: Lowercase owner
         run: echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          push: true
+          platforms: ${{ matrix.platform }}
           provenance: false
-          tags: |
-            ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy:${{ steps.version.outputs.version }}
-            ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy:${{ steps.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
+          outputs: type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=kiro2cc-proxy Docker Image
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.name }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Lowercase owner
+        run: echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Create manifest list and push
+        env:
+          IMAGE_REF: ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG_ALIAS: ${{ needs.version.outputs.is_beta == 'true' && 'beta' || 'latest' }}
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE_REF:$VERSION" \
+            -t "$IMAGE_REF:$TAG_ALIAS" \
+            $(printf "$IMAGE_REF@sha256:%s " *)
+
+      - name: Inspect image
+        env:
+          IMAGE_REF: ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy
+          VERSION: ${{ needs.version.outputs.version }}
+        run: docker buildx imagetools inspect "$IMAGE_REF:$VERSION"

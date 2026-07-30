@@ -1,0 +1,39 @@
+src/kiro/token_manager.rs
+  8122520872877172 129-138,173-174,367-444,3148-3181
+src/admin/types.rs
+  8122520872877172 91,94,97-104
+openspec/changes/enterprise-sso-azure-ad/design.md
+  8122520872877172 1-35
+src/admin/service.rs
+  8122520872877172 247-249
+openspec/changes/enterprise-sso-azure-ad/specs/enterprise-sso-azure-ad/spec.md
+  8122520872877172 1-45
+src/kiro/provider.rs
+  8122520872877172 291-303
+openspec/changes/enterprise-sso-azure-ad/tasks.md
+  8122520872877172 1-20
+openspec/changes/enterprise-sso-azure-ad/proposal.md
+  8122520872877172 1-49
+src/kiro/model/credentials.rs
+  8122520872877172 42,46,50-61,167-168,396-398,518-520,552-554,668-670,976-998
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6d08b1579b0afa28a989c589411da8e41775868d",
+  "prompts": {
+    "8122520872877172": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c33bec9-544b-4935-a63c-2e344b6a1c77",
+        "model": "<synthetic>"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 360,
+      "total_deletions": 13,
+      "accepted_lines": 352,
+      "overriden_lines": 0
+    }
+  }
+}

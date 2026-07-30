@@ -288,6 +288,19 @@ impl KiroProvider {
             AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {}", ctx.token)).unwrap(),
         );
+
+        if ctx
+            .credentials
+            .auth_method
+            .as_deref()
+            .is_some_and(|m| m.eq_ignore_ascii_case("external_idp"))
+        {
+            headers.insert(
+                "TokenType",
+                HeaderValue::from_static("EXTERNAL_IDP"),
+            );
+        }
+
         Ok(headers)
     }
 

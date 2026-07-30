@@ -88,11 +88,20 @@ pub struct AddCredentialRequest {
     #[serde(default = "default_auth_method")]
     pub auth_method: String,
 
-    /// OIDC Client ID（IdC 认证需要）
+    /// OIDC Client ID（IdC / external_idp 认证需要）
     pub client_id: Option<String>,
 
-    /// OIDC Client Secret（IdC 认证需要）
+    /// OIDC Client Secret（IdC 认证需要；external_idp 公共客户端不填）
     pub client_secret: Option<String>,
+
+    /// IdP 标识（如 "AzureAD"），仅 external_idp 使用
+    pub provider: Option<String>,
+
+    /// IdP token 刷新端点（external_idp 必填）
+    pub token_endpoint: Option<String>,
+
+    /// OAuth2 scope（external_idp 使用；需含 offline_access）
+    pub scopes: Option<String>,
 
     /// Profile ARN（可选，企业版 IdC 账号调用 Q 端点必需，Social 刷新会自动获取）
     pub profile_arn: Option<String>,

@@ -39,13 +39,26 @@ pub struct KiroCredentials {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_method: Option<String>,
 
-    /// OIDC Client ID (IdC 认证需要)
+    /// OIDC Client ID (IdC / external_idp 认证需要)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
 
-    /// OIDC Client Secret (IdC 认证需要)
+    /// OIDC Client Secret (IdC 认证需要；external_idp 公共客户端不填)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_secret: Option<String>,
+
+    /// IdP 标识（如 "AzureAD"），仅 external_idp 使用
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+
+    /// IdP token 刷新端点（external_idp 必填）
+    /// 示例：https://login.microsoftonline.com/<tenant>/oauth2/v2.0/token
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_endpoint: Option<String>,
+
+    /// OAuth2 scope（external_idp 使用；需含 offline_access）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scopes: Option<String>,
 
     /// 账号优先级（数字越小优先级越高，默认为 0）
     #[serde(default)]
@@ -151,6 +164,8 @@ fn is_zero(value: &u32) -> bool {
 fn canonicalize_auth_method_value(value: &str) -> &str {
     if value.eq_ignore_ascii_case("builder-id") || value.eq_ignore_ascii_case("iam") {
         "idc"
+    } else if value.eq_ignore_ascii_case("azuread") || value.eq_ignore_ascii_case("entraid") {
+        "external_idp"
     } else {
         value
     }
@@ -378,6 +393,9 @@ mod tests {
             auth_method: Some("social".to_string()),
             client_id: None,
             client_secret: None,
+            provider: None,
+            token_endpoint: None,
+            scopes: None,
             priority: 0,
             region: None,
             auth_region: None,
@@ -497,6 +515,9 @@ mod tests {
             auth_method: None,
             client_id: None,
             client_secret: None,
+            provider: None,
+            token_endpoint: None,
+            scopes: None,
             priority: 0,
             region: Some("eu-west-1".to_string()),
             auth_region: None,
@@ -528,6 +549,9 @@ mod tests {
             auth_method: None,
             client_id: None,
             client_secret: None,
+            provider: None,
+            token_endpoint: None,
+            scopes: None,
             priority: 0,
             region: None,
             auth_region: None,
@@ -641,6 +665,9 @@ mod tests {
             auth_method: Some("social".to_string()),
             client_id: None,
             client_secret: None,
+            provider: None,
+            token_endpoint: None,
+            scopes: None,
             priority: 3,
             region: Some("us-west-2".to_string()),
             auth_region: None,
@@ -945,5 +972,28 @@ mod tests {
         assert!(debug_str.contains("refresh_token: None"));
         assert!(debug_str.contains("client_secret: None"));
         assert!(debug_str.contains("proxy_password: None"));
+    }
+
+    #[test]
+    fn test_canonicalize_external_idp_variants() {
+        let cases = [
+            ("AzureAD", "external_idp"),
+            ("azuread", "external_idp"),
+            ("AZUREAD", "external_idp"),
+            ("EntraID", "external_idp"),
+            ("entraid", "external_idp"),
+            ("external_idp", "external_idp"),
+            ("social", "social"),
+            ("idc", "idc"),
+            ("builder-id", "idc"),
+            ("iam", "idc"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                canonicalize_auth_method_value(input),
+                expected,
+                "canonicalize({input}) should be {expected}"
+            );
+        }
     }
 }

@@ -126,7 +126,16 @@ pub(crate) fn validate_refresh_token(credentials: &KiroCredentials) -> anyhow::R
         bail!("refreshToken 为空");
     }
 
-    if refresh_token.len() < 100 || refresh_token.ends_with("...") || refresh_token.contains("...")
+    // external_idp（Azure AD 等）的 refresh_token 长度不受 Kiro 截断规则约束
+    let is_external_idp = credentials
+        .auth_method
+        .as_deref()
+        .is_some_and(|m| m.eq_ignore_ascii_case("external_idp"));
+
+    if !is_external_idp
+        && (refresh_token.len() < 100
+            || refresh_token.ends_with("...")
+            || refresh_token.contains("..."))
     {
         bail!(
             "refreshToken 已被截断（长度: {} 字符）。\n\
@@ -161,6 +170,8 @@ pub(crate) async fn refresh_token(
         || auth_method.eq_ignore_ascii_case("iam")
     {
         refresh_idc_token(credentials, config, proxy).await
+    } else if auth_method.eq_ignore_ascii_case("external_idp") {
+        refresh_external_idp_token(credentials, config, proxy).await
     } else {
         refresh_social_token(credentials, config, proxy).await
     }
@@ -349,6 +360,84 @@ async fn refresh_idc_token(
         let expires_at = Utc::now() + Duration::seconds(expires_in);
         new_credentials.expires_at = Some(expires_at.to_rfc3339());
     }
+
+    Ok(new_credentials)
+}
+
+/// 刷新 external_idp Token（Microsoft Entra ID / Azure AD 等 OIDC IdP）
+///
+/// 使用公共客户端 refresh_token grant（无 client_secret），
+/// 向凭据中指定的 token_endpoint 发送 application/x-www-form-urlencoded 请求。
+async fn refresh_external_idp_token(
+    credentials: &KiroCredentials,
+    config: &Config,
+    proxy: Option<&ProxyConfig>,
+) -> anyhow::Result<KiroCredentials> {
+    tracing::info!("正在刷新 external_idp Token...");
+
+    let refresh_token = credentials.refresh_token.as_ref().unwrap();
+    let client_id = credentials
+        .client_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("external_idp 刷新需要 clientId"))?;
+    let token_endpoint = credentials
+        .token_endpoint
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("external_idp 刷新需要 tokenEndpoint"))?;
+
+    let mut params = vec![
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token.as_str()),
+        ("client_id", client_id.as_str()),
+    ];
+    let scopes_owned;
+    if let Some(ref s) = credentials.scopes {
+        if !s.is_empty() {
+            scopes_owned = s.clone();
+            params.push(("scope", scopes_owned.as_str()));
+        }
+    }
+
+    let client = build_client(proxy, 60, config.tls_backend)?;
+    let response = client
+        .post(token_endpoint)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Accept", "application/json")
+        .form(&params)
+        .send()
+        .await?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body_text = response.text().await.unwrap_or_default();
+        let error_msg = match status.as_u16() {
+            400 => "external_idp token 请求参数错误（400）",
+            401 => "external_idp 凭证已过期或无效，需要重新认证（401）",
+            403 => "权限不足，无法刷新 Token（403）",
+            429 => "请求过于频繁，已被限流（429）",
+            500..=599 => "IdP 服务器错误，暂时不可用",
+            _ => "external_idp Token 刷新失败",
+        };
+        bail!("{}: {} {}", error_msg, status, body_text);
+    }
+
+    let data: serde_json::Value = response.json().await?;
+
+    let access_token = data["access_token"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("external_idp 响应缺少 access_token"))?
+        .to_string();
+
+    let mut new_credentials = credentials.clone();
+    new_credentials.access_token = Some(access_token);
+
+    if let Some(new_rt) = data["refresh_token"].as_str() {
+        new_credentials.refresh_token = Some(new_rt.to_string());
+    }
+
+    let expires_in = data["expires_in"].as_i64().unwrap_or(3600);
+    let expires_at = Utc::now() + Duration::seconds(expires_in);
+    new_credentials.expires_at = Some(expires_at.to_rfc3339());
 
     Ok(new_credentials)
 }
@@ -3055,5 +3144,39 @@ mod tests {
             .unwrap();
         // 返回另一个账号
         assert_ne!(ctx2.id, bound_id);
+    }
+
+    #[test]
+    fn test_validate_refresh_token_external_idp_skips_length_check() {
+        // Azure AD refresh_token 可能短于 100 字符，external_idp 账号应跳过长度限制
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("external_idp".to_string());
+        cred.refresh_token = Some("short_token_42".to_string()); // 远小于 100 字符
+        assert!(
+            validate_refresh_token(&cred).is_ok(),
+            "external_idp 账号应跳过 100 字符下限"
+        );
+    }
+
+    #[test]
+    fn test_validate_refresh_token_social_still_enforces_length() {
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("social".to_string());
+        cred.refresh_token = Some("short".to_string());
+        assert!(
+            validate_refresh_token(&cred).is_err(),
+            "social 账号仍然应该强制 100 字符下限"
+        );
+    }
+
+    #[test]
+    fn test_validate_refresh_token_no_auth_method_enforces_length() {
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = None;
+        cred.refresh_token = Some("short".to_string());
+        assert!(
+            validate_refresh_token(&cred).is_err(),
+            "未指定 auth_method 应使用默认长度限制"
+        );
     }
 }

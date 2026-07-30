@@ -478,7 +478,10 @@ impl SseStateManager {
 
             let mut usage = serde_json::Map::new();
             // 客户端展示缩放（output_tokens 不缩放，避免影响 max_tokens 计算）
-            usage.insert("input_tokens".into(), json!(scale_for_client(input_tokens, model)));
+            usage.insert(
+                "input_tokens".into(),
+                json!(scale_for_client(input_tokens, model)),
+            );
             usage.insert("output_tokens".into(), json!(output_tokens));
             if let Some(v) = cache_creation_input_tokens {
                 usage.insert(
@@ -487,7 +490,10 @@ impl SseStateManager {
                 );
             }
             if let Some(v) = cache_read_input_tokens {
-                usage.insert("cache_read_input_tokens".into(), json!(scale_for_client(v, model)));
+                usage.insert(
+                    "cache_read_input_tokens".into(),
+                    json!(scale_for_client(v, model)),
+                );
             }
             // 与非流式响应对齐：输出 ephemeral 5m/1h 嵌套字段
             if cache_creation_input_tokens.is_some()
@@ -1677,7 +1683,8 @@ impl BufferedStreamContext {
                 && let Some(message) = event.data.get_mut("message")
                 && let Some(usage) = message.get_mut("usage")
             {
-                usage["input_tokens"] = serde_json::json!(scale_for_client(report_input, &self.inner.model));
+                usage["input_tokens"] =
+                    serde_json::json!(scale_for_client(report_input, &self.inner.model));
                 usage["cache_creation_input_tokens"] =
                     serde_json::json!(scale_for_client(report_cache_creation, &self.inner.model));
                 usage["cache_read_input_tokens"] =
@@ -2654,10 +2661,7 @@ mod tests {
         let _ = ctx.generate_initial_events();
         ctx.output_tokens = 10;
         ctx.state_manager.set_has_tool_use(true);
-        assert!(
-            !ctx.is_empty_response(),
-            "有工具调用时不应判定为空响应"
-        );
+        assert!(!ctx.is_empty_response(), "有工具调用时不应判定为空响应");
     }
 
     #[test]
@@ -2696,5 +2700,4 @@ mod tests {
         assert_eq!(context_window_for_model("claude-opus-4-8"), 1_000_000);
         assert_eq!(context_window_for_model("claude-sonnet-4-6"), 1_000_000);
     }
-
 }

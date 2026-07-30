@@ -722,16 +722,10 @@ mod tests {
             tool("AskUserQuestion", "Ask user a question", Some(true)),
         ];
 
-        let p_a = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools_a),
-        );
-        let p_b = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools_b),
-        );
+        let p_a =
+            FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools_a));
+        let p_b =
+            FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools_b));
 
         assert_eq!(p_a.len(), p_b.len());
         for i in 0..p_a.len() {
@@ -755,17 +749,11 @@ mod tests {
             tool("AskUserQuestion", "Ask user", None), // 注意：未带 defer_loading
         ];
 
-        let p1 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools_v1),
-        );
+        let p1 =
+            FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools_v1));
         tracker.update("acct", p1);
-        let p2 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools_v2),
-        );
+        let p2 =
+            FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools_v2));
 
         let u = tracker.compute("acct", &p2, 1000).unwrap();
         // tools 段被破坏 → 仅 system 段（极少 token）命中
@@ -796,18 +784,10 @@ mod tests {
             ]),
         }];
 
-        let p1 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools),
-        );
+        let p1 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools));
         tracker.update("acct", p1.clone());
 
-        let p2 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools),
-        );
+        let p2 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools));
         for i in 0..p1.len() {
             assert_eq!(p1[i].hash, p2[i].hash, "multi tool_reference 应跨轮稳定");
         }
@@ -856,18 +836,10 @@ mod tests {
 
         let tools = vec![tool("Bash", "Run shell", None)];
 
-        let p1 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools),
-        );
+        let p1 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools));
         tracker.update("acct", p1.clone());
 
-        let p2 = FingerprintTracker::build_profile_with_tools(
-            Some(&sys_msgs),
-            &msgs,
-            Some(&tools),
-        );
+        let p2 = FingerprintTracker::build_profile_with_tools(Some(&sys_msgs), &msgs, Some(&tools));
         for i in 0..p1.len() {
             assert_eq!(p1[i].hash, p2[i].hash, "未知工具的 tool_reference 仍应稳定");
         }

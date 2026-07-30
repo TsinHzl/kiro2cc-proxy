@@ -22,6 +22,11 @@ pub struct ThrottleEvent {
     /// 响应体摘要（截取前 200 字符）
     pub response_body: String,
     pub created_at: DateTime<Utc>,
+    /// 多端点 LB：限流命中的端点名（kebab-case）
+    ///
+    /// `None` 表示非 LB 路径（如 MCP）或旧调用点（向后兼容：序列化时不写出）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
 }
 
 /// 每个 credential 的最大限流记录数
@@ -120,12 +125,17 @@ impl ThrottleLogStore {
     }
 
     /// 记录一次限流事件
+    ///
+    /// `endpoint`：
+    /// - `Some("ide" / "runtime" / "codewhisperer" / "amazonq")`：多端点 LB 命中桶
+    /// - `None`：MCP 路径或旧调用点（向后兼容，序列化时跳过字段）
     pub fn record(
         &self,
         credential_id: u64,
         request_type: &str,
         status_code: u16,
         response_body: &str,
+        endpoint: Option<&str>,
     ) {
         let body_summary = if response_body.len() > 200 {
             let boundary = response_body
@@ -145,6 +155,7 @@ impl ThrottleLogStore {
             status_code,
             response_body: body_summary,
             created_at: Utc::now(),
+            endpoint: endpoint.map(|s| s.to_string()),
         };
 
         {
@@ -224,6 +235,7 @@ impl ThrottleLogStore {
                 status_code: e.status_code,
                 response_body: e.response_body,
                 created_at: e.created_at,
+                endpoint: e.endpoint,
             })
             .collect();
 
@@ -257,4 +269,68 @@ pub struct ThrottleLogItem {
     pub status_code: u16,
     pub response_body: String,
     pub created_at: DateTime<Utc>,
+    /// 多端点 LB：限流命中的端点名（None 时不序列化，向后兼容）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_record_with_endpoint_serializes_field() {
+        let store = ThrottleLogStore::empty("unused");
+        store.record(1, "api", 429, "rate limited", Some("codewhisperer"));
+        let page = store.get_paged(1, 0, 10);
+        assert_eq!(page.records.len(), 1);
+        assert_eq!(page.records[0].endpoint.as_deref(), Some("codewhisperer"));
+
+        // JSON 序列化必须含 "endpoint" 字段
+        let json = serde_json::to_string(&page.records[0]).unwrap();
+        assert!(json.contains("\"endpoint\":\"codewhisperer\""));
+    }
+
+    #[test]
+    fn test_record_without_endpoint_omits_field_in_json() {
+        // 向后兼容：MCP / 旧调用点 endpoint=None → JSON 不写出 endpoint 字段
+        let store = ThrottleLogStore::empty("unused");
+        store.record(1, "mcp", 429, "rate limited", None);
+        let page = store.get_paged(1, 0, 10);
+        assert_eq!(page.records.len(), 1);
+        assert_eq!(page.records[0].endpoint, None);
+
+        let json = serde_json::to_string(&page.records[0]).unwrap();
+        assert!(!json.contains("endpoint"));
+    }
+
+    #[test]
+    fn test_throttle_event_backward_compatible_deserialization() {
+        // 旧版本 JSON（无 endpoint 字段）应能成功反序列化
+        let legacy = r#"{
+            "credentialId": 1,
+            "requestType": "api",
+            "statusCode": 429,
+            "responseBody": "rate limited",
+            "createdAt": "2026-07-30T00:00:00Z"
+        }"#;
+        let event: ThrottleEvent = serde_json::from_str(legacy).unwrap();
+        assert_eq!(event.endpoint, None);
+    }
+
+    #[test]
+    fn test_throttle_event_with_endpoint_roundtrip() {
+        let event = ThrottleEvent {
+            credential_id: 2,
+            request_type: "api".to_string(),
+            status_code: 429,
+            response_body: "x".to_string(),
+            created_at: Utc::now(),
+            endpoint: Some("runtime".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"endpoint\":\"runtime\""));
+        let parsed: ThrottleEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.endpoint.as_deref(), Some("runtime"));
+    }
 }

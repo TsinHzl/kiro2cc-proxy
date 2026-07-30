@@ -14,6 +14,9 @@ use tokio::time::sleep;
 use uuid::Uuid;
 
 use crate::http_client::{ProxyConfig, build_client};
+use crate::kiro::endpoint::{
+    BUCKET_THROTTLE_DURATION, Endpoint, EndpointBucketRegistry, EndpointName,
+};
 use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
@@ -59,6 +62,8 @@ pub struct KiroProvider {
     throttle_log_store: Option<Arc<ThrottleLogStore>>,
     /// 失败日志存储（可选）
     failure_log_store: Option<Arc<FailureLogStore>>,
+    /// 端点级 429 状态注册表（多端点 LB 使用）
+    endpoint_registry: Arc<EndpointBucketRegistry>,
 }
 
 #[allow(dead_code)]
@@ -87,7 +92,14 @@ impl KiroProvider {
             rpm_tracker: None,
             throttle_log_store: None,
             failure_log_store: None,
+            endpoint_registry: Arc::new(EndpointBucketRegistry::new()),
         }
+    }
+
+    /// 注入外部 endpoint_registry（多 provider 共享桶状态时使用）
+    pub fn with_endpoint_registry(mut self, registry: Arc<EndpointBucketRegistry>) -> Self {
+        self.endpoint_registry = registry;
+        self
     }
 
     /// 设置 RPM 追踪器
@@ -133,15 +145,14 @@ impl KiroProvider {
         &self.token_manager
     }
 
-    /// 获取 API 基础 URL（使用 config 级 api_region）
+    /// 获取 API 基础 URL（使用 config 级 api_region + 默认 Ide 端点）
     pub fn base_url(&self) -> String {
-        format!(
-            "https://q.{}.amazonaws.com/generateAssistantResponse",
-            self.token_manager.config().effective_api_region()
-        )
+        let region = self.token_manager.config().effective_api_region();
+        let endpoint = Endpoint::by_name(EndpointName::Ide, region);
+        format!("https://{}/generateAssistantResponse", endpoint.host)
     }
 
-    /// 获取 MCP API URL（使用 config 级 api_region）
+    /// 获取 MCP API URL（使用 config 级 api_region，MCP 端点独立于多端点 LB）
     pub fn mcp_url(&self) -> String {
         format!(
             "https://q.{}.amazonaws.com/mcp",
@@ -149,23 +160,21 @@ impl KiroProvider {
         )
     }
 
-    /// 获取 API 基础域名（使用 config 级 api_region）
+    /// 获取 API 基础域名（使用 config 级 api_region + 默认 Ide 端点）
     pub fn base_domain(&self) -> String {
-        format!(
-            "q.{}.amazonaws.com",
-            self.token_manager.config().effective_api_region()
+        Endpoint::by_name(
+            EndpointName::Ide,
+            self.token_manager.config().effective_api_region(),
         )
+        .host
     }
 
-    /// 获取账号级 API 基础 URL
-    fn base_url_for(&self, credentials: &KiroCredentials) -> String {
-        format!(
-            "https://q.{}.amazonaws.com/generateAssistantResponse",
-            credentials.effective_api_region(self.token_manager.config())
-        )
+    /// 获取账号级 API 基础 URL（按指定 endpoint）
+    fn base_url_for(&self, _credentials: &KiroCredentials, endpoint: &Endpoint) -> String {
+        format!("https://{}/generateAssistantResponse", endpoint.host)
     }
 
-    /// 获取账号级 MCP API URL
+    /// 获取账号级 MCP API URL（MCP 端点不走多端点 LB）
     fn mcp_url_for(&self, credentials: &KiroCredentials) -> String {
         format!(
             "https://q.{}.amazonaws.com/mcp",
@@ -173,12 +182,9 @@ impl KiroProvider {
         )
     }
 
-    /// 获取账号级 API 基础域名
-    fn base_domain_for(&self, credentials: &KiroCredentials) -> String {
-        format!(
-            "q.{}.amazonaws.com",
-            credentials.effective_api_region(self.token_manager.config())
-        )
+    /// 获取账号级 API 基础域名（按指定 endpoint）
+    fn base_domain_for(&self, _credentials: &KiroCredentials, endpoint: &Endpoint) -> String {
+        endpoint.host.clone()
     }
 
     /// 从请求体中提取模型信息
@@ -229,11 +235,13 @@ impl KiroProvider {
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含账号和 token
     /// * `request_body` - 请求体，用于提取 agentTaskType
+    /// * `endpoint` - 当前选中的上游端点（决定 HOST 头与可选的 x-amz-target）
     fn build_headers(
         &self,
         ctx: &CallContext,
         request_body: &str,
         attempt: usize,
+        endpoint: &Endpoint,
     ) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
@@ -274,7 +282,7 @@ impl KiroProvider {
         );
         headers.insert(
             HOST,
-            HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap(),
+            HeaderValue::from_str(&self.base_domain_for(&ctx.credentials, endpoint)).unwrap(),
         );
         headers.insert(
             "amz-sdk-invocation-id",
@@ -289,16 +297,18 @@ impl KiroProvider {
             HeaderValue::from_str(&format!("Bearer {}", ctx.token)).unwrap(),
         );
 
+        // codewhisperer / amazonq 端点需要 x-amz-target 头路由到对应后端服务
+        if let Some(target) = endpoint.amz_target {
+            headers.insert("x-amz-target", HeaderValue::from_static(target));
+        }
+
         if ctx
             .credentials
             .auth_method
             .as_deref()
             .is_some_and(|m| m.eq_ignore_ascii_case("external_idp"))
         {
-            headers.insert(
-                "TokenType",
-                HeaderValue::from_static("EXTERNAL_IDP"),
-            );
+            headers.insert("TokenType", HeaderValue::from_static("EXTERNAL_IDP"));
         }
 
         Ok(headers)
@@ -331,9 +341,15 @@ impl KiroProvider {
             HeaderValue::from_str(&x_amz_user_agent).unwrap(),
         );
         headers.insert("user-agent", HeaderValue::from_str(&user_agent).unwrap());
+        // MCP 端点独立于多端点 LB，沿用 q.{region}.amazonaws.com
         headers.insert(
             "host",
-            HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap(),
+            HeaderValue::from_str(&format!(
+                "q.{}.amazonaws.com",
+                ctx.credentials
+                    .effective_api_region(self.token_manager.config())
+            ))
+            .unwrap(),
         );
         headers.insert(
             "amz-sdk-invocation-id",
@@ -567,7 +583,7 @@ impl KiroProvider {
                     self.token_manager.evict_sticky(cid);
                 }
                 if let Some(ref store) = self.throttle_log_store {
-                    store.record(ctx.id, "mcp", status.as_u16(), &body);
+                    store.record(ctx.id, "mcp", status.as_u16(), &body, None);
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 if attempt + 1 < max_retries {
@@ -613,10 +629,43 @@ impl KiroProvider {
     /// 内部方法：带重试逻辑的 API 调用
     ///
     /// 重试策略：
+    /// 选择下一个可用端点
+    ///
+    /// 跳过被 `endpoint_registry` 标记为封禁的桶；按账号 `effective_endpoints` 顺序 +
+    /// `attempt` 偏移返回第一个可用端点。所有端点被封禁返回 `None`（外层应升级为
+    /// `AllEndpointsThrottled` 错误，不静默切换账号）。
+    ///
+    /// 端点切换与账号切换**正交**：本函数仅在单账号内切端点，不消耗外层切账号配额。
+    pub(crate) fn select_endpoint(
+        &self,
+        credentials: &KiroCredentials,
+        attempt: usize,
+    ) -> Option<Endpoint> {
+        let region = credentials.effective_api_region(self.token_manager.config());
+        let endpoints = credentials.effective_endpoints(region);
+        if endpoints.is_empty() {
+            return None;
+        }
+        let len = endpoints.len();
+        // 起点 attempt 偏移（attempt % len），轮询保证单账号内多次 attempt 走不同端点
+        let start = attempt % len;
+        for i in 0..len {
+            let candidate = &endpoints[(start + i) % len];
+            if !self
+                .endpoint_registry
+                .is_throttled(credentials.id.unwrap_or(0), candidate.name)
+            {
+                return Some(candidate.clone());
+            }
+        }
+        None
+    }
+
     /// - 每个账号最多重试 MAX_RETRIES_PER_CREDENTIAL 次
     /// - 总重试次数 = min(可用池大小 × 每账号重试次数, MAX_TOTAL_RETRIES)
     /// - 硬上限 9 次，避免无限重试
     /// - 当可用池 ≤ 1 时，仅重试 3 次并使用更长退避间隔
+    /// - 单账号内 3 次 attempts 之间切换多端点（不消耗切账号配额）
     async fn call_api_with_retry(
         &self,
         request_body: &str,
@@ -670,9 +719,43 @@ impl KiroProvider {
                 continue;
             }
 
-            let url = self.base_url_for(&ctx.credentials);
+            // 选择下一个可用端点（单账号内轮询，跳过被封禁桶）
+            let endpoint = match self.select_endpoint(&ctx.credentials, attempt) {
+                Some(e) => e,
+                None => {
+                    // 4 桶全封：不静默切账号，返回明确错误
+                    let endpoints: Vec<EndpointName> = ctx
+                        .credentials
+                        .effective_endpoints(
+                            ctx.credentials
+                                .effective_api_region(self.token_manager.config()),
+                        )
+                        .iter()
+                        .map(|e| e.name)
+                        .collect();
+                    let ids = endpoints
+                        .iter()
+                        .map(|n| n.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(anyhow::anyhow!(
+                        "All endpoints throttled for credential {} (tried: [{}])",
+                        ctx.id,
+                        ids
+                    ));
+                }
+            };
+            tracing::debug!(
+                "[ENDPOINT] credential={} attempt={} selected={:?} host={}",
+                ctx.id,
+                attempt + 1,
+                endpoint.name,
+                endpoint.host
+            );
+
+            let url = self.base_url_for(&ctx.credentials, &endpoint);
             let effective_body = Self::rewrite_profile_arn(request_body, &ctx.credentials);
-            let headers = match self.build_headers(&ctx, &effective_body, attempt) {
+            let headers = match self.build_headers(&ctx, &effective_body, attempt, &endpoint) {
                 Ok(h) => h,
                 Err(e) => {
                     last_error = Some(e);
@@ -791,7 +874,7 @@ impl KiroProvider {
                 continue;
             }
 
-            // 429 Too Many Requests - 限流：驱逐 sticky cache + rotation bias 轮转
+            // 429 Too Many Requests - 限流：驱逐 sticky cache + rotation bias 轮转 + 封禁当前端点桶
             if status.as_u16() == 429 {
                 tracing::warn!(
                     "API 请求失败（上游限流，{}重试，尝试 {}/{}）: {} {}",
@@ -807,11 +890,20 @@ impl KiroProvider {
                 );
                 self.token_manager.report_throttled(ctx.id);
                 self.token_manager.report_throttled_for_rotation(ctx.id);
+                // 端点级：封禁当前命中桶 30s（不动其它桶，不动账号）
+                self.endpoint_registry
+                    .throttle(ctx.id, endpoint.name, BUCKET_THROTTLE_DURATION);
                 if let Some(cid) = continuation_id.as_deref() {
                     self.token_manager.evict_sticky(cid);
                 }
                 if let Some(ref store) = self.throttle_log_store {
-                    store.record(ctx.id, "api", status.as_u16(), &body);
+                    store.record(
+                        ctx.id,
+                        "api",
+                        status.as_u16(),
+                        &body,
+                        Some(endpoint.name.as_str()),
+                    );
                 }
                 last_error = Some(anyhow::anyhow!(
                     "{} API 请求失败: {} {}",
@@ -1037,7 +1129,8 @@ mod tests {
             credentials,
             token: "test_token".to_string(),
         };
-        let headers = provider.build_headers(&ctx, "{}", 0).unwrap();
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
 
         assert_eq!(headers.get(CONTENT_TYPE).unwrap(), "application/json");
         assert_eq!(headers.get("x-amzn-codewhisperer-optout").unwrap(), "true");
@@ -1119,7 +1212,10 @@ mod tests {
             token: "test_token".to_string(),
         };
         let spectask_body = r#"{"conversationState":{"agentTaskType":"spectask"}}"#;
-        let headers = provider.build_headers(&ctx, spectask_body, 0).unwrap();
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider
+            .build_headers(&ctx, spectask_body, 0, &endpoint)
+            .unwrap();
         assert_eq!(headers.get("x-amzn-kiro-agent-mode").unwrap(), "spectask");
     }
 
@@ -1130,7 +1226,10 @@ mod tests {
         cred.profile_arn = Some("arn:aws:sso::111:profile/new".to_string());
         let result = KiroProvider::rewrite_profile_arn(body, &cred);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(v["profileArn"].as_str(), Some("arn:aws:sso::111:profile/new"));
+        assert_eq!(
+            v["profileArn"].as_str(),
+            Some("arn:aws:sso::111:profile/new")
+        );
     }
 
     #[test]
@@ -1141,7 +1240,10 @@ mod tests {
         cred.profile_arn = Some("arn:aws:sso::111:profile/new".to_string());
         let result = KiroProvider::rewrite_profile_arn(body, &cred);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(v["profileArn"].as_str(), Some("arn:aws:sso::111:profile/new"));
+        assert_eq!(
+            v["profileArn"].as_str(),
+            Some("arn:aws:sso::111:profile/new")
+        );
     }
 
     #[test]
@@ -1160,5 +1262,154 @@ mod tests {
         cred.profile_arn = Some("arn:aws:sso::111:profile/x".to_string());
         let result = KiroProvider::rewrite_profile_arn(body, &cred);
         assert_eq!(result, "not-json");
+    }
+
+    // -------- 多端点 LB: select_endpoint + amz_target 注入 --------
+
+    #[test]
+    fn test_select_endpoint_skips_throttled_buckets() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(1);
+        creds.refresh_token = Some("a".repeat(150));
+        let provider = create_test_provider(config, creds.clone());
+
+        // 封禁 Ide 与 Runtime 两个桶
+        provider
+            .endpoint_registry
+            .throttle(1, EndpointName::Ide, BUCKET_THROTTLE_DURATION);
+        provider
+            .endpoint_registry
+            .throttle(1, EndpointName::Runtime, BUCKET_THROTTLE_DURATION);
+
+        let picked = provider
+            .select_endpoint(&creds, 0)
+            .expect("应跳过封禁桶返回剩余端点");
+        assert_eq!(picked.name, EndpointName::Codewhisperer);
+    }
+
+    #[test]
+    fn test_select_endpoint_attempt_offset_rotates_endpoints() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(2);
+        creds.refresh_token = Some("a".repeat(150));
+        let provider = create_test_provider(config, creds.clone());
+
+        // 4 桶均未封禁：attempt=0/1/2/3 应轮询 Ide/Runtime/Codewhisperer/Amazonq
+        assert_eq!(
+            provider.select_endpoint(&creds, 0).unwrap().name,
+            EndpointName::Ide
+        );
+        assert_eq!(
+            provider.select_endpoint(&creds, 1).unwrap().name,
+            EndpointName::Runtime
+        );
+        assert_eq!(
+            provider.select_endpoint(&creds, 2).unwrap().name,
+            EndpointName::Codewhisperer
+        );
+        assert_eq!(
+            provider.select_endpoint(&creds, 3).unwrap().name,
+            EndpointName::Amazonq
+        );
+        // attempt=4 回卷到 Ide
+        assert_eq!(
+            provider.select_endpoint(&creds, 4).unwrap().name,
+            EndpointName::Ide
+        );
+    }
+
+    #[test]
+    fn test_select_endpoint_returns_none_when_all_throttled() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(3);
+        creds.refresh_token = Some("a".repeat(150));
+        let provider = create_test_provider(config, creds.clone());
+
+        // 封禁全部 4 桶
+        for name in EndpointName::ALL {
+            provider
+                .endpoint_registry
+                .throttle(3, name, BUCKET_THROTTLE_DURATION);
+        }
+
+        assert!(provider.select_endpoint(&creds, 0).is_none());
+    }
+
+    #[test]
+    fn test_select_endpoint_respects_account_preferred_order() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(4);
+        creds.refresh_token = Some("a".repeat(150));
+        // 账号声明首选 Runtime
+        creds.endpoint = Some(vec![EndpointName::Runtime]);
+        let provider = create_test_provider(config, creds.clone());
+
+        // attempt=0 应选 Runtime（首选在首）
+        assert_eq!(
+            provider.select_endpoint(&creds, 0).unwrap().name,
+            EndpointName::Runtime
+        );
+        // attempt=1 跳过 Runtime → Ide（默认序下一个）
+        assert_eq!(
+            provider.select_endpoint(&creds, 1).unwrap().name,
+            EndpointName::Ide
+        );
+    }
+
+    #[test]
+    fn test_build_headers_injects_amz_target_for_codewhisperer_endpoint() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        config.kiro_version = "0.8.0".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(5);
+        creds.refresh_token = Some("a".repeat(150));
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 5,
+            credentials: creds,
+            token: "tok".to_string(),
+        };
+        let endpoint = Endpoint::by_name(EndpointName::Codewhisperer, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
+
+        assert_eq!(
+            headers.get("x-amz-target").unwrap(),
+            "AmazonCodeWhispererStreamingService.GenerateAssistantResponse"
+        );
+        assert_eq!(
+            headers.get("host").unwrap(),
+            "codewhisperer.us-east-1.amazonaws.com"
+        );
+    }
+
+    #[test]
+    fn test_build_headers_omits_amz_target_for_ide_endpoint() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(6);
+        creds.refresh_token = Some("a".repeat(150));
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 6,
+            credentials: creds,
+            token: "tok".to_string(),
+        };
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
+
+        assert!(headers.get("x-amz-target").is_none());
+        assert_eq!(headers.get("host").unwrap(), "q.us-east-1.amazonaws.com");
     }
 }

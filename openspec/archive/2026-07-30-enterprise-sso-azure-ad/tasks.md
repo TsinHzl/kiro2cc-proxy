@@ -1,6 +1,6 @@
 # 任务清单：enterprise-sso-azure-ad
 
-## 状态：DONE
+## 状态：ARCHIVED
 
 ## 任务
 

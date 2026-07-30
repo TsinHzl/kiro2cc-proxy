@@ -124,14 +124,19 @@ fn get_model_pricing(model: &str) -> ModelPricing {
 /// 2026-07-25 追加 opus-5 与 4.7/4.8 同档。
 fn get_k_ref(model: &str) -> f64 {
     let m = model.to_lowercase();
-    if m.contains("opus-4-7") || m.contains("opus-4.7")
-        || m.contains("opus-4-8") || m.contains("opus-4.8")
-        || m.contains("opus-5") || m.contains("opus.5")
+    if m.contains("opus-4-7")
+        || m.contains("opus-4.7")
+        || m.contains("opus-4-8")
+        || m.contains("opus-4.8")
+        || m.contains("opus-5")
+        || m.contains("opus.5")
     {
         // opus 4.7/4.8/5 共用同档（实测 4.8 ≈ 2.36，5 沿用 4.8 档位）
         2.36
-    } else if m.contains("opus-4-5") || m.contains("opus-4.5")
-        || m.contains("opus-4-6") || m.contains("opus-4.6")
+    } else if m.contains("opus-4-5")
+        || m.contains("opus-4.5")
+        || m.contains("opus-4-6")
+        || m.contains("opus-4.6")
     {
         // 旧 opus 4.5/4.6（实测 4.6 ≈ 1.90）
         1.90
@@ -662,10 +667,7 @@ impl UsageTracker {
     ///
     /// 返回结构包含今日的请求数、输入/输出 token、估算费用、credits 用量及节省值。
     /// 当 credential 在今日没有记录时返回零值汇总（不报错）。
-    pub fn get_today_summary_for_credential(
-        &self,
-        credential_id: u64,
-    ) -> CredentialDaySummary {
+    pub fn get_today_summary_for_credential(&self, credential_id: u64) -> CredentialDaySummary {
         let cst = FixedOffset::east_opt(8 * 3600).unwrap();
         let today = chrono::Utc::now()
             .with_timezone(&cst)

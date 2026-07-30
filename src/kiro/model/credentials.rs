@@ -114,6 +114,16 @@ pub struct KiroCredentials {
     /// 账号是否被禁用（默认为 false）
     #[serde(default)]
     pub disabled: bool,
+
+    /// 账号级端点首选项（多端点 LB 使用）
+    ///
+    /// - 未配置 / 空 → 使用全部 4 个端点（按 `Endpoint::default_order`）
+    /// - 仅声明首选端点 → 首选在首 + 剩余端点按默认顺序去重追加
+    /// - 非法值（如 `"invalid_endpoint"`）→ serde 反序列化时忽略该项，等价于未配置
+    ///
+    /// 示例：`["runtime", "codewhisperer"]` → `[Runtime, Codewhisperer, Ide, Amazonq]`
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub endpoint: Option<Vec<crate::kiro::endpoint::EndpointName>>,
 }
 
 /// 对邮箱做部分掩码（保留首字符与域名，如 u***@example.com）
@@ -278,6 +288,34 @@ impl KiroCredentials {
             .unwrap_or(config.effective_api_region())
     }
 
+    /// 获取账号的多端点列表（多端点 LB 使用）
+    ///
+    /// - 未配置 / `None` / 空 Vec → 全部 4 个端点（按 `Endpoint::default_order`）
+    /// - 配置 → 首选端点在前 + 剩余端点按默认顺序去重追加
+    pub fn effective_endpoints(&self, region: &str) -> Vec<crate::kiro::endpoint::Endpoint> {
+        use crate::kiro::endpoint::{Endpoint, EndpointName};
+
+        let defaults: Vec<EndpointName> = Endpoint::default_order().to_vec();
+
+        let preferred = match &self.endpoint {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => return Endpoint::all(region).to_vec(),
+        };
+
+        // 去重（保留首次出现顺序）+ 过滤未知 enum 变体（serde 已保证，理论不可达）
+        let mut seen = std::collections::HashSet::new();
+        let mut result: Vec<EndpointName> = Vec::with_capacity(4);
+        for name in preferred.into_iter().chain(defaults) {
+            if seen.insert(name) {
+                result.push(name);
+            }
+        }
+        result
+            .into_iter()
+            .map(|n| Endpoint::by_name(n, region))
+            .collect()
+    }
+
     /// 获取有效的代理配置
     /// 优先级：账号代理 > 全局代理 > 无代理
     /// 特殊值 "direct" 表示显式不使用代理（即使全局配置了代理）
@@ -408,6 +446,7 @@ mod tests {
             proxy_username: None,
             proxy_password: None,
             disabled: false,
+            endpoint: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -530,6 +569,7 @@ mod tests {
             proxy_username: None,
             proxy_password: None,
             disabled: false,
+            endpoint: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -564,6 +604,7 @@ mod tests {
             proxy_username: None,
             proxy_password: None,
             disabled: false,
+            endpoint: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -680,6 +721,7 @@ mod tests {
             proxy_username: None,
             proxy_password: None,
             disabled: false,
+            endpoint: None,
         };
 
         let json = original.to_pretty_json().unwrap();
@@ -995,5 +1037,97 @@ mod tests {
                 "canonicalize({input}) should be {expected}"
             );
         }
+    }
+
+    // -------- 多端点 LB: effective_endpoints --------
+
+    use crate::kiro::endpoint::EndpointName;
+
+    #[test]
+    fn test_effective_endpoints_unset_returns_all_in_default_order() {
+        let creds = KiroCredentials::default();
+        let eps = creds.effective_endpoints("us-east-1");
+        assert_eq!(eps.len(), 4);
+        assert_eq!(eps[0].name, EndpointName::Ide);
+        assert_eq!(eps[1].name, EndpointName::Runtime);
+        assert_eq!(eps[2].name, EndpointName::Codewhisperer);
+        assert_eq!(eps[3].name, EndpointName::Amazonq);
+    }
+
+    #[test]
+    fn test_effective_endpoints_empty_vec_returns_all() {
+        let creds = KiroCredentials {
+            endpoint: Some(vec![]),
+            ..Default::default()
+        };
+        let eps = creds.effective_endpoints("us-east-1");
+        assert_eq!(eps.len(), 4);
+        assert_eq!(eps[0].name, EndpointName::Ide);
+    }
+
+    #[test]
+    fn test_effective_endpoints_single_preferred_prefixes_with_default_tail() {
+        let creds = KiroCredentials {
+            endpoint: Some(vec![EndpointName::Runtime]),
+            ..Default::default()
+        };
+        let eps = creds.effective_endpoints("us-east-1");
+        assert_eq!(
+            eps.iter().map(|e| e.name).collect::<Vec<_>>(),
+            vec![
+                EndpointName::Runtime,
+                EndpointName::Ide,
+                EndpointName::Codewhisperer,
+                EndpointName::Amazonq,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_effective_endpoints_multiple_preferred_dedups() {
+        let creds = KiroCredentials {
+            endpoint: Some(vec![EndpointName::Runtime, EndpointName::Codewhisperer]),
+            ..Default::default()
+        };
+        let eps = creds.effective_endpoints("us-east-1");
+        // 首选 [Runtime, Codewhisperer] + 剩余默认序去重 [Ide, Amazonq]
+        assert_eq!(
+            eps.iter().map(|e| e.name).collect::<Vec<_>>(),
+            vec![
+                EndpointName::Runtime,
+                EndpointName::Codewhisperer,
+                EndpointName::Ide,
+                EndpointName::Amazonq,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_endpoint_field_serialization_roundtrip() {
+        // 配置 endpoint 后，序列化 / 反序列化往返一致
+        let json = r#"{
+            "accessToken": "test",
+            "endpoint": ["runtime", "codewhisperer"]
+        }"#;
+        let creds = KiroCredentials::from_json(json).unwrap();
+        assert_eq!(
+            creds.endpoint,
+            Some(vec![EndpointName::Runtime, EndpointName::Codewhisperer])
+        );
+        let serialized = creds.to_pretty_json().unwrap();
+        assert!(serialized.contains("\"endpoint\""));
+        assert!(serialized.contains("\"runtime\""));
+        assert!(serialized.contains("\"codewhisperer\""));
+    }
+
+    #[test]
+    fn test_endpoint_field_unset_not_serialized() {
+        // 未配置时不写入 endpoint 字段（向后兼容）
+        let creds = KiroCredentials {
+            access_token: Some("token".to_string()),
+            ..Default::default()
+        };
+        let json = creds.to_pretty_json().unwrap();
+        assert!(!json.contains("endpoint"));
     }
 }

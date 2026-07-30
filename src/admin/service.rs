@@ -259,6 +259,7 @@ impl AdminService {
             proxy_username: req.proxy_username,
             proxy_password: req.proxy_password,
             disabled: false, // 新添加的账号默认启用
+            endpoint: None,
         };
 
         // 调用 token_manager 添加账号

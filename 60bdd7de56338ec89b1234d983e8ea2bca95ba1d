@@ -1,0 +1,23 @@
+Cargo.toml
+  ece31a69018c3211 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "60bdd7de56338ec89b1234d983e8ea2bca95ba1d",
+  "prompts": {
+    "ece31a69018c3211": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d66ac375-247f-40f0-bbd6-b1c2fdd64e9d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,45 @@
+openspec/changes/multi-endpoint-load-balancing/proposal.md
+  ece31a69018c3211 1-142
+src/kiro/mod.rs
+  ece31a69018c3211 4
+src/kiro/provider.rs
+  ece31a69018c3211 17,19,65-66,95,99-102,148,150-152,155,163,165-167,169,172-174,177,185-187,238,244,285,300-303,344,347-348,350,586,632-663,668,722-756,758,877,893-894,904-905,1132-1133,1215-1217,1266-1387,1392-1414
+src/model/throttle_log.rs
+  ece31a69018c3211 25-29,128-131,138,158,238,272-335
+src/kiro/endpoint.rs
+  ece31a69018c3211 1-191,196-309
+src/admin/service.rs
+  ece31a69018c3211 262
+docs/代码速查表.md
+  ece31a69018c3211 213-265
+openspec/changes/multi-endpoint-load-balancing/design.md
+  ece31a69018c3211 1-135
+openspec/changes/multi-endpoint-load-balancing/tasks.md
+  ece31a69018c3211 1-74
+src/kiro/model/credentials.rs
+  ece31a69018c3211 117-126,291-318,449,572,607,724,1041-1132
+README.md
+  ece31a69018c3211 474-490
+openspec/changes/multi-endpoint-load-balancing/specs/multi-endpoint-load-balancing/spec.md
+  ece31a69018c3211 1-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "845ed360c64f952dc8e83c3027f9ecbe21ce6a95",
+  "prompts": {
+    "ece31a69018c3211": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d66ac375-247f-40f0-bbd6-b1c2fdd64e9d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1552,
+      "total_deletions": 244,
+      "accepted_lines": 1319,
+      "overriden_lines": 3
+    }
+  }
+}

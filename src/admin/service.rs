@@ -777,8 +777,7 @@ mod tests {
             MultiTokenManager::new(Config::default(), vec![cred], None, None, false)
                 .expect("构造 MultiTokenManager 失败"),
         );
-        let service =
-            AdminService::new(manager).with_throttle_log_store(Arc::new(store));
+        let service = AdminService::new(manager).with_throttle_log_store(Arc::new(store));
 
         let resp = service.get_all_credentials();
         assert_eq!(resp.total, 1, "账号总数应为 1");

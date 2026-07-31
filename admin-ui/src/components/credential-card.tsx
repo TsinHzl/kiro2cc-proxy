@@ -227,7 +227,7 @@ export function CredentialCard({
                     onClick={() => onViewThrottleLog(credential.id)}
                     title="查看限流日志"
                   >
-                    限流：{credential.throttleCount}
+                    限流(7天)：{credential.throttleCount}
                   </span>
                   <span className="text-blue-600 dark:text-blue-400 font-medium">RPM {rpm}</span>
                   <span className="text-muted-foreground">

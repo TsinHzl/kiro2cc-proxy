@@ -55,7 +55,7 @@ pub struct CredentialStatusItem {
     pub proxy_url: Option<String>,
     /// 健康状态
     pub health_status: crate::kiro::token_manager::HealthStatus,
-    /// 被限流次数（429 响应，累计）
+    /// 最近 7 天限流次数（429 响应，滚动 7×24 小时窗口）
     pub throttle_count: u64,
 }
 

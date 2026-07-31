@@ -92,6 +92,7 @@ impl AdminService {
     /// 获取所有账号状态
     pub fn get_all_credentials(&self) -> CredentialsStatusResponse {
         let snapshot = self.token_manager.snapshot();
+        let since = Utc::now() - chrono::Duration::days(7);
 
         let mut credentials: Vec<CredentialStatusItem> = snapshot
             .entries
@@ -113,7 +114,11 @@ impl AdminService {
                 has_proxy: entry.has_proxy,
                 proxy_url: entry.proxy_url,
                 health_status: entry.health_status,
-                throttle_count: entry.throttle_count,
+                throttle_count: self
+                    .throttle_log_store
+                    .as_ref()
+                    .map(|s| s.count_within(entry.id, since) as u64)
+                    .unwrap_or(entry.throttle_count),
             })
             .collect();
 
@@ -545,6 +550,9 @@ mod tests {
     use crate::kiro::model::available_models::{
         AvailableModelInfo, AvailableModelsResponse, TokenLimits,
     };
+    use crate::kiro::token_manager::MultiTokenManager;
+    use crate::model::config::Config;
+    use chrono::Duration;
 
     fn fake_info(
         model_id: &str,
@@ -731,5 +739,55 @@ mod tests {
         assert_eq!(drift.token_limits.max_input_tokens, 0);
         assert_eq!(drift.token_limits.max_output_tokens, 0);
         assert_eq!(drift.rate_multiplier, Some(0.5));
+    }
+
+    /// inline 测试 helper：构造一个有效 access_token/expires_at 的 KiroCredentials
+    /// （替代 token_manager.rs 内私有的 make_valid_cred）
+    fn make_valid_cred(token: &str) -> KiroCredentials {
+        let mut c = KiroCredentials::default();
+        c.access_token = Some(token.to_string());
+        c.expires_at = Some((Utc::now() + Duration::hours(1)).to_rfc3339());
+        c
+    }
+
+    /// 验证 `get_all_credentials` 返回的 `throttle_count` 取自 store 的 7 天窗口计数
+    /// （5 条 8 天前 + 3 条 近 7 天 → 期望 3；无关 id → 0）
+    #[test]
+    fn get_all_credentials_uses_seven_day_count() {
+        // 准备 store：5 条 8 天前（窗口外）+ 3 条 当前（窗口内）
+        let store = crate::model::throttle_log::ThrottleLogStore::empty("unused");
+        let now = Utc::now();
+        for _ in 0..5 {
+            store.record(1, "api", 429, "{}", None);
+        }
+        store.with_events_for_test(1, |events| {
+            for e in events.iter_mut() {
+                e.created_at = now - Duration::days(8);
+            }
+        });
+        for _ in 0..3 {
+            store.record(1, "api", 429, "{}", None);
+        }
+        // 无关 id 的事件，应被过滤
+        store.record(999, "api", 429, "{}", None);
+
+        // 构造一个真实 entry
+        let cred = make_valid_cred("t1");
+        let manager = Arc::new(
+            MultiTokenManager::new(Config::default(), vec![cred], None, None, false)
+                .expect("构造 MultiTokenManager 失败"),
+        );
+        let service =
+            AdminService::new(manager).with_throttle_log_store(Arc::new(store));
+
+        let resp = service.get_all_credentials();
+        assert_eq!(resp.total, 1, "账号总数应为 1");
+        let item = resp
+            .credentials
+            .iter()
+            .find(|c| c.id == 1)
+            .expect("id=1 的账号应存在");
+        // 5 条 8 天前（窗口外）+ 3 条 当前（窗口内）→ 期望 3
+        assert_eq!(item.throttle_count, 3);
     }
 }

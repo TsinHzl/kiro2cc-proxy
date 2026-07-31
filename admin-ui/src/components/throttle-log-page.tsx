@@ -67,13 +67,13 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">累计计数</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">最近 7 天计数</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {credential?.throttleCount ?? 0}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">含历史已清理记录</div>
+            <div className="text-xs text-muted-foreground mt-0.5">与账号卡片一致；上限 500 条 FIFO（FIFO 淘汰前仍在 7 天内的事件会被计入）</div>
           </CardContent>
         </Card>
         <Card>

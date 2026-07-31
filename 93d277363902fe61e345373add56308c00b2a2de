@@ -1,0 +1,23 @@
+admin-ui/src/components/throttle-log-page.tsx
+  133323515ffef663 70,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "93d277363902fe61e345373add56308c00b2a2de",
+  "prompts": {
+    "133323515ffef663": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14ba6720-91a6-453f-af5a-8d4bff9d19ba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 452,
+      "overriden_lines": 0
+    }
+  }
+}

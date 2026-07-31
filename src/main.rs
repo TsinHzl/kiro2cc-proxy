@@ -215,7 +215,8 @@ async fn main() {
             tracing::warn!("admin_api_key 配置为空，Admin API 未启用");
             anthropic_app
         } else {
-            let admin_service = admin::AdminService::new(token_manager.clone());
+            let admin_service = admin::AdminService::new(token_manager.clone())
+                .with_throttle_log_store(throttle_log_store.clone());
             let admin_api_key_shared = Arc::new(parking_lot::RwLock::new(admin_key.clone()));
             let mut admin_state = admin::AdminState::new(admin_api_key_shared, admin_service)
                 .with_master_api_key(api_key_shared.clone())

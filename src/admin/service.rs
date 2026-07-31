@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::MultiTokenManager;
+use crate::model::throttle_log::ThrottleLogStore;
 
 use super::error::AdminServiceError;
 use super::types::{
@@ -63,6 +64,7 @@ pub struct AdminService {
     token_manager: Arc<MultiTokenManager>,
     balance_cache: Mutex<HashMap<u64, CachedBalance>>,
     cache_path: Option<PathBuf>,
+    throttle_log_store: Option<Arc<ThrottleLogStore>>,
 }
 
 impl AdminService {
@@ -77,7 +79,14 @@ impl AdminService {
             token_manager,
             balance_cache: Mutex::new(balance_cache),
             cache_path,
+            throttle_log_store: None,
         }
+    }
+
+    /// 注入 throttle log store，使 AdminService 能访问最近 7 天限流计数。
+    pub fn with_throttle_log_store(mut self, store: Arc<ThrottleLogStore>) -> Self {
+        self.throttle_log_store = Some(store);
+        self
     }
 
     /// 获取所有账号状态

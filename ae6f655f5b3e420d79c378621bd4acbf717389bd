@@ -1,0 +1,25 @@
+src/admin/service.rs
+  133323515ffef663 95,117-121,553-555,743-792
+src/admin/types.rs
+  133323515ffef663 58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ae6f655f5b3e420d79c378621bd4acbf717389bd",
+  "prompts": {
+    "133323515ffef663": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14ba6720-91a6-453f-af5a-8d4bff9d19ba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 66,
+      "total_deletions": 8,
+      "accepted_lines": 510,
+      "overriden_lines": 0
+    }
+  }
+}

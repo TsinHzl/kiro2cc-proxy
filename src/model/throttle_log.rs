@@ -247,6 +247,38 @@ impl ThrottleLogStore {
             total_pages,
         }
     }
+
+    /// 统计指定 credential 在 `since` 时间点（含）之后的限流事件数
+    pub fn count_within(&self, credential_id: u64, since: DateTime<Utc>) -> usize {
+        let events = self.events.read();
+        events
+            .iter()
+            .filter(|e| e.credential_id == credential_id && e.created_at >= since)
+            .count()
+    }
+
+    /// 测试辅助：按 credential_id 取出对应事件集合交给闭包修改，再写回。
+    /// 仅用于单元测试中调整 `created_at` 等字段模拟历史数据。
+    #[cfg(test)]
+    pub(crate) fn with_events_for_test(
+        &self,
+        credential_id: u64,
+        mut f: impl FnMut(&mut Vec<ThrottleEvent>),
+    ) {
+        let mut events = self.events.write();
+        let mut mine: Vec<ThrottleEvent> = Vec::new();
+        let mut others: Vec<ThrottleEvent> = Vec::new();
+        for e in events.drain(..) {
+            if e.credential_id == credential_id {
+                mine.push(e);
+            } else {
+                others.push(e);
+            }
+        }
+        f(&mut mine);
+        events.extend(mine);
+        events.extend(others);
+    }
 }
 
 /// 分页查询结果
@@ -332,5 +364,38 @@ mod tests {
         assert!(json.contains("\"endpoint\":\"runtime\""));
         let parsed: ThrottleEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.endpoint.as_deref(), Some("runtime"));
+    }
+
+    #[test]
+    fn count_within_includes_recent_only() {
+        use chrono::{Duration, Utc};
+        let store = ThrottleLogStore::empty("unused");
+        let now = Utc::now();
+        for _ in 0..5 {
+            store.record(1, "api", 429, "{}", None);
+        }
+        store.with_events_for_test(1, |events| {
+            for e in events.iter_mut() {
+                e.created_at = now - Duration::days(8);
+            }
+        });
+        for _ in 0..3 {
+            store.record(1, "api", 429, "{}", None);
+        }
+        assert_eq!(store.count_within(1, now - Duration::days(7)), 3);
+    }
+
+    #[test]
+    fn count_within_boundary_includes_exact_seven_days() {
+        use chrono::{Duration, Utc};
+        let store = ThrottleLogStore::empty("unused");
+        store.record(1, "api", 429, "{}", None);
+        store.record(1, "api", 429, "{}", None);
+        let now = Utc::now();
+        store.with_events_for_test(1, |events| {
+            events[0].created_at = now - Duration::days(7);
+            events[1].created_at = now - Duration::days(7) - Duration::seconds(1);
+        });
+        assert_eq!(store.count_within(1, now - Duration::days(7)), 1);
     }
 }

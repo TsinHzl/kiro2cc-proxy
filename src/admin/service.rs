@@ -118,7 +118,7 @@ impl AdminService {
                     .throttle_log_store
                     .as_ref()
                     .map(|s| s.count_within(entry.id, since) as u64)
-                    .unwrap_or(entry.throttle_count),
+                    .unwrap_or(0),
             })
             .collect();
 

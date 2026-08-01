@@ -539,7 +539,13 @@ impl KiroProvider {
             if status.as_u16() == 402 && Self::is_monthly_request_limit(&body) {
                 let has_available = self.token_manager.report_quota_exhausted(ctx.id);
                 if !has_available {
-                    anyhow::bail!("MCP 请求失败（所有账号已用尽）: {} {}", status, body);
+                    // 全局无可用账号：必须走 describe_unavailable 产出带
+                    // QUOTA_EXHAUSTED_ALL_MARKER 的文案，否则这条错误串在
+                    // handlers.rs 会被误判进 502 兜底，而非正确的 402。
+                    anyhow::bail!(
+                        "{}",
+                        self.token_manager.describe_unavailable(None, bound_ids)
+                    );
                 }
                 last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
                 continue;
@@ -820,11 +826,13 @@ impl KiroProvider {
 
                 let has_available = self.token_manager.report_quota_exhausted(ctx.id);
                 if !has_available {
+                    // 全局无可用账号：必须走 describe_unavailable 产出带
+                    // QUOTA_EXHAUSTED_ALL_MARKER 的文案，否则这条错误串在
+                    // handlers.rs 会被误判进 502 兜底，而非正确的 402。
                     anyhow::bail!(
-                        "{} API 请求失败（所有账号已用尽）: {} {}",
-                        api_type,
-                        status,
-                        body
+                        "{}",
+                        self.token_manager
+                            .describe_unavailable(model.as_deref(), bound_ids)
                     );
                 }
 

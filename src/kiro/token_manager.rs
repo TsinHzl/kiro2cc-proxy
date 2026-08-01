@@ -5,7 +5,7 @@
 //! 支持单账号 (TokenManager) 和多账号 (MultiTokenManager) 管理
 
 use anyhow::bail;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -590,10 +590,13 @@ struct CredentialEntry {
     last_refreshed_at: Option<Instant>,
     /// 轮转偏移量：429 时 +1，成功时清零；选择账号时优先选 bias 最小的
     rotation_bias: u32,
+    /// 被判定额度用尽的时间（UTC，持久化），用于跨自然月后自动恢复
+    quota_exhausted_at: Option<DateTime<Utc>>,
 }
 
 /// 禁用原因
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum DisabledReason {
     /// Admin API 手动禁用
     Manual,
@@ -601,6 +604,17 @@ enum DisabledReason {
     TooManyFailures,
     /// 额度已用尽（如 MONTHLY_REQUEST_COUNT）
     QuotaExceeded,
+}
+
+impl DisabledReason {
+    /// 面向客户端的原因描述（用于错误消息，便于从日志直接判断真因）
+    fn describe(&self) -> &'static str {
+        match self {
+            DisabledReason::Manual => "已被手动禁用",
+            DisabledReason::TooManyFailures => "因连续认证失败被自动禁用",
+            DisabledReason::QuotaExceeded => "本月请求额度已用尽",
+        }
+    }
 }
 
 /// 账号健康状态
@@ -653,6 +667,12 @@ struct StatsEntry {
     throttle_count: u64,
     #[serde(default)]
     last_throttled_wall: Option<String>,
+    /// 自动禁用原因（仅持久化自动判定的原因；Manual 由 credentials.json 承载）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    disabled_reason: Option<DisabledReason>,
+    /// 额度用尽时间（UTC RFC3339），用于跨自然月自动恢复
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    quota_exhausted_at: Option<String>,
 }
 
 // ============================================================================
@@ -749,6 +769,11 @@ pub struct MultiTokenManager {
 
 /// 每个账号最大 API 调用失败次数
 const MAX_FAILURES_PER_CREDENTIAL: u32 = 3;
+/// 「范围内全部账号均因额度用尽而不可用」的机器可识别标记
+///
+/// 由 `describe_unavailable` 写入错误消息，供 HTTP 层映射为 402 而非 502 —— 额度耗尽
+/// 当月不可恢复，若按 5xx 返回会让客户端把它当作瞬态故障反复重试。
+pub const QUOTA_EXHAUSTED_ALL_MARKER: &str = "QUOTA_EXHAUSTED_ALL";
 /// 统计数据持久化防抖间隔
 const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
 /// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
@@ -850,6 +875,9 @@ impl MultiTokenManager {
                     credentials: cred.clone(),
                     failure_count: 0,
                     disabled: cred.disabled, // 从配置文件读取 disabled 状态
+                    // 暂定 Manual；load_stats() 会用持久化的真实原因覆盖
+                    // （额度耗尽/连续失败也会被 persist_credentials 写成 disabled: true，
+                    //   若在此直接认定 Manual，自愈逻辑将永远跳过它们）
                     disabled_reason: if cred.disabled {
                         Some(DisabledReason::Manual)
                     } else {
@@ -862,6 +890,7 @@ impl MultiTokenManager {
                     last_throttled_wall: None,
                     last_refreshed_at: None,
                     rotation_bias: 0,
+                    quota_exhausted_at: None,
                 }
             })
             .collect();
@@ -913,8 +942,11 @@ impl MultiTokenManager {
             }
         }
 
-        // 加载持久化的统计数据（success_count, last_used_at）
+        // 加载持久化的统计数据（success_count, last_used_at, disabled_reason）
         manager.load_stats();
+
+        // 启动即检查：跨自然月后自动恢复因额度用尽被禁用的账号
+        manager.recover_expired_quota_disables();
 
         Ok(manager)
     }
@@ -1060,6 +1092,9 @@ impl MultiTokenManager {
     /// # 参数
     /// - `model`: 可选的模型名称，用于过滤支持该模型的账号（如 opus 模型需要付费订阅）
     pub async fn acquire_context(&self, model: Option<&str>) -> anyhow::Result<CallContext> {
+        // 跨自然月后，额度已重置，先把此前判定耗尽的账号放回可用池
+        self.recover_expired_quota_disables();
+
         let total = self.total_count();
         let mut tried_count = 0;
 
@@ -1115,6 +1150,8 @@ impl MultiTokenManager {
                                 }
                             }
                             drop(entries);
+                            // 落盘清除的禁用原因，否则重启后 load_stats 会让禁用态复活
+                            self.save_stats();
                             best = self.select_next_credential(model, &[]);
                         }
                     }
@@ -1125,12 +1162,9 @@ impl MultiTokenManager {
                         *current_id = new_id;
                         (new_id, new_creds)
                     } else {
-                        let entries = self.entries.lock();
-                        // 注意：必须在 bail! 之前计算 available_count，
-                        // 因为 available_count() 会尝试获取 entries 锁，
-                        // 而此时我们已经持有该锁，会导致死锁
-                        let available = entries.iter().filter(|e| !e.disabled).count();
-                        anyhow::bail!("所有账号均已禁用（{}/{}）", available, total);
+                        // describe_unavailable 内部会获取 entries 锁，
+                        // 因此必须在任何 entries 锁作用域之外调用，否则死锁
+                        anyhow::bail!("{}", self.describe_unavailable(model, &[]));
                     }
                 }
             };
@@ -1164,11 +1198,14 @@ impl MultiTokenManager {
             return self.acquire_context(model).await;
         }
 
+        // 跨自然月后，额度已重置，先把此前判定耗尽的账号放回可用池
+        self.recover_expired_quota_disables();
+
         let mut tried_ids: Vec<u64> = Vec::new();
 
         loop {
             if tried_ids.len() >= allowed_ids.len() {
-                anyhow::bail!("绑定的账号均不可用（共 {} 个）", allowed_ids.len());
+                anyhow::bail!("{}", self.describe_unavailable(model, allowed_ids));
             }
 
             // 从白名单中排除已尝试过的账号
@@ -1182,7 +1219,7 @@ impl MultiTokenManager {
                 match self.select_next_credential(model, &effective_ids) {
                     Some((new_id, new_creds)) => (new_id, new_creds),
                     None => {
-                        anyhow::bail!("绑定的账号均已禁用（共 {} 个）", allowed_ids.len());
+                        anyhow::bail!("{}", self.describe_unavailable(model, allowed_ids));
                     }
                 }
             };
@@ -1463,8 +1500,10 @@ impl MultiTokenManager {
                 .map(|e| {
                     let mut cred = e.credentials.clone();
                     cred.canonicalize_auth_method();
-                    // 同步 disabled 状态到账号对象
-                    cred.disabled = e.disabled;
+                    // 仅把「手动禁用」同步到配置文件——它是用户的显式意图，必须长期生效。
+                    // 额度耗尽/连续失败属于运行时自动判定，写入这里会在重启后（若 stats
+                    // 缓存缺失）被当成手动禁用，从而绕过所有自愈逻辑把账号永久钉死。
+                    cred.disabled = e.disabled && e.disabled_reason == Some(DisabledReason::Manual);
                     cred
                 })
                 .collect()
@@ -1545,6 +1584,20 @@ impl MultiTokenManager {
                 if let Some(ref ts) = s.last_throttled_wall {
                     entry.last_throttled_wall = ts.parse::<DateTime<Utc>>().ok();
                 }
+                // 恢复自动判定的禁用态。credentials.json 只承载手动禁用，因此
+                // 额度耗尽/连续失败的状态由此处接管；手动禁用优先，不被覆盖。
+                // quota_exhausted_at 随 disabled_reason 一起恢复，避免 Manual 账号
+                // 残留一个语义不符的历史耗尽时间戳。
+                if entry.disabled_reason != Some(DisabledReason::Manual)
+                    && let Some(reason) = s.disabled_reason
+                {
+                    entry.disabled = true;
+                    entry.disabled_reason = Some(reason);
+                    entry.quota_exhausted_at = s
+                        .quota_exhausted_at
+                        .as_ref()
+                        .and_then(|ts| ts.parse::<DateTime<Utc>>().ok());
+                }
             }
         }
         *self.last_stats_save_at.lock() = Some(Instant::now());
@@ -1571,6 +1624,15 @@ impl MultiTokenManager {
                             last_used_at: e.last_used_at.clone(),
                             throttle_count: e.throttle_count,
                             last_throttled_wall: e.last_throttled_wall.map(|t| t.to_rfc3339()),
+                            // 仅持久化自动判定的原因；Manual 由 credentials.json 承载，
+                            // 写入 stats 会让手动/自动禁用无法区分
+                            disabled_reason: e.disabled_reason.filter(|r| {
+                                matches!(
+                                    r,
+                                    DisabledReason::QuotaExceeded | DisabledReason::TooManyFailures
+                                )
+                            }),
+                            quota_exhausted_at: e.quota_exhausted_at.map(|t| t.to_rfc3339()),
                         },
                     )
                 })
@@ -1757,9 +1819,18 @@ impl MultiTokenManager {
                 }
             }
 
-            entries.iter().any(|e| !e.disabled)
+            (
+                entries.iter().any(|e| !e.disabled),
+                failure_count >= MAX_FAILURES_PER_CREDENTIAL,
+            )
         };
-        self.save_stats_debounced();
+        let (result, just_disabled) = result;
+        if just_disabled {
+            // 禁用原因是关键状态，跳过防抖立即落盘
+            self.save_stats();
+        } else {
+            self.save_stats_debounced();
+        }
         result
     }
 
@@ -1783,13 +1854,19 @@ impl MultiTokenManager {
                 return entries.iter().any(|e| !e.disabled);
             }
 
+            let now = Utc::now();
             entry.disabled = true;
             entry.disabled_reason = Some(DisabledReason::QuotaExceeded);
-            entry.last_used_at = Some(Utc::now().to_rfc3339());
+            entry.last_used_at = Some(now.to_rfc3339());
+            entry.quota_exhausted_at = Some(now);
             // 设为阈值，便于在管理面板中直观看到该账号已不可用
             entry.failure_count = MAX_FAILURES_PER_CREDENTIAL;
 
-            tracing::error!("账号 #{} 额度已用尽（MONTHLY_REQUEST_COUNT），已被禁用", id);
+            tracing::error!(
+                "账号 #{} 额度已用尽（MONTHLY_REQUEST_COUNT），已被禁用（{} 后的自然月将自动恢复）",
+                id,
+                now.format("%Y-%m")
+            );
 
             // 切换到优先级最高的可用账号
             if let Some(next) = entries
@@ -1809,8 +1886,158 @@ impl MultiTokenManager {
                 false
             }
         };
-        self.save_stats_debounced();
+        // 禁用原因是关键状态，跳过 30s 防抖立即落盘，避免进程重启丢失
+        self.save_stats();
         result
+    }
+
+    /// 跨自然月后自动解除因额度用尽而禁用的账号
+    ///
+    /// Kiro 的 MONTHLY_REQUEST_COUNT 按自然月重置，因此只要当前月份不同于
+    /// 被判定耗尽时的月份，就应重新放回可用池；若下个月仍无额度，
+    /// 上游会再次返回 402 并重新禁用，代价仅一次请求。
+    ///
+    /// 返回被恢复的账号数量。
+    fn recover_expired_quota_disables(&self) -> usize {
+        let now = Utc::now();
+        let now_year_month = (now.year(), now.month());
+        let recovered = {
+            let mut entries = self.entries.lock();
+            let mut ids = Vec::new();
+            for e in entries.iter_mut() {
+                if !e.disabled || e.disabled_reason != Some(DisabledReason::QuotaExceeded) {
+                    continue;
+                }
+                // 缺失时间戳（旧版本数据）视为可恢复，避免账号被永久钉死
+                let same_month = e
+                    .quota_exhausted_at
+                    .is_some_and(|t| (t.year(), t.month()) == now_year_month);
+                if same_month {
+                    continue;
+                }
+                e.disabled = false;
+                e.disabled_reason = None;
+                e.quota_exhausted_at = None;
+                e.failure_count = 0;
+                ids.push(e.id);
+            }
+            ids
+        };
+
+        if !recovered.is_empty() {
+            tracing::info!(
+                "已跨自然月，自动恢复 {} 个额度耗尽的账号: {:?}",
+                recovered.len(),
+                recovered
+            );
+            if let Err(e) = self.persist_credentials() {
+                tracing::warn!("恢复额度耗尽账号后持久化失败: {}", e);
+            }
+            self.save_stats();
+        }
+        recovered.len()
+    }
+
+    /// 生成"无可用账号"的诊断文案
+    ///
+    /// 直接读取 disabled_reason 而非仅 disabled，避免额度耗尽/连续失败/手动禁用
+    /// 三种完全不同的原因在错误消息中塌缩成同一句"均已禁用"。
+    /// `scope_ids` 为空表示全局账号池，否则为绑定的账号白名单。
+    ///
+    /// `model` 与 `select_next_credential` 保持一致的过滤逻辑：不支持该模型
+    /// （如非付费订阅账号请求 opus）的账号本就不会被纳入候选，必须先排除，
+    /// 否则"该模型专属账号全部额度耗尽、其余模型账号健康"时 quota 计数会被
+    /// 无关账号稀释，导致 `QUOTA_EXHAUSTED_ALL_MARKER` 永远不会触发。
+    pub(crate) fn describe_unavailable(&self, model: Option<&str>, scope_ids: &[u64]) -> String {
+        let entries = self.entries.lock();
+        let bound: Vec<&CredentialEntry> = entries
+            .iter()
+            .filter(|e| scope_ids.is_empty() || scope_ids.contains(&e.id))
+            .collect();
+        let scope_label = if scope_ids.is_empty() {
+            "账号"
+        } else {
+            "绑定的账号"
+        };
+
+        let is_opus = model
+            .map(|m| m.to_lowercase().contains("opus"))
+            .unwrap_or(false);
+        let model_mismatch = if is_opus {
+            bound
+                .iter()
+                .filter(|e| !e.credentials.supports_opus())
+                .count()
+        } else {
+            0
+        };
+        let in_scope: Vec<&CredentialEntry> = bound
+            .iter()
+            .filter(|e| !is_opus || e.credentials.supports_opus())
+            .copied()
+            .collect();
+        let total = in_scope.len();
+
+        if total == 0 {
+            return format!(
+                "{}中没有支持该模型的账号（共 {} 个）",
+                scope_label,
+                bound.len()
+            );
+        }
+
+        let quota = in_scope
+            .iter()
+            .filter(|e| e.disabled_reason == Some(DisabledReason::QuotaExceeded))
+            .count();
+        let failures = in_scope
+            .iter()
+            .filter(|e| e.disabled_reason == Some(DisabledReason::TooManyFailures))
+            .count();
+        let manual = in_scope
+            .iter()
+            .filter(|e| e.disabled_reason == Some(DisabledReason::Manual))
+            .count();
+
+        // 全部因额度耗尽而不可用：附带机器可识别标记，供上层映射为 402
+        if quota == total {
+            return format!(
+                "{}{}（共 {} 个）[{}]",
+                scope_label,
+                DisabledReason::QuotaExceeded.describe(),
+                total,
+                QUOTA_EXHAUSTED_ALL_MARKER
+            );
+        }
+
+        let mut parts = Vec::new();
+        if quota > 0 {
+            parts.push(format!("{} 个额度用尽", quota));
+        }
+        if failures > 0 {
+            parts.push(format!("{} 个连续认证失败", failures));
+        }
+        if manual > 0 {
+            parts.push(format!("{} 个手动禁用", manual));
+        }
+        let others = total.saturating_sub(quota + failures + manual);
+        if others > 0 {
+            parts.push(format!("{} 个无有效 Token", others));
+        }
+        if model_mismatch > 0 {
+            parts.push(format!("{} 个不支持该模型", model_mismatch));
+        }
+
+        if parts.is_empty() {
+            format!("{}均不可用（共 {} 个）", scope_label, total)
+        } else {
+            format!(
+                "{}均不可用（共 {} 个：{}）",
+                scope_label,
+                total,
+                parts.join("，")
+            )
+        }
     }
 
     /// 切换到优先级最高的可用账号
@@ -1923,12 +2150,15 @@ impl MultiTokenManager {
                 // 启用时重置失败计数
                 entry.failure_count = 0;
                 entry.disabled_reason = None;
+                entry.quota_exhausted_at = None;
             } else {
                 entry.disabled_reason = Some(DisabledReason::Manual);
+                entry.quota_exhausted_at = None;
             }
         }
-        // 持久化更改
+        // 持久化更改（stats 承载自动禁用原因，必须同步落盘避免重启后复活）
         self.persist_credentials()?;
+        self.save_stats();
         Ok(())
     }
 
@@ -1963,9 +2193,11 @@ impl MultiTokenManager {
             entry.failure_count = 0;
             entry.disabled = false;
             entry.disabled_reason = None;
+            entry.quota_exhausted_at = None;
         }
-        // 持久化更改
+        // 持久化更改（stats 承载自动禁用原因，必须同步落盘避免重启后复活）
         self.persist_credentials()?;
+        self.save_stats();
         Ok(())
     }
 
@@ -2178,6 +2410,7 @@ impl MultiTokenManager {
                 last_throttled_wall: None,
                 last_refreshed_at: None,
                 rotation_bias: 0,
+                quota_exhausted_at: None,
             });
         }
 
@@ -2822,8 +3055,8 @@ mod tests {
             .unwrap()
             .to_string();
         assert!(
-            err.contains("所有账号均已禁用"),
-            "错误应提示所有账号禁用，实际: {}",
+            err.contains("本月请求额度已用尽") && err.contains(QUOTA_EXHAUSTED_ALL_MARKER),
+            "错误应明确指出额度用尽并带机器可识别标记，实际: {}",
             err
         );
         assert_eq!(manager.available_count(), 0);
@@ -3023,6 +3256,28 @@ mod tests {
 
     // ============ sticky cache 测试 ============
 
+    /// 测试专用临时目录：Drop 时清理，即使中途 assert! panic 也不残留（标准
+    /// 库 unwind 会执行 Drop），避免 CI 机器上堆积垂悬的重启测试临时目录。
+    struct TempDirGuard(std::path::PathBuf);
+
+    impl TempDirGuard {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDirGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     fn make_valid_cred(token: &str) -> KiroCredentials {
         let mut c = KiroCredentials::default();
         c.access_token = Some(token.to_string());
@@ -3144,6 +3399,268 @@ mod tests {
             .unwrap();
         // 返回另一个账号
         assert_ne!(ctx2.id, bound_id);
+    }
+
+    #[tokio::test]
+    async fn test_quota_disabled_recovers_after_month_rollover() {
+        // 回归：月度额度按自然月重置，跨月后账号必须自动回到可用池，
+        // 而不是停留在 disabled 直到人工去 admin 面板启用。
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        manager.report_quota_exhausted(1);
+        manager.report_quota_exhausted(2);
+        assert_eq!(manager.available_count(), 0);
+
+        // 同月内不得恢复
+        assert_eq!(manager.recover_expired_quota_disables(), 0);
+        assert_eq!(manager.available_count(), 0);
+
+        // 把耗尽时间回拨到上个月，模拟跨月
+        {
+            let mut entries = manager.entries.lock();
+            for e in entries.iter_mut() {
+                e.quota_exhausted_at = Some(Utc::now() - Duration::days(45));
+            }
+        }
+
+        let ctx = manager.acquire_context(None).await.unwrap();
+        assert!(ctx.token == "t1" || ctx.token == "t2");
+        assert_eq!(manager.available_count(), 2);
+
+        let entries = manager.entries.lock();
+        for e in entries.iter() {
+            assert_eq!(e.disabled_reason, None, "恢复后禁用原因应清空");
+            assert_eq!(e.quota_exhausted_at, None, "恢复后耗尽时间戳应清空");
+            assert_eq!(e.failure_count, 0, "恢复后失败计数应清零");
+        }
+    }
+
+    #[test]
+    fn test_quota_disabled_missing_timestamp_is_recoverable() {
+        // 旧版本持久化数据没有 quota_exhausted_at，不得因此被永久钉死
+        let config = Config::default();
+        let manager =
+            MultiTokenManager::new(config, vec![make_valid_cred("t1")], None, None, false).unwrap();
+
+        manager.report_quota_exhausted(1);
+        {
+            let mut entries = manager.entries.lock();
+            entries[0].quota_exhausted_at = None;
+        }
+
+        assert_eq!(manager.recover_expired_quota_disables(), 1);
+        assert_eq!(manager.available_count(), 1);
+    }
+
+    #[test]
+    fn test_describe_unavailable_distinguishes_reasons() {
+        // 核心诊断能力：三种禁用原因不得塌缩成同一句"均已禁用"
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![
+                make_valid_cred("t1"),
+                make_valid_cred("t2"),
+                make_valid_cred("t3"),
+            ],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        manager.report_quota_exhausted(1);
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_failure(2);
+        }
+        manager.set_disabled(3, true).unwrap();
+
+        let msg = manager.describe_unavailable(None, &[]);
+        assert!(msg.contains("1 个额度用尽"), "实际: {}", msg);
+        assert!(msg.contains("1 个连续认证失败"), "实际: {}", msg);
+        assert!(msg.contains("1 个手动禁用"), "实际: {}", msg);
+        // 混合原因时不应带 402 标记（只有全部因额度耗尽才可判定不可重试）
+        assert!(
+            !msg.contains(QUOTA_EXHAUSTED_ALL_MARKER),
+            "混合原因不应标记为额度耗尽，实际: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_describe_unavailable_respects_bound_scope() {
+        // 绑定账号白名单场景：只统计白名单内的账号
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        manager.report_quota_exhausted(1);
+
+        // 白名单只含额度耗尽的 #1 → 应判定为全部额度耗尽
+        let msg = manager.describe_unavailable(None, &[1]);
+        assert!(msg.contains("绑定的账号"), "实际: {}", msg);
+        assert!(msg.contains(QUOTA_EXHAUSTED_ALL_MARKER), "实际: {}", msg);
+        assert!(msg.contains("共 1 个"), "实际: {}", msg);
+    }
+
+    #[test]
+    fn test_describe_unavailable_model_scoped_excludes_non_opus_accounts() {
+        // C1 回归：opus 专属账号全部额度耗尽，但池中还有一个不支持 opus 的
+        // 健康账号时，不传 model 会被健康账号稀释掉 quota 计数，永远触发不了
+        // 402 标记；传入 model 后必须正确排除不相关账号，判定为全部耗尽。
+        let config = Config::default();
+        let mut free_cred = make_valid_cred("free1");
+        free_cred.subscription_title = Some("FREE".to_string());
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("opus1"), free_cred],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        manager.report_quota_exhausted(1);
+
+        let msg_no_model = manager.describe_unavailable(None, &[]);
+        assert!(
+            !msg_no_model.contains(QUOTA_EXHAUSTED_ALL_MARKER),
+            "不传 model 时健康的 FREE 账号会稀释 quota 计数，实际: {}",
+            msg_no_model
+        );
+
+        let msg_opus = manager.describe_unavailable(Some("claude-opus-4-7"), &[]);
+        assert!(
+            msg_opus.contains(QUOTA_EXHAUSTED_ALL_MARKER),
+            "opus model 过滤后应排除不支持 opus 的账号，判定为全部耗尽，实际: {}",
+            msg_opus
+        );
+    }
+
+    #[test]
+    fn test_describe_unavailable_no_matching_model_returns_zero_total() {
+        // total==0 分支：scope 内所有账号（而非部分）都不支持该模型，
+        // 必须走"没有支持该模型的账号"分支，不能误报额度耗尽标记。
+        let config = Config::default();
+        let mut free_cred = make_valid_cred("free1");
+        free_cred.subscription_title = Some("FREE".to_string());
+        let manager = MultiTokenManager::new(config, vec![free_cred], None, None, false).unwrap();
+
+        let msg = manager.describe_unavailable(Some("claude-opus-4-7"), &[]);
+        assert!(
+            !msg.contains(QUOTA_EXHAUSTED_ALL_MARKER),
+            "全部账号均不支持该模型时不应误报额度耗尽标记，实际: {}",
+            msg
+        );
+        assert!(
+            msg.contains("没有支持该模型的账号"),
+            "应走 total==0 分支提示无匹配模型账号，实际: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_quota_disabled_reason_survives_restart() {
+        // 回归：persist_credentials 会把 disabled=true 写回 credentials.json，
+        // 重启后若一律推断为 Manual，额度耗尽的账号将永不自动恢复。
+        let dir_guard = TempDirGuard::new(&format!("k2cc_quota_restart_{}", std::process::id()));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut seed = make_valid_cred("t1");
+        seed.id = Some(1);
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config.clone(),
+            vec![seed],
+            None,
+            Some(cred_path.clone()),
+            true,
+        )
+        .unwrap();
+        // 不手动调用 save_stats：report_quota_exhausted 内部必须自行立即落盘，
+        // 否则进程崩溃/被杀会丢失关键禁用状态——手动补调用会掩盖这一验证目标
+        manager.report_quota_exhausted(1);
+        manager.persist_credentials().unwrap();
+
+        // 从磁盘读回账号，模拟进程重启。
+        // 额度耗尽不得写入 credentials.json 的 disabled —— 该字段只承载手动禁用意图
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert!(
+            !persisted[0].disabled,
+            "额度耗尽不应写入 credentials.json，否则重启后退化为手动禁用"
+        );
+
+        let reloaded =
+            MultiTokenManager::new(config, persisted, None, Some(cred_path), true).unwrap();
+
+        {
+            let entries = reloaded.entries.lock();
+            assert_eq!(
+                entries[0].disabled_reason,
+                Some(DisabledReason::QuotaExceeded),
+                "重启后禁用原因退化为 Manual，账号将被永久钉死"
+            );
+        }
+    }
+
+    #[test]
+    fn test_too_many_failures_disabled_reason_survives_restart() {
+        // 与 test_quota_disabled_reason_survives_restart 对称：TooManyFailures
+        // 也必须只落盘到 kiro_stats.json，重启后不退化为 Manual、不被永久钉死。
+        let dir_guard = TempDirGuard::new(&format!("k2cc_failures_restart_{}", std::process::id()));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut seed = make_valid_cred("t1");
+        seed.id = Some(1);
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config.clone(),
+            vec![seed],
+            None,
+            Some(cred_path.clone()),
+            true,
+        )
+        .unwrap();
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_failure(1);
+        }
+        manager.persist_credentials().unwrap();
+
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert!(
+            !persisted[0].disabled,
+            "连续失败禁用不应写入 credentials.json，否则重启后退化为手动禁用"
+        );
+
+        let reloaded =
+            MultiTokenManager::new(config, persisted, None, Some(cred_path), true).unwrap();
+
+        {
+            let entries = reloaded.entries.lock();
+            assert_eq!(
+                entries[0].disabled_reason,
+                Some(DisabledReason::TooManyFailures),
+                "重启后禁用原因退化为 Manual，账号将被永久钉死"
+            );
+        }
     }
 
     #[test]

@@ -6,6 +6,7 @@ use std::convert::Infallible;
 use crate::kiro::model::events::Event;
 use crate::kiro::model::requests::kiro::KiroRequest;
 use crate::kiro::parser::decoder::EventStreamDecoder;
+use crate::kiro::token_manager::QUOTA_EXHAUSTED_ALL_MARKER;
 use crate::token;
 use anyhow::Error;
 use axum::{
@@ -111,6 +112,26 @@ fn map_provider_error_with_context(
         )
             .into_response();
     }
+    // 额度耗尽（402）：range 内所有（模型过滤后）账号本月额度均已用尽。
+    // 必须优先于 429 判断，且只信任 describe_unavailable 产出的机器可识别标记——
+    // 该标记只在"scope 内 100% 账号确认为 QuotaExceeded"时才会写入，裸匹配
+    // "MONTHLY_REQUEST_COUNT" 会在"单账号耗尽、其余账号仍可用"时被误判为全部耗尽。
+    // 额度当月不会恢复，必须返回 402 而非 5xx/429 —— 否则 Claude Code 等客户端会
+    // 判定为 temporary 故障并反复重试，定时任务会整轮空转。
+    if err_str.contains(QUOTA_EXHAUSTED_ALL_MARKER) {
+        tracing::error!(error = %err, "上游额度耗尽：返回 402 告知客户端不可重试");
+        return (
+            StatusCode::PAYMENT_REQUIRED,
+            Json(ErrorResponse::new(
+                "quota_exceeded_error",
+                "All bound Kiro accounts have exhausted their monthly request quota. \
+                 Quota resets at the start of next month, or add/enable another account \
+                 in the admin panel.",
+            )),
+        )
+            .into_response();
+    }
+
     // 上游限流（429 Too Many Requests）：所有账号重试后仍被限流。
     // 必须把 429 透传给客户端（而非转成 502），让 Claude Code 等客户端的
     // 内置指数退避重试接管 —— 502 会被客户端判定为硬失败，导致"请求那一轮直接废掉"
@@ -128,12 +149,14 @@ fn map_provider_error_with_context(
             .into_response();
     }
 
-    tracing::error!("Kiro API 调用失败: {}", err);
+    // 兜底：完整错误详情只进日志，不回显给客户端——describe_unavailable 等诊断文案
+    // 含账号数量/禁用原因拆解，属内部状态，不应通过客户端可见的响应体外泄。
+    tracing::error!(error = %err, "Kiro API 调用失败");
     (
         StatusCode::BAD_GATEWAY,
         Json(ErrorResponse::new(
             "api_error",
-            format!("上游 API 调用失败: {}", err),
+            "Upstream API call failed. Please retry shortly.",
         )),
     )
         .into_response()
@@ -2126,6 +2149,62 @@ mod tests {
                 .unwrap()
                 .contains("interrupted"),
             "错误信息应说明是连接中断导致，而非正常结束"
+        );
+    }
+
+    async fn response_body_text(resp: Response) -> String {
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(body.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_quota_marker_returns_402() {
+        let err = anyhow::anyhow!("绑定的账号本月请求额度已用尽（共 1 个）[QUOTA_EXHAUSTED_ALL]");
+        let resp = map_provider_error_with_context(err, "claude-sonnet-4-6", 100);
+        assert_eq!(resp.status(), StatusCode::PAYMENT_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_mixed_marker_and_429_prefers_402() {
+        // H2 回归：402 分支必须排在 429 分支之前，混合错误串不能被 429 抢先命中
+        let err = anyhow::anyhow!("账号A: 429 Too Many Requests；账号B: [QUOTA_EXHAUSTED_ALL]");
+        let resp = map_provider_error_with_context(err, "claude-sonnet-4-6", 100);
+        assert_eq!(resp.status(), StatusCode::PAYMENT_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_bare_monthly_request_count_does_not_trigger_402() {
+        // H1 回归：裸串 "MONTHLY_REQUEST_COUNT" 不再单独触发 402——必须要有
+        // describe_unavailable 产出的、已确认"scope 内 100% 耗尽"的机器标记，
+        // 否则"单账号耗尽、其余账号可用"的场景会被误判为不可重试
+        let err = anyhow::anyhow!("账号 #1 Token 刷新失败，尝试下一个账号: MONTHLY_REQUEST_COUNT");
+        let resp = map_provider_error_with_context(err, "claude-sonnet-4-6", 100);
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_429_without_marker_returns_429() {
+        let err = anyhow::anyhow!("上游限流：429 Too Many Requests");
+        let resp = map_provider_error_with_context(err, "claude-sonnet-4-6", 100);
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_default_branch_does_not_leak_internal_detail() {
+        // M3 回归：502 兜底分支不应把账号池内部细节（数量/禁用原因拆解）
+        // 透传给客户端，完整信息只应进 tracing 日志
+        let err = anyhow::anyhow!(
+            "绑定的账号均不可用（共 3 个：1 个额度用尽，1 个连续认证失败，1 个手动禁用）"
+        );
+        let resp = map_provider_error_with_context(err, "claude-sonnet-4-6", 100);
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        let text = response_body_text(resp).await;
+        assert!(
+            !text.contains("额度用尽") && !text.contains("连续认证失败"),
+            "502 响应体不应回显内部账号池细节: {}",
+            text
         );
     }
 }

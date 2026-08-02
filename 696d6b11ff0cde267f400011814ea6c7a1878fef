@@ -1,0 +1,36 @@
+Cargo.toml
+  936006cd90d366d5 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "696d6b11ff0cde267f400011814ea6c7a1878fef",
+  "prompts": {
+    "133323515ffef663": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14ba6720-91a6-453f-af5a-8d4bff9d19ba",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 450,
+      "overriden_lines": 0
+    },
+    "936006cd90d366d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e94a1a4a-8045-45f1-bfc2-83ff4f62bf07",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

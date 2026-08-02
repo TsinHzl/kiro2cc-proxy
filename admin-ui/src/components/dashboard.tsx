@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Search } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Search, Github } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -721,7 +721,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </div>
         </nav>
         <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
-          <span className="text-[11px] font-mono text-muted-foreground dark:text-muted-foreground/50">kiro2cc-proxy v{serverInfo?.version ?? '...'}</span>
+          <a
+            href="https://github.com/TsinHzl/kiro2cc-proxy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/70 hover:text-foreground transition-colors"
+          >
+            <Github className="h-3.5 w-3.5" />
+            kiro2cc-proxy v{serverInfo?.version ?? '...'}
+          </a>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}>
             {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
           </Button>

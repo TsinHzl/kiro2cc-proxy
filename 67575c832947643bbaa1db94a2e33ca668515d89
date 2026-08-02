@@ -1,0 +1,25 @@
+Cargo.toml
+  333601e89f983bf5 3
+admin-ui/src/components/dashboard.tsx
+  333601e89f983bf5 3,924
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "67575c832947643bbaa1db94a2e33ca668515d89",
+  "prompts": {
+    "333601e89f983bf5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25ea3f4e-a978-41e2-a584-a647003b2c7f",
+        "model": "gemini-pro-agent"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 7,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

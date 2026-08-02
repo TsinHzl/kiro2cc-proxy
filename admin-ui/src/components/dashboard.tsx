@@ -679,14 +679,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
             </div>
           </div>
-          <div className="flex flex-col items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleTheme} title={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}>
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
+            <LogOut className="h-3.5 w-3.5" />
+          </Button>
         </div>
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           <div className="mb-[18px]">
@@ -725,8 +720,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </button>
           </div>
         </nav>
-        <div className="px-[18px] py-3 border-t border-border">
+        <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
           <span className="text-[11px] font-mono text-muted-foreground dark:text-muted-foreground/50">kiro2cc-proxy v{serverInfo?.version ?? '...'}</span>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}>
+            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+          </Button>
         </div>
       </aside>
 

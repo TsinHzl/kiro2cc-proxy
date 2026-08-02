@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   LogOut, RefreshCw, Activity, Zap, DollarSign, Clock,
-  ArrowUpFromLine, ArrowDownToLine, FileText,
+  ArrowUpFromLine, ArrowDownToLine, FileText, Sun, Moon,
 } from 'lucide-react'
 import { getUsage } from '@/api/user'
 import { storage } from '@/lib/storage'
@@ -12,12 +12,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { UsageLogPage } from '@/components/usage-log-page'
+import { useTheme } from '@/hooks/use-theme'
 
 interface DashboardProps {
   onLogout: () => void
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
+  const { theme, toggleTheme } = useTheme()
   const [showLog, setShowLog] = useState(false)
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['usage'],
@@ -102,6 +104,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
               aria-label="刷新"
             >
               <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1" />

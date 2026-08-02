@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Search } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -22,6 +22,7 @@ import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
 import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
+import { useTheme } from '@/hooks/use-theme'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
@@ -34,6 +35,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
+  const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
@@ -668,17 +670,27 @@ export function Dashboard({ onLogout }: DashboardProps) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* 左侧 Sidebar */}
-      <aside className="w-[232px] bg-card border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10">
-        <div className="px-[22px] py-5 flex items-center gap-2.5 border-b border-border">
-          <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
-          <div>
-            <div className="text-[15px] font-semibold tracking-[-0.01em]">Kiro2CCProxy</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
+      <aside className="w-[232px] bg-background border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10">
+        <div className="px-[22px] py-5 flex items-center justify-between gap-2.5 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
+            <div>
+              <div className="text-[15px] font-semibold tracking-[-0.01em]">Kiro2CCProxy</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleTheme} title={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}>
+              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            </Button>
           </div>
         </div>
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           <div className="mb-[18px]">
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground/70 px-3 pb-1.5 font-semibold">主要</div>
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">主要</div>
             {[
               { label: '账号管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
@@ -686,7 +698,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               { label: '支持模型', icon: <Boxes className="w-4 h-4 shrink-0" />, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
             ].map(({ label, icon, active, onClick }) => (
               <button key={label} onClick={onClick}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
                 style={active ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
               >
                 {icon}{label}
@@ -694,10 +706,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
             ))}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground/70 px-3 pb-1.5 font-semibold">系统</div>
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">系统</div>
             <button
               onClick={() => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'logs' ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'logs' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'logs' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <ScrollText className="w-4 h-4 shrink-0" />
@@ -705,7 +717,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </button>
             <button
               onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'settings' ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'settings' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <Settings className="w-4 h-4 shrink-0" />
@@ -713,16 +725,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </button>
           </div>
         </nav>
-        <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
-          <span className="text-[11px] font-mono text-muted-foreground/50">kiro2cc-proxy v{serverInfo?.version ?? '...'}</span>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh} title="刷新">
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+        <div className="px-[18px] py-3 border-t border-border">
+          <span className="text-[11px] font-mono text-muted-foreground dark:text-muted-foreground/50">kiro2cc-proxy v{serverInfo?.version ?? '...'}</span>
         </div>
       </aside>
 
@@ -895,6 +899,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   验活中... {verifyProgress.current}/{verifyProgress.total}
                 </Button>
               )}
+              <Button onClick={handleRefresh} size="sm" variant="outline">
+                <RefreshCw className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">刷新账号列表</span>
+              </Button>
               {data?.credentials && data.credentials.length > 0 && (
                 <Button
                   onClick={handleQueryCurrentPageInfo}
@@ -902,7 +910,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   variant="outline"
                   disabled={queryingInfo}
                 >
-                  <RefreshCw className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-spin' : ''}`} />
+                  <Search className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-pulse' : ''}`} />
                   <span className="hidden sm:inline">{queryingInfo ? `查询中... ${queryInfoProgress.current}/${queryInfoProgress.total}` : '查询信息'}</span>
                 </Button>
               )}

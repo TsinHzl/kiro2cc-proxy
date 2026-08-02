@@ -58,11 +58,11 @@ function formatLastUsed(lastUsedAt: string | null): string {
 type HealthStatus = CredentialStatusItem['healthStatus']
 
 const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string; dotClass: string }> = {
-  healthy:   { label: '健康',   className: 'bg-neon-green/10 text-neon-green border-neon-green/30',     dotClass: 'bg-green-400' },
-  warning:   { label: '警告',   className: 'bg-neon-yellow/10 text-neon-yellow border-neon-yellow/30', dotClass: 'bg-yellow-400' },
-  degraded:  { label: '降级',   className: 'bg-orange-500/10 text-orange-400 border-orange-500/30',    dotClass: 'bg-orange-400' },
-  unhealthy: { label: '不健康', className: 'bg-neon-red/10 text-neon-red border-neon-red/30',          dotClass: 'bg-red-400' },
-  disabled:  { label: '已禁用', className: 'bg-gray-500/10 text-gray-400 border-gray-500/30',          dotClass: 'bg-gray-400' },
+  healthy:   { label: '健康',   className: 'bg-green-100 text-green-700 border-green-300 dark:bg-neon-green/10 dark:text-neon-green dark:border-neon-green/30',     dotClass: 'bg-green-400' },
+  warning:   { label: '警告',   className: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-neon-yellow/10 dark:text-neon-yellow dark:border-neon-yellow/30', dotClass: 'bg-yellow-400' },
+  degraded:  { label: '降级',   className: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30', dotClass: 'bg-orange-400' },
+  unhealthy: { label: '不健康', className: 'bg-red-100 text-red-700 border-red-300 dark:bg-neon-red/10 dark:text-neon-red dark:border-neon-red/30',          dotClass: 'bg-red-400' },
+  disabled:  { label: '已禁用', className: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/30',       dotClass: 'bg-gray-400' },
 }
 
 function HealthBadge({ status }: { status: HealthStatus }) {

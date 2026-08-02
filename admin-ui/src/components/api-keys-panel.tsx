@@ -574,7 +574,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                           </Button>
                         )}
                         {dataUpdatedAt > 0 && (
-                          <span className="text-muted-foreground/60">
+                          <span className="text-muted-foreground dark:text-muted-foreground/60">
                             · {new Date(dataUpdatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                           </span>
                         )}

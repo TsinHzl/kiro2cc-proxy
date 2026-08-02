@@ -155,7 +155,7 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
                             {record.clientIp ? (
                               <span title={record.clientIp}>
                                 <span className="font-mono">{geo?.displayIp ?? record.clientIp}</span>
-                                {geo?.country && <span className="ml-1 text-muted-foreground/60">{geo.country}·{geo.city}</span>}
+                                {geo?.country && <span className="ml-1 text-muted-foreground dark:text-muted-foreground/60">{geo.country}·{geo.city}</span>}
                               </span>
                             ) : '—'}
                           </td>

@@ -108,10 +108,10 @@ function parseNestedErrorMessage(message: string): { title: string; detail?: str
 
 export function getSubscriptionColor(title: string): string {
   const t = title.toUpperCase()
-  if (t.includes('ENTERPRISE')) return 'text-yellow-400'
-  if (t.includes('PRO+') || t.includes('PRO PLUS') || t.includes('PLUS')) return 'text-neon-purple'
-  if (t.includes('PRO')) return 'text-neon-green'
-  if (t.includes('STUDENT')) return 'text-neon-cyan'
+  if (t.includes('ENTERPRISE')) return 'text-yellow-600 dark:text-yellow-400'
+  if (t.includes('PRO+') || t.includes('PRO PLUS') || t.includes('PLUS')) return 'text-purple-700 dark:text-neon-purple'
+  if (t.includes('PRO')) return 'text-green-700 dark:text-neon-green'
+  if (t.includes('STUDENT')) return 'text-cyan-700 dark:text-neon-cyan'
   if (t.includes('FREE')) return 'text-muted-foreground'
   return 'text-muted-foreground'
 }

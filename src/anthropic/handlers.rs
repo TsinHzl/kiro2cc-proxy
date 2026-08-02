@@ -339,6 +339,15 @@ pub(crate) fn build_model_list() -> Vec<Model> {
         },
         // === Claude 4.x 过渡期模型 ID ===
         Model {
+            id: "claude-sonnet-4".to_string(),
+            object: "model".to_string(),
+            created: 1747180800,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Sonnet 4".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 64000,
+        },
+        Model {
             id: "claude-sonnet-4-20250514".to_string(),
             object: "model".to_string(),
             created: 1747180800,

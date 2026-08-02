@@ -425,6 +425,11 @@ pub fn map_model(model: &str) -> Option<String> {
         } else if model_lower.contains("sonnet-5") || model_lower.contains("sonnet.5") {
             // claude-sonnet-5: Max Input 1M, Max Output 64K, Rate 1.3 Credit（与 sonnet-4.x 同档）
             Some("claude-sonnet-5".to_string())
+        } else if model_lower.contains("4-5") || model_lower.contains("4.5") {
+            Some("claude-sonnet-4.5".to_string())
+        } else if model_lower.contains("sonnet-4") || model_lower.contains("sonnet.4") {
+            // claude-sonnet-4 / claude-sonnet-4-20250514 等，精确匹配 sonnet-4 前缀
+            Some("claude-sonnet-4".to_string())
         } else {
             Some("claude-sonnet-4.5".to_string())
         }
@@ -1866,15 +1871,19 @@ mod tests {
 
     #[test]
     fn test_map_model_sonnet() {
-        assert!(
-            map_model("claude-sonnet-4-20250514")
-                .unwrap()
-                .contains("sonnet")
+        assert_eq!(map_model("claude-sonnet-4").unwrap(), "claude-sonnet-4");
+        assert_eq!(
+            map_model("claude-sonnet-4-20250514").unwrap(),
+            "claude-sonnet-4"
         );
-        assert!(
-            map_model("claude-3-5-sonnet-20241022")
-                .unwrap()
-                .contains("sonnet")
+        assert_eq!(
+            map_model("claude-sonnet-4-5-20250929").unwrap(),
+            "claude-sonnet-4.5"
+        );
+        // claude-3-5-sonnet 含日期中有 "4"，但不含 sonnet-4，应兜底到 4.5
+        assert_eq!(
+            map_model("claude-3-5-sonnet-20241022").unwrap(),
+            "claude-sonnet-4.5"
         );
     }
 

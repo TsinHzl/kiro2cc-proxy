@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Search, Github } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -921,7 +921,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   variant="outline"
                   disabled={queryingInfo}
                 >
-                  <Search className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-pulse' : ''}`} />
+                  <Info className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-pulse' : ''}`} />
                   <span className="hidden sm:inline">{queryingInfo ? `查询中... ${queryInfoProgress.current}/${queryInfoProgress.total}` : '查询信息'}</span>
                 </Button>
               )}

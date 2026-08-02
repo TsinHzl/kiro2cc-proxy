@@ -1,0 +1,25 @@
+admin-ui/src/components/api-keys-panel.tsx
+  857ecd850817c521 81,358
+admin-ui/src/components/dashboard.tsx
+  857ecd850817c521 675-680,686
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "333736cc5209862e2b080f4bb9d484e4a044b5e9",
+  "prompts": {
+    "857ecd850817c521": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1dabae7-4a81-483e-bf31-e3ab1f1606fa",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 5,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

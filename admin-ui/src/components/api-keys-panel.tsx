@@ -78,7 +78,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
 
   const { data: credentials } = useCredentials()
   const { data: apiKeys, isLoading } = useApiKeys()
-  const { data: serverInfo } = useServerInfo()
+  const { data: serverInfo, isLoading: isLoadingServerInfo } = useServerInfo()
   const { data: usageData, dataUpdatedAt } = useAllUsage()
   const { data: rpmData } = useRpm()
   const queryClient = useQueryClient()
@@ -355,7 +355,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs text-muted-foreground">主 API Key</div>
-              <code className="text-sm">{serverInfo?.masterApiKey ? maskKey(serverInfo.masterApiKey) : '加载中...'}</code>
+              <code className="text-sm">{isLoadingServerInfo ? '加载中...' : serverInfo?.masterApiKey ? maskKey(serverInfo.masterApiKey) : '未设置'}</code>
             </div>
             <Button
               variant="ghost"

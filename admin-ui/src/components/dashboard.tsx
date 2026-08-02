@@ -672,13 +672,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
       {/* 左侧 Sidebar */}
       <aside className="w-[232px] bg-background border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10">
         <div className="px-[22px] py-5 flex items-center justify-between gap-2.5 border-b border-border">
-          <div className="flex items-center gap-2.5">
+          <a
+            href="https://github.com/TsinHzl/kiro2cc-proxy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5"
+          >
             <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
             <div>
               <div className="text-[15px] font-semibold tracking-[-0.01em]">Kiro2CCProxy</div>
               <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
             </div>
-          </div>
+          </a>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
             <LogOut className="h-3.5 w-3.5" />
           </Button>

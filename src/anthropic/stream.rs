@@ -575,7 +575,7 @@ const NEAR_EMPTY_OUTPUT_THRESHOLD: i32 = 30;
 /// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
 const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 
-/// 返回给客户端的 token 类字段缩放系数（默认）。
+/// 返回给客户端的 token 类字段缩放系数。
 ///
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段。
 /// 内部计费与 usage_tracker 入库仍写入真实值，admin/user UI 显示不受影响。
@@ -583,35 +583,16 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 /// Claude Code 4.6 窗口 200K，85% 触发 compact = 170K（原假设 83%，按实测更新）。
 /// 缩放系数按比例上调以保持原真实触发点不变：0.65 × (85/83) ≈ 0.6657。
 /// 真实 255K+ × 0.6657 ≈ 170K+ → 触发 compact。
+///
+/// 统一应用于所有模型，不再按窗口代际区分（原 opus-4.7/4.8/5 大窗口分支已合并）。
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 
-/// 4.7/4.8 模型的缩放系数（窗口 1M，需更低系数避免过早触发 compact）。
-const CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW: f64 = 0.15;
-
-/// 判断是否为大窗口模型（4.7/4.8/opus-5 代际，窗口 1M，走 CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW 缩放分支）。
-/// sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支，统一走默认 CLIENT_TOKEN_DISPLAY_SCALE。
-fn is_large_window_model(model: &str) -> bool {
-    let m = model.to_lowercase();
-    m.contains("opus-4-7")
-        || m.contains("opus-4-8")
-        || m.contains("opus-5")
-        || m.contains("opus.5")
-        || m.contains("opus 5")
-        || m.contains("claude-4-7")
-        || m.contains("claude-4-8")
-}
-
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。
-pub(crate) fn scale_for_client(n: i32, model: &str) -> i32 {
+pub(crate) fn scale_for_client(n: i32, _model: &str) -> i32 {
     if n <= 0 {
         return n.max(0);
     }
-    let scale = if is_large_window_model(model) {
-        CLIENT_TOKEN_DISPLAY_SCALE_LARGE_WINDOW
-    } else {
-        CLIENT_TOKEN_DISPLAY_SCALE
-    };
-    ((n as f64) * scale).ceil() as i32
+    ((n as f64) * CLIENT_TOKEN_DISPLAY_SCALE).ceil() as i32
 }
 
 fn cap_input_tokens(context_input_tokens: i32, _local_estimate: i32, model: &str) -> i32 {
@@ -1747,43 +1728,40 @@ mod tests {
     }
 
     #[test]
-    fn test_scale_for_client_large_window_model() {
-        // 4.7/4.8 模型：× 0.15
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 15_000);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 15_000);
-        assert_eq!(scale_for_client(200_000, "claude-opus-4-7"), 30_000);
+    fn test_scale_for_client_opus_4_7_4_8_unified() {
+        // opus-4.7/4.8 已与其他模型统一为 × 0.6657（不再区分大窗口分支）
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 66_570);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 66_570);
+        assert_eq!(scale_for_client(200_000, "claude-opus-4-7"), 133_140);
         assert_eq!(scale_for_client(1, "claude-opus-4-8"), 1);
         assert_eq!(scale_for_client(0, "claude-opus-4-7"), 0);
     }
 
     #[test]
-    fn test_is_large_window_model_includes_opus_5() {
-        // opus-5 走大窗口分支（× 0.15）
-        assert_eq!(scale_for_client(100_000, "claude-opus-5"), 15_000);
-        assert_eq!(scale_for_client(100_000, "claude-opus-5-thinking"), 15_000);
-        assert_eq!(scale_for_client(200_000, "Claude-Opus-5"), 30_000);
+    fn test_scale_for_client_opus_5_unified() {
+        // opus-5 系列同样统一为 × 0.6657
+        assert_eq!(scale_for_client(100_000, "claude-opus-5"), 66_570);
+        assert_eq!(scale_for_client(100_000, "claude-opus-5-thinking"), 66_570);
+        assert_eq!(scale_for_client(200_000, "Claude-Opus-5"), 133_140);
         assert_eq!(scale_for_client(1, "claude-opus-5"), 1);
-        // opus-5 空格别名（如客户端发送 "Claude Opus 5"）同样归入大窗口分支
-        assert_eq!(scale_for_client(100_000, "Claude Opus 5"), 15_000);
-        // opus-5 点号别名（如客户端发送 "claude-opus.5"）同样归入大窗口分支
-        assert_eq!(scale_for_client(100_000, "claude-opus.5"), 15_000);
+        // opus-5 空格别名（如客户端发送 "Claude Opus 5"）
+        assert_eq!(scale_for_client(100_000, "Claude Opus 5"), 66_570);
+        // opus-5 点号别名（如客户端发送 "claude-opus.5"）
+        assert_eq!(scale_for_client(100_000, "claude-opus.5"), 66_570);
 
-        // 回归：sonnet-5 不归入大窗口分支
+        // 回归：sonnet-5 / opus-4.5 / opus-4.6 / opus-4.7 / opus-4.8 均同档
         assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);
-        // 回归：opus-4.5/4.6 不归入大窗口分支
         assert_eq!(scale_for_client(100_000, "claude-opus-4-5"), 66_570);
         assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 66_570);
-        // 回归：opus-4.7/4.8 仍走大窗口分支
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 15_000);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 15_000);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 66_570);
+        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 66_570);
     }
 
     #[test]
     fn test_scale_for_client_non_round() {
         // 11 × 0.6657 = ceil(7.3227) = 8
         assert_eq!(scale_for_client(11, "claude-opus-4-6"), 8);
-        // 11 × 0.15 = ceil(1.65) = 2
-        assert_eq!(scale_for_client(11, "claude-opus-4-7"), 2);
+        assert_eq!(scale_for_client(11, "claude-opus-4-7"), 8);
         // i32::MAX 不溢出
         let r = scale_for_client(i32::MAX, "claude-opus-4-6");
         assert!(r > 0 && r < i32::MAX);

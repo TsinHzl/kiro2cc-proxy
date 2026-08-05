@@ -215,13 +215,21 @@ async fn main() {
             tracing::warn!("admin_api_key 配置为空，Admin API 未启用");
             anthropic_app
         } else {
+            let geo_resolver = Arc::new(
+                model::geo::GeoResolver::new(throttle_data_dir).unwrap_or_else(|e| {
+                    tracing::error!("初始化 IP 归属地解析器失败: {}", e);
+                    std::process::exit(1);
+                }),
+            );
+
             let admin_service = admin::AdminService::new(token_manager.clone())
                 .with_throttle_log_store(throttle_log_store.clone());
             let admin_api_key_shared = Arc::new(parking_lot::RwLock::new(admin_key.clone()));
             let mut admin_state = admin::AdminState::new(admin_api_key_shared, admin_service)
                 .with_master_api_key(api_key_shared.clone())
                 .with_rpm_tracker(rpm_tracker.clone())
-                .with_config_path(std::path::PathBuf::from(&config_path));
+                .with_config_path(std::path::PathBuf::from(&config_path))
+                .with_geo_resolver(geo_resolver.clone());
             if let Some(ref manager) = api_key_manager {
                 admin_state = admin_state.with_api_key_manager(manager.clone());
             }
@@ -240,6 +248,7 @@ async fn main() {
             let user_state = user::UserState {
                 api_key_manager: api_key_manager.clone().unwrap(),
                 usage_tracker: usage_tracker.clone().unwrap(),
+                geo_resolver: geo_resolver.clone(),
             };
             let user_app = user::create_user_router(user_state);
 

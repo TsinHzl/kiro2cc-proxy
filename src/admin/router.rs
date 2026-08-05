@@ -15,8 +15,8 @@ use super::{
     },
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_auth_keys,
-        get_credential_balance, get_load_balancing_mode, reset_failure_count, set_auth_keys,
-        set_credential_disabled, set_credential_priority, set_load_balancing_mode,
+        get_credential_balance, get_geo_batch, get_load_balancing_mode, reset_failure_count,
+        set_auth_keys, set_credential_disabled, set_credential_priority, set_load_balancing_mode,
         update_credential,
     },
     log_handler::{download_logs, snapshot_logs, stream_logs},
@@ -67,6 +67,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/rpm", get(get_rpm))
         .route("/usage/daily", get(get_daily_usage))
         .route("/usage/daily/{date}/records", get(get_daily_usage_records))
+        .route("/geo/batch", get(get_geo_batch))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             admin_auth_middleware,

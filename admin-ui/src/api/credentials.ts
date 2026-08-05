@@ -278,3 +278,15 @@ export async function getThrottleLogs(
   )
   return data
 }
+
+// ============ IP 归属地 ============
+
+export async function getGeoBatch(
+  ips: string[]
+): Promise<Record<string, { country: string; regionName: string; city: string } | null>> {
+  const { data } = await api.get<Record<string, { country: string; regionName: string; city: string } | null>>(
+    '/geo/batch',
+    { params: { ips: ips.join(',') } }
+  )
+  return data
+}

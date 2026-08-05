@@ -19,6 +19,7 @@ use crate::common::auth;
 use crate::log_capture::LogCapture;
 use crate::model::api_key::ApiKeyManager;
 use crate::model::failure_log::FailureLogStore;
+use crate::model::geo::GeoResolver;
 use crate::model::rpm::RpmTracker;
 use crate::model::throttle_log::ThrottleLogStore;
 use crate::model::usage::UsageTracker;
@@ -46,6 +47,8 @@ pub struct AdminState {
     pub log_capture: Option<Arc<LogCapture>>,
     /// 配置文件路径（用于持久化修改）
     pub config_path: Option<PathBuf>,
+    /// IP 归属地解析器（可选）
+    pub geo_resolver: Option<Arc<GeoResolver>>,
 }
 
 impl AdminState {
@@ -61,6 +64,7 @@ impl AdminState {
             failure_log_store: None,
             log_capture: None,
             config_path: None,
+            geo_resolver: None,
         }
     }
 
@@ -101,6 +105,11 @@ impl AdminState {
 
     pub fn with_log_capture(mut self, capture: Arc<LogCapture>) -> Self {
         self.log_capture = Some(capture);
+        self
+    }
+
+    pub fn with_geo_resolver(mut self, resolver: Arc<GeoResolver>) -> Self {
+        self.geo_resolver = Some(resolver);
         self
     }
 }

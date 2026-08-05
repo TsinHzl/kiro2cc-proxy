@@ -238,3 +238,33 @@ fn persist_auth_keys(
     std::fs::write(config_path, output)?;
     Ok(())
 }
+
+/// 单批次最多允许查询的 IP 数量
+const MAX_GEO_BATCH_IPS: usize = 200;
+
+/// GET /api/admin/geo/batch?ips=ip1,ip2,...
+/// 批量查询 IP 归属地
+pub async fn get_geo_batch(
+    State(state): State<AdminState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let Some(resolver) = &state.geo_resolver else {
+        let error = super::types::AdminErrorResponse::internal_error("归属地解析未启用");
+        return (axum::http::StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let ips: Vec<&str> = params
+        .get("ips")
+        .map(|v| v.split(',').filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+    if ips.len() > MAX_GEO_BATCH_IPS {
+        let error = super::types::AdminErrorResponse::invalid_request(format!(
+            "单批次最多查询 {MAX_GEO_BATCH_IPS} 个 IP"
+        ));
+        return (axum::http::StatusCode::BAD_REQUEST, Json(error)).into_response();
+    }
+    let result: std::collections::HashMap<String, Option<crate::model::geo::GeoInfo>> = ips
+        .into_iter()
+        .map(|ip| (ip.to_string(), resolver.resolve(ip)))
+        .collect();
+    Json(result).into_response()
+}

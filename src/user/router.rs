@@ -7,7 +7,7 @@ use axum::{
 };
 
 use super::{
-    handlers::{get_usage, get_usage_records, login},
+    handlers::{get_geo_batch, get_usage, get_usage_records, login},
     middleware::{UserState, user_auth_middleware},
 };
 
@@ -22,6 +22,7 @@ pub fn create_user_router(state: UserState) -> Router {
     let protected = Router::new()
         .route("/usage", get(get_usage))
         .route("/usage/records", get(get_usage_records))
+        .route("/geo/batch", get(get_geo_batch))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             user_auth_middleware,

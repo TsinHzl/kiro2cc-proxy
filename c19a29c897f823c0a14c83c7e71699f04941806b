@@ -1,0 +1,25 @@
+admin-ui/src/components/daily-credits-trend-chart.tsx
+  25ba1c41a34a3afb 1-140
+admin-ui/src/components/daily-stats-page.tsx
+  25ba1c41a34a3afb 6,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c19a29c897f823c0a14c83c7e71699f04941806b",
+  "prompts": {
+    "25ba1c41a34a3afb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43b849f6-06db-402f-8eb8-87f880a5ca3a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 300,
+      "total_deletions": 21,
+      "accepted_lines": 280,
+      "overriden_lines": 0
+    }
+  }
+}

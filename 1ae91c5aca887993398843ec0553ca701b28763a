@@ -1,0 +1,53 @@
+src/user/router.rs
+  25ba1c41a34a3afb 10,25
+src/main.rs
+  25ba1c41a34a3afb 218-224,231-232,251
+src/model/mod.rs
+  25ba1c41a34a3afb 8
+src/admin/router.rs
+  25ba1c41a34a3afb 18-19,70
+openspec/specs/admin-api/spec.md
+  25ba1c41a34a3afb 35-84
+src/model/geo.rs
+  25ba1c41a34a3afb 1-118
+src/admin/middleware.rs
+  25ba1c41a34a3afb 22,50-51,67,110-114
+src/admin/handlers.rs
+  25ba1c41a34a3afb 241-270
+src/user/handlers.rs
+  25ba1c41a34a3afb 125-150
+openspec/project.md
+  25ba1c41a34a3afb 77
+src/user/middleware.rs
+  25ba1c41a34a3afb 17,25
+admin-ui/src/api/credentials.ts
+  25ba1c41a34a3afb 281-292
+user-ui/src/api/user.ts
+  25ba1c41a34a3afb 41-51
+.gitignore
+  25ba1c41a34a3afb 35
+admin-ui/src/hooks/use-ip-geo.ts
+  25ba1c41a34a3afb 3,17-18,31-33,36
+user-ui/src/hooks/use-ip-geo.ts
+  25ba1c41a34a3afb 3,17-18,31-33,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1ae91c5aca887993398843ec0553ca701b28763a",
+  "prompts": {
+    "25ba1c41a34a3afb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43b849f6-06db-402f-8eb8-87f880a5ca3a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 535,
+      "total_deletions": 176,
+      "accepted_lines": 476,
+      "overriden_lines": 0
+    }
+  }
+}

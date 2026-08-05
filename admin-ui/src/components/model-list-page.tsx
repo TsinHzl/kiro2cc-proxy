@@ -4,6 +4,22 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useModels } from '@/hooks/use-credentials'
 
+const PROVIDER_STYLES: Record<string, { text: string; dot: string }> = {
+  anthropic: { text: 'text-purple-600 dark:text-purple-400', dot: 'bg-purple-500' },
+  openai: { text: 'text-green-600 dark:text-green-400', dot: 'bg-green-500' },
+  deepseek: { text: 'text-blue-600 dark:text-blue-400', dot: 'bg-blue-500' },
+  minimax: { text: 'text-orange-600 dark:text-orange-400', dot: 'bg-orange-500' },
+  glm: { text: 'text-pink-600 dark:text-pink-400', dot: 'bg-pink-500' },
+  qwen: { text: 'text-cyan-600 dark:text-cyan-400', dot: 'bg-cyan-500' },
+  kiro: { text: 'text-muted-foreground', dot: 'bg-muted-foreground' },
+}
+
+const DEFAULT_PROVIDER_STYLE = { text: 'text-foreground', dot: 'bg-muted-foreground' }
+
+function getProviderStyle(ownedBy: string): { text: string; dot: string } {
+  return PROVIDER_STYLES[ownedBy] ?? DEFAULT_PROVIDER_STYLE
+}
+
 export function ModelListPage() {
   const { data, isLoading, refetch } = useModels()
   const models = data?.data ?? []
@@ -36,17 +52,25 @@ export function ModelListPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {models.map((model) => (
+                  {models.map((model) => {
+                    const style = getProviderStyle(model.owned_by)
+                    return (
                     <tr key={model.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2 font-mono text-xs">{model.id}</td>
+                      <td className={`px-4 py-2 font-mono text-xs ${style.text}`}>{model.id}</td>
                       <td className="px-4 py-2">{model.display_name}</td>
-                      <td className="px-4 py-2 text-muted-foreground">{model.owned_by}</td>
+                      <td className="px-4 py-2 text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`inline-block w-2 h-2 rounded-full ${style.dot}`} />
+                          {model.owned_by}
+                        </span>
+                      </td>
                       <td className="px-4 py-2 text-right tabular-nums">{model.max_tokens.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right tabular-nums">
                         {model.rate_multiplier != null ? `${model.rate_multiplier.toFixed(2)}x` : '—'}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

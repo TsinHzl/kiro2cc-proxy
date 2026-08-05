@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
@@ -34,6 +34,67 @@ interface DashboardProps {
   onLogout: () => void
 }
 
+function useCountUp(target: number, duration = 700) {
+  const [value, setValue] = useState(target)
+  const fromRef = useRef(target)
+  useEffect(() => {
+    const from = fromRef.current
+    if (from === target) return
+    const safeDuration = duration > 0 ? duration : 1
+    const start = performance.now()
+    let rafId: number
+    const tick = (now: number) => {
+      const t = Math.min(1, Math.max(0, (now - start) / safeDuration))
+      const eased = 1 - Math.pow(1 - t, 3)
+      const current = from + (target - from) * eased
+      setValue(current)
+      fromRef.current = current
+      if (t < 1) rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [target, duration])
+  return value
+}
+
+function CreditsProgressRing({ percent }: { percent: number }) {
+  const gradientId = useId()
+  const safePercent = Number.isFinite(percent) ? percent : 0
+  const clamped = Math.min(100, Math.max(0, safePercent))
+  const displayPercent = useCountUp(clamped)
+  const radius = 15
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference * (1 - displayPercent / 100)
+  return (
+    <div
+      className="relative h-16 w-16 shrink-0"
+      role="img"
+      aria-label={`剩余积分占比 ${Math.round(clamped)}%`}
+    >
+      <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+        <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="4" className="stroke-purple-100 dark:stroke-purple-900/40" />
+        <circle
+          cx="18" cy="18" r={radius} fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#c4b5fd" />
+            <stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-purple-600 dark:text-purple-400">
+        {Math.round(displayPercent)}%
+      </span>
+    </div>
+  )
+}
+
 export function Dashboard({ onLogout }: DashboardProps) {
   const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models'>('credentials')
@@ -57,6 +118,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [queryInfoProgress, setQueryInfoProgress] = useState({ current: 0, total: 0 })
   const [liveCreditsTotal, setLiveCreditsTotal] = useState<number | null>(null)
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
+  const [liveCreditsCapacity, setLiveCreditsCapacity] = useState(0)
   const [dailyView, setDailyView] = useState<string | null>(null)
   const [dailyFromSidebar, setDailyFromSidebar] = useState(false)
   const cancelVerifyRef = useRef(false)
@@ -284,9 +346,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
     if (!initialBalanceFetchDone.current || isFetchingBalances.current) return
 
     let total = 0
-    balanceMap.forEach(b => { total += b.remaining })
+    let capacity = 0
+    balanceMap.forEach(b => { total += b.remaining; capacity += b.usageLimit })
     setLiveCreditsTotal(balanceMap.size > 0 ? total : null)
     setLiveCreditsQueried(balanceMap.size)
+    setLiveCreditsCapacity(capacity)
   }, [balanceMap]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewBalance = (id: number) => {
@@ -821,24 +885,21 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 全局积分
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {liveCreditsTotal !== null ? liveCreditsTotal.toFixed(1) : '-'}
+            <CardContent className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-2xl font-bold text-orange-600 truncate">
+                  {liveCreditsTotal !== null ? liveCreditsTotal.toFixed(1) : '-'}
+                </div>
+                {liveCreditsTotal !== null && (
+                  <div className="mt-1 text-xs text-muted-foreground truncate">
+                    {liveCreditsQueried}/{data?.credentials.length || 0} 已查询
+                  </div>
+                )}
               </div>
               {liveCreditsTotal !== null && (
-                <div className="mt-1 space-y-1">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{liveCreditsQueried}/{data?.credentials.length || 0} 已查询</span>
-                  </div>
-                  {queryingInfo && (
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-orange-500 transition-all duration-300"
-                        style={{ width: `${(data?.credentials.length || 0) > 0 ? (liveCreditsQueried / (data?.credentials.length || 1)) * 100 : 0}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
+                <CreditsProgressRing
+                  percent={liveCreditsCapacity > 0 ? (liveCreditsTotal ?? 0) / liveCreditsCapacity * 100 : 0}
+                />
               )}
             </CardContent>
           </Card>

@@ -1,0 +1,23 @@
+Dockerfile
+  25ba1c41a34a3afb 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a15e440b4232370185aa5b8ac9d92c74342c1517",
+  "prompts": {
+    "25ba1c41a34a3afb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43b849f6-06db-402f-8eb8-87f880a5ca3a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+admin-ui/src/components/model-list-page.tsx
+  25ba1c41a34a3afb 7-22,55-57,59,61-66,72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d040c5a84fccb99a22ab1ef6bbc9baf9e988af5e",
+  "prompts": {
+    "25ba1c41a34a3afb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43b849f6-06db-402f-8eb8-87f880a5ca3a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 29,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}

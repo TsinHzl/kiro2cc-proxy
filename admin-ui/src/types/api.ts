@@ -157,6 +157,8 @@ export interface ModelUsage {
   inputTokens: number
   outputTokens: number
   cost: number
+  credits: number
+  creditsSaved: number
 }
 
 // 支持的模型条目（字段名与后端 Model 结构体保持一致，非 camelCase）

@@ -83,6 +83,10 @@ pub struct ModelUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub cost: f64,
+    /// 累计真实 credits 消耗（旧记录按 estimated_cost * k_ref 回退估算）
+    pub credits: f64,
+    /// 节省的 credits 总量（仅含有 credits_used 的记录）
+    pub credits_saved: f64,
 }
 /// 模型定价（每百万 tokens，美元）
 /// 使用 200K context 标准定价
@@ -330,13 +334,22 @@ impl UsageTracker {
             .filter(|r| r.api_key_id == api_key_id)
             .collect();
 
-        let mut by_model: HashMap<String, (u64, i64, i64, f64)> = HashMap::new();
+        let mut by_model: HashMap<String, (u64, i64, i64, f64, f64, f64)> = HashMap::new();
         for r in &filtered {
+            let credits = r
+                .credits_used
+                .unwrap_or_else(|| r.estimated_cost * get_k_ref(&r.model));
+            let credits_saved = r
+                .credits_used
+                .map(|cu| r.estimated_cost * get_k_ref(&r.model) - cu)
+                .unwrap_or(0.0);
             let entry = by_model.entry(r.model.clone()).or_default();
             entry.0 += 1;
             entry.1 += r.input_tokens as i64;
             entry.2 += r.output_tokens as i64;
             entry.3 += r.estimated_cost;
+            entry.4 += credits;
+            entry.5 += credits_saved;
         }
 
         let total_credits_saved: f64 = filtered
@@ -365,12 +378,14 @@ impl UsageTracker {
             total_credits_saved,
             by_model: by_model
                 .into_iter()
-                .map(|(model, (requests, input, output, cost))| ModelUsage {
+                .map(|(model, (requests, input, output, cost, credits, credits_saved))| ModelUsage {
                     model,
                     requests,
                     input_tokens: input,
                     output_tokens: output,
                     cost,
+                    credits,
+                    credits_saved,
                 })
                 .collect(),
         }

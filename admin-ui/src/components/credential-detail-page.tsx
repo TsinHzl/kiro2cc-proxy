@@ -34,6 +34,21 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`
 }
 
+// 镜像后端 src/model/usage.rs::get_k_ref 的模型档位换算率，用于旧记录（无 creditsUsed）的估算回退
+function getKRef(model: string): number {
+  const m = model.toLowerCase()
+  if (m.includes('opus-4-7') || m.includes('opus-4.7') || m.includes('opus-4-8') || m.includes('opus-4.8') || m.includes('opus-5') || m.includes('opus.5')) {
+    return 2.36
+  }
+  if (m.includes('opus-4-5') || m.includes('opus-4.5') || m.includes('opus-4-6') || m.includes('opus-4.6')) {
+    return 1.90
+  }
+  if (m.includes('opus') || m.includes('fable')) {
+    return 2.36
+  }
+  return 1.43
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString('zh-CN', {
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -58,12 +73,14 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
   const totalRequests = recordsData?.total ?? 0
 
   // Per-model aggregation from current page (approximate — full aggregation would need all pages)
-  const byModel = allRecords.reduce<Record<string, { requests: number; inputTokens: number; outputTokens: number; cost: number }>>((acc, r) => {
-    const entry = acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0 }
+  const byModel = allRecords.reduce<Record<string, { requests: number; inputTokens: number; outputTokens: number; cost: number; credits: number; creditsSaved: number }>>((acc, r) => {
+    const entry = acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0, credits: 0, creditsSaved: 0 }
     entry.requests += 1
     entry.inputTokens += r.inputTokens
     entry.outputTokens += r.outputTokens
     entry.cost += r.estimatedCost
+    entry.credits += r.creditsUsed ?? r.estimatedCost * getKRef(r.model)
+    entry.creditsSaved += r.creditsSaved ?? 0
     acc[r.model] = entry
     return acc
   }, {})
@@ -130,7 +147,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0).toFixed(4)}
+              {allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost * getKRef(r.model)), 0).toFixed(4)}
             </div>
             {(() => {
               const savedTotal = allRecords.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
@@ -178,6 +195,12 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                     <span>入 {formatTokens(m.inputTokens)}</span>
                     <span>出 {formatTokens(m.outputTokens)}</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {m.credits.toFixed(4)} credits
+                      {m.creditsSaved > 0 && (
+                        <span className="ml-1 text-green-600 dark:text-green-400">(省 {m.creditsSaved.toFixed(4)})</span>
+                      )}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -253,7 +276,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                           {formatCost(record.estimatedCost)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                          {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost / 0.72).toFixed(4)}
+                          {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost * getKRef(record.model)).toFixed(4)}
                           {record.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
                           {record.creditsSaved != null && record.creditsSaved > 0 && (
                             <span className="ml-1 text-xs text-green-600 dark:text-green-400">

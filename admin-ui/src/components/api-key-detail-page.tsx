@@ -161,6 +161,12 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                     <span>入 {formatTokens(m.inputTokens)}</span>
                     <span>出 {formatTokens(m.outputTokens)}</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                      {m.credits.toFixed(4)} credits
+                      {m.creditsSaved > 0 && (
+                        <span className="ml-1 text-green-600 dark:text-green-400">(省 {m.creditsSaved.toFixed(4)})</span>
+                      )}
+                    </span>
                   </div>
                 </CardContent>
               </Card>

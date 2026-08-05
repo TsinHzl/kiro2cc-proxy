@@ -122,6 +122,32 @@ pub async fn get_usage_records(
     ))
 }
 
+/// 单批次最多允许查询的 IP 数量
+const MAX_GEO_BATCH_IPS: usize = 200;
+
+/// GET /api/user/geo/batch?ips=ip1,ip2,...
+/// 批量查询 IP 归属地
+pub async fn get_geo_batch(
+    State(state): State<UserState>,
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let ips: Vec<&str> = params
+        .get("ips")
+        .map(|v| v.split(',').filter(|s| !s.is_empty()).collect())
+        .unwrap_or_default();
+    if ips.len() > MAX_GEO_BATCH_IPS {
+        let error = UserErrorResponse {
+            error: format!("单批次最多查询 {MAX_GEO_BATCH_IPS} 个 IP"),
+        };
+        return (StatusCode::BAD_REQUEST, Json(error)).into_response();
+    }
+    let result: HashMap<String, Option<crate::model::geo::GeoInfo>> = ips
+        .into_iter()
+        .map(|ip| (ip.to_string(), state.geo_resolver.resolve(ip)))
+        .collect();
+    Json(result).into_response()
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginRequest {

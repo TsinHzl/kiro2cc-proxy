@@ -74,6 +74,7 @@ docs/                   # 文档（含 代码速查表.md 功能速查表）
 ## 开发约定
 - 代码风格：`cargo fmt` + `cargo clippy` clean 后才可提交
 - 不引入新外部 crate（能用已有依赖解决的不新增）
+  - **例外**：`ip2region`（IP 归属地离线解析，服务端替代此前浏览器直连 `ip-api.com`/`ipify.org` 的方案，消除 Mixed Content 失效与隐私外泄问题），详见 `openspec/archive/2026-08-05-server-side-ip-geolocation/`
 - 改动局限于最小必要范围，不做无关重构
 - 所有公开行为变更需同步更新单元测试（src/test.rs）
 - Commit：Conventional Commits（feat/fix/refactor/chore）

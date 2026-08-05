@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDailyUsage } from '@/hooks/use-credentials'
+import { DailyCreditsTrendChart } from '@/components/daily-credits-trend-chart'
 
 interface DailyStatsPageProps {
   onBack: () => void
@@ -33,6 +34,8 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+
+      {!isLoading && data && <DailyCreditsTrendChart data={data} />}
 
       <Card>
         <CardContent className="p-0">

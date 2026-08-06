@@ -291,7 +291,7 @@ cd /opt/kiro2cc-proxy
 # 2. 创建配置文件（注意：配置文件在 data/ 目录下，不是 data/config/）
 mkdir -p data
 cp config.example.json data/config.json
-nano data/config.json   # 填入 adminApiKey
+nano data/config.json   # 填入 adminPsw
 ```
 
 `data/config.json` 最小配置：
@@ -301,7 +301,7 @@ nano data/config.json   # 填入 adminApiKey
   "host": "0.0.0.0",
   "port": 5678,
   "region": "us-east-1",
-  "adminApiKey": "your-admin-password"
+  "adminPsw": "your-admin-password"
 }
 ```
 
@@ -347,7 +347,7 @@ cd /opt/kiro2cc-proxy-src
 
 # 2. 创建配置文件
 cp config.example.json app/config/config.json
-nano app/config/config.json   # 填入 adminApiKey
+nano app/config/config.json   # 填入 adminPsw
 
 # 3. 一键安装（自动编译 + 注册 systemd 服务）
 sudo bash install_server.sh
@@ -404,7 +404,7 @@ bash start_server.sh restart   # 重启
 **第三步：通过管理面板导入账号（推荐）**
 
 1. 打开管理面板：`http://127.0.0.1:5678/admin`（**服务器部署则替换为对应 IP**）
-2. **输入 `config.json` 中配置的 `adminApiKey`（Admin Password）登录**
+2. **输入 `config.json` 中配置的 `adminPsw`（Admin Password）登录**
 3. 进入账号管理页面
 4. 将导出的 JSON 内容**直接粘贴**到输入框，或将 JSON 文件**拖拽**到页面上
 5. 管理面板自动识别账号信息并显示，确认后保存即可
@@ -498,7 +498,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 | `region` | 否 | `us-east-1` | AWS 区域 |
 | `authRegion` | 否 | 同 `region` | Token 刷新使用的区域 |
 | `apiRegion` | 否 | 同 `region` | API 请求使用的区域 |
-| `adminApiKey` | 否 | — | Admin Password（管理面板登录密码），不填则不启用管理面板 |
+| `adminPsw` | 否 | — | Admin Password（管理面板登录密码），不填则不启用管理面板 |
 | `proxyUrl` | 否 | — | HTTP/SOCKS5 代理，如 `http://127.0.0.1:7890` |
 | `proxyUsername` | 否 | — | 代理用户名 |
 | `proxyPassword` | 否 | — | 代理密码 |
@@ -514,14 +514,14 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
   "host": "0.0.0.0",
   "port": 5678,
   "region": "us-east-1",
-  "adminApiKey": "my-admin-password",
+  "adminPsw": "my-admin-password",
   "proxyUrl": "http://127.0.0.1:7890",
   "tlsBackend": "rustls",
   "loadBalancingMode": "priority"
 }
 ```
 
-> **客户端鉴权说明**：`config.json` 不再提供全局 API Key。客户端调用 `/v1/messages`、`/cc/v1/messages` 时，需使用 Admin 后台（`adminApiKey` 登录）创建并启用的子 API Key 进行鉴权。
+> **客户端鉴权说明**：`config.json` 不再提供全局 API Key。客户端调用 `/v1/messages`、`/cc/v1/messages` 时，需使用 Admin 后台（`adminPsw` 登录）创建并启用的子 API Key 进行鉴权。
 
 ### 账号级代理
 
@@ -679,7 +679,7 @@ Authorization: Bearer your-api-key
 
 ## Admin 管理面板
 
-配置了 `adminApiKey`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
+配置了 `adminPsw`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
 
 功能：
 - 查看所有账号状态（是否有效、失败次数等）

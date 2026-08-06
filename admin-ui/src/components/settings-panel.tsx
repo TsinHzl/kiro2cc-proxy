@@ -15,8 +15,8 @@ export function SettingsPanel() {
   const { mutate: setLoadBalancingMode, isPending: isSettingMode } = useSetLoadBalancingMode()
   const { data: authKeysData, isLoading: isLoadingAuthKeys } = useAuthKeys()
   const { mutate: setAuthKeysMut, isPending: isSettingAuthKeys } = useSetAuthKeys()
-  const [adminApiKeyDraft, setAdminApiKeyDraft] = useState('')
-  const [editingAdminApiKey, setEditingAdminApiKey] = useState(false)
+  const [adminPswDraft, setAdminPswDraft] = useState('')
+  const [editingAdminPsw, setEditingAdminPsw] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -32,35 +32,35 @@ export function SettingsPanel() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Admin Password</span>
-                {!editingAdminApiKey && (
+                {!editingAdminPsw && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setAdminApiKeyDraft(''); setEditingAdminApiKey(true) }}
+                    onClick={() => { setAdminPswDraft(''); setEditingAdminPsw(true) }}
                     disabled={isLoadingAuthKeys}
                   >
                     修改
                   </Button>
                 )}
               </div>
-              {editingAdminApiKey ? (
+              {editingAdminPsw ? (
                 <div className="flex gap-2">
                   <Input
                     type="text"
                     placeholder="输入新的 Admin Password"
-                    value={adminApiKeyDraft}
-                    onChange={(e) => setAdminApiKeyDraft(e.target.value)}
+                    value={adminPswDraft}
+                    onChange={(e) => setAdminPswDraft(e.target.value)}
                     className="text-sm"
                   />
                   <Button
                     size="sm"
-                    disabled={!adminApiKeyDraft.trim() || isSettingAuthKeys}
+                    disabled={!adminPswDraft.trim() || isSettingAuthKeys}
                     onClick={() => {
-                      setAuthKeysMut({ adminApiKey: adminApiKeyDraft.trim() }, {
+                      setAuthKeysMut({ adminPsw: adminPswDraft.trim() }, {
                         onSuccess: () => {
                           toast.success('Admin Password 已更新，请使用新密码重新登录')
-                          setEditingAdminApiKey(false)
-                          setAdminApiKeyDraft('')
+                          setEditingAdminPsw(false)
+                          setAdminPswDraft('')
                         },
                         onError: (e) => toast.error(extractErrorMessage(e)),
                       })
@@ -68,13 +68,13 @@ export function SettingsPanel() {
                   >
                     保存
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingAdminApiKey(false)}>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingAdminPsw(false)}>
                     取消
                   </Button>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground font-mono">
-                  {isLoadingAuthKeys ? '加载中...' : authKeysData?.adminApiKey ?? '—'}
+                  {isLoadingAuthKeys ? '加载中...' : authKeysData?.adminPsw ?? '—'}
                 </p>
               )}
             </div>

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-const API_KEY_STORAGE_KEY = 'adminApiKey'
+const API_KEY_STORAGE_KEY = 'adminPsw'
 
 export const storage = {
   getApiKey: () => localStorage.getItem(API_KEY_STORAGE_KEY),

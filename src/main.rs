@@ -147,7 +147,7 @@ async fn main() {
 
     // 初始化 API Key 管理器和用量追踪器（Admin 启用时才加载）
     let admin_key_valid = config
-        .admin_api_key
+        .admin_psw
         .as_ref()
         .map(|k| !k.trim().is_empty())
         .unwrap_or(false);
@@ -202,10 +202,10 @@ async fn main() {
         first_credentials.profile_arn.clone(),
     );
 
-    // 构建 Admin API 路由（如果配置了非空的 admin_api_key）
-    let app = if let Some(admin_key) = &config.admin_api_key {
+    // 构建 Admin API 路由（如果配置了非空的 admin_psw）
+    let app = if let Some(admin_key) = &config.admin_psw {
         if admin_key.trim().is_empty() {
-            tracing::warn!("admin_api_key 配置为空，Admin API 未启用");
+            tracing::warn!("admin_psw 配置为空，Admin API 未启用");
             anthropic_app
         } else {
             let geo_resolver = Arc::new(
@@ -217,8 +217,8 @@ async fn main() {
 
             let admin_service = admin::AdminService::new(token_manager.clone())
                 .with_throttle_log_store(throttle_log_store.clone());
-            let admin_api_key_shared = Arc::new(parking_lot::RwLock::new(admin_key.clone()));
-            let mut admin_state = admin::AdminState::new(admin_api_key_shared, admin_service)
+            let admin_psw_shared = Arc::new(parking_lot::RwLock::new(admin_key.clone()));
+            let mut admin_state = admin::AdminState::new(admin_psw_shared, admin_service)
                 .with_rpm_tracker(rpm_tracker.clone())
                 .with_config_path(std::path::PathBuf::from(&config_path))
                 .with_geo_resolver(geo_resolver.clone());

@@ -287,7 +287,7 @@ cd /opt/kiro2cc-proxy
 # 2. Create config file (note: config lives in data/, not data/config/)
 mkdir -p data
 cp config.example.json data/config.json
-nano data/config.json   # Fill in adminApiKey
+nano data/config.json   # Fill in adminPsw
 ```
 
 Minimal `data/config.json`:
@@ -297,7 +297,7 @@ Minimal `data/config.json`:
   "host": "0.0.0.0",
   "port": 5678,
   "region": "us-east-1",
-  "adminApiKey": "your-admin-password"
+  "adminPsw": "your-admin-password"
 }
 ```
 
@@ -343,7 +343,7 @@ cd /opt/kiro2cc-proxy-src
 
 # 2. Create config
 cp config.example.json app/config/config.json
-nano app/config/config.json   # Fill in adminApiKey
+nano app/config/config.json   # Fill in adminPsw
 
 # 3. Install (auto-compiles + registers systemd service)
 sudo bash install_server.sh
@@ -400,7 +400,7 @@ Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#s
 **Step 3: Import accounts via the Admin Panel (recommended)**
 
 1. Open the admin panel: `http://127.0.0.1:5678/admin` (**replace with your server IP for server deployments**)
-2. **Log in with the `adminApiKey` (Admin Password) configured in `config.json`**
+2. **Log in with the `adminPsw` (Admin Password) configured in `config.json`**
 3. Go to the accounts management page
 4. **Paste** the exported JSON content into the input field, or **drag and drop** the JSON file onto the page
 5. The panel automatically recognizes the account info and displays it — confirm to save
@@ -477,7 +477,7 @@ Lower `priority` value = higher priority. Up to 3 retries per account, 9 per req
 | `region` | No | `us-east-1` | AWS region |
 | `authRegion` | No | same as `region` | Region used for token refresh |
 | `apiRegion` | No | same as `region` | Region used for API requests |
-| `adminApiKey` | No | — | Admin Password (admin panel login password); omit to disable admin panel |
+| `adminPsw` | No | — | Admin Password (admin panel login password); omit to disable admin panel |
 | `proxyUrl` | No | — | HTTP/SOCKS5 proxy, e.g. `http://127.0.0.1:7890` |
 | `proxyUsername` | No | — | Proxy username |
 | `proxyPassword` | No | — | Proxy password |
@@ -493,14 +493,14 @@ Full example:
   "host": "0.0.0.0",
   "port": 5678,
   "region": "us-east-1",
-  "adminApiKey": "my-admin-password",
+  "adminPsw": "my-admin-password",
   "proxyUrl": "http://127.0.0.1:7890",
   "tlsBackend": "rustls",
   "loadBalancingMode": "priority"
 }
 ```
 
-> **Client authentication**: `config.json` no longer provides a global API key. Clients calling `/v1/messages` or `/cc/v1/messages` must authenticate with a sub API key created and enabled in the admin panel (login with `adminApiKey`). Note: if `adminApiKey` is left unset, the admin panel itself is disabled — you won't be able to create sub API keys until it's configured.
+> **Client authentication**: `config.json` no longer provides a global API key. Clients calling `/v1/messages` or `/cc/v1/messages` must authenticate with a sub API key created and enabled in the admin panel (login with `adminPsw`). Note: if `adminPsw` is left unset, the admin panel itself is disabled — you won't be able to create sub API keys until it's configured.
 
 ### Per-Account Proxy
 
@@ -658,7 +658,7 @@ Any model name containing the following keywords is automatically mapped to the 
 
 ## Admin Panel
 
-When `adminApiKey` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
+When `adminPsw` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
 
 Features:
 - View all account statuses (validity, failure count, etc.)

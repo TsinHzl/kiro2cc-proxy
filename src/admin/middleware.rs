@@ -28,7 +28,7 @@ use crate::model::usage::UsageTracker;
 #[derive(Clone)]
 pub struct AdminState {
     /// Admin Password（运行时可修改）
-    pub admin_api_key: Arc<RwLock<String>>,
+    pub admin_psw: Arc<RwLock<String>>,
     /// Admin 服务
     pub service: Arc<AdminService>,
     /// API Key 管理器（可选）
@@ -50,9 +50,9 @@ pub struct AdminState {
 }
 
 impl AdminState {
-    pub fn new(admin_api_key: Arc<RwLock<String>>, service: AdminService) -> Self {
+    pub fn new(admin_psw: Arc<RwLock<String>>, service: AdminService) -> Self {
         Self {
-            admin_api_key,
+            admin_psw,
             service: Arc::new(service),
             api_key_manager: None,
             usage_tracker: None,
@@ -115,7 +115,7 @@ pub async fn admin_auth_middleware(
     let api_key = auth::extract_api_key(&request);
 
     match api_key {
-        Some(key) if auth::constant_time_eq(&key, &state.admin_api_key.read()) => {
+        Some(key) if auth::constant_time_eq(&key, &state.admin_psw.read()) => {
             next.run(request).await
         }
         _ => {

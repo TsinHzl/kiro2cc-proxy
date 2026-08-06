@@ -160,5 +160,5 @@ pub async fn download_logs(
 
 fn check_api_key(state: &AdminState, params: &HashMap<String, String>) -> bool {
     let key = params.get("api_key").map(|s| s.as_str()).unwrap_or("");
-    auth::constant_time_eq(key, &state.admin_api_key.read())
+    auth::constant_time_eq(key, &state.admin_psw.read())
 }

@@ -41,7 +41,7 @@ function Setup-Config {
     Write-Host ""
     New-Item -ItemType Directory -Force -Path $CONFIG_DIR | Out-Null
 
-    $ADMIN_KEY_INPUT = Read-Host "  Admin API Key（管理后台密码，直接回车跳过）"
+    $ADMIN_KEY_INPUT = Read-Host "  Admin Password（管理后台密码，直接回车跳过）"
 
     $PORT_INPUT = 5678
     while ($true) {
@@ -71,7 +71,7 @@ function Setup-Config {
         region    = $REGION_INPUT
     }
     if (-not [string]::IsNullOrWhiteSpace($ADMIN_KEY_INPUT)) {
-        $config.adminApiKey = $ADMIN_KEY_INPUT
+        $config.adminPsw = $ADMIN_KEY_INPUT
     }
     if (-not [string]::IsNullOrWhiteSpace($input_proxy_port)) {
         $config.proxyUrl = "http://127.0.0.1:$input_proxy_port"
@@ -106,7 +106,7 @@ if ($occupied) {
 Write-Host "[*] 启动 kiro2cc-proxy，端口: $CONFIGURED_PORT"
 Write-Host "[*] API 端点: http://127.0.0.1:${CONFIGURED_PORT}/v1/messages"
 
-$has_admin = Select-String -Path $CONFIG_FILE -Pattern '"adminApiKey"' -Quiet
+$has_admin = Select-String -Path $CONFIG_FILE -Pattern '"adminPsw"' -Quiet
 if ($has_admin) {
     Write-Host "[*] 管理面板: http://127.0.0.1:${CONFIGURED_PORT}/admin"
 }

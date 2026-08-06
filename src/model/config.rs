@@ -96,9 +96,6 @@ pub struct Config {
     #[serde(default)]
     pub machine_id: Option<String>,
 
-    #[serde(default)]
-    pub api_key: Option<String>,
-
     #[serde(default = "default_system_version")]
     pub system_version: String,
 
@@ -213,7 +210,6 @@ impl Default for Config {
             api_region: None,
             kiro_version: default_kiro_version(),
             machine_id: None,
-            api_key: None,
             system_version: default_system_version(),
             node_version: default_node_version(),
             tls_backend: default_tls_backend(),
@@ -289,7 +285,6 @@ impl Config {
     /// 从环境变量覆盖配置项（用于容器化部署，如 Zeabur）
     ///
     /// 支持的环境变量:
-    /// - `API_KEY`: apiKey
     /// - `HOST`: 监听地址
     /// - `PORT`: 监听端口
     /// - `REGION`: AWS 区域
@@ -302,9 +297,6 @@ impl Config {
     /// - `LOAD_BALANCING_MODE`: 负载均衡模式
     /// - `MODEL_CACHE_TTL_SECS`: /v1/models 动态列表缓存 TTL（秒）
     pub fn apply_env_overrides(&mut self) {
-        if let Ok(v) = env::var("API_KEY") {
-            self.api_key = Some(v);
-        }
         if let Ok(v) = env::var("HOST") {
             self.host = v;
         }

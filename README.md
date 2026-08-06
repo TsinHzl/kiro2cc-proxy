@@ -143,8 +143,7 @@ run_kiro2cc_proxy     # 等同于 ./run-local-service-mac.sh
 **首次启动**会进入配置向导：
 
 ```
-API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
-Admin Password（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+Admin Password（管理后台密码(http://ip:端口/admin页面)，直接回车跳过）: [默认my-admin-pass]
 端口 [默认: 5678]:
 Region [默认: us-east-1]:
 本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
@@ -246,8 +245,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 **首次启动**会进入配置向导：
 
 ```
-API Key（访问此代理密钥，自定义即可，可选）: [默认sk-my-proxy-key]
-Admin Password（管理后台密码(http://ip:端口/admin页面)，必填）: [默认my-admin-pass]
+Admin Password（管理后台密码(http://ip:端口/admin页面)，直接回车跳过）: [默认my-admin-pass]
 端口 [默认: 5678]:
 Region [默认: us-east-1]:
 本地 HTTP 代理端口（例如: 7890 / 10089）: [填入你的代理端口]
@@ -293,7 +291,7 @@ cd /opt/kiro2cc-proxy
 # 2. 创建配置文件（注意：配置文件在 data/ 目录下，不是 data/config/）
 mkdir -p data
 cp config.example.json data/config.json
-nano data/config.json   # 填入 apiKey 和 adminApiKey
+nano data/config.json   # 填入 adminApiKey
 ```
 
 `data/config.json` 最小配置：
@@ -302,7 +300,6 @@ nano data/config.json   # 填入 apiKey 和 adminApiKey
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "apiKey": "sk-your-api-key",
   "region": "us-east-1",
   "adminApiKey": "your-admin-password"
 }
@@ -350,7 +347,7 @@ cd /opt/kiro2cc-proxy-src
 
 # 2. 创建配置文件
 cp config.example.json app/config/config.json
-nano app/config/config.json   # 填入 apiKey
+nano app/config/config.json   # 填入 adminApiKey
 
 # 3. 一键安装（自动编译 + 注册 systemd 服务）
 sudo bash install_server.sh
@@ -496,7 +493,6 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 
 | 字段 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `apiKey` | **是** | — | 客户端连接时使用的 API Key，自定义即可 |
 | `host` | 否 | `127.0.0.1` | 监听地址，`0.0.0.0` 允许外网/局域网访问 |
 | `port` | 否 | `5678` | 监听端口 |
 | `region` | 否 | `us-east-1` | AWS 区域 |
@@ -517,7 +513,6 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "apiKey": "sk-my-proxy-key",
   "region": "us-east-1",
   "adminApiKey": "my-admin-password",
   "proxyUrl": "http://127.0.0.1:7890",
@@ -525,6 +520,8 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
   "loadBalancingMode": "priority"
 }
 ```
+
+> **客户端鉴权说明**：`config.json` 不再提供全局 API Key。客户端调用 `/v1/messages`、`/cc/v1/messages` 时，需使用 Admin 后台（`adminApiKey` 登录）创建并启用的子 API Key 进行鉴权。
 
 ### 账号级代理
 
@@ -719,7 +716,7 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 **Q：请求返回 401 Unauthorized**
 
-客户端使用的 API Key 与 `config.json` 中的 `apiKey` 不一致，检查并对齐。
+检查客户端使用的 API Key 是否是 Admin 后台创建且已启用的子 API Key，未启用或已删除的 Key 会被拒绝。
 
 **Q：Token 刷新失败 / 请求报错**
 

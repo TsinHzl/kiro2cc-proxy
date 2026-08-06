@@ -70,7 +70,7 @@ Client (Anthropic SSE format)
 
 ### 运行时配置
 
-- `app/config/config.json` — 主配置（host/port/apiKey/proxyUrl 等），已在 `.gitignore` 中
+- `app/config/config.json` — 主配置（host/port/adminApiKey/proxyUrl 等），已在 `.gitignore` 中
 - `app/config/credentials.json` — Kiro 账号 token，支持单对象或数组格式
 - Docker 部署时以上两文件在 `data/` 目录下
 

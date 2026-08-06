@@ -24,7 +24,6 @@ Add Service → Prebuilt Image → 输入上方镜像地址
 
 ```json
 {
-  "apiKey": "你的API密钥",
   "host": "0.0.0.0",
   "port": 5678,
   "adminApiKey": "你的管理后台密钥"

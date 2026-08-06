@@ -2010,18 +2010,14 @@ mod tests {
     // 分支 5：无 provider → fetch_models_dynamic 直接回退静态表
     #[tokio::test]
     async fn test_fetch_models_dynamic_no_provider_static() {
-        let state = AppState::new(std::sync::Arc::new(parking_lot::RwLock::new(
-            "k".to_string(),
-        )));
+        let state = AppState::new();
         assert!(state.kiro_provider.is_none());
         let out = fetch_models_dynamic(&state).await;
         assert_eq!(out.len(), build_model_list().len());
     }
 
     fn test_state() -> AppState {
-        AppState::new(std::sync::Arc::new(parking_lot::RwLock::new(
-            "k".to_string(),
-        )))
+        AppState::new()
     }
 
     // get_model 命中（无 provider → 静态表来源）

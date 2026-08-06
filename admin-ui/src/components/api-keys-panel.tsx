@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useQueryClient } from '@tanstack/react-query'
-import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useServerInfo, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances } from '@/hooks/use-credentials'
+import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances } from '@/hooks/use-credentials'
 import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
@@ -44,7 +44,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editSpendingLimit, setEditSpendingLimit] = useState(50)
   const [editLimitUnit, setEditLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [copiedId, setCopiedId] = useState<number | null>(null)
-  const [copiedMaster, setCopiedMaster] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'cost-desc' | 'cost-asc'>('newest')
   const [searchQuery, setSearchQuery] = useState('')
@@ -78,7 +77,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
 
   const { data: credentials } = useCredentials()
   const { data: apiKeys, isLoading } = useApiKeys()
-  const { data: serverInfo, isLoading: isLoadingServerInfo } = useServerInfo()
   const { data: usageData, dataUpdatedAt } = useAllUsage()
   const { data: rpmData } = useRpm()
   const queryClient = useQueryClient()
@@ -161,14 +159,11 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     toast.success(`已清除 ${deleted} 个无效 Key`)
   }
 
-  const copyToClipboard = async (text: string, target: 'url' | 'master' | number) => {
+  const copyToClipboard = async (text: string, target: 'url' | number) => {
     await writeToClipboard(text)
     if (target === 'url') {
       setCopiedUrl(true)
       setTimeout(() => setCopiedUrl(false), 2000)
-    } else if (target === 'master') {
-      setCopiedMaster(true)
-      setTimeout(() => setCopiedMaster(false), 2000)
     } else {
       setCopiedId(target)
       setTimeout(() => setCopiedId(null), 2000)
@@ -350,20 +345,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               onClick={() => copyToClipboard(window.location.origin, 'url')}
             >
               {copiedUrl ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-muted-foreground">主 API Key</div>
-              <code className="text-sm">{isLoadingServerInfo ? '加载中...' : serverInfo?.masterApiKey ? maskKey(serverInfo.masterApiKey) : '未设置'}</code>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => serverInfo?.masterApiKey && copyToClipboard(serverInfo.masterApiKey, 'master')}
-              disabled={!serverInfo?.masterApiKey}
-            >
-              {copiedMaster ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
         </CardContent>

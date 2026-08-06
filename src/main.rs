@@ -79,13 +79,6 @@ async fn main() {
     let first_credentials = credentials_list.first().cloned().unwrap_or_default();
     tracing::debug!("主凭证: {:?}", first_credentials);
 
-    // 获取 API Key
-    let api_key = config.api_key.clone().unwrap_or_else(|| {
-        tracing::error!("配置文件中未设置 apiKey");
-        std::process::exit(1);
-    });
-    let api_key_shared = Arc::new(parking_lot::RwLock::new(api_key.clone()));
-
     // 构建代理配置
     let proxy_config = config.proxy_url.as_ref().map(|url| {
         let mut proxy = http_client::ProxyConfig::new(url);
@@ -193,7 +186,7 @@ async fn main() {
             .fingerprint_max_breakpoints_per_account
     );
 
-    let mut anthropic_app_state = anthropic::middleware::AppState::new(api_key_shared.clone())
+    let mut anthropic_app_state = anthropic::middleware::AppState::new()
         .with_rpm_tracker(rpm_tracker.clone())
         .with_fingerprint_tracker(fingerprint_tracker.clone());
     if let Some(ref manager) = api_key_manager {
@@ -226,7 +219,6 @@ async fn main() {
                 .with_throttle_log_store(throttle_log_store.clone());
             let admin_api_key_shared = Arc::new(parking_lot::RwLock::new(admin_key.clone()));
             let mut admin_state = admin::AdminState::new(admin_api_key_shared, admin_service)
-                .with_master_api_key(api_key_shared.clone())
                 .with_rpm_tracker(rpm_tracker.clone())
                 .with_config_path(std::path::PathBuf::from(&config_path))
                 .with_geo_resolver(geo_resolver.clone());
@@ -272,10 +264,6 @@ async fn main() {
     // 启动服务器
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("启动 Anthropic API 端点: {}", addr);
-    tracing::info!(
-        "API Key: {}***",
-        api_key.chars().take(6).collect::<String>()
-    );
     tracing::info!("可用 API:");
     tracing::info!("  GET  /v1/models");
     tracing::info!("  POST /v1/messages");

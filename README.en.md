@@ -143,8 +143,7 @@ In Finder, navigate to the project directory and double-click `run-local-service
 **First launch** shows a setup wizard:
 
 ```
-API Key (access key for this proxy, set anything you like, optional): [default: sk-my-proxy-key]
-Admin Password (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
+Admin Password (admin panel password (http://ip:port/admin), press Enter to skip): [default: my-admin-pass]
 Port [default: 5678]:
 Region [default: us-east-1]:
 Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
@@ -244,8 +243,7 @@ This script builds the admin-ui frontend, user-ui frontend, and then compiles th
 **First launch** shows a setup wizard:
 
 ```
-API Key (access key for this proxy, set anything you like, optional): [default: sk-my-proxy-key]
-Admin Password (admin panel password (http://ip:port/admin), required): [default: my-admin-pass]
+Admin Password (admin panel password (http://ip:port/admin), press Enter to skip): [default: my-admin-pass]
 Port [default: 5678]:
 Region [default: us-east-1]:
 Local HTTP proxy port (e.g. 7890 / 10089): [enter your proxy port]
@@ -289,7 +287,7 @@ cd /opt/kiro2cc-proxy
 # 2. Create config file (note: config lives in data/, not data/config/)
 mkdir -p data
 cp config.example.json data/config.json
-nano data/config.json   # Fill in apiKey and adminApiKey
+nano data/config.json   # Fill in adminApiKey
 ```
 
 Minimal `data/config.json`:
@@ -298,7 +296,6 @@ Minimal `data/config.json`:
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "apiKey": "sk-your-api-key",
   "region": "us-east-1",
   "adminApiKey": "your-admin-password"
 }
@@ -346,7 +343,7 @@ cd /opt/kiro2cc-proxy-src
 
 # 2. Create config
 cp config.example.json app/config/config.json
-nano app/config/config.json   # Fill in apiKey
+nano app/config/config.json   # Fill in adminApiKey
 
 # 3. Install (auto-compiles + registers systemd service)
 sudo bash install_server.sh
@@ -475,7 +472,6 @@ Lower `priority` value = higher priority. Up to 3 retries per account, 9 per req
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `apiKey` | **Yes** | — | API key for client authentication, set any value |
 | `host` | No | `127.0.0.1` | Listen address; `0.0.0.0` allows external/LAN access |
 | `port` | No | `5678` | Listen port |
 | `region` | No | `us-east-1` | AWS region |
@@ -496,7 +492,6 @@ Full example:
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "apiKey": "sk-my-proxy-key",
   "region": "us-east-1",
   "adminApiKey": "my-admin-password",
   "proxyUrl": "http://127.0.0.1:7890",
@@ -504,6 +499,8 @@ Full example:
   "loadBalancingMode": "priority"
 }
 ```
+
+> **Client authentication**: `config.json` no longer provides a global API key. Clients calling `/v1/messages` or `/cc/v1/messages` must authenticate with a sub API key created and enabled in the admin panel (login with `adminApiKey`). Note: if `adminApiKey` is left unset, the admin panel itself is disabled — you won't be able to create sub API keys until it's configured.
 
 ### Per-Account Proxy
 
@@ -698,7 +695,7 @@ The Kiro backend schema for the GPT-5.6 series does not support `additionalModel
 
 **Q: Requests return 401 Unauthorized**
 
-The API key used by the client doesn't match `apiKey` in `config.json`. Check and align them.
+Check whether the client is using a sub API key that was created and enabled in the admin panel — disabled or deleted keys are rejected.
 
 **Q: Token refresh fails / request errors**
 

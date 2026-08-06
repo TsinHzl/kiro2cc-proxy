@@ -740,12 +740,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2.5"
+            className="flex items-center gap-2.5 group"
           >
             <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
             <div>
-              <div className="text-[15px] font-semibold tracking-[-0.01em]">Kiro2CCProxy</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Admin 控制台</div>
+              <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors">Kiro2CCProxy</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-primary transition-colors">Admin 控制台</div>
             </div>
           </a>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">

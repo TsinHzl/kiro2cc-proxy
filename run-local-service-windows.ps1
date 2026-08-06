@@ -41,11 +41,6 @@ function Setup-Config {
     Write-Host ""
     New-Item -ItemType Directory -Force -Path $CONFIG_DIR | Out-Null
 
-    $API_KEY_INPUT = ""
-    while ([string]::IsNullOrWhiteSpace($API_KEY_INPUT)) {
-        $API_KEY_INPUT = Read-Host "  API Key（访问此代理的密钥，自定义即可）"
-    }
-
     $ADMIN_KEY_INPUT = Read-Host "  Admin API Key（管理后台密码，直接回车跳过）"
 
     $PORT_INPUT = 5678
@@ -72,7 +67,6 @@ function Setup-Config {
     $config = @{
         host      = "127.0.0.1"
         port      = $PORT_INPUT
-        apiKey    = $API_KEY_INPUT
         tlsBackend = "rustls"
         region    = $REGION_INPUT
     }
@@ -90,10 +84,6 @@ function Setup-Config {
 
 if (-not (Test-Path $CONFIG_FILE)) {
     Setup-Config
-} elseif (-not (Select-String -Path $CONFIG_FILE -Pattern '"apiKey"' -Quiet)) {
-    Write-Host "[!] config.json 中缺少 apiKey，请编辑: $CONFIG_FILE"
-    Start-Process notepad $CONFIG_FILE
-    Read-Host "编辑完成后按回车继续"
 }
 
 # ── 读取端口 ────────────────────────────────────────────

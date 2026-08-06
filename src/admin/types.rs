@@ -392,8 +392,6 @@ impl AdminErrorResponse {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthKeysResponse {
-    /// 主 API Key（脱敏显示）
-    pub api_key: String,
     /// Admin Password（脱敏显示）
     pub admin_api_key: String,
 }
@@ -402,9 +400,6 @@ pub struct AuthKeysResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetAuthKeysRequest {
-    /// 新的主 API Key（可选，不传则不修改）
-    #[serde(default)]
-    pub api_key: Option<String>,
     /// 新的 Admin Password（可选，不传则不修改）
     #[serde(default)]
     pub admin_api_key: Option<String>,

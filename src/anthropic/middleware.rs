@@ -34,7 +34,7 @@ pub struct CachedModels {
 /// 已认证的 API Key 上下文（注入到 request extensions）
 #[derive(Clone, Debug)]
 pub struct ApiKeyContext {
-    /// API Key ID（0 = 主密钥）
+    /// API Key ID
     pub id: u32,
     /// 绑定的账号 ID 列表，None 表示不限制
     pub bound_credential_ids: Option<Vec<u64>>,
@@ -43,8 +43,6 @@ pub struct ApiKeyContext {
 /// 应用共享状态
 #[derive(Clone)]
 pub struct AppState {
-    /// 主 API 密钥（始终有效，不可禁用，运行时可修改）
-    pub api_key: Arc<RwLock<String>>,
     /// Kiro Provider（可选，用于实际 API 调用）
     pub kiro_provider: Option<Arc<KiroProvider>>,
     /// Profile ARN（可选，用于请求）
@@ -63,9 +61,8 @@ pub struct AppState {
 
 impl AppState {
     /// 创建新的应用状态
-    pub fn new(api_key: Arc<RwLock<String>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            api_key,
             kiro_provider: None,
             profile_arn: None,
             api_key_manager: None,
@@ -119,9 +116,8 @@ impl AppState {
 /// API Key 认证中间件
 ///
 /// 认证优先级：
-/// 1. 主密钥（config.apiKey）→ 直接放行，id=0
-/// 2. 子 API Key（ApiKeyManager）→ 检查启用/过期/额度
-/// 3. 都不匹配 → 401
+/// 1. 子 API Key（ApiKeyManager）→ 检查启用/过期/额度
+/// 2. 不匹配 → 401
 pub async fn auth_middleware(
     State(state): State<AppState>,
     mut request: Request<Body>,
@@ -132,16 +128,7 @@ pub async fn auth_middleware(
         return (StatusCode::UNAUTHORIZED, Json(error)).into_response();
     };
 
-    // 1. 主密钥匹配 → 直接放行
-    if auth::constant_time_eq(&key, &state.api_key.read()) {
-        request.extensions_mut().insert(ApiKeyContext {
-            id: 0,
-            bound_credential_ids: None,
-        });
-        return next.run(request).await;
-    }
-
-    // 2. 尝试子 API Key 认证
+    // 1. 尝试子 API Key 认证
     if let Some(manager) = &state.api_key_manager {
         match manager.authenticate(&key) {
             ApiKeyAuthResult::Valid {
@@ -216,7 +203,7 @@ pub async fn auth_middleware(
         }
     }
 
-    // 3. 都不匹配
+    // 2. 不匹配
     let error = ErrorResponse::authentication_error();
     (StatusCode::UNAUTHORIZED, Json(error)).into_response()
 }

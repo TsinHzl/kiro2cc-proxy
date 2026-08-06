@@ -57,7 +57,7 @@ if [ ! -f "$INSTALL_DIR/config.json" ]; then
         cp "$REPO_DIR/config.json" "$INSTALL_DIR/config.json"
     elif [ -f "$REPO_DIR/config.example.json" ]; then
         cp "$REPO_DIR/config.example.json" "$INSTALL_DIR/config.json"
-        echo "[!] 已复制示例配置到 $INSTALL_DIR/config.json，请编辑填入真实 apiKey"
+        echo "[!] 已复制示例配置到 $INSTALL_DIR/config.json，请按需编辑（如 adminApiKey、region 等）"
     fi
 fi
 

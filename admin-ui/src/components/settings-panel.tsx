@@ -15,9 +15,7 @@ export function SettingsPanel() {
   const { mutate: setLoadBalancingMode, isPending: isSettingMode } = useSetLoadBalancingMode()
   const { data: authKeysData, isLoading: isLoadingAuthKeys } = useAuthKeys()
   const { mutate: setAuthKeysMut, isPending: isSettingAuthKeys } = useSetAuthKeys()
-  const [apiKeyDraft, setApiKeyDraft] = useState('')
   const [adminApiKeyDraft, setAdminApiKeyDraft] = useState('')
-  const [editingApiKey, setEditingApiKey] = useState(false)
   const [editingAdminApiKey, setEditingAdminApiKey] = useState(false)
 
   return (
@@ -31,55 +29,6 @@ export function SettingsPanel() {
             <CardTitle className="text-sm font-medium">认证密钥</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">主 API Key</span>
-                {!editingApiKey && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => { setApiKeyDraft(''); setEditingApiKey(true) }}
-                    disabled={isLoadingAuthKeys}
-                  >
-                    修改
-                  </Button>
-                )}
-              </div>
-              {editingApiKey ? (
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="输入新的 API Key"
-                    value={apiKeyDraft}
-                    onChange={(e) => setApiKeyDraft(e.target.value)}
-                    className="text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={!apiKeyDraft.trim() || isSettingAuthKeys}
-                    onClick={() => {
-                      setAuthKeysMut({ apiKey: apiKeyDraft.trim() }, {
-                        onSuccess: () => {
-                          toast.success('主 API Key 已更新')
-                          setEditingApiKey(false)
-                          setApiKeyDraft('')
-                        },
-                        onError: (e) => toast.error(extractErrorMessage(e)),
-                      })
-                    }}
-                  >
-                    保存
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingApiKey(false)}>
-                    取消
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground font-mono">
-                  {isLoadingAuthKeys ? '加载中...' : authKeysData?.apiKey ?? '—'}
-                </p>
-              )}
-            </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Admin Password</span>

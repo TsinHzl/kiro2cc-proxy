@@ -27,7 +27,8 @@ logs/
 server.env
 .env
 
-# app/config sensitive files (keep config.json as example)
+# app/config sensitive files
+/app/config/config.json
 /app/config/credentials*.json
 /app/config/api_keys.json
 /app/config/api_key_usage.json

@@ -50,7 +50,6 @@ EOF
 ```bash
 cat > ~/kiro2cc-proxy/data/config.json << 'EOF'
 {
-  "apiKey": "你的API密钥",
   "host": "0.0.0.0",
   "port": 5678,
   "adminApiKey": "你的管理后台密钥"

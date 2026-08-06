@@ -8,7 +8,6 @@ cd "$SCRIPT_DIR"
 # ============================================================
 # 可选：本地覆盖配置（取消注释并修改）
 # ============================================================
-# export API_KEY=sk-kiro2cc-proxy-your-key
 # export ADMIN_API_KEY=sk-admin-your-key
 # export PORT=5678
 # export HOST=127.0.0.1
@@ -50,10 +49,6 @@ setup_config() {
     echo ""
     mkdir -p "$CONFIG_DIR"
 
-    while [ -z "$API_KEY_INPUT" ]; do
-        read -p "  API Key（访问此代理的密钥，自定义即可）: " API_KEY_INPUT
-    done
-
     read -p "  Admin API Key（管理后台密码，直接回车跳过）: " ADMIN_KEY_INPUT
 
     while true; do
@@ -87,7 +82,6 @@ setup_config() {
 {
   "host": "127.0.0.1",
   "port": $PORT_INPUT,
-  "apiKey": "$API_KEY_INPUT",
   "tlsBackend": "rustls",
   "region": "$REGION_INPUT"$ADMIN_BLOCK$PROXY_BLOCK
 }
@@ -98,10 +92,6 @@ EOF
 
 if [ ! -f "$CONFIG_FILE" ]; then
     setup_config
-elif ! grep -q '"apiKey"' "$CONFIG_FILE" 2>/dev/null; then
-    echo "[!] config.json 中缺少 apiKey，请编辑: $CONFIG_FILE"
-    open "$CONFIG_FILE"
-    read -p "编辑完成后按回车继续..."
 fi
 
 # ── 读取端口并杀掉占用进程 ──────────────────────────────

@@ -29,8 +29,6 @@ use crate::model::usage::UsageTracker;
 pub struct AdminState {
     /// Admin Password（运行时可修改）
     pub admin_api_key: Arc<RwLock<String>>,
-    /// 主 API 密钥（用于前端展示，运行时可修改）
-    pub master_api_key: Option<Arc<RwLock<String>>>,
     /// Admin 服务
     pub service: Arc<AdminService>,
     /// API Key 管理器（可选）
@@ -55,7 +53,6 @@ impl AdminState {
     pub fn new(admin_api_key: Arc<RwLock<String>>, service: AdminService) -> Self {
         Self {
             admin_api_key,
-            master_api_key: None,
             service: Arc::new(service),
             api_key_manager: None,
             usage_tracker: None,
@@ -66,11 +63,6 @@ impl AdminState {
             config_path: None,
             geo_resolver: None,
         }
-    }
-
-    pub fn with_master_api_key(mut self, key: Arc<RwLock<String>>) -> Self {
-        self.master_api_key = Some(key);
-        self
     }
 
     pub fn with_api_key_manager(mut self, manager: Arc<ApiKeyManager>) -> Self {

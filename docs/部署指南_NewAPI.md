@@ -96,7 +96,7 @@ curl http://localhost:3000/api/status
 在 New API 后台「渠道管理」中添加：
 
 - 类型：Anthropic Claude
-- 密钥：kiro2cc-proxy 的 apiKey
+- 密钥：kiro2cc-proxy 管理面板中创建并启用的子 API Key
 - API 地址：`http://host.docker.internal:5678`（不带 `/v1`）
 - 模型：选择 kiro2cc-proxy 支持的模型
 

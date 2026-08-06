@@ -18,16 +18,14 @@ use super::{
 };
 
 /// GET /api/admin/server-info
-/// 获取服务器连接信息（主 API Key）
-pub async fn get_server_info(State(state): State<AdminState>) -> impl IntoResponse {
+/// 获取服务器信息
+pub async fn get_server_info(State(_state): State<AdminState>) -> impl IntoResponse {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct ServerInfo {
-        master_api_key: Option<String>,
         version: String,
     }
     Json(ServerInfo {
-        master_api_key: state.master_api_key.as_ref().map(|k| k.read().clone()),
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
 }

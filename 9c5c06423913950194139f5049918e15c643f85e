@@ -1,0 +1,57 @@
+README.md
+  d2f1373a0e9feb03 146,248,294,350,524,719
+src/anthropic/middleware.rs
+  d2f1373a0e9feb03 37,119-120,131,206
+install_server.sh
+  d2f1373a0e9feb03 60
+.gitignore
+  d2f1373a0e9feb03 30-31
+src/admin/handlers.rs
+  d2f1373a0e9feb03 154
+admin-ui/src/hooks/use-credentials.ts
+  d2f1373a0e9feb03 284
+admin-ui/src/api/credentials.ts
+  d2f1373a0e9feb03 121-123,218-219,223
+CLAUDE.md
+  d2f1373a0e9feb03 73
+docs/代码速查表.md
+  d2f1373a0e9feb03 431-437,485-488,663,669,705-706,730
+src/anthropic/handlers.rs
+  d2f1373a0e9feb03 2020
+openspec/specs/admin-api/spec.md
+  d2f1373a0e9feb03 85-120
+admin-ui/src/components/api-keys-panel.tsx
+  d2f1373a0e9feb03 19,162
+src/main.rs
+  d2f1373a0e9feb03 189
+README.en.md
+  d2f1373a0e9feb03 146,246,290,346,503,698
+docs/使用指南.md
+  d2f1373a0e9feb03 96-97,201,208,220,237
+src/admin/api_keys.rs
+  d2f1373a0e9feb03 21-22
+docs/部署指南_NewAPI.md
+  d2f1373a0e9feb03 99
+Dockerfile
+  d2f1373a0e9feb03 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9c5c06423913950194139f5049918e15c643f85e",
+  "prompts": {
+    "d2f1373a0e9feb03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f39b9833-b8da-42a4-a119-e21b347e1126",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 295,
+      "total_deletions": 295,
+      "accepted_lines": 244,
+      "overriden_lines": 0
+    }
+  }
+}

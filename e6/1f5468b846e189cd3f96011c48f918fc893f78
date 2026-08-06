@@ -1,0 +1,23 @@
+admin-ui/src/components/dashboard.tsx
+  d2f1373a0e9feb03 743,747-748
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e61f5468b846e189cd3f96011c48f918fc893f78",
+  "prompts": {
+    "d2f1373a0e9feb03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f39b9833-b8da-42a4-a119-e21b347e1126",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 467,
+      "total_deletions": 158,
+      "accepted_lines": 389,
+      "overriden_lines": 1
+    }
+  }
+}

@@ -36,7 +36,7 @@ EXPOSE 5678
 
 CMD sh -c 'mkdir -p /app/config && \
   if [ ! -f /app/config/config.json ]; then \
-    echo "{\"host\":\"${HOST:-0.0.0.0}\",\"port\":${PORT:-5678},\"adminApiKey\":\"${ADMIN_API_KEY}\"}" > /app/config/config.json; \
+    echo "{\"host\":\"${HOST:-0.0.0.0}\",\"port\":${PORT:-5678},\"adminPsw\":\"${ADMIN_PSW:-$ADMIN_API_KEY}\"}" > /app/config/config.json; \
   fi && \
   if [ ! -f /app/config/credentials.json ]; then \
     echo "[]" > /app/config/credentials.json; \

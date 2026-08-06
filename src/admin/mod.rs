@@ -14,7 +14,7 @@
 //! # 使用
 //! ```ignore
 //! let admin_service = AdminService::new(token_manager.clone());
-//! let admin_state = AdminState::new(admin_api_key, admin_service);
+//! let admin_state = AdminState::new(admin_psw, admin_service);
 //! let admin_router = create_admin_router(admin_state);
 //! ```
 

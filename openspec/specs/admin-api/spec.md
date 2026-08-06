@@ -6,12 +6,12 @@ Admin API 需提供一个只读端点，返回当前代理支持的完整模型�
 
 #### 场景：携带有效 admin key 请求模型列表
 
-- **WHEN** 客户端携带有效的 `x-api-key`（等于 `adminApiKey`）请求 `GET /api/admin/models`
+- **WHEN** 客户端携带有效的 `x-api-key`（等于 `adminPsw`，历史部署兼容旧字段名 `adminApiKey`）请求 `GET /api/admin/models`
 - **THEN** 返回 200，响应体为 `{ object: "list", data: [...] }`，`data` 中每一项包含 `id/object/created/owned_by/display_name/type/max_tokens` 字段（响应体结构与 `GET /v1/models` 一致；模型集合的实际来源与同步规则见"模型费率倍率展示"需求，两端点的模型集合不保证完全一致）
 
 #### 场景：未携带或携带无效 admin key 请求模型列表
 
-- **WHEN** 客户端未携带 `x-api-key`，或携带的值不等于 `adminApiKey`
+- **WHEN** 客户端未携带 `x-api-key`，或携带的值不等于 `adminPsw`
 - **THEN** 返回 401，不泄露模型列表内容
 
 ### 需求：模型费率倍率展示
@@ -91,21 +91,57 @@ Admin API 与 User API 各提供一个受鉴权保护的端点，输入一批 IP
 - **WHEN** 客户端请求 `GET /api/admin/server-info`
 - **THEN** 响应体仅包含 `{ version: string }`，不再包含 `masterApiKey` 字段
 
-### 需求：`GET /api/admin/config/auth-keys` 响应体不再包含主 API Key
+### 需求：`GET /api/admin/config/auth-keys` 响应体不再包含主 API Key，字段名为 `adminPsw`
 
 #### 场景：查询认证密钥
 - **WHEN** 客户端请求 `GET /api/admin/config/auth-keys`
-- **THEN** 响应体仅包含 `{ adminApiKey: string }`（脱敏），不再包含 `apiKey` 字段
+- **THEN** 响应体仅包含 `{ adminPsw: string }`（脱敏），不再包含 `apiKey` 字段
 
-### 需求：`PUT /api/admin/config/auth-keys` 不再支持修改主 API Key
+### 需求：`PUT /api/admin/config/auth-keys` 不再支持修改主 API Key，字段名为 `adminPsw`（兼容旧字段名）
 
 #### 场景：修改认证密钥请求体包含 apiKey 字段
 - **WHEN** 客户端 `PUT /api/admin/config/auth-keys` 请求体携带 `apiKey` 字段
-- **THEN** 该字段被忽略（因请求体类型中已移除该字段，序列化时静默丢弃），不产生错误，仅 `adminApiKey` 生效
+- **THEN** 该字段被忽略（因请求体类型中已移除该字段，序列化时静默丢弃），不产生错误，仅 `adminPsw` 生效
 
-#### 场景：仅修改 Admin Password
-- **WHEN** 客户端 `PUT /api/admin/config/auth-keys` 请求体为 `{ adminApiKey: "new-value" }`
-- **THEN** 运行时 `admin_api_key` 更新生效，且持久化写入 `config.json` 的 `adminApiKey` 字段；行为与改动前一致
+#### 场景：使用新字段名修改 Admin Password
+- **WHEN** 客户端 `PUT /api/admin/config/auth-keys` 请求体为 `{ adminPsw: "new-value" }`
+- **THEN** 运行时 `admin_psw` 更新生效，且持久化写入 `config.json` 的 `adminPsw` 字段；行为与改动前一致
+
+#### 场景：使用旧字段名修改 Admin Password（向后兼容）
+- **WHEN** 客户端 `PUT /api/admin/config/auth-keys` 请求体为 `{ adminApiKey: "new-value" }`（旧字段名）
+- **THEN** 请求被正常接受并生效，效果与使用新字段名完全一致（持久化后的清理规则见《`config.json` 字段改名》需求）
+
+#### 场景：提交空字符串时拒绝（新旧字段名均适用）
+- **WHEN** 客户端提交 `{ adminPsw: "" }`、`{ adminPsw: "   " }`，或使用旧字段名提交 `{ adminApiKey: "" }`（校验发生在 serde alias 解析之后，新旧字段名共用同一校验逻辑）
+- **THEN** 返回 400 Bad Request，错误信息提示 `adminPsw` 不能为空
+
+### 需求：`config.json` 字段改名（读取兼容旧字段，写入统一新字段）
+
+#### 场景：读取仅含新字段的 config.json
+- **WHEN** `config.json` 中仅存在 `adminPsw` 字段
+- **THEN** 运行时 `admin_psw` 正确加载该值
+
+#### 场景：读取仅含旧字段的 config.json（历史部署兼容）
+- **WHEN** `config.json` 中仅存在旧字段 `adminApiKey`
+- **THEN** 运行时 `admin_psw` 仍被正确加载（通过 serde alias 兼容读取）
+
+#### 场景：通过 Admin 面板保存密码后旧字段被清理
+- **WHEN** 通过 `PUT /api/admin/config/auth-keys` 成功修改密码并持久化
+- **THEN** `config.json` 中只包含 `adminPsw` 字段，原有的 `adminApiKey` 字段（如存在）被移除
+
+### 需求：环境变量改名（回退兼容旧变量）
+
+#### 场景：仅设置新环境变量 ADMIN_PSW
+- **WHEN** 启动时仅设置了环境变量 `ADMIN_PSW`
+- **THEN** 该值覆盖 `admin_psw` 配置项
+
+#### 场景：仅设置旧环境变量 ADMIN_API_KEY（历史部署兼容）
+- **WHEN** 启动时未设置 `ADMIN_PSW`，但设置了旧环境变量 `ADMIN_API_KEY`
+- **THEN** `admin_psw` 配置项回退读取该旧变量的值
+
+#### 场景：两者同时设置时新变量优先
+- **WHEN** `ADMIN_PSW` 与 `ADMIN_API_KEY` 同时设置
+- **THEN** `admin_psw` 配置项取 `ADMIN_PSW` 的值
 
 ## 移除的需求
 

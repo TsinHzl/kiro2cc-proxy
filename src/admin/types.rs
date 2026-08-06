@@ -393,7 +393,7 @@ impl AdminErrorResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AuthKeysResponse {
     /// Admin Password（脱敏显示）
-    pub admin_api_key: String,
+    pub admin_psw: String,
 }
 
 /// 修改认证密钥请求
@@ -401,8 +401,8 @@ pub struct AuthKeysResponse {
 #[serde(rename_all = "camelCase")]
 pub struct SetAuthKeysRequest {
     /// 新的 Admin Password（可选，不传则不修改）
-    #[serde(default)]
-    pub admin_api_key: Option<String>,
+    #[serde(default, alias = "adminApiKey")]
+    pub admin_psw: Option<String>,
 }
 
 // ============ 支持模型 ============

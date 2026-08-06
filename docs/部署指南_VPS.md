@@ -52,7 +52,7 @@ cat > ~/kiro2cc-proxy/data/config.json << 'EOF'
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "adminApiKey": "你的管理后台密钥"
+  "adminPsw": "你的管理后台密钥"
 }
 EOF
 ```

@@ -3,5 +3,5 @@
   "port": 5678,
   "tlsBackend": "rustls",
   "region": "us-east-1",
-  "adminApiKey": "sk-admin-your-secret-key"
+  "adminPsw": "sk-admin-your-secret-key"
 }

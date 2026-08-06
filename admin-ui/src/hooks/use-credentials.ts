@@ -281,7 +281,7 @@ export function useAuthKeys() {
 export function useSetAuthKeys() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { adminApiKey?: string }) => setAuthKeys(payload),
+    mutationFn: (payload: { adminPsw?: string }) => setAuthKeys(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth-keys'] })
     },

@@ -101,7 +101,7 @@ case "${1:-start}" in
         echo "用法: $0 {start|stop|restart|status|log}"
         echo ""
         echo "环境变量配置（也可写入 config.json）："
-        echo "  ADMIN_API_KEY=sk-admin-key"
+        echo "  ADMIN_PSW=sk-admin-key"
         echo "  PORT=5678"
         echo "  HOST=0.0.0.0"
         echo "  REGION=us-east-1"

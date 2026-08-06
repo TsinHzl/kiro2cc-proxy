@@ -26,7 +26,7 @@ Add Service → Prebuilt Image → 输入上方镜像地址
 {
   "host": "0.0.0.0",
   "port": 5678,
-  "adminApiKey": "你的管理后台密钥"
+  "adminPsw": "你的管理后台密钥"
 }
 ```
 

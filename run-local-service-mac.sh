@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 # ============================================================
 # 可选：本地覆盖配置（取消注释并修改）
 # ============================================================
-# export ADMIN_API_KEY=sk-admin-your-key
+# export ADMIN_PSW=sk-admin-your-key
 # export PORT=5678
 # export HOST=127.0.0.1
 # export REGION=us-east-1
@@ -49,7 +49,7 @@ setup_config() {
     echo ""
     mkdir -p "$CONFIG_DIR"
 
-    read -p "  Admin API Key（管理后台密码，直接回车跳过）: " ADMIN_KEY_INPUT
+    read -p "  Admin Password（管理后台密码，直接回车跳过）: " ADMIN_KEY_INPUT
 
     while true; do
         read -p "  端口 [默认: 5678]: " input_port
@@ -75,7 +75,7 @@ setup_config() {
     ADMIN_BLOCK=""
     if [ -n "$ADMIN_KEY_INPUT" ]; then
         ADMIN_BLOCK=",
-  \"adminApiKey\": \"$ADMIN_KEY_INPUT\""
+  \"adminPsw\": \"$ADMIN_KEY_INPUT\""
     fi
 
     cat > "$CONFIG_FILE" <<EOF
@@ -108,14 +108,14 @@ fi
 
 echo "[*] 启动 kiro2cc-proxy，端口: $CONFIGURED_PORT"
 echo "[*] API 端点: http://127.0.0.1:${CONFIGURED_PORT}/v1/messages"
-if grep -q '"adminApiKey"' "$CONFIG_FILE" 2>/dev/null; then
+if grep -q '"adminPsw"' "$CONFIG_FILE" 2>/dev/null; then
     echo "[*] 管理面板: http://127.0.0.1:${CONFIGURED_PORT}/admin"
 fi
 echo "=================================================="
 echo ""
 
-# 延迟 2 秒后自动打开管理面板（如果有 adminApiKey）
-if grep -q '"adminApiKey"' "$CONFIG_FILE" 2>/dev/null; then
+# 延迟 2 秒后自动打开管理面板（如果有 adminPsw）
+if grep -q '"adminPsw"' "$CONFIG_FILE" 2>/dev/null; then
     (sleep 2 && open "http://127.0.0.1:${CONFIGURED_PORT}/admin") &
 fi
 

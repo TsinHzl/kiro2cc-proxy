@@ -215,12 +215,12 @@ export async function getRpm(): Promise<RpmSnapshot> {
 
 // ============ 认证密钥管理 ============
 
-export async function getAuthKeys(): Promise<{ adminApiKey: string }> {
-  const { data } = await api.get<{ adminApiKey: string }>('/config/auth-keys')
+export async function getAuthKeys(): Promise<{ adminPsw: string }> {
+  const { data } = await api.get<{ adminPsw: string }>('/config/auth-keys')
   return data
 }
 
-export async function setAuthKeys(payload: { adminApiKey?: string }): Promise<{ success: boolean; message: string }> {
+export async function setAuthKeys(payload: { adminPsw?: string }): Promise<{ success: boolean; message: string }> {
   const { data } = await api.put<{ success: boolean; message: string }>('/config/auth-keys', payload)
   return data
 }

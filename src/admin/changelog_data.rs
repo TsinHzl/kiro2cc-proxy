@@ -62,9 +62,24 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     vec![
         ReleaseNote {
-            version: "2.8.25".to_string(),
+            version: "2.9.0".to_string(),
             date: "2026-08-07".to_string(),
             is_latest: true,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "Admin 后台支持中英文全局切换",
+                    "Admin console now supports global zh/en language switching",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "设置页面重构为分组列表布局",
+                    "Settings page redesigned with a grouped list layout",
+                )]),
+            ],
+        },
+        ReleaseNote {
+            version: "2.8.25".to_string(),
+            date: "2026-08-07".to_string(),
+            is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(
                 "支持模型列表按模型家族分组排列",
                 "Supported models list is now grouped by model family",

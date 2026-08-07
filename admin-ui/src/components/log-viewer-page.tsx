@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLogStream, type LogEntry } from '@/hooks/use-log-stream'
 import { storage } from '@/lib/storage'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -37,6 +38,7 @@ interface LogViewerPageProps {
 }
 
 export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKeyword = '' }: LogViewerPageProps = {}) {
+  const { t } = useTranslation()
   const [levelFilter, setLevelFilter] = useState<LevelFilter>(initialLevelFilter)
   const [keyword, setKeyword] = useState(initialKeyword)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -125,9 +127,9 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
       {/* Page Header */}
       {!embedded && (
         <div className="mb-4">
-          <h1 className="text-[22px] font-bold tracking-[-0.02em]">实时日志</h1>
+          <h1 className="text-[22px] font-bold tracking-[-0.02em]">{t('logs.realtimeLogsTitle')}</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            实时查看服务运行日志，最近 1000 条
+            {t('logs.realtimeLogsSubtitle')}
           </p>
         </div>
       )}
@@ -186,7 +188,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
           {/* Keyword filter */}
           <input
             type="text"
-            placeholder="关键词过滤..."
+            placeholder={t('logs.keywordFilterPlaceholder')}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             style={{
@@ -204,7 +206,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
 
           {/* Auto-scroll toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, color: '#8b949e' }}>自动滚动</span>
+            <span style={{ fontSize: 11, color: '#8b949e' }}>{t('logs.autoScrollLabel')}</span>
             <div
               onClick={toggleAutoScroll}
               style={{
@@ -244,7 +246,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
               cursor: 'pointer',
             }}
           >
-            清空
+            {t('logs.clearButton')}
           </button>
 
           <button
@@ -259,7 +261,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
               cursor: 'pointer',
             }}
           >
-            📋 复制日志
+            {t('logs.copyLogsButton')}
           </button>
 
           <button
@@ -275,7 +277,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
               fontWeight: 600,
             }}
           >
-            ⬇ 下载日志
+            {t('logs.downloadLogsButton')}
           </button>
 
           {/* Connection status */}
@@ -294,7 +296,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
                 color: connected ? '#3fb950' : '#f0b429',
               }}
             >
-              {connected ? '已连接' : '重连中...'}
+              {connected ? t('logs.connectedLabel') : t('logs.reconnectingLabel')}
             </span>
           </div>
         </div>
@@ -386,10 +388,10 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
           }}
         >
           <span>
-            已显示 {filteredLogs.length} 条（缓冲 {localLogs.length} 条）
+            {t('logs.displayedBufferedCount', { shown: filteredLogs.length, total: localLogs.length })}
           </span>
           <span>
-            {keyword ? `过滤: "${keyword}" | ` : ''}级别: {levelFilter}
+            {keyword ? t('logs.filterKeywordPrefix', { keyword }) : ''}{t('logs.levelLabel', { level: levelFilter })}
           </span>
         </div>
       </div>
@@ -410,7 +412,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
             zIndex: 9999,
           }}
         >
-          已复制 {filteredLogs.length} 条日志
+          {t('logs.copiedLogsCount', { count: filteredLogs.length })}
         </div>
       )}
     </div>

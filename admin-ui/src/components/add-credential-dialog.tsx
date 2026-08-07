@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ interface AddCredentialDialogProps {
 type AuthMethod = 'social' | 'idc'
 
 export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogProps) {
+  const { t } = useTranslation()
   const [refreshToken, setRefreshToken] = useState('')
   const [email, setEmail] = useState('')
   const [authMethod, setAuthMethod] = useState<AuthMethod>('social')
@@ -58,13 +60,13 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
     // 验证必填字段
     if (!refreshToken.trim()) {
-      toast.error('请输入 Refresh Token')
+      toast.error(t('credentials.toastRefreshTokenRequired'))
       return
     }
 
     // IdC/Builder-ID/IAM 需要额外字段
     if (authMethod === 'idc' && (!clientId.trim() || !clientSecret.trim())) {
-      toast.error('IdC/Builder-ID/IAM 认证需要填写 Client ID 和 Client Secret')
+      toast.error(t('credentials.toastIdcFieldsRequired'))
       return
     }
 
@@ -91,7 +93,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
           resetForm()
         },
         onError: (error: unknown) => {
-          toast.error(`添加失败: ${extractErrorMessage(error)}`)
+          toast.error(t('credentials.toastAddFailed', { message: extractErrorMessage(error) }))
         },
       }
     )
@@ -101,7 +103,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>添加账号</DialogTitle>
+          <DialogTitle>{t('credentials.addDialogTitle')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
@@ -109,12 +111,12 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
             {/* Refresh Token */}
             <div className="space-y-2">
               <label htmlFor="refreshToken" className="text-sm font-medium">
-                Refresh Token <span className="text-red-500">*</span>
+                {t('credentials.refreshTokenLabel')} <span className="text-red-500">*</span>
               </label>
               <Input
                 id="refreshToken"
                 type="password"
-                placeholder="请输入 Refresh Token"
+                placeholder={t('credentials.refreshTokenPlaceholder')}
                 value={refreshToken}
                 onChange={(e) => setRefreshToken(e.target.value)}
                 disabled={isPending}
@@ -124,12 +126,12 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
             {/* 用户名/邮箱 */}
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
-                用户名 / 邮箱
+                {t('credentials.emailLabel')}
               </label>
               <Input
                 id="email"
                 type="text"
-                placeholder="请输入账号邮箱（用于标识账号）"
+                placeholder={t('credentials.emailPlaceholderAdd')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}
@@ -139,7 +141,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
             {/* 认证方式 */}
             <div className="space-y-2">
               <label htmlFor="authMethod" className="text-sm font-medium">
-                认证方式
+                {t('credentials.authMethodLabel')}
               </label>
               <select
                 id="authMethod"
@@ -155,12 +157,12 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
             {/* Region 配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Region 配置</label>
+              <label className="text-sm font-medium">{t('credentials.regionConfigLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Input
                     id="authRegion"
-                    placeholder="Auth Region"
+                    placeholder={t('credentials.authRegionPlaceholder')}
                     value={authRegion}
                     onChange={(e) => setAuthRegion(e.target.value)}
                     disabled={isPending}
@@ -169,7 +171,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 <div>
                   <Input
                     id="apiRegion"
-                    placeholder="API Region"
+                    placeholder={t('credentials.apiRegionPlaceholder')}
                     value={apiRegion}
                     onChange={(e) => setApiRegion(e.target.value)}
                     disabled={isPending}
@@ -177,7 +179,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                均可留空使用全局配置。Auth Region 用于 Token 刷新，API Region 用于 API 请求
+                {t('credentials.regionHintAdd')}
               </p>
             </div>
 
@@ -186,11 +188,11 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
               <>
                 <div className="space-y-2">
                   <label htmlFor="clientId" className="text-sm font-medium">
-                    Client ID <span className="text-red-500">*</span>
+                    {t('credentials.clientIdLabel')} <span className="text-red-500">*</span>
                   </label>
                   <Input
                     id="clientId"
-                    placeholder="请输入 Client ID"
+                    placeholder={t('credentials.clientIdPlaceholderAdd')}
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
                     disabled={isPending}
@@ -198,12 +200,12 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="clientSecret" className="text-sm font-medium">
-                    Client Secret <span className="text-red-500">*</span>
+                    {t('credentials.clientSecretLabel')} <span className="text-red-500">*</span>
                   </label>
                   <Input
                     id="clientSecret"
                     type="password"
-                    placeholder="请输入 Client Secret"
+                    placeholder={t('credentials.clientSecretPlaceholderAdd')}
                     value={clientSecret}
                     onChange={(e) => setClientSecret(e.target.value)}
                     disabled={isPending}
@@ -215,7 +217,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
             {/* Profile ARN */}
             <div className="space-y-2">
               <label htmlFor="profileArn" className="text-sm font-medium">
-                Profile ARN
+                {t('credentials.profileArnLabel')}
               </label>
               <Input
                 id="profileArn"
@@ -225,52 +227,52 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 disabled={isPending}
               />
               <p className="text-xs text-muted-foreground">
-                企业版 IdC 账号调用时通常必填，可从 Kiro IDE 本地缓存或 ListAvailableProfiles 获取，Social 账号一般留空
+                {t('credentials.profileArnHintAdd')}
               </p>
             </div>
 
             {/* 优先级 */}
             <div className="space-y-2">
               <label htmlFor="priority" className="text-sm font-medium">
-                优先级
+                {t('credentials.priorityFieldLabel')}
               </label>
               <Input
                 id="priority"
                 type="number"
                 min="0"
-                placeholder="数字越小优先级越高"
+                placeholder={t('credentials.priorityPlaceholder')}
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 disabled={isPending}
               />
               <p className="text-xs text-muted-foreground">
-                数字越小优先级越高，默认为 0
+                {t('credentials.priorityHint')}
               </p>
             </div>
 
             {/* Machine ID */}
             <div className="space-y-2">
               <label htmlFor="machineId" className="text-sm font-medium">
-                Machine ID
+                {t('credentials.machineIdLabel')}
               </label>
               <Input
                 id="machineId"
-                placeholder="留空使用配置中字段, 否则由刷新Token自动派生"
+                placeholder={t('credentials.machineIdPlaceholderAdd')}
                 value={machineId}
                 onChange={(e) => setMachineId(e.target.value)}
                 disabled={isPending}
               />
               <p className="text-xs text-muted-foreground">
-                可选，64 位十六进制字符串，留空使用配置中字段, 否则由刷新Token自动派生
+                {t('credentials.machineIdHint')}
               </p>
             </div>
 
             {/* 代理配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">代理配置</label>
+              <label className="text-sm font-medium">{t('credentials.proxyConfigLabel')}</label>
               <Input
                 id="proxyUrl"
-                placeholder='代理 URL（留空使用全局配置，"direct" 不使用代理）'
+                placeholder={t('credentials.proxyUrlPlaceholderAdd')}
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 disabled={isPending}
@@ -278,7 +280,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   id="proxyUsername"
-                  placeholder="代理用户名"
+                  placeholder={t('credentials.proxyUsernamePlaceholder')}
                   value={proxyUsername}
                   onChange={(e) => setProxyUsername(e.target.value)}
                   disabled={isPending}
@@ -286,14 +288,14 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 <Input
                   id="proxyPassword"
                   type="password"
-                  placeholder="代理密码"
+                  placeholder={t('credentials.proxyPasswordPlaceholder')}
                   value={proxyPassword}
                   onChange={(e) => setProxyPassword(e.target.value)}
                   disabled={isPending}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                留空使用全局代理。输入 "direct" 可显式不使用代理
+                {t('credentials.proxyHintAdd')}
               </p>
             </div>
           </div>
@@ -305,10 +307,10 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              取消
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? '添加中...' : '添加'}
+              {isPending ? t('credentials.addingButton') : t('credentials.addButton')}
             </Button>
           </DialogFooter>
         </form>

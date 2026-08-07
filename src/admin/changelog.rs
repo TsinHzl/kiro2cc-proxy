@@ -62,14 +62,14 @@ mod tests {
             serde_json::from_slice(&body).expect("解析响应体失败");
 
         assert_eq!(parsed.object, "list");
-        assert_eq!(parsed.data.len(), 6);
+        assert_eq!(parsed.data.len(), 7);
         assert_eq!(parsed.data.iter().filter(|n| n.is_latest).count(), 1);
 
         let versions: Vec<&str> = parsed.data.iter().map(|n| n.version.as_str()).collect();
         let mut sorted = versions.clone();
         sorted.sort_by(|a, b| b.cmp(a));
         assert_eq!(versions, sorted, "版本号必须按降序排列");
-        assert_eq!(versions[0], "2.8.25");
+        assert_eq!(versions[0], "2.9.0");
         assert!(parsed.data[0].is_latest);
     }
 }

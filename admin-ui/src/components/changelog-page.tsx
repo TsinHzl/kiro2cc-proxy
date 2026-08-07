@@ -1,29 +1,22 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useChangelog } from '@/hooks/use-credentials'
 
-type Lang = 'zh' | 'en'
-
 export function ChangelogPage() {
+  const { t, i18n } = useTranslation()
   const { data, isLoading, refetch } = useChangelog()
-  const [lang, setLang] = useState<Lang>('zh')
   const notes = data?.data ?? []
+  const lang = i18n.language === 'en' ? 'en' : 'zh'
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h2 className="text-xl font-semibold">更新日志</h2>
+        <h2 className="text-xl font-semibold">{t('changelog.pageTitle')}</h2>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant={lang === 'zh' ? 'secondary' : 'ghost'} size="sm" onClick={() => setLang('zh')}>
-            中文
-          </Button>
-          <Button variant={lang === 'en' ? 'secondary' : 'ghost'} size="sm" onClick={() => setLang('en')}>
-            EN
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
@@ -32,11 +25,11 @@ export function ChangelogPage() {
 
       {isLoading ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground text-sm">加载中...</CardContent>
+          <CardContent className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</CardContent>
         </Card>
       ) : notes.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground text-sm">暂无更新日志</CardContent>
+          <CardContent className="py-8 text-center text-muted-foreground text-sm">{t('changelog.emptyNoChangelog')}</CardContent>
         </Card>
       ) : (
         <div className="space-y-4">

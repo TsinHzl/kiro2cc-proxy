@@ -378,15 +378,17 @@ impl UsageTracker {
             total_credits_saved,
             by_model: by_model
                 .into_iter()
-                .map(|(model, (requests, input, output, cost, credits, credits_saved))| ModelUsage {
-                    model,
-                    requests,
-                    input_tokens: input,
-                    output_tokens: output,
-                    cost,
-                    credits,
-                    credits_saved,
-                })
+                .map(
+                    |(model, (requests, input, output, cost, credits, credits_saved))| ModelUsage {
+                        model,
+                        requests,
+                        input_tokens: input,
+                        output_tokens: output,
+                        cost,
+                        credits,
+                        credits_saved,
+                    },
+                )
                 .collect(),
         }
     }

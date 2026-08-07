@@ -4,6 +4,7 @@ import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, Che
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { storage } from '@/lib/storage'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,7 @@ function useCountUp(target: number, duration = 700) {
 }
 
 function CreditsProgressRing({ percent }: { percent: number }) {
+  const { t } = useTranslation()
   const gradientId = useId()
   const safePercent = Number.isFinite(percent) ? percent : 0
   const clamped = Math.min(100, Math.max(0, safePercent))
@@ -70,7 +72,7 @@ function CreditsProgressRing({ percent }: { percent: number }) {
     <div
       className="relative h-16 w-16 shrink-0"
       role="img"
-      aria-label={`剩余积分占比 ${Math.round(clamped)}%`}
+      aria-label={t('dashboard.creditsRingLabel', { percent: Math.round(clamped) })}
     >
       <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
         <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="4" className="stroke-purple-100 dark:stroke-purple-900/40" />
@@ -97,6 +99,7 @@ function CreditsProgressRing({ percent }: { percent: number }) {
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
+  const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
@@ -361,7 +364,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const handleRefresh = () => {
     refetch()
-    toast.success('已刷新账号列表')
+    toast.success(t('dashboard.toastRefreshed'))
   }
 
   const handleLogout = () => {
@@ -388,7 +391,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 批量删除（仅删除已禁用项）
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要删除的账号')
+      toast.error(t('dashboard.toastSelectToDelete'))
       return
     }
 
@@ -398,14 +401,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
 
     if (disabledIds.length === 0) {
-      toast.error('选中的账号中没有已禁用项')
+      toast.error(t('dashboard.toastNoDisabledSelected'))
       return
     }
 
     const skippedCount = selectedIds.size - disabledIds.length
-    const skippedText = skippedCount > 0 ? `（将跳过 ${skippedCount} 个未禁用账号）` : ''
+    const skippedText = skippedCount > 0 ? t('dashboard.skippedSuffix', { count: skippedCount }) : ''
 
-    if (!confirm(`确定要删除 ${disabledIds.length} 个已禁用账号吗？此操作无法撤销。${skippedText}`)) {
+    if (!confirm(t('dashboard.confirmDeleteDisabled', { count: disabledIds.length, skipped: skippedText }))) {
       return
     }
 
@@ -431,12 +434,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
       }
     }
 
-    const skippedResultText = skippedCount > 0 ? `，已跳过 ${skippedCount} 个未禁用账号` : ''
+    const skippedResultText = skippedCount > 0 ? t('dashboard.skippedResultSuffix', { count: skippedCount }) : ''
 
     if (failCount === 0) {
-      toast.success(`成功删除 ${successCount} 个已禁用账号${skippedResultText}`)
+      toast.success(t('dashboard.toastDeleteDisabledSuccess', { count: successCount, skipped: skippedResultText }))
     } else {
-      toast.warning(`删除已禁用账号：成功 ${successCount} 个，失败 ${failCount} 个${skippedResultText}`)
+      toast.warning(t('dashboard.toastDeleteDisabledPartial', { success: successCount, fail: failCount, skipped: skippedResultText }))
     }
 
     deselectAll()
@@ -445,7 +448,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 批量恢复异常
   const handleBatchResetFailure = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要恢复的账号')
+      toast.error(t('dashboard.toastSelectToRestore'))
       return
     }
 
@@ -455,7 +458,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     })
 
     if (failedIds.length === 0) {
-      toast.error('选中的账号中没有失败的账号')
+      toast.error(t('dashboard.toastNoFailedSelected'))
       return
     }
 
@@ -482,9 +485,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (failCount === 0) {
-      toast.success(`成功恢复 ${successCount} 个账号`)
+      toast.success(t('dashboard.toastRestoreSuccess', { count: successCount }))
     } else {
-      toast.warning(`成功 ${successCount} 个，失败 ${failCount} 个`)
+      toast.warning(t('dashboard.toastRestorePartial', { success: successCount, fail: failCount }))
     }
 
     deselectAll()
@@ -493,18 +496,18 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 一键清除所有已禁用凭据
   const handleClearAll = async () => {
     if (!data?.credentials || data.credentials.length === 0) {
-      toast.error('没有可清除的账号')
+      toast.error(t('dashboard.toastNoClearable'))
       return
     }
 
     const disabledCredentials = data.credentials.filter(credential => credential.disabled)
 
     if (disabledCredentials.length === 0) {
-      toast.error('没有可清除的已禁用账号')
+      toast.error(t('dashboard.noClearableDisabled'))
       return
     }
 
-    if (!confirm(`确定要清除所有 ${disabledCredentials.length} 个已禁用账号吗？此操作无法撤销。`)) {
+    if (!confirm(t('dashboard.confirmClearAll', { count: disabledCredentials.length }))) {
       return
     }
 
@@ -531,9 +534,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
 
     if (failCount === 0) {
-      toast.success(`成功清除所有 ${successCount} 个已禁用账号`)
+      toast.success(t('dashboard.toastClearAllSuccess', { count: successCount }))
     } else {
-      toast.warning(`清除已禁用账号：成功 ${successCount} 个，失败 ${failCount} 个`)
+      toast.warning(t('dashboard.toastClearAllPartial', { success: successCount, fail: failCount }))
     }
 
     deselectAll()
@@ -544,7 +547,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     const allCredentials = data?.credentials || []
 
     if (allCredentials.length === 0) {
-      toast.error('没有可查询的账号')
+      toast.error(t('dashboard.toastNoQueryable'))
       return
     }
 
@@ -553,7 +556,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       .map(credential => credential.id)
 
     if (ids.length === 0) {
-      toast.error('没有可查询的启用账号')
+      toast.error(t('dashboard.toastNoQueryableEnabled'))
       return
     }
 
@@ -608,16 +611,16 @@ export function Dashboard({ onLogout }: DashboardProps) {
     prevEnabledIdsRef.current = new Set(ids)
 
     if (failCount === 0) {
-      toast.success(`查询完成：成功 ${successCount}/${ids.length}`)
+      toast.success(t('dashboard.toastQueryDone', { success: successCount, total: ids.length }))
     } else {
-      toast.warning(`查询完成：成功 ${successCount} 个，失败 ${failCount} 个`)
+      toast.warning(t('dashboard.toastQueryPartial', { success: successCount, fail: failCount }))
     }
   }
 
   // 批量验活
   const handleBatchVerify = async () => {
     if (selectedIds.size === 0) {
-      toast.error('请先选择要验活的账号')
+      toast.error(t('dashboard.toastSelectToVerify'))
       return
     }
 
@@ -641,7 +644,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     for (let i = 0; i < ids.length; i++) {
       // 检查是否取消
       if (cancelVerifyRef.current) {
-        toast.info('已取消验活')
+        toast.info(t('dashboard.toastVerifyCancelled'))
         break
       }
 
@@ -693,7 +696,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setVerifying(false)
 
     if (!cancelVerifyRef.current) {
-      toast.success(`验活完成：成功 ${successCount}/${ids.length}`)
+      toast.success(t('dashboard.toastVerifyDone', { success: successCount, total: ids.length }))
     }
   }
 
@@ -709,7 +712,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">加载中...</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       </div>
     )
@@ -720,11 +723,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
-            <div className="text-red-500 mb-4">加载失败</div>
+            <div className="text-red-500 mb-4">{t('common.loadFailed')}</div>
             <p className="text-muted-foreground mb-4">{(error as Error).message}</p>
             <div className="space-x-2">
-              <Button onClick={() => refetch()}>重试</Button>
-              <Button variant="outline" onClick={handleLogout}>重新登录</Button>
+              <Button onClick={() => refetch()}>{t('common.retry')}</Button>
+              <Button variant="outline" onClick={handleLogout}>{t('common.relogin')}</Button>
             </div>
           </CardContent>
         </Card>
@@ -746,21 +749,21 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
             <div>
               <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors">Kiro2CCProxy</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-primary transition-colors">Admin 控制台</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-primary transition-colors">{t('dashboard.consoleSubtitle')}</div>
             </div>
           </a>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title="退出登录">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title={t('common.logout')}>
             <LogOut className="h-3.5 w-3.5" />
           </Button>
         </div>
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           <div className="mb-[18px]">
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">主要</div>
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navMain')}</div>
             {[
-              { label: '账号管理', icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+              { label: t('dashboard.navCredentials'), icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-              { label: '每日统计', icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
-              { label: '支持模型', icon: <Boxes className="w-4 h-4 shrink-0" />, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+              { label: t('dashboard.navDailyStats'), icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
+              { label: t('dashboard.navModels'), icon: <Boxes className="w-4 h-4 shrink-0" />, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
             ].map(({ label, icon, active, onClick }) => (
               <button key={label} onClick={onClick}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
@@ -771,14 +774,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
             ))}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">系统</div>
+            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navSystem')}</div>
             <button
               onClick={() => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
               className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'logs' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'logs' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <ScrollText className="w-4 h-4 shrink-0" />
-              <span>查看日志</span>
+              <span>{t('dashboard.navLogs')}</span>
             </button>
             <button
               onClick={() => { setActiveTab('changelog'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
@@ -786,7 +789,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               style={activeTab === 'changelog' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <History className="w-4 h-4 shrink-0" />
-              <span>更新日志</span>
+              <span>{t('dashboard.navChangelog')}</span>
             </button>
             <button
               onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
@@ -794,7 +797,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <Settings className="w-4 h-4 shrink-0" />
-              <span>设置</span>
+              <span>{t('dashboard.navSettings')}</span>
             </button>
           </div>
         </nav>
@@ -808,7 +811,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <Github className="h-3.5 w-3.5" />
             kiro2cc-proxy v{serverInfo?.version ?? '...'}
           </a>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}>
             {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
           </Button>
         </div>
@@ -864,8 +867,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {/* Page Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-[22px] font-bold tracking-[-0.02em]">账号管理</h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">管理 Kiro 账号与负载均衡</p>
+            <h1 className="text-[22px] font-bold tracking-[-0.02em]">{t('dashboard.navCredentials')}</h1>
+            <p className="text-[13px] text-muted-foreground mt-0.5">{t('dashboard.pageSubtitle')}</p>
           </div>
         </div>
         {/* 统计卡片 */}
@@ -873,7 +876,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                账号总数
+                {t('dashboard.statTotal')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -883,7 +886,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                可用账号
+                {t('dashboard.statAvailable')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -893,7 +896,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                全局积分
+                {t('dashboard.statGlobalCredits')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-2">
@@ -903,7 +906,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </div>
                 {liveCreditsTotal !== null && (
                   <div className="mt-1 text-xs text-muted-foreground truncate">
-                    {liveCreditsQueried}/{data?.credentials.length || 0} 已查询
+                    {t('dashboard.statQueried', { queried: liveCreditsQueried, total: data?.credentials.length || 0 })}
                   </div>
                 )}
               </div>
@@ -920,7 +923,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                今日用量
+                {t('dashboard.statTodayUsage')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -946,9 +949,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <div className="flex items-center gap-4">
               {selectedIds.size > 0 && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">已选择 {selectedIds.size} 个</Badge>
+                  <Badge variant="secondary">{t('dashboard.selectedCount', { count: selectedIds.size })}</Badge>
                   <Button onClick={deselectAll} size="sm" variant="ghost">
-                    取消选择
+                    {t('dashboard.deselectAll')}
                   </Button>
                 </div>
               )}
@@ -958,33 +961,33 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 <>
                   <Button onClick={handleBatchVerify} size="sm" variant="outline">
                     <CheckCircle2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">批量验活</span>
+                    <span className="hidden sm:inline">{t('dashboard.batchVerify')}</span>
                   </Button>
                   <Button onClick={handleBatchResetFailure} size="sm" variant="outline">
                     <RotateCcw className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">恢复异常</span>
+                    <span className="hidden sm:inline">{t('dashboard.batchRestore')}</span>
                   </Button>
                   <Button
                     onClick={handleBatchDelete}
                     size="sm"
                     variant="destructive"
                     disabled={selectedDisabledCount === 0}
-                    title={selectedDisabledCount === 0 ? '只能删除已禁用账号' : undefined}
+                    title={selectedDisabledCount === 0 ? t('dashboard.deleteDisabledOnly') : undefined}
                   >
                     <Trash2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">批量删除</span>
+                    <span className="hidden sm:inline">{t('dashboard.batchDelete')}</span>
                   </Button>
                 </>
               )}
               {verifying && !verifyDialogOpen && (
                 <Button onClick={() => setVerifyDialogOpen(true)} size="sm" variant="secondary">
                   <CheckCircle2 className="h-4 w-4 mr-2 animate-spin" />
-                  验活中... {verifyProgress.current}/{verifyProgress.total}
+                  {t('dashboard.verifyingProgress', { current: verifyProgress.current, total: verifyProgress.total })}
                 </Button>
               )}
               <Button onClick={handleRefresh} size="sm" variant="outline">
                 <RefreshCw className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">刷新账号列表</span>
+                <span className="hidden sm:inline">{t('dashboard.refreshList')}</span>
               </Button>
               {data?.credentials && data.credentials.length > 0 && (
                 <Button
@@ -994,7 +997,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   disabled={queryingInfo}
                 >
                   <Info className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-pulse' : ''}`} />
-                  <span className="hidden sm:inline">{queryingInfo ? `查询中... ${queryInfoProgress.current}/${queryInfoProgress.total}` : '查询信息'}</span>
+                  <span className="hidden sm:inline">{queryingInfo ? t('dashboard.queryingProgress', { current: queryInfoProgress.current, total: queryInfoProgress.total }) : t('dashboard.queryInfo')}</span>
                 </Button>
               )}
               {data?.credentials && data.credentials.length > 0 && (
@@ -1004,30 +1007,30 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   variant="outline"
                   className="text-destructive hover:text-destructive"
                   disabled={disabledCredentialCount === 0}
-                  title={disabledCredentialCount === 0 ? '没有可清除的已禁用账号' : undefined}
+                  title={disabledCredentialCount === 0 ? t('dashboard.noClearableDisabled') : undefined}
                 >
                   <Trash2 className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">清除已禁用</span>
+                  <span className="hidden sm:inline">{t('dashboard.clearDisabled')}</span>
                 </Button>
               )}
               <Button onClick={() => setKamImportDialogOpen(true)} size="sm" variant="outline">
                 <FileUp className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Kiro Account Manager 导入</span>
+                <span className="hidden sm:inline">{t('dashboard.kamImport')}</span>
               </Button>
               <Button onClick={() => setBatchImportDialogOpen(true)} size="sm" variant="outline">
                 <Upload className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">批量导入</span>
+                <span className="hidden sm:inline">{t('dashboard.batchImport')}</span>
               </Button>
               <Button onClick={() => setAddDialogOpen(true)} size="sm">
                 <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">添加账号</span>
+                <span className="hidden sm:inline">{t('dashboard.addAccount')}</span>
               </Button>
             </div>
           </div>
           {data?.credentials.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                暂无账号
+                {t('dashboard.noAccounts')}
               </CardContent>
             </Card>
           ) : (
@@ -1059,11 +1062,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                   >
-                    上一页
+                    {t('common.prevPage')}
                   </Button>
                   <span className="text-sm text-muted-foreground">
                     <span className="sm:hidden">{currentPage}/{totalPages}</span>
-                    <span className="hidden sm:inline">第 {currentPage} / {totalPages} 页（共 {data?.credentials.length} 个账号）</span>
+                    <span className="hidden sm:inline">{t('dashboard.pageInfo', { current: currentPage, total: totalPages, count: data?.credentials.length })}</span>
                   </span>
                   <Button
                     variant="outline"
@@ -1071,7 +1074,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
                   >
-                    下一页
+                    {t('common.nextPage')}
                   </Button>
                 </div>
               )}

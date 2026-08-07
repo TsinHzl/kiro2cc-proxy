@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { RefreshCw, Wallet, Trash2, Loader2, Pencil, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,38 +41,39 @@ interface CredentialCardProps {
   rpm?: number
 }
 
-function formatLastUsed(lastUsedAt: string | null): string {
-  if (!lastUsedAt) return '从未使用'
+function formatLastUsed(lastUsedAt: string | null, t: TFunction): string {
+  if (!lastUsedAt) return t('credentials.neverUsed')
   const date = new Date(lastUsedAt)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  if (diff < 0) return '刚刚'
+  if (diff < 0) return t('credentials.justNow')
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return `${seconds} 秒前`
+  if (seconds < 60) return t('credentials.secondsAgo', { count: seconds })
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 60) return t('credentials.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('credentials.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `${days} 天前`
+  return t('credentials.daysAgo', { count: days })
 }
 
 type HealthStatus = CredentialStatusItem['healthStatus']
 
-const HEALTH_CONFIG: Record<HealthStatus, { label: string; className: string; dotClass: string }> = {
-  healthy:   { label: '健康',   className: 'bg-green-100 text-green-700 border-green-300 dark:bg-neon-green/10 dark:text-neon-green dark:border-neon-green/30',     dotClass: 'bg-green-400' },
-  warning:   { label: '警告',   className: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-neon-yellow/10 dark:text-neon-yellow dark:border-neon-yellow/30', dotClass: 'bg-yellow-400' },
-  degraded:  { label: '降级',   className: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30', dotClass: 'bg-orange-400' },
-  unhealthy: { label: '不健康', className: 'bg-red-100 text-red-700 border-red-300 dark:bg-neon-red/10 dark:text-neon-red dark:border-neon-red/30',          dotClass: 'bg-red-400' },
-  disabled:  { label: '已禁用', className: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/30',       dotClass: 'bg-gray-400' },
+const HEALTH_CONFIG: Record<HealthStatus, { labelKey: string; className: string; dotClass: string }> = {
+  healthy:   { labelKey: 'credentials.healthHealthy',   className: 'bg-green-100 text-green-700 border-green-300 dark:bg-neon-green/10 dark:text-neon-green dark:border-neon-green/30',     dotClass: 'bg-green-400' },
+  warning:   { labelKey: 'credentials.healthWarning',   className: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-neon-yellow/10 dark:text-neon-yellow dark:border-neon-yellow/30', dotClass: 'bg-yellow-400' },
+  degraded:  { labelKey: 'credentials.healthDegraded',  className: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30', dotClass: 'bg-orange-400' },
+  unhealthy: { labelKey: 'credentials.healthUnhealthy', className: 'bg-red-100 text-red-700 border-red-300 dark:bg-neon-red/10 dark:text-neon-red dark:border-neon-red/30',          dotClass: 'bg-red-400' },
+  disabled:  { labelKey: 'credentials.healthDisabled',  className: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/30',       dotClass: 'bg-gray-400' },
 }
 
 function HealthBadge({ status }: { status: HealthStatus }) {
+  const { t } = useTranslation()
   const cfg = HEALTH_CONFIG[status] ?? HEALTH_CONFIG.disabled
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   )
 }
@@ -87,6 +90,7 @@ export function CredentialCard({
   loadingBalance,
   rpm = 0,
 }: CredentialCardProps) {
+  const { t } = useTranslation()
   const [editingPriority, setEditingPriority] = useState(false)
   const [priorityValue, setPriorityValue] = useState(String(credential.priority))
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -102,7 +106,7 @@ export function CredentialCard({
       { id: credential.id, disabled: !credential.disabled },
       {
         onSuccess: (res) => toast.success(res.message),
-        onError: (err) => toast.error('操作失败: ' + (err as Error).message),
+        onError: (err) => toast.error(t('credentials.toastOpFailed', { message: (err as Error).message })),
       }
     )
   }
@@ -110,7 +114,7 @@ export function CredentialCard({
   const handlePriorityChange = () => {
     const newPriority = parseInt(priorityValue, 10)
     if (isNaN(newPriority) || newPriority < 0) {
-      toast.error('优先级必须是非负整数')
+      toast.error(t('credentials.toastPriorityInvalid'))
       return
     }
     setPriority.mutate(
@@ -120,7 +124,7 @@ export function CredentialCard({
           toast.success(res.message)
           setEditingPriority(false)
         },
-        onError: (err) => toast.error('操作失败: ' + (err as Error).message),
+        onError: (err) => toast.error(t('credentials.toastOpFailed', { message: (err as Error).message })),
       }
     )
   }
@@ -128,13 +132,13 @@ export function CredentialCard({
   const handleReset = () => {
     resetFailure.mutate(credential.id, {
       onSuccess: (res) => toast.success(res.message),
-      onError: (err) => toast.error('操作失败: ' + (err as Error).message),
+      onError: (err) => toast.error(t('credentials.toastOpFailed', { message: (err as Error).message })),
     })
   }
 
   const handleDelete = () => {
     if (!credential.disabled) {
-      toast.error('请先禁用账号再删除')
+      toast.error(t('credentials.toastDisableFirst'))
       setShowDeleteDialog(false)
       return
     }
@@ -143,7 +147,7 @@ export function CredentialCard({
         toast.success(res.message)
         setShowDeleteDialog(false)
       },
-      onError: (err) => toast.error('删除失败: ' + (err as Error).message),
+      onError: (err) => toast.error(t('credentials.toastDeleteFailed', { message: (err as Error).message })),
     })
   }
 
@@ -166,18 +170,18 @@ export function CredentialCard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <code className="text-xs text-muted-foreground font-mono">#{String(credential.id).padStart(3, '0')}</code>
                   <span className="font-medium truncate">
-                    {credential.nickname || `账号 #${credential.id}`}
+                    {credential.nickname || t('credentials.accountFallbackName', { id: credential.id })}
                   </span>
                   <HealthBadge status={credential.healthStatus} />
-                  {credential.disabled && <Badge variant="destructive">已禁用</Badge>}
+                  {credential.disabled && <Badge variant="destructive">{t('credentials.healthDisabled')}</Badge>}
                 </div>
 
                 {/* 行2：账号 + 最后调用 */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                   {credential.email && <span>{credential.email}</span>}
-                  <span>调用：{formatLastUsed(credential.lastUsedAt)}</span>
+                  <span>{t('credentials.lastCallLabel', { time: formatLastUsed(credential.lastUsedAt, t) })}</span>
                   {credential.hasProxy && credential.proxyUrl && (
-                    <span className="text-blue-500 truncate max-w-[200px]">代理：{credential.proxyUrl}</span>
+                    <span className="text-blue-500 truncate max-w-[200px]">{t('credentials.proxyLabel', { url: credential.proxyUrl })}</span>
                   )}
                   {credential.hasProfileArn && (
                     <Badge variant="secondary" className="text-xs h-4">Profile ARN</Badge>
@@ -187,7 +191,7 @@ export function CredentialCard({
                 {/* 行3：数值统计 */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs">
                   <span className="text-muted-foreground flex items-center gap-1">
-                    优先级：
+                    {t('credentials.priorityLabel')}
                     {editingPriority ? (
                       <span className="inline-flex items-center gap-1">
                         <Input
@@ -217,30 +221,30 @@ export function CredentialCard({
                   <span
                     className={`cursor-pointer hover:underline ${credential.failureCount > 0 ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}
                     onClick={() => onViewFailureLog(credential.id)}
-                    title="查看失败日志"
+                    title={t('credentials.viewFailureLog')}
                   >
-                    失败：{credential.failureCount}
+                    {t('credentials.failureLabel', { count: credential.failureCount })}
                   </span>
-                  <span className="text-muted-foreground">成功：{credential.successCount}</span>
+                  <span className="text-muted-foreground">{t('credentials.successLabel', { count: credential.successCount })}</span>
                   <span
                     className={`cursor-pointer hover:underline ${credential.throttleCount > 0 ? 'text-orange-500 font-medium' : 'text-muted-foreground'}`}
                     onClick={() => onViewThrottleLog(credential.id)}
-                    title="查看限流日志"
+                    title={t('credentials.viewThrottleLog')}
                   >
-                    限流(7天)：{credential.throttleCount}
+                    {t('credentials.throttleLabel', { count: credential.throttleCount })}
                   </span>
                   <span className="text-blue-600 dark:text-blue-400 font-medium">RPM {rpm}</span>
                   <span className="text-muted-foreground">
-                    剩余：
+                    {t('credentials.remainingLabel')}
                     {loadingBalance ? (
                       <Loader2 className="inline w-3 h-3 animate-spin ml-1" />
                     ) : balance ? (
                       <span className={`font-medium ${(100 - balance.usagePercentage) >= 50 ? 'text-green-600' : (100 - balance.usagePercentage) >= 20 ? 'text-yellow-500' : 'text-red-500'}`}>
                         {balance.remaining.toFixed(1)}/{balance.usageLimit.toFixed(1)}
-                        <span className="ml-1">({(100 - balance.usagePercentage).toFixed(0)}%剩)</span>
+                        <span className="ml-1">{t('credentials.remainingPercent', { percent: (100 - balance.usagePercentage).toFixed(0) })}</span>
                       </span>
                     ) : (
-                      <span>未知</span>
+                      <span>{t('credentials.unknown')}</span>
                     )}
                   </span>
                   {balance?.subscriptionTitle && (
@@ -263,7 +267,7 @@ export function CredentialCard({
                 variant="ghost" size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => onViewBalance(credential.id)}
-                title="查看余额"
+                title={t('credentials.viewBalance')}
               >
                 <Wallet className="h-4 w-4" />
               </Button>
@@ -271,7 +275,7 @@ export function CredentialCard({
                 variant="ghost" size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => onViewDetail(credential.id)}
-                title="查看日志"
+                title={t('credentials.viewLog')}
               >
                 <FileText className="h-4 w-4" />
               </Button>
@@ -279,7 +283,7 @@ export function CredentialCard({
                 variant="ghost" size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => setShowEditDialog(true)}
-                title="编辑"
+                title={t('common.edit')}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -288,7 +292,7 @@ export function CredentialCard({
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                 onClick={handleReset}
                 disabled={resetFailure.isPending || credential.failureCount === 0}
-                title="重置失败计数"
+                title={t('credentials.resetFailureCount')}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -297,7 +301,7 @@ export function CredentialCard({
                 className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={!credential.disabled}
-                title={!credential.disabled ? '需要先禁用账号才能删除' : '删除'}
+                title={!credential.disabled ? t('credentials.deleteNeedsDisableTitle') : t('common.delete')}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -309,17 +313,17 @@ export function CredentialCard({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>确认删除账号</DialogTitle>
+            <DialogTitle>{t('credentials.confirmDeleteTitle')}</DialogTitle>
             <DialogDescription>
-              您确定要删除账号 #{credential.id} 吗？此操作无法撤销。
+              {t('credentials.confirmDeleteDesc', { id: credential.id })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteCredential.isPending}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteCredential.isPending || !credential.disabled}>
-              确认删除
+              {t('credentials.confirmDeleteButton')}
             </Button>
           </DialogFooter>
         </DialogContent>

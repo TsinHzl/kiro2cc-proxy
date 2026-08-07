@@ -57,6 +57,29 @@ fn fallback_model_to_admin_item(
     }
 }
 
+/// 按模型家族（`owned_by`，即"提供方"）对模型列表做稳定分组
+///
+/// 家族内部相对顺序、以及各家族首次出现的先后顺序均保持不变，
+/// 仅消除不同家族条目相互穿插的情况（如 anthropic 模型中间夹杂 openai 模型）。
+fn group_models_by_family(
+    items: Vec<super::types::AdminModelItem>,
+) -> Vec<super::types::AdminModelItem> {
+    let mut family_order: Vec<String> = Vec::new();
+    for item in &items {
+        if !family_order.contains(&item.model.owned_by) {
+            family_order.push(item.model.owned_by.clone());
+        }
+    }
+    let mut items = items;
+    items.sort_by_key(|item| {
+        family_order
+            .iter()
+            .position(|f| f == &item.model.owned_by)
+            .unwrap_or(usize::MAX)
+    });
+    items
+}
+
 /// Admin 服务
 ///
 /// 封装所有 Admin API 的业务逻辑
@@ -230,7 +253,7 @@ impl AdminService {
     /// 每次实时调用，不做缓存；上游调用失败（无可用账号、网络错误、非 2xx、
     /// 反序列化失败）时记录日志并回退到本地静态模型表（`rate_multiplier` 全为 `None`）。
     pub async fn list_admin_models(&self) -> Vec<super::types::AdminModelItem> {
-        match self.token_manager.list_available_models().await {
+        let items = match self.token_manager.list_available_models().await {
             Ok(resp) => resp.models.iter().map(live_model_to_admin_item).collect(),
             Err(e) => {
                 tracing::warn!("获取实时支持模型列表失败，回退到本地静态模型表: {}", e);
@@ -239,7 +262,8 @@ impl AdminService {
                     .map(fallback_model_to_admin_item)
                     .collect()
             }
-        }
+        };
+        group_models_by_family(items)
     }
 
     /// 添加新账号
@@ -546,6 +570,7 @@ impl AdminService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::admin::types::AdminModelItem;
     use crate::anthropic::types::Model;
     use crate::kiro::model::available_models::{
         AvailableModelInfo, AvailableModelsResponse, TokenLimits,
@@ -610,6 +635,50 @@ mod tests {
         let item = fallback_model_to_admin_item(model);
         assert_eq!(item.model.id, expected_id);
         assert_eq!(item.rate_multiplier, None);
+    }
+
+    #[test]
+    fn test_group_models_by_family_keeps_family_contiguous() {
+        fn item(id: &str, owned_by: &str) -> AdminModelItem {
+            AdminModelItem {
+                model: Model {
+                    id: id.to_string(),
+                    object: "model".to_string(),
+                    created: 0,
+                    owned_by: owned_by.to_string(),
+                    display_name: id.to_string(),
+                    model_type: "chat".to_string(),
+                    max_tokens: 64_000,
+                },
+                rate_multiplier: None,
+            }
+        }
+
+        let items = vec![
+            item("auto", "kiro"),
+            item("claude-opus-5", "anthropic"),
+            item("claude-sonnet-5", "anthropic"),
+            item("gpt-5.6-sol", "openai"),
+            item("gpt-5.6-terra", "openai"),
+            item("claude-opus-4.7", "anthropic"),
+            item("deepseek-3.2", "deepseek"),
+        ];
+
+        let sorted = group_models_by_family(items);
+        let ids: Vec<&str> = sorted.iter().map(|i| i.model.id.as_str()).collect();
+
+        assert_eq!(
+            ids,
+            vec![
+                "auto",
+                "claude-opus-5",
+                "claude-sonnet-5",
+                "claude-opus-4.7",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "deepseek-3.2",
+            ]
+        );
     }
 
     /// 基于真实抓包响应体结构构造的 JSON 字面量（字段名/嵌套与

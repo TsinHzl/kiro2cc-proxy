@@ -1,0 +1,45 @@
+admin-ui/src/components/credential-detail-page.tsx
+  f5547ab0d7f12aa8 10,118-119,187-188,243,261-264
+admin-ui/src/components/api-key-detail-page.tsx
+  f5547ab0d7f12aa8 10,101,109,153-154,209,227-230
+admin-ui/src/components/throttle-log-page.tsx
+  f5547ab0d7f12aa8 10,35,109,119
+admin-ui/src/components/model-list-page.tsx
+  f5547ab0d7f12aa8 70
+admin-ui/src/components/failure-log-page.tsx
+  f5547ab0d7f12aa8 10,35,109,119
+admin-ui/src/components/balance-dialog.tsx
+  f5547ab0d7f12aa8 12,26,30
+admin-ui/src/i18n/locales/en.json
+  f5547ab0d7f12aa8 405
+openspec/archive/2026-08-07-admin-global-i18n/tasks.md
+  f5547ab0d7f12aa8 37-42
+admin-ui/src/components/api-keys-panel.tsx
+  f5547ab0d7f12aa8 24,283,542,560,826
+admin-ui/src/components/settings-panel.tsx
+  f5547ab0d7f12aa8 135,143
+admin-ui/src/i18n/locales/zh.json
+  f5547ab0d7f12aa8 405
+admin-ui/src/lib/locale.ts
+  f5547ab0d7f12aa8 7-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ddbbdbbe6d17c6829aaf2321a5985ef7564eebfb",
+  "prompts": {
+    "f5547ab0d7f12aa8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e01ade3d-f5ba-4879-8723-ef0ea67b3a28",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 58,
+      "total_deletions": 83,
+      "accepted_lines": 58,
+      "overriden_lines": 0
+    }
+  }
+}

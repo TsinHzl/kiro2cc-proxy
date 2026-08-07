@@ -178,6 +178,30 @@ export interface ModelsResponse {
   data: ModelItem[]
 }
 
+// 更新日志（字段名与后端 AdminReleaseNote 结构体保持一致，非 camelCase）
+export interface BilingualText {
+  zh: string
+  en: string
+}
+
+export interface ReleaseNoteGroup {
+  title_zh: string
+  title_en: string
+  items: BilingualText[]
+}
+
+export interface ReleaseNote {
+  version: string
+  date: string
+  is_latest: boolean
+  groups: ReleaseNoteGroup[]
+}
+
+export interface ReleaseNotesResponse {
+  object: string
+  data: ReleaseNote[]
+}
+
 // RPM 实时监控
 export interface RpmSnapshot {
   global: number

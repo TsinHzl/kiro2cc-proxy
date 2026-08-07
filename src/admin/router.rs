@@ -13,6 +13,7 @@ use super::{
         get_daily_usage_records, get_failure_logs, get_key_usage, get_key_usage_records, get_rpm,
         get_server_info, get_throttle_logs, list_api_keys, reset_key_usage, update_api_key,
     },
+    changelog::get_changelog,
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_auth_keys,
         get_credential_balance, get_geo_batch, get_load_balancing_mode, reset_failure_count,
@@ -64,6 +65,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
         )
         .route("/api-keys/{id}/usage/records", get(get_key_usage_records))
         .route("/models", get(get_admin_models))
+        .route("/changelog", get(get_changelog))
         .route("/rpm", get(get_rpm))
         .route("/usage/daily", get(get_daily_usage))
         .route("/usage/daily/{date}/records", get(get_daily_usage_records))

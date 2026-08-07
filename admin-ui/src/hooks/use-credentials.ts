@@ -29,6 +29,7 @@ import {
   getThrottleLogs,
   getFailureLogs,
   getModels,
+  getChangelog,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
@@ -294,6 +295,15 @@ export function useModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: getModels,
+  })
+}
+
+// ============ 更新日志 Hooks ============
+
+export function useChangelog() {
+  return useQuery({
+    queryKey: ['changelog'],
+    queryFn: getChangelog,
   })
 }
 

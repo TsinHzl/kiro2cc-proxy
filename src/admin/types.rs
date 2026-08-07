@@ -424,3 +424,40 @@ pub struct AdminModelsResponse {
     pub object: String,
     pub data: Vec<AdminModelItem>,
 }
+
+// ============ 更新日志 ============
+
+/// 中英双语文案
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminBilingualText {
+    pub zh: String,
+    pub en: String,
+}
+
+/// 更新日志分类分组
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminReleaseNoteGroup {
+    pub title_zh: String,
+    pub title_en: String,
+    pub items: Vec<AdminBilingualText>,
+}
+
+/// 单个版本的更新日志条目
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminReleaseNote {
+    pub version: String,
+    pub date: String,
+    pub is_latest: bool,
+    pub groups: Vec<AdminReleaseNoteGroup>,
+}
+
+/// 更新日志列表响应
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct AdminReleaseNotesResponse {
+    pub object: String,
+    pub data: Vec<AdminReleaseNote>,
+}

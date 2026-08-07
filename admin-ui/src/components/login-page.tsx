@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { KeyRound } from 'lucide-react'
 import { storage } from '@/lib/storage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +12,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
+  const { t } = useTranslation()
   const [apiKey, setApiKey] = useState('')
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
           <CardTitle className="text-2xl">Kiro2CCProxy Admin</CardTitle>
           <CardDescription>
-            请输入 Admin Password 以访问管理面板
+            {t('login.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -53,7 +55,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               />
             </div>
             <Button type="submit" className="w-full" disabled={!apiKey.trim()}>
-              登录
+              {t('login.loginButton')}
             </Button>
           </form>
         </CardContent>

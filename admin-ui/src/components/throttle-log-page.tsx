@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +23,7 @@ function formatDate(dateStr: string): string {
 const PAGE_SIZE = 50
 
 export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) {
+  const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const [selectedBody, setSelectedBody] = useState<string | null>(null)
 
@@ -36,15 +38,15 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" />
-          返回
+          {t('credentials.back')}
         </Button>
         {credential && (
           <div className="flex items-center gap-2 flex-wrap">
             <code className="text-xs text-muted-foreground font-mono">#{credential.id}</code>
-            <span className="font-semibold">{credential.nickname || credential.email || `账号 #${credential.id}`}</span>
+            <span className="font-semibold">{credential.nickname || credential.email || t('credentials.accountFallbackName', { id: credential.id })}</span>
             <Badge variant="secondary" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
-              限流日志
+              {t('logs.throttleLogBadge')}
             </Badge>
           </div>
         )}
@@ -56,7 +58,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
-              总限流次数
+              {t('logs.totalThrottleCount')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -67,22 +69,22 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">最近 7 天计数</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('logs.last7DaysCount')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {credential?.throttleCount ?? 0}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">与账号卡片一致；上限 500 条 FIFO（FIFO 淘汰前仍在 7 天内的事件会被计入）</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t('logs.throttleCountHint')}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">记录上限</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('logs.recordLimitLabel')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">500</div>
-            <div className="text-xs text-muted-foreground mt-0.5">超出淘汰最旧记录</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{t('logs.limitExceededHint')}</div>
           </CardContent>
         </Card>
       </div>
@@ -91,8 +93,8 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-muted-foreground">
-            限流事件
-            {logsData && <span className="ml-1">（共 {logsData.total} 条）</span>}
+            {t('logs.throttleEventsTitle')}
+            {logsData && <span className="ml-1">{t('common.totalCountSuffix', { count: logsData.total })}</span>}
           </h3>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -102,18 +104,18 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">加载中...</div>
+              <div className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</div>
             ) : !logsData || logsData.records.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">暂无限流记录</div>
+              <div className="py-8 text-center text-muted-foreground text-sm">{t('logs.emptyNoThrottleRecords')}</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">时间</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">请求类型</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">状态码</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">响应摘要</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('credentials.colTime')}</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colRequestType')}</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colStatusCode')}</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colResponseSummary')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -154,10 +156,10 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
             >
-              上一页
+              {t('common.prevPage')}
             </Button>
             <span className="text-sm text-muted-foreground">
-              第 {page} / {logsData.totalPages} 页
+              {t('common.pageInfoSimple', { current: page, total: logsData.totalPages })}
             </span>
             <Button
               variant="outline"
@@ -165,7 +167,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
               onClick={() => setPage((p) => Math.min(logsData.totalPages, p + 1))}
               disabled={page === logsData.totalPages}
             >
-              下一页
+              {t('common.nextPage')}
             </Button>
           </div>
         )}
@@ -174,7 +176,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
       <Dialog open={selectedBody !== null} onOpenChange={(open) => { if (!open) setSelectedBody(null) }}>
         <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>完整响应内容</DialogTitle>
+            <DialogTitle>{t('logs.fullResponseTitle')}</DialogTitle>
           </DialogHeader>
           <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-y-auto flex-1 bg-muted/50 rounded p-3">
             {selectedBody}

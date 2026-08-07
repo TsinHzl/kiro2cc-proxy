@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import type { DailySummary } from '@/types/api'
 
@@ -34,6 +35,7 @@ function formatAxisValue(value: number): string {
 }
 
 export function DailyCreditsTrendChart({ data }: DailyCreditsTrendChartProps) {
+  const { t } = useTranslation()
   const points = useMemo(() => {
     const byDate = new Map(data.map((d) => [d.date, d.totalCredits]))
     return Array.from({ length: DAYS }, (_, i) => {
@@ -67,7 +69,7 @@ export function DailyCreditsTrendChart({ data }: DailyCreditsTrendChartProps) {
   return (
     <Card>
       <CardContent className="pt-4">
-        <div className="text-sm font-medium mb-2">Credits 使用趋势（最近 14 天）</div>
+        <div className="text-sm font-medium mb-2">{t('dailyStats.trendTitle')}</div>
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full">
           <defs>
             <linearGradient id="dailyCreditsAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -132,7 +134,7 @@ export function DailyCreditsTrendChart({ data }: DailyCreditsTrendChartProps) {
 
         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
           <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
-          Credits 用量
+          {t('dailyStats.creditsUsageLegend')}
         </div>
       </CardContent>
     </Card>

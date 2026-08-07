@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -38,6 +39,7 @@ function getProviderRateRanges(models: ModelItem[]): Record<string, { min: numbe
 }
 
 export function ModelListPage() {
+  const { t } = useTranslation()
   const { data, isLoading, refetch } = useModels()
   const models = data?.data ?? []
   const providerRateRanges = useMemo(() => getProviderRateRanges(models), [models])
@@ -45,7 +47,7 @@ export function ModelListPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h2 className="text-xl font-semibold">支持模型</h2>
+        <h2 className="text-xl font-semibold">{t('models.pageTitle')}</h2>
         <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading} className="ml-auto">
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
@@ -54,19 +56,19 @@ export function ModelListPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">加载中...</div>
+            <div className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</div>
           ) : models.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">暂无可用模型</div>
+            <div className="py-8 text-center text-muted-foreground text-sm">{t('models.emptyNoModels')}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">模型 ID</th>
-                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">显示名称</th>
-                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">提供方</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colModelId')}</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colDisplayName')}</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colProvider')}</th>
                     <th className="text-right px-4 py-2 font-medium text-muted-foreground">Max Tokens</th>
-                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">费率倍率</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('models.colRateMultiplier')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -89,10 +91,10 @@ export function ModelListPage() {
                       <td className="px-4 py-2 text-right tabular-nums">
                         {model.rate_multiplier != null ? `${model.rate_multiplier.toFixed(2)}x` : '—'}
                         {isCheapest && (
-                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-500/15 text-green-600 dark:text-green-400">最低</span>
+                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-green-500/15 text-green-600 dark:text-green-400">{t('models.cheapestBadge')}</span>
                         )}
                         {isMostExpensive && (
-                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-red-500/15 text-red-600 dark:text-red-400">最高</span>
+                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-red-500/15 text-red-600 dark:text-red-400">{t('models.mostExpensiveBadge')}</span>
                         )}
                       </td>
                     </tr>

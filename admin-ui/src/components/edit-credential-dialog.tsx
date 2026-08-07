@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ interface EditCredentialDialogProps {
 }
 
 export function EditCredentialDialog({ open, onOpenChange, credential }: EditCredentialDialogProps) {
+  const { t } = useTranslation()
   const [authRegion, setAuthRegion] = useState('')
   const [apiRegion, setApiRegion] = useState('')
   const [nickname, setNickname] = useState('')
@@ -70,7 +72,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (proxyPassword !== '') data.proxyPassword = proxyPassword
 
     if (Object.keys(data).length === 0) {
-      toast.info('没有需要更新的字段')
+      toast.info(t('credentials.toastNoFieldsToUpdate'))
       return
     }
 
@@ -82,7 +84,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
           onOpenChange(false)
         },
         onError: (error: unknown) => {
-          toast.error(`更新失败: ${extractErrorMessage(error)}`)
+          toast.error(t('credentials.toastUpdateFailed', { message: extractErrorMessage(error) }))
         },
       }
     )
@@ -94,20 +96,20 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>编辑账号 #{credential.id}</DialogTitle>
+          <DialogTitle>{t('credentials.editDialogTitle', { id: credential.id })}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
           <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
             <p className="text-xs text-muted-foreground">
-              只填写需要修改的字段，留空的字段不会被更改。
+              {t('credentials.editHintOnlyChanged')}
             </p>
 
             {/* 昵称 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">昵称</label>
+              <label className="text-sm font-medium">{t('credentials.nicknameLabel')}</label>
               <Input
-                placeholder="显示名称（用于卡片标题）"
+                placeholder={t('credentials.nicknamePlaceholder')}
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 disabled={isPending}
@@ -116,9 +118,9 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
 
             {/* 用户名/邮箱 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">用户名 / 邮箱</label>
+              <label className="text-sm font-medium">{t('credentials.emailLabel')}</label>
               <Input
-                placeholder="账号邮箱（用于标识账号）"
+                placeholder={t('credentials.emailPlaceholderEdit')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}
@@ -127,23 +129,23 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
 
             {/* Region 配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Region 配置</label>
+              <label className="text-sm font-medium">{t('credentials.regionConfigLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <Input
-                  placeholder="Auth Region"
+                  placeholder={t('credentials.authRegionPlaceholder')}
                   value={authRegion}
                   onChange={(e) => setAuthRegion(e.target.value)}
                   disabled={isPending}
                 />
                 <Input
-                  placeholder="API Region"
+                  placeholder={t('credentials.apiRegionPlaceholder')}
                   value={apiRegion}
                   onChange={(e) => setApiRegion(e.target.value)}
                   disabled={isPending}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Auth Region 用于 Token 刷新，API Region 用于 API 请求
+                {t('credentials.regionHintEdit')}
               </p>
             </div>
 
@@ -151,19 +153,19 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
             {isIdc && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Client ID</label>
+                  <label className="text-sm font-medium">{t('credentials.clientIdLabel')}</label>
                   <Input
-                    placeholder="留空不修改"
+                    placeholder={t('credentials.leaveBlankNoChange')}
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
                     disabled={isPending}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Client Secret</label>
+                  <label className="text-sm font-medium">{t('credentials.clientSecretLabel')}</label>
                   <Input
                     type="password"
-                    placeholder="留空不修改"
+                    placeholder={t('credentials.leaveBlankNoChange')}
                     value={clientSecret}
                     onChange={(e) => setClientSecret(e.target.value)}
                     disabled={isPending}
@@ -174,23 +176,23 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
 
             {/* Profile ARN */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Profile ARN</label>
+              <label className="text-sm font-medium">{t('credentials.profileArnLabel')}</label>
               <Input
-                placeholder={credential.hasProfileArn ? '已配置，留空不修改' : '留空不修改'}
+                placeholder={credential.hasProfileArn ? t('credentials.profileArnConfiguredPlaceholder') : t('credentials.leaveBlankNoChange')}
                 value={profileArn}
                 onChange={(e) => setProfileArn(e.target.value)}
                 disabled={isPending}
               />
               <p className="text-xs text-muted-foreground">
-                企业版 IdC 账号调用时通常必填，格式如 arn:aws:codewhisperer:&lt;region&gt;:&lt;account-id&gt;:profile/&lt;profile-id&gt;
+                {t('credentials.profileArnHintEdit')}
               </p>
             </div>
 
             {/* Machine ID */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Machine ID</label>
+              <label className="text-sm font-medium">{t('credentials.machineIdLabel')}</label>
               <Input
-                placeholder="留空不修改"
+                placeholder={t('credentials.leaveBlankNoChange')}
                 value={machineId}
                 onChange={(e) => setMachineId(e.target.value)}
                 disabled={isPending}
@@ -199,23 +201,23 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
 
             {/* 代理配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">代理配置</label>
+              <label className="text-sm font-medium">{t('credentials.proxyConfigLabel')}</label>
               <Input
-                placeholder='代理 URL（"direct" 不使用代理）'
+                placeholder={t('credentials.proxyUrlPlaceholderEdit')}
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
                 disabled={isPending}
               />
               <div className="grid grid-cols-2 gap-2">
                 <Input
-                  placeholder="代理用户名"
+                  placeholder={t('credentials.proxyUsernamePlaceholder')}
                   value={proxyUsername}
                   onChange={(e) => setProxyUsername(e.target.value)}
                   disabled={isPending}
                 />
                 <Input
                   type="password"
-                  placeholder="代理密码"
+                  placeholder={t('credentials.proxyPasswordPlaceholder')}
                   value={proxyPassword}
                   onChange={(e) => setProxyPassword(e.target.value)}
                   disabled={isPending}
@@ -231,10 +233,10 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              取消
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? '更新中...' : '保存'}
+              {isPending ? t('credentials.updatingButton') : t('common.save')}
             </Button>
           </DialogFooter>
         </form>

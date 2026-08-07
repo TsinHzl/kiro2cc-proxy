@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
+import { useTranslation } from 'react-i18next'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDailyUsage } from '@/hooks/use-credentials'
 import { DailyCreditsTrendChart } from '@/components/daily-credits-trend-chart'
+import { localeTag } from '@/lib/locale'
 
 interface DailyStatsPageProps {
   onBack: () => void
@@ -12,12 +14,13 @@ interface DailyStatsPageProps {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00+08:00').toLocaleDateString('zh-CN', {
+  return new Date(dateStr + 'T00:00:00+08:00').toLocaleDateString(localeTag(), {
     year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Shanghai',
   })
 }
 
 export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStatsPageProps) {
+  const { t } = useTranslation()
   const { data, isLoading, refetch } = useDailyUsage()
 
   return (
@@ -26,10 +29,10 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
         {showBack && (
           <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
             <ArrowLeft className="h-4 w-4" />
-            返回
+            {t('common.back')}
           </Button>
         )}
-        <h2 className="text-xl font-semibold">每日用量统计</h2>
+        <h2 className="text-xl font-semibold">{t('dailyStats.pageTitle')}</h2>
         <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading} className="ml-auto">
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
@@ -40,18 +43,18 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">加载中...</div>
+            <div className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</div>
           ) : !data || data.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">暂无用量记录</div>
+            <div className="py-8 text-center text-muted-foreground text-sm">{t('dailyStats.emptyNoRecords')}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">日期</th>
-                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">请求数</th>
-                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">费用 ($)</th>
-                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">Credits</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('dailyStats.colDate')}</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('dailyStats.colRequests')}</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('dailyStats.colCostUsd')}</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('dailyStats.colCredits')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -70,7 +73,7 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
                         <div>{row.totalCredits.toFixed(4)}</div>
                         {row.totalCreditsSaved != null && row.totalCreditsSaved > 0 && (
                           <div className="text-xs text-green-600 dark:text-green-400">
-                            省 {row.totalCreditsSaved.toFixed(4)}
+                            {t('common.savedPrefix', { amount: row.totalCreditsSaved.toFixed(4) })}
                           </div>
                         )}
                       </td>

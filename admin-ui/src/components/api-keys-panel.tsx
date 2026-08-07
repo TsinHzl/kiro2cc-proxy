@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2, Link2, Globe, ChevronDown, X, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +28,7 @@ interface ApiKeysPanelProps {
 }
 
 export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
+  const { t } = useTranslation()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<ApiKeyItem | null>(null)
   const [newName, setNewName] = useState('')
@@ -56,23 +58,25 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const editCredDropdownRef = useRef<HTMLDivElement>(null)
 
   const quickDurationOptions = [
-    { label: '1 小时', value: 1, unit: 'hours' as const },
-    { label: '3 小时', value: 3, unit: 'hours' as const },
-    { label: '6 小时', value: 6, unit: 'hours' as const },
-    { label: '12 小时', value: 12, unit: 'hours' as const },
-    { label: '1 天', value: 1, unit: 'days' as const },
-    { label: '3 天', value: 3, unit: 'days' as const },
-    { label: '7 天', value: 7, unit: 'days' as const },
+    { value: 1, unit: 'hours' as const },
+    { value: 3, unit: 'hours' as const },
+    { value: 6, unit: 'hours' as const },
+    { value: 12, unit: 'hours' as const },
+    { value: 1, unit: 'days' as const },
+    { value: 3, unit: 'days' as const },
+    { value: 7, unit: 'days' as const },
   ]
+
+  const unitLabel = (unit: 'days' | 'hours') => t(unit === 'hours' ? 'apiKeys.hoursUnit' : 'apiKeys.daysUnit')
 
   const toDays = (value: number, unit: 'days' | 'hours') => unit === 'hours' ? value / 24 : value
 
   const formatDuration = (days: number) => {
     if (days < 1) {
       const hours = Math.round(days * 24 * 100) / 100
-      return `${hours} 小时`
+      return `${hours} ${t('apiKeys.hoursUnit')}`
     }
-    return `${days} 天`
+    return `${days} ${t('apiKeys.daysUnit')}`
   }
 
   const { data: credentials } = useCredentials()
@@ -121,9 +125,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   }
 
   const handleResetUsage = (key: ApiKeyItem) => {
-    if (!confirm(`确定要重置 "${key.name}" 的用量记录吗？`)) return
+    if (!confirm(t('apiKeys.confirmResetUsage', { name: key.name }))) return
     resetUsage(key.id, {
-      onSuccess: () => toast.success('用量已重置'),
+      onSuccess: () => toast.success(t('apiKeys.toastUsageReset')),
       onError: (err) => toast.error(extractErrorMessage(err)),
     })
   }
@@ -156,7 +160,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     setPurgeDialogOpen(false)
     queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
     queryClient.invalidateQueries({ queryKey: ['apiKeyUsage'] })
-    toast.success(`已清除 ${deleted} 个无效 Key`)
+    toast.success(t('apiKeys.toastPurgeSuccess', { count: deleted }))
   }
 
   const copyToClipboard = async (text: string, target: 'url' | number) => {
@@ -168,7 +172,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       setCopiedId(target)
       setTimeout(() => setCopiedId(null), 2000)
     }
-    toast.success('已复制到剪贴板')
+    toast.success(t('apiKeys.toastCopiedToClipboard'))
   }
 
   const handleCreate = () => {
@@ -184,7 +188,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       },
       {
         onSuccess: () => {
-          toast.success('API Key 创建成功')
+          toast.success(t('apiKeys.toastCreateSuccess'))
           setCreateDialogOpen(false)
           setNewName('')
           setNewMode('quota')
@@ -194,7 +198,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           setNewLimitUnit('usd')
           setNewBoundCredentialIds([])
         },
-        onError: (err) => toast.error(`创建失败: ${extractErrorMessage(err)}`),
+        onError: (err) => toast.error(t('apiKeys.toastCreateFailed', { message: extractErrorMessage(err) })),
       }
     )
   }
@@ -226,10 +230,10 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       { id: editingKey.id, data },
       {
         onSuccess: () => {
-          toast.success('已更新')
+          toast.success(t('apiKeys.toastUpdated'))
           setEditingKey(null)
         },
-        onError: (err) => toast.error(`更新失败: ${extractErrorMessage(err)}`),
+        onError: (err) => toast.error(t('apiKeys.toastUpdateFailed', { message: extractErrorMessage(err) })),
       }
     )
   }
@@ -238,16 +242,16 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     updateKey(
       { id: key.id, data: { enabled: !key.enabled } },
       {
-        onSuccess: () => toast.success(key.enabled ? '已禁用' : '已启用'),
+        onSuccess: () => toast.success(key.enabled ? t('apiKeys.statusDisabled') : t('apiKeys.toastEnabled')),
         onError: (err) => toast.error(extractErrorMessage(err)),
       }
     )
   }
 
   const handleDelete = (key: ApiKeyItem) => {
-    if (!confirm(`确定要删除 "${key.name}" 的 API Key 吗？`)) return
+    if (!confirm(t('apiKeys.confirmDelete', { name: key.name }))) return
     deleteKey(key.id, {
-      onSuccess: () => toast.success('已删除'),
+      onSuccess: () => toast.success(t('apiKeys.toastDeleted')),
       onError: (err) => toast.error(extractErrorMessage(err)),
     })
   }
@@ -330,7 +334,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             <Key className="h-4 w-4" />
-            服务连接信息
+            {t('apiKeys.serviceInfo')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -361,7 +365,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">总数</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statTotal')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{all.length}</div>
@@ -369,7 +373,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">启用中</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statActiveLabel')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">{active}</div>
@@ -377,7 +381,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">待激活</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statPendingLabel')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-500">{pending}</div>
@@ -385,7 +389,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">已禁用</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statDisabledLabel')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">{disabled}</div>
@@ -393,7 +397,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">已过期</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statExpiredLabel')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-500">{expired}</div>
@@ -405,22 +409,22 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
 
       {/* API Key 列表 */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">API Key 管理</h2>
+        <h2 className="text-xl font-semibold">{t('apiKeys.pageTitle')}</h2>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
-            <Button size="sm" variant={sortBy === 'newest' ? 'default' : 'outline'} onClick={() => setSortBy('newest')}>最新</Button>
-            <Button size="sm" variant={sortBy === 'cost-desc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-desc')}>费用↓</Button>
-            <Button size="sm" variant={sortBy === 'cost-asc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-asc')}>费用↑</Button>
+            <Button size="sm" variant={sortBy === 'newest' ? 'default' : 'outline'} onClick={() => setSortBy('newest')}>{t('apiKeys.sortNewest')}</Button>
+            <Button size="sm" variant={sortBy === 'cost-desc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-desc')}>{t('apiKeys.sortCostDesc')}</Button>
+            <Button size="sm" variant={sortBy === 'cost-asc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-asc')}>{t('apiKeys.sortCostAsc')}</Button>
           </div>
           <Button onClick={() => { setNewName(generateUniqueSerial()); setCreateDialogOpen(true) }} size="sm">
             <Plus className="h-4 w-4 mr-2" />
-            创建 Key
+            {t('apiKeys.createButton')}
           </Button>
           {invalidKeys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setPurgeDialogOpen(true)}>
               <Trash2 className="h-4 w-4 mr-2" />
-              清除无效 ({invalidKeys.length})
+              {t('apiKeys.purgeButton', { count: invalidKeys.length })}
             </Button>
           )}
         </div>
@@ -428,7 +432,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="搜索编号或名称..."
+          placeholder={t('apiKeys.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9"
@@ -436,18 +440,18 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       </div>
       {isLoading ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">加载中...</CardContent>
+          <CardContent className="py-8 text-center text-muted-foreground">{t('common.loading')}</CardContent>
         </Card>
       ) : !apiKeys || apiKeys.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            暂无用户 API Key，点击"创建 Key"添加
+            {t('apiKeys.emptyNoKeys')}
           </CardContent>
         </Card>
       ) : filteredKeys.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            未找到匹配的 API Key
+            {t('apiKeys.emptyNoMatch')}
           </CardContent>
         </Card>
       ) : (() => {
@@ -478,7 +482,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                         <code className="text-xs text-muted-foreground font-mono">{formatSerial(apiKey.id)}</code>
                         <span className="font-medium truncate">{apiKey.name}</span>
                         <Badge variant={status === 'active' ? 'success' : status === 'pending' ? 'secondary' : status === 'expired' ? 'warning' : 'destructive'}>
-                          {status === 'active' ? '启用' : status === 'pending' ? '待激活' : status === 'expired' ? '已过期' : '已禁用'}
+                          {status === 'active' ? t('apiKeys.statusActive') : status === 'pending' ? t('apiKeys.statusPending') : status === 'expired' ? t('apiKeys.statusExpired') : t('apiKeys.statusDisabled')}
                         </Badge>
                         {isBound && apiKey.boundCredentialIds && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 px-2 py-0.5 text-xs font-medium">
@@ -488,7 +492,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                               const bal = credentialBalanceMap.get(id)
                               const label = cred?.email ?? `#${id}`
                               const balText = bal
-                                ? `${bal.remaining.toFixed(2)}/${bal.usageLimit.toFixed(2)} (${(100 - bal.usagePercentage).toFixed(0)}%剩)`
+                                ? t('apiKeys.boundBalanceCompact', { remaining: bal.remaining.toFixed(2), limit: bal.usageLimit.toFixed(2), percent: (100 - bal.usagePercentage).toFixed(0) })
                                 : null
                               return (
                                 <span key={id} className="inline-flex items-center gap-1">
@@ -504,41 +508,41 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
                         <code>{maskKey(apiKey.key)}</code>
-                        <span>创建: {formatDate(apiKey.createdAt)}</span>
+                        <span>{t('apiKeys.createdLabel', { date: formatDate(apiKey.createdAt) })}</span>
                         {apiKey.spendingLimit != null ? (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
                             {apiKey.limitUnit === 'credits'
-                              ? `额度: ${(usage?.totalCredits ?? 0).toFixed(2)} / ${apiKey.spendingLimit.toFixed(2)} credits`
-                              : `额度: $${(usage?.totalCost ?? 0).toFixed(2)} / $${apiKey.spendingLimit.toFixed(2)}`}
+                              ? t('apiKeys.quotaCreditsLabel', { used: (usage?.totalCredits ?? 0).toFixed(2), limit: apiKey.spendingLimit.toFixed(2) })
+                              : t('apiKeys.quotaUsdLabel', { used: (usage?.totalCost ?? 0).toFixed(2), limit: apiKey.spendingLimit.toFixed(2) })}
                           </span>
                         ) : apiKey.durationDays != null && !apiKey.activatedAt ? (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            有效期: {formatDuration(apiKey.durationDays)}（首次使用后激活）
+                            {t('apiKeys.validityPending', { duration: formatDuration(apiKey.durationDays) })}
                           </span>
                         ) : apiKey.durationDays != null && apiKey.expiresAt ? (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            到期: {formatDate(apiKey.expiresAt)}（{formatDuration(apiKey.durationDays)}）
+                            {t('apiKeys.expiresWithDuration', { date: formatDate(apiKey.expiresAt), duration: formatDuration(apiKey.durationDays) })}
                           </span>
                         ) : apiKey.expiresAt ? (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            到期: {formatDate(apiKey.expiresAt)}
+                            {t('apiKeys.expiresLabel', { date: formatDate(apiKey.expiresAt) })}
                           </span>
                         ) : null}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
                         <span className="flex items-center gap-1 text-muted-foreground">
                           <BarChart3 className="h-3 w-3" />
-                          {usage?.totalRequests ?? 0} 次请求
+                          {t('apiKeys.requestsCountSuffix', { count: usage?.totalRequests ?? 0 })}
                         </span>
                         <span className="text-blue-600 dark:text-blue-400 font-medium">
                           RPM {rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
                         </span>
                         <span className="text-muted-foreground">
-                          入 {formatTokens(usage?.totalInputTokens ?? 0)} / 出 {formatTokens(usage?.totalOutputTokens ?? 0)}
+                          {t('apiKeys.inOutTokens', { in: formatTokens(usage?.totalInputTokens ?? 0), out: formatTokens(usage?.totalOutputTokens ?? 0) })}
                         </span>
                         <span className="font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(usage?.totalCost ?? 0)}
@@ -549,7 +553,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                             size="sm"
                             className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                             onClick={() => handleResetUsage(apiKey)}
-                            title="重置用量"
+                            title={t('apiKeys.resetUsageTitle')}
                           >
                             <RotateCcw className="h-3 w-3" />
                           </Button>
@@ -563,17 +567,17 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
-                    <Button variant="ghost" size="sm" onClick={() => onViewDetail(apiKey)} title="查看日志">
+                    <Button variant="ghost" size="sm" onClick={() => onViewDetail(apiKey)} title={t('apiKeys.viewLogsTitle')}>
                       <FileText className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(`订单编号: ${apiKey.name}\nBase URL: ${window.location.origin}\nAPI Key: ${apiKey.key}`, apiKey.id)} title="复制 URL 和 Key">
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(t('apiKeys.copyContent', { name: apiKey.name, url: window.location.origin, key: apiKey.key }), apiKey.id)} title={t('apiKeys.copyUrlKeyTitle')}>
                       {copiedId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
                     <Switch checked={apiKey.enabled} onCheckedChange={() => handleToggleEnabled(apiKey)} />
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(apiKey)} title="编辑">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(apiKey)} title={t('apiKeys.editTitle')}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(apiKey)} title="删除" className="text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(apiKey)} title={t('common.delete')} className="text-destructive hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -589,7 +593,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-400">
                   <Link2 className="h-4 w-4" />
-                  绑定账号
+                  {t('apiKeys.boundAccountsLabel')}
                   <span className="text-xs font-normal text-muted-foreground">({boundKeys.length})</span>
                 </div>
                 <div className="grid gap-2">
@@ -601,7 +605,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Globe className="h-4 w-4" />
-                  全局策略
+                  {t('apiKeys.globalPolicyLabel')}
                   <span className="text-xs font-normal">({globalKeys.length})</span>
                 </div>
                 <div className="grid gap-2">
@@ -616,23 +620,23 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>创建 API Key</DialogTitle>
-            <DialogDescription>为用户创建一个新的 API Key</DialogDescription>
+            <DialogTitle>{t('apiKeys.createDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('apiKeys.createDialogDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">编号</label>
+              <label className="text-sm font-medium">{t('apiKeys.serialLabel')}</label>
               <Input
-                placeholder="4 位编号，如 0001"
+                placeholder={t('apiKeys.serialPlaceholder')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
               {nameConflict && (
-                <p className="text-xs text-destructive mt-1">该编号已存在，请更换</p>
+                <p className="text-xs text-destructive mt-1">{t('apiKeys.serialConflict')}</p>
               )}
             </div>
             <div>
-              <label className="text-sm font-medium">限制方式</label>
+              <label className="text-sm font-medium">{t('apiKeys.limitModeLabel')}</label>
               <div className="flex gap-2 mt-2">
                 <Button
                   type="button"
@@ -641,7 +645,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   onClick={() => setNewMode('date')}
                 >
                   <Clock className="h-3.5 w-3.5 mr-1.5" />
-                  按日期
+                  {t('apiKeys.byDateButton')}
                 </Button>
                 <Button
                   type="button"
@@ -650,23 +654,23 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   onClick={() => setNewMode('quota')}
                 >
                   <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-                  按额度
+                  {t('apiKeys.byQuotaButton')}
                 </Button>
               </div>
             </div>
             {newMode === 'date' ? (
               <div>
-                <label className="text-sm font-medium">有效期</label>
+                <label className="text-sm font-medium">{t('apiKeys.validityLabel')}</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {quickDurationOptions.map((opt) => (
                     <Button
-                      key={opt.label}
+                      key={`${opt.value}-${opt.unit}`}
                       type="button"
                       size="sm"
                       variant={newDuration === opt.value && newDurationUnit === opt.unit ? 'default' : 'outline'}
                       onClick={() => { setNewDuration(opt.value); setNewDurationUnit(opt.unit) }}
                     >
-                      {opt.label}
+                      {opt.value} {unitLabel(opt.unit)}
                     </Button>
                   ))}
                   <Button
@@ -675,7 +679,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                     variant={newDuration === null ? 'default' : 'outline'}
                     onClick={() => setNewDuration(null)}
                   >
-                    永不过期
+                    {t('apiKeys.neverExpires')}
                   </Button>
                 </div>
                 {newDuration !== null && (
@@ -688,25 +692,25 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       className="w-24"
                     />
                     <div className="flex gap-1">
-                      <Button type="button" size="sm" variant={newDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('hours')}>小时</Button>
-                      <Button type="button" size="sm" variant={newDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('days')}>天</Button>
+                      <Button type="button" size="sm" variant={newDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('hours')}>{t('apiKeys.hoursUnit')}</Button>
+                      <Button type="button" size="sm" variant={newDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('days')}>{t('apiKeys.daysUnit')}</Button>
                     </div>
                   </div>
                 )}
                 <div className="text-xs text-muted-foreground mt-2">
                   <Clock className="h-3 w-3 inline mr-1" />
-                  {newDuration !== null ? `首次使用后 ${newDuration} ${newDurationUnit === 'hours' ? '小时' : '天'}到期` : '永不过期'}
+                  {newDuration !== null ? t('apiKeys.activatesAfterFirstUse', { value: newDuration, unit: unitLabel(newDurationUnit) }) : t('apiKeys.neverExpires')}
                 </div>
               </div>
             ) : (
               <div>
-                <label className="text-sm font-medium">计量单位</label>
+                <label className="text-sm font-medium">{t('apiKeys.meteringUnitLabel')}</label>
                 <div className="flex gap-2 mt-2">
-                  <Button type="button" size="sm" variant={newLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('usd')}>美元估算</Button>
-                  <Button type="button" size="sm" variant={newLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('credits')}>真实 Credits</Button>
+                  <Button type="button" size="sm" variant={newLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('usd')}>{t('apiKeys.usdEstimate')}</Button>
+                  <Button type="button" size="sm" variant={newLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('credits')}>{t('apiKeys.realCredits')}</Button>
                 </div>
                 <label className="text-sm font-medium mt-3 block">
-                  额度上限（{newLimitUnit === 'credits' ? 'credits' : '美元'}）
+                  {t('apiKeys.quotaLimitLabel', { unit: newLimitUnit === 'credits' ? 'credits' : t('apiKeys.unitUsd') })}
                 </label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {(newLimitUnit === 'credits' ? [1000, 5000, 10000] : [100, 500, 1000]).map((amount) => (
@@ -723,7 +727,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-sm text-muted-foreground">
-                    自定义{newLimitUnit === 'credits' ? '' : ' $'}
+                    {newLimitUnit === 'credits' ? t('apiKeys.customCredits') : t('apiKeys.customUsd')}
                   </span>
                   <Input
                     type="text"
@@ -739,14 +743,14 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  累计用量达到 {newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}`} 后自动停用
+                  {t('apiKeys.quotaAutoStopHint', { amount: newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}` })}
                 </div>
               </div>
             )}
             {credentials && credentials.credentials && credentials.credentials.length > 0 && (
               <div>
-                <label className="text-sm font-medium">绑定账号</label>
-                <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
+                <label className="text-sm font-medium">{t('apiKeys.boundAccountsLabel')}</label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.bindAccountsHint')}</p>
                 <CredentialMultiSelect
                   credentials={credentials.credentials}
                   balanceMap={credentialBalanceMap}
@@ -762,9 +766,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={handleCreate} disabled={!newName.trim() || nameConflict || isCreating}>
-              {isCreating ? '创建中...' : '创建'}
+              {isCreating ? t('apiKeys.creatingButton') : t('apiKeys.createConfirmButton')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -774,19 +778,19 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       <Dialog open={!!editingKey} onOpenChange={(open) => !open && setEditingKey(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑 API Key</DialogTitle>
-            <DialogDescription>修改备注或续期</DialogDescription>
+            <DialogTitle>{t('apiKeys.editDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('apiKeys.editDialogDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">备注名称</label>
+              <label className="text-sm font-medium">{t('apiKeys.remarkNameLabel')}</label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">限制方式</label>
+              <label className="text-sm font-medium">{t('apiKeys.limitModeLabel')}</label>
               <div className="flex gap-2 mt-2">
                 <Button
                   type="button"
@@ -795,7 +799,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   onClick={() => setEditMode('date')}
                 >
                   <Clock className="h-3.5 w-3.5 mr-1.5" />
-                  按日期
+                  {t('apiKeys.byDateButton')}
                 </Button>
                 <Button
                   type="button"
@@ -804,37 +808,37 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   onClick={() => setEditMode('quota')}
                 >
                   <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-                  按额度
+                  {t('apiKeys.byQuotaButton')}
                 </Button>
               </div>
             </div>
             {editMode === 'date' ? (
               <div>
-                <label className="text-sm font-medium">续期时长</label>
+                <label className="text-sm font-medium">{t('apiKeys.renewDurationLabel')}</label>
                 {editingKey?.activatedAt ? (
                   <div className="text-xs text-muted-foreground mt-1">
-                    已激活: {formatDate(editingKey.activatedAt)}
-                    {editingKey.expiresAt && ` · 到期: ${formatDate(editingKey.expiresAt)}`}
+                    {t('apiKeys.activatedAtLabel', { date: formatDate(editingKey.activatedAt) })}
+                    {editingKey.expiresAt && t('apiKeys.expiresSuffix', { date: formatDate(editingKey.expiresAt) })}
                   </div>
                 ) : editingKey?.durationDays != null ? (
                   <div className="text-xs text-muted-foreground mt-1">
-                    待激活（{formatDuration(editingKey.durationDays)}）
+                    {t('apiKeys.pendingWithDuration', { duration: formatDuration(editingKey.durationDays) })}
                   </div>
                 ) : editingKey?.expiresAt && new Date(editingKey.expiresAt) > new Date() ? (
                   <div className="text-xs text-muted-foreground mt-1">
-                    当前到期: {new Date(editingKey.expiresAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    {t('apiKeys.currentExpiryLabel', { date: new Date(editingKey.expiresAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {quickDurationOptions.map((opt) => (
                     <Button
-                      key={opt.label}
+                      key={`${opt.value}-${opt.unit}`}
                       type="button"
                       size="sm"
                       variant={editDuration === opt.value && editDurationUnit === opt.unit ? 'default' : 'outline'}
                       onClick={() => { setEditDuration(opt.value); setEditDurationUnit(opt.unit) }}
                     >
-                      {opt.label}
+                      {opt.value} {unitLabel(opt.unit)}
                     </Button>
                   ))}
                   <Button
@@ -843,7 +847,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                     variant={editDuration === null ? 'default' : 'outline'}
                     onClick={() => setEditDuration(null)}
                   >
-                    永不过期
+                    {t('apiKeys.neverExpires')}
                   </Button>
                 </div>
                 {editDuration !== null && (
@@ -859,8 +863,8 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       className="w-24"
                     />
                     <div className="flex gap-1">
-                      <Button type="button" size="sm" variant={editDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('hours')}>小时</Button>
-                      <Button type="button" size="sm" variant={editDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('days')}>天</Button>
+                      <Button type="button" size="sm" variant={editDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('hours')}>{t('apiKeys.hoursUnit')}</Button>
+                      <Button type="button" size="sm" variant={editDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('days')}>{t('apiKeys.daysUnit')}</Button>
                     </div>
                   </div>
                 )}
@@ -868,20 +872,20 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   <Clock className="h-3 w-3 inline mr-1" />
                   {editDuration !== null && editDuration !== ''
                     ? (editingKey && getKeyStatus(editingKey) === 'active'
-                        ? `将在当前到期时间上续期 ${editDuration} ${editDurationUnit === 'hours' ? '小时' : '天'}`
-                        : `首次使用后 ${editDuration} ${editDurationUnit === 'hours' ? '小时' : '天'}到期`)
-                    : '永不过期'}
+                        ? t('apiKeys.renewOnCurrentExpiry', { value: editDuration, unit: unitLabel(editDurationUnit) })
+                        : t('apiKeys.activatesAfterFirstUse', { value: editDuration, unit: unitLabel(editDurationUnit) }))
+                    : t('apiKeys.neverExpires')}
                 </div>
               </div>
             ) : (
               <div>
-                <label className="text-sm font-medium">计量单位</label>
+                <label className="text-sm font-medium">{t('apiKeys.meteringUnitLabel')}</label>
                 <div className="flex gap-2 mt-2">
-                  <Button type="button" size="sm" variant={editLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('usd')}>美元估算</Button>
-                  <Button type="button" size="sm" variant={editLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('credits')}>真实 Credits</Button>
+                  <Button type="button" size="sm" variant={editLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('usd')}>{t('apiKeys.usdEstimate')}</Button>
+                  <Button type="button" size="sm" variant={editLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('credits')}>{t('apiKeys.realCredits')}</Button>
                 </div>
                 <label className="text-sm font-medium mt-3 block">
-                  额度上限（{editLimitUnit === 'credits' ? 'credits' : '美元'}）
+                  {t('apiKeys.quotaLimitLabel', { unit: editLimitUnit === 'credits' ? 'credits' : t('apiKeys.unitUsd') })}
                 </label>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-sm text-muted-foreground">{editLimitUnit === 'credits' ? '' : '$'}</span>
@@ -896,14 +900,14 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 </div>
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  累计用量达到 {editLimitUnit === 'credits' ? `${editSpendingLimit} credits` : `$${editSpendingLimit}`} 后自动停用
+                  {t('apiKeys.quotaAutoStopHint', { amount: editLimitUnit === 'credits' ? `${editSpendingLimit} credits` : `$${editSpendingLimit}` })}
                 </div>
               </div>
             )}
             {credentials && credentials.credentials && credentials.credentials.length > 0 && (
               <div>
-                <label className="text-sm font-medium">绑定账号</label>
-                <p className="text-xs text-muted-foreground mt-0.5">不选则使用全局策略</p>
+                <label className="text-sm font-medium">{t('apiKeys.boundAccountsLabel')}</label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.bindAccountsHint')}</p>
                 <CredentialMultiSelect
                   credentials={credentials.credentials}
                   balanceMap={credentialBalanceMap}
@@ -919,8 +923,8 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingKey(null)}>取消</Button>
-            <Button onClick={handleUpdate}>保存</Button>
+            <Button variant="outline" onClick={() => setEditingKey(null)}>{t('common.cancel')}</Button>
+            <Button onClick={handleUpdate}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -929,9 +933,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       <Dialog open={purgeDialogOpen} onOpenChange={(open) => !purging && setPurgeDialogOpen(open)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>清除无效 API Key</DialogTitle>
+            <DialogTitle>{t('apiKeys.purgeDialogTitle')}</DialogTitle>
             <DialogDescription>
-              将删除以下 {invalidKeys.length} 个已禁用或已过期的 Key，此操作不可撤销。
+              {t('apiKeys.purgeDialogDesc', { count: invalidKeys.length })}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-60 overflow-y-auto space-y-1 text-sm">
@@ -942,15 +946,15 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   {k.name}
                 </span>
                 <Badge variant={getKeyStatus(k) === 'disabled' ? 'destructive' : 'warning'} className="text-xs">
-                  {getKeyStatus(k) === 'disabled' ? '已禁用' : '已过期'}
+                  {getKeyStatus(k) === 'disabled' ? t('apiKeys.statusDisabled') : t('apiKeys.statusExpired')}
                 </Badge>
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)} disabled={purging}>取消</Button>
+            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)} disabled={purging}>{t('common.cancel')}</Button>
             <Button variant="destructive" onClick={handlePurge} disabled={purging}>
-              {purging ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />清除中...</> : `确认清除 (${invalidKeys.length})`}
+              {purging ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('apiKeys.purgingButton')}</> : t('apiKeys.confirmPurgeButton', { count: invalidKeys.length })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -982,6 +986,7 @@ function CredentialMultiSelect({
   searchQuery,
   onSearchChange,
 }: CredentialMultiSelectProps) {
+  const { t } = useTranslation()
   const filtered = credentials.filter((c) => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.trim().toLowerCase()
@@ -1005,7 +1010,7 @@ function CredentialMultiSelect({
       >
         <div className="flex flex-wrap gap-1 flex-1 min-w-0">
           {selected.length === 0 ? (
-            <span className="text-muted-foreground">全局策略（不绑定）</span>
+            <span className="text-muted-foreground">{t('apiKeys.globalPolicyNoBind')}</span>
           ) : (
             selected.map((id) => {
               const cred = credentials.find((c) => c.id === id)
@@ -1041,7 +1046,7 @@ function CredentialMultiSelect({
               <input
                 autoFocus
                 type="text"
-                placeholder="搜索用户名或账号编号..."
+                placeholder={t('apiKeys.searchCredentialPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="w-full rounded-sm border-0 bg-transparent pl-7 pr-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
@@ -1050,7 +1055,7 @@ function CredentialMultiSelect({
           </div>
           <div className="max-h-48 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-muted-foreground">无匹配账号</div>
+              <div className="px-3 py-2 text-sm text-muted-foreground">{t('apiKeys.noMatchingAccounts')}</div>
             ) : (
               filtered.map((cred) => {
                 const bal = balanceMap.get(cred.id)
@@ -1067,17 +1072,17 @@ function CredentialMultiSelect({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium">{cred.email ?? `账号 #${cred.id}`}</span>
+                        <span className="font-medium">{cred.email ?? t('credentials.accountFallbackName', { id: cred.id })}</span>
                         <span className="text-xs text-muted-foreground">#{cred.id}</span>
-                        {cred.disabled && <span className="text-xs text-destructive">已禁用</span>}
+                        {cred.disabled && <span className="text-xs text-destructive">{t('apiKeys.statusDisabled')}</span>}
                       </div>
                       {bal ? (
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          剩余用量：{bal.remaining.toFixed(2)} / {bal.usageLimit.toFixed(2)}
-                          <span className="ml-1">({(100 - bal.usagePercentage).toFixed(1)}% 剩余)</span>
+                          {t('apiKeys.remainingUsageLabel', { remaining: bal.remaining.toFixed(2), limit: bal.usageLimit.toFixed(2) })}
+                          <span className="ml-1">{t('apiKeys.remainingPercentSuffix', { percent: (100 - bal.usagePercentage).toFixed(1) })}</span>
                         </div>
                       ) : (
-                        <div className="text-xs text-muted-foreground mt-0.5">余额未加载</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.balanceNotLoaded')}</div>
                       )}
                     </div>
                   </button>

@@ -1,0 +1,85 @@
+admin-ui/src/components/failure-log-page.tsx
+  f5547ab0d7f12aa8 3,26,41,46,49,61,72,78,83,87,96-97,107,109,115-118,159,162,170,179
+admin-ui/src/components/edit-credential-dialog.tsx
+  f5547ab0d7f12aa8 4,25,75,87,99,105,110,112,121,123,132,135,141,148,156,158,165,168,179,181,187,193,195,204,206,213,220,236,239
+admin-ui/src/components/settings-panel.tsx
+  f5547ab0d7f12aa8 4-5,13,16,24-28,31,33,35-85,88-117,119-129,132,134,136,138-143,146-149
+admin-ui/src/i18n/locales/en.json
+  f5547ab0d7f12aa8 1-435
+src/admin/changelog.rs
+  f5547ab0d7f12aa8 65,72
+admin-ui/src/components/throttle-log-page.tsx
+  f5547ab0d7f12aa8 3,26,41,46,49,61,72,78,83,87,96-97,107,109,115-118,159,162,170,179
+admin-ui/src/components/kam-import-dialog.tsx
+  f5547ab0d7f12aa8 4-5,80,102,111,123,139,145,158,161,168,210,223,246,267,312-315,318,320,323,349-354,356-358,366,370,385,390,392,412,417,422-423,433,444,460,463,466,469,481,488,494,512,520
+admin-ui/src/components/daily-stats-page.tsx
+  f5547ab0d7f12aa8 2,8,17,23,32,35,46,48,54-57,76
+admin-ui/src/components/credential-detail-page.tsx
+  f5547ab0d7f12aa8 3,10,32,55,64,97,102,104,116,125,129-130,138,149,159,167,175,180,190,197-199,204,219-220,230,232,238-244,272-275,286,309,312,320
+admin-ui/src/i18n/locales/zh.json
+  f5547ab0d7f12aa8 1-435
+admin-ui/src/components/add-credential-dialog.tsx
+  f5547ab0d7f12aa8 4,25,63,69,96,106,114,119,129,134,144,160,165,174,182,191,195,203,208,220,230,237,243,249,256,260,266,272,275,283,291,298,310,313
+admin-ui/src/components/ui/dialog.tsx
+  f5547ab0d7f12aa8 4,33-35,49,53-54
+admin-ui/src/components/log-viewer-page.tsx
+  f5547ab0d7f12aa8 3,41,130,132,191,209,249,264,280,299,391,394,415
+admin-ui/src/components/login-page.tsx
+  f5547ab0d7f12aa8 3,15,43,58
+admin-ui/src/components/api-key-detail-page.tsx
+  f5547ab0d7f12aa8 3,10,33,41,57,77,87,100,127,138,146,156,163-165,170,185-186,196,198,204-210,238-241,252,275,278,286
+admin-ui/src/components/credential-card.tsx
+  f5547ab0d7f12aa8 4-5,44-45,49,51,53,55,57,62-67,71,76,93,109,117,127,135,141,150,173,176,182,184,194,224,226,228,232,234,238,244,247,270,278,286,295,304,316,318,323,326
+admin-ui/src/components/daily-detail-page.tsx
+  f5547ab0d7f12aa8 3,9,31,39,46,54,71,73,81,92,103,111,121-122,132,134,140-146,173-176,187,204,206,208
+admin-ui/src/components/batch-verify-dialog.tsx
+  f5547ab0d7f12aa8 2,36,45,53,68,70,93,109,120,133,140,148
+admin-ui/vite.config.ts
+  f5547ab0d7f12aa8 16
+admin-ui/src/i18n/index.ts
+  f5547ab0d7f12aa8 1-22
+admin-ui/src/components/batch-import-dialog.tsx
+  f5547ab0d7f12aa8 4,48,65,75,112,147,163,189,215,266,269,271,274,278,303,305,307,309,311,313-315,332,338,341,348,357,376,379,382,395,403,413,435,443
+admin-ui/src/components/model-list-page.tsx
+  f5547ab0d7f12aa8 3,42,50,59,61,67-69,71,94,97
+src/admin/changelog_data.rs
+  f5547ab0d7f12aa8 65,68-82
+admin-ui/src/components/dashboard.tsx
+  f5547ab0d7f12aa8 7,63,75,102,367,394,404,409,411,437,440,442,451,461,488,490,499,506,510,537,539,550,559,614,616,623,647,699,715,726,729-730,752,755,761,763,765-766,777,784,792,800,814,870-871,879,889,899,909,926,952,954,964,968,975,978,985,990,1000,1010,1013,1018,1022,1026,1033,1065,1069,1077
+admin-ui/src/components/balance-dialog.tsx
+  f5547ab0d7f12aa8 2,20,24,37,71,78-79,83,90,96
+admin-ui/src/components/changelog-page.tsx
+  f5547ab0d7f12aa8 2,10,13,18,28,32
+.gitignore
+  f5547ab0d7f12aa8 37-41
+admin-ui/src/lib/locale.ts
+  f5547ab0d7f12aa8 1-6
+Cargo.toml
+  f5547ab0d7f12aa8 3
+admin-ui/src/components/daily-credits-trend-chart.tsx
+  f5547ab0d7f12aa8 3,38,72,137
+admin-ui/src/main.tsx
+  f5547ab0d7f12aa8 7
+admin-ui/src/components/api-keys-panel.tsx
+  f5547ab0d7f12aa8 3,31,61-67,70-71,77,79,128,130,163,175,191,201,233,236,245,252,254,337,368,376,384,392,400,412,416-418,422,427,435,443,448,454,485,495,511,516-517,522,527,532,539,545,556,570,573,577,580,596,608,623-624,628,630,635,639,648,657,663,667,673,682,695-696,702,707,709-710,713,730,746,752-753,769,771,781-782,786,793,802,811,817,820-821,825,829,835,841,850,866-867,875-877,882,884-885,888,903,909-910,926-927,936,938,949,955,957,989,1013,1049,1058,1075,1077,1081-1082,1085
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e33690f35f2f099520c7702903b6f68aeb10c558",
+  "prompts": {
+    "f5547ab0d7f12aa8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e01ade3d-f5ba-4879-8723-ef0ea67b3a28",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2198,
+      "total_deletions": 1022,
+      "accepted_lines": 1839,
+      "overriden_lines": 0
+    }
+  }
+}

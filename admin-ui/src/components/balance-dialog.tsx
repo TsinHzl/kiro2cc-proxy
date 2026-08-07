@@ -9,6 +9,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { useCredentialBalance } from '@/hooks/use-credentials'
 import { parseError, getSubscriptionColor } from '@/lib/utils'
+import { localeTag } from '@/lib/locale'
 
 interface BalanceDialogProps {
   credentialId: number | null
@@ -22,11 +23,11 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
 
   const formatDate = (timestamp: number | null) => {
     if (!timestamp) return t('credentials.unknown')
-    return new Date(timestamp * 1000).toLocaleString('zh-CN')
+    return new Date(timestamp * 1000).toLocaleString(localeTag())
   }
 
   const formatNumber = (num: number) => {
-    return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return num.toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   return (

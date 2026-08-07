@@ -67,7 +67,7 @@ export function ModelListPage() {
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colModelId')}</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colDisplayName')}</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('models.colProvider')}</th>
-                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">Max Tokens</th>
+                    <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('models.colMaxTokens')}</th>
                     <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('models.colRateMultiplier')}</th>
                   </tr>
                 </thead>

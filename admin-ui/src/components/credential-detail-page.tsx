@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useCredentials, useCredentialUsageRecords, useCredentialTodaySummary } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
-import { localeTag } from '@/lib/locale'
+import { formatDateTime, formatTokenCount } from '@/lib/locale'
 
 interface CredentialDetailPageProps {
   credentialId: number
@@ -28,10 +28,6 @@ function getModelColor(model: string): string {
   return 'text-muted-foreground'
 }
 
-function formatTokens(n: number): string {
-  return n.toLocaleString(localeTag())
-}
-
 function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`
 }
@@ -49,13 +45,6 @@ function getKRef(model: string): number {
     return 2.36
   }
   return 1.43
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString(localeTag(), {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
 }
 
 const PAGE_SIZE = 50
@@ -126,8 +115,8 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
           </CardHeader>
           <CardContent>
             <div className="text-sm font-bold">
-              {t('common.inboundPrefix', { value: formatTokens(allRecords.reduce((s, r) => s + r.inputTokens, 0)) })} /
-              {t('common.outboundPrefix', { value: formatTokens(allRecords.reduce((s, r) => s + r.outputTokens, 0)) })}
+              {t('common.inboundPrefix', { value: formatTokenCount(allRecords.reduce((s, r) => s + r.inputTokens, 0)) })} /
+              {t('common.outboundPrefix', { value: formatTokenCount(allRecords.reduce((s, r) => s + r.outputTokens, 0)) })}
             </div>
           </CardContent>
         </Card>
@@ -195,8 +184,8 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                   <div className={`text-sm font-medium truncate ${getModelColor(model)}`}>{model}</div>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                     <span>{t('common.requestCountSuffix', { count: m.requests })}</span>
-                    <span>{t('common.inboundPrefix', { value: formatTokens(m.inputTokens) })}</span>
-                    <span>{t('common.outboundPrefix', { value: formatTokens(m.outputTokens) })}</span>
+                    <span>{t('common.inboundPrefix', { value: formatTokenCount(m.inputTokens) })}</span>
+                    <span>{t('common.outboundPrefix', { value: formatTokenCount(m.outputTokens) })}</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
                     <span className="font-medium text-blue-600 dark:text-blue-400">
                       {m.credits.toFixed(4)} credits
@@ -251,7 +240,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                       return (
                       <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(record.createdAt)}
+                          {formatDateTime(record.createdAt)}
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {record.clientIp ? (
@@ -269,10 +258,10 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                         </td>
                         <td className="px-4 py-2 text-xs whitespace-nowrap">
                           <div className="space-y-0.5 text-left">
-                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokens(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
-                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokens(record.outputTokens)}</span></div>
-                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokens(record.cacheReadInputTokens ?? 0)}</span></div>
-                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokens(record.inputTokens)}</span></div>
+                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokenCount(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
+                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokenCount(record.outputTokens)}</span></div>
+                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokenCount(record.cacheReadInputTokens ?? 0)}</span></div>
+                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokenCount(record.inputTokens)}</span></div>
                           </div>
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">

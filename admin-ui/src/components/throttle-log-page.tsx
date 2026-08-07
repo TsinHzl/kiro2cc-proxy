@@ -7,17 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useCredentials, useThrottleLogs } from '@/hooks/use-credentials'
+import { formatDateTime } from '@/lib/locale'
 
 interface ThrottleLogPageProps {
   credentialId: number
   onBack: () => void
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
 }
 
 const PAGE_SIZE = 50
@@ -38,7 +32,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
           <ArrowLeft className="h-4 w-4" />
-          {t('credentials.back')}
+          {t('common.back')}
         </Button>
         {credential && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -112,7 +106,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('credentials.colTime')}</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colTime')}</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colRequestType')}</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colStatusCode')}</th>
                       <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('logs.colResponseSummary')}</th>
@@ -122,7 +116,7 @@ export function ThrottleLogPage({ credentialId, onBack }: ThrottleLogPageProps) 
                     {logsData.records.map((record, idx) => (
                       <tr key={`${record.createdAt}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(record.createdAt)}
+                          {formatDateTime(record.createdAt)}
                         </td>
                         <td className="px-4 py-2">
                           <Badge variant={record.requestType === 'mcp' ? 'default' : 'secondary'} className="text-xs">

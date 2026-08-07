@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
-import { localeTag } from '@/lib/locale'
+import { formatDateTime, formatTokenCount } from '@/lib/locale'
 import type { ApiKeyItem } from '@/types/api'
 
 interface ApiKeyDetailPageProps {
@@ -29,19 +29,8 @@ function getModelColor(model: string): string {
   return 'text-muted-foreground'
 }
 
-function formatTokens(n: number): string {
-  return n.toLocaleString(localeTag())
-}
-
 function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString(localeTag(), {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
 }
 
 function getKeyStatus(key: ApiKeyItem): 'active' | 'disabled' | 'expired' | 'pending' {
@@ -109,7 +98,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Input Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatTokens(summary?.totalInputTokens ?? 0)}</div>
+            <div className="text-2xl font-bold">{formatTokenCount(summary?.totalInputTokens ?? 0)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -117,7 +106,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
             <CardTitle className="text-sm font-medium text-muted-foreground">Output Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatTokens(summary?.totalOutputTokens ?? 0)}</div>
+            <div className="text-2xl font-bold">{formatTokenCount(summary?.totalOutputTokens ?? 0)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -161,8 +150,8 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                   <div className={`text-sm font-medium truncate ${getModelColor(m.model)}`}>{m.model}</div>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                     <span>{t('common.requestCountSuffix', { count: m.requests })}</span>
-                    <span>{t('common.inboundPrefix', { value: formatTokens(m.inputTokens) })}</span>
-                    <span>{t('common.outboundPrefix', { value: formatTokens(m.outputTokens) })}</span>
+                    <span>{t('common.inboundPrefix', { value: formatTokenCount(m.inputTokens) })}</span>
+                    <span>{t('common.outboundPrefix', { value: formatTokenCount(m.outputTokens) })}</span>
                     <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
                     <span className="font-medium text-blue-600 dark:text-blue-400">
                       {m.credits.toFixed(4)} credits
@@ -217,7 +206,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                       return (
                       <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDate(record.createdAt)}
+                          {formatDateTime(record.createdAt)}
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {record.clientIp ? (
@@ -235,10 +224,10 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                         </td>
                         <td className="px-4 py-2 text-xs whitespace-nowrap">
                           <div className="space-y-0.5 text-left">
-                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokens(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
-                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokens(record.outputTokens)}</span></div>
-                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokens(record.cacheReadInputTokens ?? 0)}</span></div>
-                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokens(record.inputTokens)}</span></div>
+                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokenCount(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
+                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokenCount(record.outputTokens)}</span></div>
+                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokenCount(record.cacheReadInputTokens ?? 0)}</span></div>
+                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokenCount(record.inputTokens)}</span></div>
                           </div>
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">

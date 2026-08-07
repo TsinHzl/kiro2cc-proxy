@@ -132,6 +132,7 @@ export function SettingsPanel() {
                     variant={i18n.language === 'zh' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => changeLanguage('zh')}
+                    aria-pressed={i18n.language === 'zh'}
                   >
                     {t('settings.languageZh')}
                   </Button>
@@ -139,6 +140,7 @@ export function SettingsPanel() {
                     variant={i18n.language === 'en' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => changeLanguage('en')}
+                    aria-pressed={i18n.language === 'en'}
                   >
                     {t('settings.languageEn')}
                   </Button>

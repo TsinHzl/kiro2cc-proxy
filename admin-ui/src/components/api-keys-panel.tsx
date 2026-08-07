@@ -21,6 +21,7 @@ import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useAllUs
 import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
+import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
 interface ApiKeysPanelProps {
@@ -115,10 +116,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   // 构建 key_id -> usage 的映射
   const usageMap = new Map<number, UsageSummary>()
   usageData?.forEach((u) => usageMap.set(u.apiKeyId, u))
-
-  const formatTokens = (tokens: number): string => {
-    return tokens.toLocaleString('zh-CN')
-  }
 
   const formatCost = (cost: number): string => {
     return `$${cost.toFixed(4)}`
@@ -283,7 +280,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const maskKey = (key: string) => key.slice(0, 7) + '...' + key.slice(-4)
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('zh-CN', {
+    return new Date(dateStr).toLocaleString(localeTag(), {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     })
@@ -542,7 +539,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                           RPM {rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
                         </span>
                         <span className="text-muted-foreground">
-                          {t('apiKeys.inOutTokens', { in: formatTokens(usage?.totalInputTokens ?? 0), out: formatTokens(usage?.totalOutputTokens ?? 0) })}
+                          {t('apiKeys.inOutTokens', { in: formatTokenCount(usage?.totalInputTokens ?? 0), out: formatTokenCount(usage?.totalOutputTokens ?? 0) })}
                         </span>
                         <span className="font-medium text-orange-600 dark:text-orange-400">
                           {formatCost(usage?.totalCost ?? 0)}
@@ -560,7 +557,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                         )}
                         {dataUpdatedAt > 0 && (
                           <span className="text-muted-foreground dark:text-muted-foreground/60">
-                            · {new Date(dataUpdatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            · {new Date(dataUpdatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                           </span>
                         )}
                       </div>
@@ -826,7 +823,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   </div>
                 ) : editingKey?.expiresAt && new Date(editingKey.expiresAt) > new Date() ? (
                   <div className="text-xs text-muted-foreground mt-1">
-                    {t('apiKeys.currentExpiryLabel', { date: new Date(editingKey.expiresAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
+                    {t('apiKeys.currentExpiryLabel', { date: new Date(editingKey.expiresAt).toLocaleString(localeTag(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2 mt-2">

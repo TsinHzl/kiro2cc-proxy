@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef, useId } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info, History } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -25,6 +25,7 @@ import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyU
 import { useTheme } from '@/hooks/use-theme'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
+import { ChangelogPage } from '@/components/changelog-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
@@ -97,7 +98,7 @@ function CreditsProgressRing({ percent }: { percent: number }) {
 
 export function Dashboard({ onLogout }: DashboardProps) {
   const { theme, toggleTheme } = useTheme()
-  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models'>('credentials')
+  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog'>('credentials')
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -122,7 +123,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [dailyView, setDailyView] = useState<string | null>(null)
   const [dailyFromSidebar, setDailyFromSidebar] = useState(false)
   const cancelVerifyRef = useRef(false)
-  const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | null>(null)
+  const prevTabRef = useRef<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog' | null>(null)
   const prevDetailCredentialId = useRef<number | null>(null)
   const prevDailyView = useRef<string | null>(null)
   const initialBalanceFetchDone = useRef(false)
@@ -780,6 +781,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
               <span>查看日志</span>
             </button>
             <button
+              onClick={() => { setActiveTab('changelog'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'changelog' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
+              style={activeTab === 'changelog' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
+            >
+              <History className="w-4 h-4 shrink-0" />
+              <span>更新日志</span>
+            </button>
+            <button
               onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
               className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'settings' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
@@ -813,6 +822,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <SettingsPanel />
         ) : activeTab === 'models' ? (
           <ModelListPage />
+        ) : activeTab === 'changelog' ? (
+          <ChangelogPage />
         ) : activeTab === 'apikeys' ? (
           detailKeyId !== null ? (
             <ApiKeyDetailPage

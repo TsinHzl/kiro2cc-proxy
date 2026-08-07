@@ -19,6 +19,8 @@
 //! ```
 
 mod api_keys;
+mod changelog;
+mod changelog_data;
 mod error;
 mod handlers;
 mod log_handler;

@@ -21,6 +21,7 @@ import type {
   ThrottleLogsResponse,
   FailureLogsResponse,
   ModelsResponse,
+  ReleaseNotesResponse,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -229,6 +230,13 @@ export async function setAuthKeys(payload: { adminPsw?: string }): Promise<{ suc
 
 export async function getModels(): Promise<ModelsResponse> {
   const { data } = await api.get<ModelsResponse>('/models')
+  return data
+}
+
+// ============ 更新日志 ============
+
+export async function getChangelog(): Promise<ReleaseNotesResponse> {
+  const { data } = await api.get<ReleaseNotesResponse>('/changelog')
   return data
 }
 

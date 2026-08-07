@@ -1,0 +1,43 @@
+src/admin/types.rs
+  f5547ab0d7f12aa8 427-463
+src/admin/changelog_data.rs
+  f5547ab0d7f12aa8 1-178
+src/admin/mod.rs
+  f5547ab0d7f12aa8 22-23
+admin-ui/src/components/changelog-page.tsx
+  f5547ab0d7f12aa8 1-74
+admin-ui/src/types/api.ts
+  f5547ab0d7f12aa8 181-204
+admin-ui/src/hooks/use-credentials.ts
+  f5547ab0d7f12aa8 32,301-306
+admin-ui/src/api/credentials.ts
+  f5547ab0d7f12aa8 24,236-242
+src/admin/changelog.rs
+  f5547ab0d7f12aa8 1-8,10-75
+openspec/specs/admin-changelog/spec.md
+  f5547ab0d7f12aa8 1-31
+src/admin/router.rs
+  f5547ab0d7f12aa8 16,68
+admin-ui/src/components/dashboard.tsx
+  f5547ab0d7f12aa8 3,28,101,126,784-790,825-826
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b424c2371ab48490ab1ed5c9c02aa76a278dbf25",
+  "prompts": {
+    "f5547ab0d7f12aa8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e01ade3d-f5ba-4879-8723-ef0ea67b3a28",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 615,
+      "total_deletions": 33,
+      "accepted_lines": 595,
+      "overriden_lines": 1
+    }
+  }
+}

@@ -1,0 +1,25 @@
+admin-ui/src/components/dashboard.tsx
+  4cbd2ea9b959521d 751-752
+Cargo.toml
+  4cbd2ea9b959521d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "887be0bfa1ddd2a24ec3a9082ae9b6928ed4ee59",
+  "prompts": {
+    "4cbd2ea9b959521d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71f37483-cbb7-4029-85f4-11f404756952",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

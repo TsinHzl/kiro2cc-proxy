@@ -748,8 +748,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
           >
             <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
             <div>
-              <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-primary transition-colors">Kiro2CCProxy</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-primary transition-colors">{t('dashboard.consoleSubtitle')}</div>
+              <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Kiro2CCProxy</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">{t('dashboard.consoleSubtitle')}</div>
             </div>
           </a>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title={t('common.logout')}>

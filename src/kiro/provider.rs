@@ -245,8 +245,7 @@ impl KiroProvider {
     ) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
-        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
-            .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
+        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config);
 
         let kiro_version = &config.kiro_version;
         let os_name = &config.system_version;
@@ -318,8 +317,7 @@ impl KiroProvider {
     fn build_mcp_headers(&self, ctx: &CallContext, attempt: usize) -> anyhow::Result<HeaderMap> {
         let config = self.token_manager.config();
 
-        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
-            .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
+        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config);
 
         let kiro_version = &config.kiro_version;
         let os_name = &config.system_version;

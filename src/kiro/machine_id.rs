@@ -2,10 +2,20 @@
 //! 设备指纹生成器
 //!
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+use parking_lot::Mutex;
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::model::config::Config;
+
+/// 兜底 machineId 缓存（按凭据 id 分桶，进程生命周期内稳定）
+///
+/// key 为 `credentials.id`；无 id 的凭据共享同一个兜底值（正常流程不会出现）。
+static FALLBACK_MACHINE_IDS: OnceLock<Mutex<HashMap<Option<u64>, String>>> = OnceLock::new();
 
 /// 标准化 machineId 格式
 ///
@@ -36,30 +46,54 @@ fn normalize_machine_id(machine_id: &str) -> Option<String> {
 /// 根据凭证信息生成唯一的 Machine ID
 ///
 /// 优先使用账号级 machineId，其次使用 config.machineId，然后使用 refreshToken 生成
-pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config) -> Option<String> {
+pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config) -> String {
     // 如果配置了账号级 machineId，优先使用
     if let Some(ref machine_id) = credentials.machine_id
         && let Some(normalized) = normalize_machine_id(machine_id)
     {
-        return Some(normalized);
+        return normalized;
     }
 
     // 如果配置了全局 machineId，作为默认值
     if let Some(ref machine_id) = config.machine_id
         && let Some(normalized) = normalize_machine_id(machine_id)
     {
-        return Some(normalized);
+        return normalized;
     }
 
     // 使用 refreshToken 生成
     if let Some(ref refresh_token) = credentials.refresh_token
         && !refresh_token.is_empty()
     {
-        return Some(sha256_hex(&format!("KotlinNativeAPI/{}", refresh_token)));
+        return sha256_hex(&format!("KotlinNativeAPI/{}", refresh_token));
     }
 
-    // 没有有效的凭证
-    None
+    // 没有有效的派生材料：走兜底流程，避免整条请求硬失败
+    fallback_machine_id(credentials)
+}
+
+/// 为缺失派生材料的凭据生成兜底 machineId
+///
+/// - 经 `sha256("KiroFallback/<uuid>")` 派生，输出格式与正常路径一致（64 字符十六进制）
+/// - 按 `credentials.id` 在进程内缓存；同一凭据多次调用返回同一值
+/// - 数组格式凭据会被 `MultiTokenManager::new` 写回 `cred.machine_id` 并持久化到磁盘，
+///   重启后视为已配置值直接复用，不再重新随机；仅单账号对象格式（不落盘）才会在每次
+///   进程启动时重新随机
+fn fallback_machine_id(credentials: &KiroCredentials) -> String {
+    let cache = FALLBACK_MACHINE_IDS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache.lock();
+    if let Some(existing) = map.get(&credentials.id) {
+        return existing.clone();
+    }
+
+    let seed = Uuid::new_v4();
+    let derived = sha256_hex(&format!("KiroFallback/{}", seed));
+    tracing::warn!(
+        credential_id = ?credentials.id,
+        "凭据缺少派生材料（machineId/refreshToken 均不可用），使用随机兜底 machineId（进程内稳定）"
+    );
+    map.insert(credentials.id, derived.clone());
+    derived
 }
 
 /// SHA256 哈希实现（返回十六进制字符串）
@@ -91,7 +125,7 @@ mod tests {
         config.machine_id = Some("a".repeat(64));
 
         let result = generate_from_credentials(&credentials, &config);
-        assert_eq!(result, Some("a".repeat(64)));
+        assert_eq!(result, "a".repeat(64));
     }
 
     #[test]
@@ -103,7 +137,7 @@ mod tests {
         config.machine_id = Some("a".repeat(64));
 
         let result = generate_from_credentials(&credentials, &config);
-        assert_eq!(result, Some("b".repeat(64)));
+        assert_eq!(result, "b".repeat(64));
     }
 
     #[test]
@@ -113,17 +147,41 @@ mod tests {
         let config = Config::default();
 
         let result = generate_from_credentials(&credentials, &config);
-        assert!(result.is_some());
-        assert_eq!(result.as_ref().unwrap().len(), 64);
+        assert_eq!(result.len(), 64);
     }
 
     #[test]
-    fn test_generate_without_credentials() {
+    fn test_generate_without_credentials_uses_fallback() {
         let credentials = KiroCredentials::default();
         let config = Config::default();
 
         let result = generate_from_credentials(&credentials, &config);
-        assert!(result.is_none());
+        assert_eq!(result.len(), 64);
+        assert!(result.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_fallback_is_stable_per_credential() {
+        let mut credentials = KiroCredentials::default();
+        credentials.id = Some(u64::MAX - 10);
+        let config = Config::default();
+
+        let first = generate_from_credentials(&credentials, &config);
+        let second = generate_from_credentials(&credentials, &config);
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn test_fallback_differs_across_credentials() {
+        let mut cred_a = KiroCredentials::default();
+        cred_a.id = Some(u64::MAX - 20);
+        let mut cred_b = KiroCredentials::default();
+        cred_b.id = Some(u64::MAX - 21);
+        let config = Config::default();
+
+        let id_a = generate_from_credentials(&cred_a, &config);
+        let id_b = generate_from_credentials(&cred_b, &config);
+        assert_ne!(id_a, id_b);
     }
 
     #[test]
@@ -165,7 +223,6 @@ mod tests {
         let config = Config::default();
 
         let result = generate_from_credentials(&credentials, &config);
-        assert!(result.is_some());
-        assert_eq!(result.as_ref().unwrap().len(), 64);
+        assert_eq!(result.len(), 64);
     }
 }

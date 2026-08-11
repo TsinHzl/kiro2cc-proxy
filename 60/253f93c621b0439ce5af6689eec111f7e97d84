@@ -1,0 +1,27 @@
+admin-ui/src/i18n/locales/en.json
+  cb5278fed8442047 57
+Cargo.toml
+  cb5278fed8442047 3
+admin-ui/src/i18n/locales/zh.json
+  cb5278fed8442047 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "60253f93c621b0439ce5af6689eec111f7e97d84",
+  "prompts": {
+    "cb5278fed8442047": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "60ae7d0e-ad59-48b4-8ca1-5f15e6eab4c4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

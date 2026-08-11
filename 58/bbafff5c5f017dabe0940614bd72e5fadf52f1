@@ -1,0 +1,29 @@
+src/kiro/token_manager.rs
+  e592e8960753b044 864-865
+src/kiro/provider.rs
+  e592e8960753b044 248,320
+src/kiro/machine_id.rs
+  e592e8960753b044 5-8,10,15-18,49,54,61,68,71-96,128,140,150,154,159-184,226
+Cargo.toml
+  e592e8960753b044 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "58bbafff5c5f017dabe0940614bd72e5fadf52f1",
+  "prompts": {
+    "e592e8960753b044": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86f5e27c-3a96-4d0e-9e13-a14be7d8e093",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 328,
+      "total_deletions": 70,
+      "accepted_lines": 284,
+      "overriden_lines": 0
+    }
+  }
+}

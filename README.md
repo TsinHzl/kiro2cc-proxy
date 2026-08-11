@@ -1,52 +1,46 @@
-# kiro2cc-proxy
+# 🌉 kiro2cc-proxy
+
+**将 Anthropic Claude API 请求转换为 Kiro API 请求的 Rust 代理服务**
 
 [![Tests](https://github.com/TsinHzl/kiro2cc-proxy/actions/workflows/test.yaml/badge.svg)](https://github.com/TsinHzl/kiro2cc-proxy/actions/workflows/test.yaml)
 [![codecov](https://codecov.io/gh/TsinHzl/kiro2cc-proxy/graph/badge.svg)](https://codecov.io/gh/TsinHzl/kiro2cc-proxy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#-license)
 
-一个用 Rust 编写的 Anthropic Claude API 兼容代理服务，将 Anthropic API 请求转换为 Kiro API 请求。
+**[🇺🇸 English](README.en.md)** | **🇨🇳 中文**
 
-> **✅ 支持模型：Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Opus 5 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
+> **✅ 支持模型**：Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Opus 5 · Claude Haiku 4.5 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
 
-[English](README.en.md) | 中文
+### 📖 快速导航
 
-## 免责声明
+🚀 快速开始 ・ 🍎 macOS 部署 ・ 🪟 Windows 部署 ・ 🐧 Linux 部署 ・ 🔑 获取账号 ・ ⚙️ 配置详解 ・ 🤖 接入 Claude Code ・ 🔌 API 端点 ・ 🗺️ 模型映射 ・ 🛡️ Admin 面板 ・ ❓ 常见问题 ・ ⚠️ 注意事项
+
+---
+
+## ⚠️ 免责声明
 
 本项目仅供研究使用，Use at your own risk，使用本项目所导致的任何后果由使用人承担，与本项目无关。本项目与 AWS/KIRO/Anthropic/Claude 等官方无关，不代表官方立场。
 
-## 功能特性
+---
 
-- **Anthropic API 兼容**：完整支持 Anthropic Claude API 格式
-- **流式响应**：支持 SSE (Server-Sent Events) 流式输出
-- **Token 自动刷新**：自动管理和刷新 OAuth Token
-- **多账号支持**：支持配置多个账号，按优先级自动故障转移
-- **负载均衡**：支持 `priority`（按优先级）和 `balanced`（均衡分配）两种模式
-- **智能重试**：单账号最多重试 3 次，单请求最多重试 9 次
-- **Thinking 模式**：支持 Claude 的 extended thinking 功能
-- **工具调用**：完整支持 function calling / tool use
-- **WebSearch**：内置 WebSearch 工具转换逻辑
-- **Admin 管理**：可选的 Web 管理界面，支持账号管理、余额查询等
-- **账号级代理**：支持为每个账号单独配置 HTTP/SOCKS5 代理
+## ✨ 功能特性
+
+| 特性 | 说明 |
+|---|---|
+| **🔌 Anthropic API 兼容** | 完整支持 Anthropic Claude API 格式 |
+| **📡 流式响应** | 支持 SSE (Server-Sent Events) 流式输出 |
+| **🔄 Token 自动刷新** | 自动管理和刷新 OAuth Token |
+| **👥 多账号支持** | 支持配置多个账号，按优先级自动故障转移 |
+| **⚖️ 负载均衡** | 支持 `priority`（按优先级）和 `balanced`（均衡分配）两种模式 |
+| **🔁 智能重试** | 单账号最多重试 3 次，单请求最多重试 9 次 |
+| **🧠 Thinking 模式** | 支持 Claude 的 extended thinking 功能 |
+| **🛠️ 工具调用** | 完整支持 function calling / tool use |
+| **🔍 WebSearch** | 内置 WebSearch 工具转换逻辑 |
+| **🛡️ Admin 管理** | 可选的 Web 管理界面，支持账号管理、余额查询等 |
+| **🌐 账号级代理** | 支持为每个账号单独配置 HTTP/SOCKS5 代理 |
 
 ---
 
-## 目录
-
-- [快速开始（新手必读）](#快速开始新手必读)
-- [本地部署（macOS）](#本地部署macos)
-- [本地部署（Windows）](#本地部署windows)
-- [服务器部署（Linux）](#服务器部署linux)
-- [获取 Kiro 账号](#获取-kiro-账号)
-- [配置详解](#配置详解)
-- [接入 Claude Code](#接入-claude-code)
-- [API 端点](#api-端点)
-- [模型映射](#模型映射)
-- [Admin 管理面板](#admin-管理面板)
-- [常见问题](#常见问题)
-- [注意事项](#注意事项)
-
----
-
-## 快速开始（新手必读）
+## 🚀 快速开始（新手必读）
 
 **这个项目是什么？**
 
@@ -68,7 +62,7 @@ kiro2cc-proxy 是一个代理服务。它把标准的 Anthropic Claude API 请�
 
 ---
 
-## 本地部署（macOS）
+## 🍎 本地部署（macOS）
 
 ### 第一步：安装依赖
 
@@ -169,7 +163,7 @@ Region [默认: us-east-1]:
 
 服务启动后，打开管理面板 `http://127.0.0.1:5678/admin`，在账号管理页面添加从 Kiro 导出的账号。
 
-也可以直接创建 `app/config/credentials.json`，格式见[获取 Kiro 账号](#获取-kiro-账号)章节。
+也可以直接创建 `app/config/credentials.json`，格式见"获取 Kiro 账号"章节。
 
 ### 停止服务
 
@@ -177,7 +171,7 @@ Region [默认: us-east-1]:
 
 ---
 
-## 本地部署（Windows）
+## 🪟 本地部署（Windows）
 
 ### 第一步：安装依赖
 
@@ -277,7 +271,7 @@ Region [默认: us-east-1]:
 
 ---
 
-## 服务器部署（Linux）
+## 🐧 服务器部署（Linux）
 
 ### 方式一：Docker（最简单，推荐）
 
@@ -325,7 +319,7 @@ docker compose down
 
 > **注意**：`docker-compose.yml` 中 `ports` 默认为 `"5678:5678"`，监听所有网卡。如需限制只允许本机访问，可改为 `"127.0.0.1:5678:5678"`。同时确保云服务商安全组（腾讯云/阿里云等）已开放 5678 端口的入站规则，否则外网无法访问。
 
-### 更新到最新版本
+#### 更新到最新版本
 
 ```bash
 cd /opt/kiro2cc-proxy
@@ -386,7 +380,7 @@ bash start_server.sh restart   # 重启
 
 ---
 
-## 获取 Kiro 账号
+## 🔑 获取 Kiro 账号
 
 ### 完整流程：从 Kiro Account Manager 导出到管理面板导入
 
@@ -399,7 +393,7 @@ bash start_server.sh restart   # 重启
 
 **第二步：启动 kiro2cc-proxy 服务**
 
-按照[本地部署](#本地部署macos)或[服务器部署](#服务器部署linux)章节启动服务，确保服务正常运行。
+按照"本地部署"或"服务器部署"章节启动服务，确保服务正常运行。
 
 **第三步：通过管理面板导入账号（推荐）**
 
@@ -487,7 +481,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 
 ---
 
-## 配置详解
+## ⚙️ 配置详解
 
 ### config.json 字段说明
 
@@ -521,7 +515,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 }
 ```
 
-> **客户端鉴权说明**：`config.json` 不再提供全局 API Key。客户端调用 `/v1/messages`、`/cc/v1/messages` 时，需使用 Admin 后台（`adminPsw` 登录）创建并启用的子 API Key 进行鉴权。
+> **客户端鉴权说明**：`config.json` 不再提供全局 API Key。客户端调用 `/v1/messages`、`/cc/v1/messages` 时，需使用 Admin 后台（`adminPsw` 登录）创建并启用的子 API Key 进行鉴权。注：若未配置 `adminPsw`，Admin 面板本身将被禁用，无法创建子 API Key，需先完成配置。
 
 ### 账号级代理
 
@@ -552,7 +546,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 
 ---
 
-## 接入 Claude Code
+## 🤖 接入 Claude Code
 
 ### 方式一：环境变量（推荐）
 
@@ -617,7 +611,7 @@ curl http://127.0.0.1:5678/v1/messages \
 
 ---
 
-## API 端点
+## 🔌 API 端点
 
 ### 标准端点 (/v1)
 
@@ -650,7 +644,7 @@ Authorization: Bearer your-api-key
 
 ---
 
-## 模型映射
+## 🗺️ 模型映射
 
 发送请求时可使用任意包含以下关键词的模型名，会自动映射到对应 Kiro 模型：
 
@@ -677,7 +671,7 @@ Authorization: Bearer your-api-key
 
 ---
 
-## Admin 管理面板
+## 🛡️ Admin 管理面板
 
 配置了 `adminPsw`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
 
@@ -700,13 +694,13 @@ Authorization: Bearer your-api-key
 
 ---
 
-## 常见问题
+## ❓ 常见问题
 
 **Q：启动后提示"已加载 0 个账号配置"**
 
-需要创建 `app/config/credentials.json`（本地）或 `data/credentials.json`（Docker），参考[获取 Kiro 账号](#获取-kiro-账号)章节。
+需要创建 `app/config/credentials.json`（本地）或 `data/credentials.json`（Docker），参考"获取 Kiro 账号"章节。
 
-**Q：请求返回 `INVALID_MODEL_ID`**
+**Q：请求返回 <code>INVALID_MODEL_ID</code>**
 
 > ⚠️ **【重要】** 国内 IP 无法直接访问 Claude 模型。必须在 `app/config/config.json` 中配置 `proxyUrl`（如 `"proxyUrl": "http://127.0.0.1:7890"`），或使用境外服务器。这是国内用户最常见的问题。
 
@@ -722,11 +716,11 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 尝试将 `config.json` 中的 `tlsBackend` 改为 `native-tls` 后重启服务。
 
-**Q：通过管理面板导入账号时报错 `Cannot read properties of undefined (reading 'digest')`**
+**Q：通过管理面板导入账号时报错 <code>Cannot read properties of undefined (reading 'digest')</code>**
 
 此问题已在 v2.7.3 修复：`crypto.subtle` 加密 API 只在 HTTPS 或 localhost 环境下可用，公网 IP + HTTP 访问会触发此错误，v2.7.3 起自动降级为纯 JS 实现，无需再配置 HTTPS。若仍报错，请升级到最新版本。
 
-**Q：企业版 IdC 账号请求返回 502，日志显示 `profileArn is required for this request`**
+**Q：企业版 IdC 账号请求返回 502，日志显示 <code>profileArn is required for this request</code>**
 
 企业版（Enterprise）IdC 账号调用 Q 端点强制要求 `profileArn`，但 IdC Token 刷新接口不会返回该字段，需要手动填写。管理面板「添加账号 / 编辑账号」对话框中已提供 **Profile ARN** 输入框，填入形如 `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>` 的值即可。`profileArn` 可从 Kiro IDE 本地缓存或 `ListAvailableProfiles` 获取，其所在 region 需与账号的 `apiRegion` 保持一致。Social 账号一般无需填写。
 
@@ -737,6 +731,7 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 **Q：端口被占用**
 
 `run-local-service-mac.sh` 会自动终止占用端口的进程。如仍报错，手动执行：
+
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -768,7 +763,7 @@ git pull
 
 ---
 
-## 注意事项
+## ⚠️ 注意事项
 
 1. `credentials.json` 包含敏感 Token，不要提交到版本控制，不要分享给他人
 2. 服务会自动刷新过期 Token，无需手动干预
@@ -777,7 +772,7 @@ git pull
 
 ---
 
-## 项目结构
+## 📂 项目结构
 
 ```
 kiro2cc-proxy/
@@ -800,10 +795,10 @@ kiro2cc-proxy/
 
 ---
 
-## License
+### 📜 License
 
 MIT
 
-## 致谢
+### 🙏 致谢
 
 本项目基于 [kiro.rs](https://github.com/hank9999/kiro.rs) 二次开发，感谢原作者的开源贡献。

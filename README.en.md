@@ -1,52 +1,46 @@
-# kiro2cc-proxy
+# 🌉 kiro2cc-proxy
+
+**A Rust-based Anthropic Claude API-compatible proxy that converts Anthropic API requests into Kiro API requests.**
 
 [![Tests](https://github.com/TsinHzl/kiro2cc-proxy/actions/workflows/test.yaml/badge.svg)](https://github.com/TsinHzl/kiro2cc-proxy/actions/workflows/test.yaml)
 [![codecov](https://codecov.io/gh/TsinHzl/kiro2cc-proxy/graph/badge.svg)](https://codecov.io/gh/TsinHzl/kiro2cc-proxy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#-license)
 
-A Rust-based Anthropic Claude API-compatible proxy that converts Anthropic API requests into Kiro API requests.
+**🇺🇸 English** | **[🇨🇳 中文](README.md)**
 
 > **✅ Supported Models: Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Opus 5 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
 
-[中文](README.md) | English
+### 📖 Quick Navigation
 
-## Disclaimer
+🚀 Quick Start ・ 🍎 macOS Deployment ・ 🪟 Windows Deployment ・ 🐧 Linux Deployment ・ 🔑 Get Accounts ・ ⚙️ Configuration ・ 🤖 Claude Code Integration ・ 🔌 API Endpoints ・ 🗺️ Model Mapping ・ 🛡️ Admin Panel ・ ❓ FAQ ・ ⚠️ Notes
+
+---
+
+## ⚠️ Disclaimer
 
 This project is for research purposes only. Use at your own risk. Any consequences arising from the use of this project are solely the responsibility of the user. This project is not affiliated with AWS, KIRO, Anthropic, or Claude in any official capacity.
 
-## Features
+---
 
-- **Anthropic API Compatible**: Full support for the Anthropic Claude API format
-- **Streaming Responses**: SSE (Server-Sent Events) streaming support
-- **Auto Token Refresh**: Automatically manages and refreshes OAuth tokens
-- **Multi-Account Support**: Configure multiple accounts with automatic priority-based failover
-- **Load Balancing**: `priority` (by priority) and `balanced` (round-robin) modes
-- **Smart Retry**: Up to 3 retries per account, up to 9 retries per request
-- **Thinking Mode**: Supports Claude's extended thinking feature
-- **Tool Use**: Full support for function calling / tool use
-- **WebSearch**: Built-in WebSearch tool conversion logic
-- **Admin Panel**: Optional web management UI for account management, balance queries, etc.
-- **Per-Account Proxy**: Configure HTTP/SOCKS5 proxy per account
+## ✨ Features
+
+| Feature | Description |
+|---|---|
+| **🔌 Anthropic API Compatible** | Full support for the Anthropic Claude API format |
+| **📡 Streaming Responses** | SSE (Server-Sent Events) streaming support |
+| **🔄 Auto Token Refresh** | Automatically manages and refreshes OAuth tokens |
+| **👥 Multi-Account Support** | Configure multiple accounts with automatic priority-based failover |
+| **⚖️ Load Balancing** | `priority` (by priority) and `balanced` (round-robin) modes |
+| **🔁 Smart Retry** | Up to 3 retries per account, up to 9 retries per request |
+| **🧠 Thinking Mode** | Supports Claude's extended thinking feature |
+| **🛠️ Tool Use** | Full support for function calling / tool use |
+| **🔍 WebSearch** | Built-in WebSearch tool conversion logic |
+| **🛡️ Admin Panel** | Optional web management UI for account management, balance queries, etc. |
+| **🌐 Per-Account Proxy** | Configure HTTP/SOCKS5 proxy per account |
 
 ---
 
-## Table of Contents
-
-- [Quick Start (New Users)](#quick-start-new-users)
-- [Local Deployment (macOS)](#local-deployment-macos)
-- [Local Deployment (Windows)](#local-deployment-windows)
-- [Server Deployment (Linux)](#server-deployment-linux)
-- [Getting Kiro Accounts](#getting-kiro-accounts)
-- [Configuration Reference](#configuration-reference)
-- [Claude Code Integration](#claude-code-integration)
-- [API Endpoints](#api-endpoints)
-- [Model Mapping](#model-mapping)
-- [Admin Panel](#admin-panel)
-- [FAQ](#faq)
-- [Notes](#notes)
-
----
-
-## Quick Start (New Users)
+## 🚀 Quick Start (New Users)
 
 **What is this project?**
 
@@ -68,7 +62,7 @@ Install dependencies → Build project → Start service → Add accounts → Co
 
 ---
 
-## Local Deployment (macOS)
+## 🍎 Local Deployment (macOS)
 
 ### Step 1: Install Dependencies
 
@@ -167,7 +161,7 @@ After setup, `app/config/config.json` is generated, the service starts, and the 
 
 After the service starts, open the admin panel at `http://127.0.0.1:5678/admin` and add accounts exported from Kiro.
 
-Alternatively, create `app/config/credentials.json` directly — see [Getting Kiro Accounts](#getting-kiro-accounts).
+Alternatively, create `app/config/credentials.json` directly — see the "Getting Kiro Accounts" section.
 
 ### Stop the Service
 
@@ -175,7 +169,7 @@ Press `Ctrl+C` in the terminal running the service, or close the terminal window
 
 ---
 
-## Local Deployment (Windows)
+## 🪟 Local Deployment (Windows)
 
 ### Step 1: Install Dependencies
 
@@ -273,7 +267,7 @@ Press `Ctrl+C` in the PowerShell window, or close the window.
 
 ---
 
-## Server Deployment (Linux)
+## 🐧 Server Deployment (Linux)
 
 ### Option 1: Docker (Simplest, Recommended)
 
@@ -321,7 +315,7 @@ Access the admin panel at `http://your-server-ip:5678/admin`.
 
 > **Note**: `docker-compose.yml` binds to `5678:5678` (all interfaces) by default. To restrict to localhost only, change `ports` to `"127.0.0.1:5678:5678"`. Also make sure your cloud provider's security group (Tencent Cloud / Alibaba Cloud etc.) has an inbound rule allowing port 5678, otherwise external access will be refused.
 
-### Updating to the Latest Version
+#### Updating to the Latest Version
 
 ```bash
 cd /opt/kiro2cc-proxy
@@ -382,7 +376,7 @@ Using an overseas server is recommended — no proxy needed.
 
 ---
 
-## Getting Kiro Accounts
+## 🔑 Getting Kiro Accounts
 
 ### Full Flow: Export from Kiro Account Manager → Import via Admin Panel
 
@@ -395,7 +389,7 @@ Using an overseas server is recommended — no proxy needed.
 
 **Step 2: Start the kiro2cc-proxy service**
 
-Follow the [Local Deployment](#local-deployment-macos) or [Server Deployment](#server-deployment-linux) section to start the service and confirm it is running.
+Follow the "Local Deployment" or "Server Deployment" section to start the service and confirm it is running.
 
 **Step 3: Import accounts via the Admin Panel (recommended)**
 
@@ -466,7 +460,7 @@ Lower `priority` value = higher priority. Up to 3 retries per account, 9 per req
 
 ---
 
-## Configuration Reference
+## ⚙️ Configuration Reference
 
 ### config.json Fields
 
@@ -531,7 +525,7 @@ Override the global proxy for individual accounts:
 
 ---
 
-## Claude Code Integration
+## 🤖 Claude Code Integration
 
 ### Option 1: Environment Variables (recommended)
 
@@ -546,7 +540,7 @@ export ANTHROPIC_API_KEY="API key created in the admin panel's API Key Managemen
 
 ```bash
 echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5678"' >> ~/.zshrc
-echo 'export ANTHROPIC_API_KEY="API key created in the admin panel's API Key Management page"' >> ~/.zshrc
+echo 'export ANTHROPIC_API_KEY="API key created on the admin panel API Key Management page"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -596,7 +590,7 @@ curl http://127.0.0.1:5678/v1/messages \
 
 ---
 
-## API Endpoints
+## 🔌 API Endpoints
 
 ### Standard Endpoints (/v1)
 
@@ -629,7 +623,7 @@ Authorization: Bearer your-api-key
 
 ---
 
-## Model Mapping
+## 🗺️ Model Mapping
 
 Any model name containing the following keywords is automatically mapped to the corresponding Kiro model:
 
@@ -656,7 +650,7 @@ Any model name containing the following keywords is automatically mapped to the 
 
 ---
 
-## Admin Panel
+## 🛡️ Admin Panel
 
 When `adminPsw` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
 
@@ -679,13 +673,13 @@ Features:
 
 ---
 
-## FAQ
+## ❓ FAQ
 
 **Q: Service starts but shows "0 accounts loaded"**
 
-Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker). See [Getting Kiro Accounts](#getting-kiro-accounts).
+Create `app/config/credentials.json` (local) or `data/credentials.json` (Docker). See the "Getting Kiro Accounts" section.
 
-**Q: Requests return `INVALID_MODEL_ID`**
+**Q: Requests return <code>INVALID_MODEL_ID</code>**
 
 > ⚠️ **[CRITICAL]** Mainland China IPs cannot access Claude models directly. You must add `proxyUrl` to `app/config/config.json` (e.g. `"proxyUrl": "http://127.0.0.1:7890"`), or use an overseas server. This is the most common issue for users in China.
 
@@ -701,11 +695,11 @@ Check whether the client is using a sub API key that was created and enabled in 
 
 Try changing `tlsBackend` to `native-tls` in `config.json` and restart the service.
 
-**Q: Importing accounts via the admin panel fails with `Cannot read properties of undefined (reading 'digest')`**
+**Q: Importing accounts via the admin panel fails with <code>Cannot read properties of undefined (reading 'digest')</code>**
 
 This was fixed in v2.7.3: the `crypto.subtle` encryption API is only available in HTTPS or localhost environments, so accessing the admin panel via a public IP + HTTP used to trigger this error. Since v2.7.3, it automatically falls back to a pure-JS implementation — no need to configure HTTPS. If you still see this error, please upgrade to the latest version.
 
-**Q: Enterprise IdC account requests return 502 with `profileArn is required for this request` in the logs**
+**Q: Enterprise IdC account requests return 502 with <code>profileArn is required for this request</code> in the logs**
 
 Enterprise IdC accounts calling the Q endpoint require a `profileArn`, but the IdC token refresh response doesn't include it — it must be entered manually. The admin panel's "Add Account / Edit Account" dialog now has a **Profile ARN** field; fill in a value like `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>`. You can obtain the `profileArn` from the Kiro IDE local cache or via `ListAvailableProfiles`; its region must match the account's `apiRegion`. Social accounts usually don't need this field.
 
@@ -716,6 +710,7 @@ Yes. When creating/editing a sub API Key, the limit unit can be set to "USD esti
 **Q: Port already in use**
 
 `run-local-service-mac.sh` automatically kills the process occupying the configured port. If it still fails:
+
 ```bash
 lsof -ti:5678 | xargs kill -9
 ```
@@ -747,7 +742,7 @@ git pull
 
 ---
 
-## Notes
+## ⚠️ Notes
 
 1. `credentials.json` contains sensitive tokens — never commit it to version control or share it
 2. The service auto-refreshes expired tokens — no manual intervention needed
@@ -756,7 +751,7 @@ git pull
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 kiro2cc-proxy/
@@ -779,10 +774,10 @@ kiro2cc-proxy/
 
 ---
 
-## License
+### 📜 License
 
 MIT
 
-## Acknowledgements
+### 🙏 Acknowledgements
 
 This project is based on [kiro.rs](https://github.com/hank9999/kiro.rs). Thanks to the original author for the open-source contribution.

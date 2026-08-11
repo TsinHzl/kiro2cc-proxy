@@ -1,0 +1,25 @@
+README.en.md
+  2cee1a9227d8c98d 1-3,7,9,13,15,19,21,25-39,43,164,318,379,392,463,528,543,593,626,653,676,680,713,745,754,777,781
+README.md
+  2cee1a9227d8c98d 1-3,7,9,11,13,15,19,21,25-39,43,166,322,383,396,484,518,549,614,647,674,697,701,734,766,775,798,802
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3d3a04d304c9e5548f8616a09ace98b92f047d2e",
+  "prompts": {
+    "2cee1a9227d8c98d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24058f0f-c843-46d0-a283-6314890c78a7",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 457,
+      "total_deletions": 371,
+      "accepted_lines": 116,
+      "overriden_lines": 15
+    }
+  }
+}

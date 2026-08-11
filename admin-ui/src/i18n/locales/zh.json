@@ -54,7 +54,7 @@
     "navSettings": "设置",
     "toggleLightMode": "切换到白天模式",
     "toggleDarkMode": "切换到夜间模式",
-    "pageSubtitle": "管理 Kiro 账号与负载均衡",
+    "pageSubtitle": "管理 Kiro 账号",
     "statTotal": "账号总数",
     "statAvailable": "可用账号",
     "statGlobalCredits": "全局积分",

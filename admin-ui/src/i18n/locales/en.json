@@ -54,7 +54,7 @@
     "navSettings": "Settings",
     "toggleLightMode": "Switch to light mode",
     "toggleDarkMode": "Switch to dark mode",
-    "pageSubtitle": "Manage Kiro accounts and load balancing",
+    "pageSubtitle": "Manage Kiro accounts",
     "statTotal": "Total Accounts",
     "statAvailable": "Available Accounts",
     "statGlobalCredits": "Global Credits",

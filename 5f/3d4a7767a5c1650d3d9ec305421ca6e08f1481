@@ -1,0 +1,36 @@
+src/kiro/token_manager.rs
+  e592e8960753b044 150-168,239-241,360-362,437-439,601-602,635-638,648-649,744-745,910,1174-1179,1185-1196,1227-1233,1284-1290,1356-1362,1508,1700-1703,1908-1992,2284,2309,2352,2563,2995-3012,3197-3306,3326-3377,3538-3588,3796-3877,4141-4230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5f3d4a7767a5c1650d3d9ec305421ca6e08f1481",
+  "prompts": {
+    "3197dd08cb02d783": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d85c284d-d7fe-4543-ab4f-6d23d474058d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 87,
+      "total_deletions": 4,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "e592e8960753b044": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86f5e27c-3a96-4d0e-9e13-a14be7d8e093",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 619,
+      "total_deletions": 49,
+      "accepted_lines": 785,
+      "overriden_lines": 0
+    }
+  }
+}

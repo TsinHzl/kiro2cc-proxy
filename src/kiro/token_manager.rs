@@ -147,6 +147,25 @@ pub(crate) fn validate_refresh_token(credentials: &KiroCredentials) -> anyhow::R
     Ok(())
 }
 
+/// refreshToken 已被服务端永久撤销（invalid_grant），区别于瞬态刷新失败
+#[derive(Debug)]
+pub(crate) struct RefreshTokenInvalidError;
+
+impl std::fmt::Display for RefreshTokenInvalidError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "refreshToken 已被服务端撤销（invalid_grant）")
+    }
+}
+
+impl std::error::Error for RefreshTokenInvalidError {}
+
+/// 判断刷新响应是否为服务端已撤销 refreshToken（invalid_grant）
+fn is_invalid_grant_response(status: u16, body: &str) -> bool {
+    status == 400
+        && body.contains("invalid_grant")
+        && body.contains("Invalid refresh token provided")
+}
+
 /// 刷新 Token
 pub(crate) async fn refresh_token(
     credentials: &KiroCredentials,
@@ -217,6 +236,9 @@ async fn refresh_social_token(
     let status = response.status();
     if !status.is_success() {
         let body_text = response.text().await.unwrap_or_default();
+        if is_invalid_grant_response(status.as_u16(), &body_text) {
+            return Err(RefreshTokenInvalidError.into());
+        }
         let error_msg = match status.as_u16() {
             401 => "OAuth 凭证已过期或无效，需要重新认证",
             403 => "权限不足，无法刷新 Token",
@@ -335,6 +357,9 @@ async fn refresh_idc_token(
     let status = response.status();
     if !status.is_success() {
         let body_text = response.text().await.unwrap_or_default();
+        if is_invalid_grant_response(status.as_u16(), &body_text) {
+            return Err(RefreshTokenInvalidError.into());
+        }
         let error_msg = match status.as_u16() {
             401 => "IdC 凭证已过期或无效，需要重新认证",
             403 => "权限不足，无法刷新 Token",
@@ -409,6 +434,9 @@ async fn refresh_external_idp_token(
     let status = response.status();
     if !status.is_success() {
         let body_text = response.text().await.unwrap_or_default();
+        if is_invalid_grant_response(status.as_u16(), &body_text) {
+            return Err(RefreshTokenInvalidError.into());
+        }
         let error_msg = match status.as_u16() {
             400 => "external_idp token 请求参数错误（400）",
             401 => "external_idp 凭证已过期或无效，需要重新认证（401）",
@@ -570,6 +598,8 @@ struct CredentialEntry {
     credentials: KiroCredentials,
     /// API 调用连续失败次数
     failure_count: u32,
+    /// Token 刷新连续失败次数（独立于 failure_count，语义为"刷新失败"而非"API 调用失败"）
+    refresh_failure_count: u32,
     /// 是否已禁用
     disabled: bool,
     /// 禁用原因（用于区分手动禁用 vs 自动禁用，便于自愈）
@@ -602,6 +632,10 @@ enum DisabledReason {
     TooManyFailures,
     /// 额度已用尽（如 MONTHLY_REQUEST_COUNT）
     QuotaExceeded,
+    /// refreshToken 已被服务端永久撤销（invalid_grant），需人工更换凭证
+    InvalidRefreshToken,
+    /// Token 刷新连续失败达到阈值后自动禁用
+    TooManyRefreshFailures,
 }
 
 impl DisabledReason {
@@ -611,6 +645,8 @@ impl DisabledReason {
             DisabledReason::Manual => "已被手动禁用",
             DisabledReason::TooManyFailures => "因连续认证失败被自动禁用",
             DisabledReason::QuotaExceeded => "本月请求额度已用尽",
+            DisabledReason::InvalidRefreshToken => "refreshToken 已被服务端撤销，需人工更换凭证",
+            DisabledReason::TooManyRefreshFailures => "因连续 Token 刷新失败被自动禁用",
         }
     }
 }
@@ -705,6 +741,8 @@ pub struct CredentialEntrySnapshot {
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
     pub last_used_at: Option<String>,
+    /// Token 刷新连续失败次数
+    pub refresh_failure_count: u32,
     /// 是否配置了账号级代理
     pub has_proxy: bool,
     /// 代理 URL（用于前端展示）
@@ -869,6 +907,7 @@ impl MultiTokenManager {
                     id,
                     credentials: cred.clone(),
                     failure_count: 0,
+                    refresh_failure_count: 0,
                     disabled: cred.disabled, // 从配置文件读取 disabled 状态
                     // 暂定 Manual；load_stats() 会用持久化的真实原因覆盖
                     // （额度耗尽/连续失败也会被 persist_credentials 写成 disabled: true，
@@ -1132,16 +1171,29 @@ impl MultiTokenManager {
                     if best.is_none() {
                         let mut entries = self.entries.lock();
                         if entries.iter().any(|e| {
-                            e.disabled && e.disabled_reason == Some(DisabledReason::TooManyFailures)
+                            e.disabled
+                                && matches!(
+                                    e.disabled_reason,
+                                    Some(DisabledReason::TooManyFailures)
+                                        | Some(DisabledReason::TooManyRefreshFailures)
+                                )
                         }) {
                             tracing::warn!(
                                 "所有账号均已被自动禁用，执行自愈：重置失败计数并重新启用（等价于重启）"
                             );
                             for e in entries.iter_mut() {
-                                if e.disabled_reason == Some(DisabledReason::TooManyFailures) {
-                                    e.disabled = false;
-                                    e.disabled_reason = None;
-                                    e.failure_count = 0;
+                                match e.disabled_reason {
+                                    Some(DisabledReason::TooManyFailures) => {
+                                        e.disabled = false;
+                                        e.disabled_reason = None;
+                                        e.failure_count = 0;
+                                    }
+                                    Some(DisabledReason::TooManyRefreshFailures) => {
+                                        e.disabled = false;
+                                        e.disabled_reason = None;
+                                        e.refresh_failure_count = 0;
+                                    }
+                                    _ => {}
                                 }
                             }
                             drop(entries);
@@ -1172,7 +1224,13 @@ impl MultiTokenManager {
                 Err(e) => {
                     tracing::warn!("账号 #{} Token 刷新失败，尝试下一个账号: {}", id, e);
 
-                    // Token 刷新失败，切换到下一个优先级的账号（不计入失败次数）
+                    if e.downcast_ref::<RefreshTokenInvalidError>().is_some() {
+                        self.report_refresh_token_invalid(id);
+                    } else {
+                        self.report_refresh_failure(id);
+                    }
+
+                    // 切换到下一个优先级的账号
                     self.switch_to_next_by_priority();
                     tried_count += 1;
                 }
@@ -1223,6 +1281,13 @@ impl MultiTokenManager {
                 Ok(ctx) => return Ok(ctx),
                 Err(e) => {
                     tracing::warn!("绑定账号 #{} Token 刷新失败，尝试下一个: {}", id, e);
+
+                    if e.downcast_ref::<RefreshTokenInvalidError>().is_some() {
+                        self.report_refresh_token_invalid(id);
+                    } else {
+                        self.report_refresh_failure(id);
+                    }
+
                     tried_ids.push(id);
                 }
             }
@@ -1288,6 +1353,13 @@ impl MultiTokenManager {
                         id,
                         e
                     );
+
+                    if e.downcast_ref::<RefreshTokenInvalidError>().is_some() {
+                        self.report_refresh_token_invalid(id);
+                    } else {
+                        self.report_refresh_failure(id);
+                    }
+
                     self.sticky_cache.lock().remove(cid);
                     self.sticky_misses.fetch_add(1, Ordering::Relaxed);
                 }
@@ -1433,6 +1505,7 @@ impl MultiTokenManager {
                         if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
                             entry.credentials = new_creds.clone();
                             entry.last_refreshed_at = Some(Instant::now());
+                            entry.refresh_failure_count = 0;
                         }
                     }
 
@@ -1624,7 +1697,10 @@ impl MultiTokenManager {
                             disabled_reason: e.disabled_reason.filter(|r| {
                                 matches!(
                                     r,
-                                    DisabledReason::QuotaExceeded | DisabledReason::TooManyFailures
+                                    DisabledReason::QuotaExceeded
+                                        | DisabledReason::TooManyFailures
+                                        | DisabledReason::InvalidRefreshToken
+                                        | DisabledReason::TooManyRefreshFailures
                                 )
                             }),
                             quota_exhausted_at: e.quota_exhausted_at.map(|t| t.to_rfc3339()),
@@ -1822,6 +1898,91 @@ impl MultiTokenManager {
         let (result, just_disabled) = result;
         if just_disabled {
             // 禁用原因是关键状态，跳过防抖立即落盘
+            self.save_stats();
+        } else {
+            self.save_stats_debounced();
+        }
+        result
+    }
+
+    /// 报告指定账号 refreshToken 已被服务端撤销（invalid_grant）
+    ///
+    /// 立即禁用该账号，不计入 `refresh_failure_count`（永久性失效，需人工更换凭证，
+    /// 与瞬态刷新失败区分，因此不参与全灭自愈）
+    /// 返回是否还有可用账号
+    pub fn report_refresh_token_invalid(&self, id: u64) -> bool {
+        let result = {
+            let mut entries = self.entries.lock();
+
+            let entry = match entries.iter_mut().find(|e| e.id == id) {
+                Some(e) => e,
+                None => return entries.iter().any(|e| !e.disabled),
+            };
+
+            if entry.disabled {
+                return entries.iter().any(|e| !e.disabled);
+            }
+
+            entry.disabled = true;
+            entry.disabled_reason = Some(DisabledReason::InvalidRefreshToken);
+
+            tracing::error!(
+                "账号 #{} 的 refreshToken 已被服务端撤销（invalid_grant），已被禁用，需人工更换凭证",
+                id
+            );
+
+            entries.iter().any(|e| !e.disabled)
+        };
+        // 禁用原因是关键状态，跳过防抖立即落盘
+        self.save_stats();
+        result
+    }
+
+    /// 报告指定账号 Token 刷新失败（非 invalid_grant 的瞬态失败）
+    ///
+    /// 增加 `refresh_failure_count`，达到 `MAX_FAILURES_PER_CREDENTIAL` 阈值后禁用账号
+    /// （`disabled_reason = TooManyRefreshFailures`）
+    /// 返回是否还有可用账号
+    pub fn report_refresh_failure(&self, id: u64) -> bool {
+        let result = {
+            let mut entries = self.entries.lock();
+
+            let entry = match entries.iter_mut().find(|e| e.id == id) {
+                Some(e) => e,
+                None => return entries.iter().any(|e| !e.disabled),
+            };
+
+            if entry.disabled {
+                return entries.iter().any(|e| !e.disabled);
+            }
+
+            entry.refresh_failure_count += 1;
+            let refresh_failure_count = entry.refresh_failure_count;
+
+            tracing::warn!(
+                "账号 #{} Token 刷新失败（{}/{}）",
+                id,
+                refresh_failure_count,
+                MAX_FAILURES_PER_CREDENTIAL
+            );
+
+            if refresh_failure_count >= MAX_FAILURES_PER_CREDENTIAL {
+                entry.disabled = true;
+                entry.disabled_reason = Some(DisabledReason::TooManyRefreshFailures);
+                tracing::error!(
+                    "账号 #{} 已连续刷新失败 {} 次，已被禁用",
+                    id,
+                    refresh_failure_count
+                );
+            }
+
+            (
+                entries.iter().any(|e| !e.disabled),
+                refresh_failure_count >= MAX_FAILURES_PER_CREDENTIAL,
+            )
+        };
+        let (result, just_disabled) = result;
+        if just_disabled {
             self.save_stats();
         } else {
             self.save_stats_debounced();
@@ -2120,6 +2281,7 @@ impl MultiTokenManager {
                     nickname: e.credentials.nickname.clone(),
                     success_count: e.success_count,
                     last_used_at: e.last_used_at.clone(),
+                    refresh_failure_count: e.refresh_failure_count,
                     has_proxy: e.credentials.proxy_url.is_some(),
                     proxy_url: e.credentials.proxy_url.clone(),
                     health_status: Self::compute_health(e),
@@ -2144,6 +2306,7 @@ impl MultiTokenManager {
             if !disabled {
                 // 启用时重置失败计数
                 entry.failure_count = 0;
+                entry.refresh_failure_count = 0;
                 entry.disabled_reason = None;
                 entry.quota_exhausted_at = None;
             } else {
@@ -2186,6 +2349,7 @@ impl MultiTokenManager {
                 .find(|e| e.id == id)
                 .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?;
             entry.failure_count = 0;
+            entry.refresh_failure_count = 0;
             entry.disabled = false;
             entry.disabled_reason = None;
             entry.quota_exhausted_at = None;
@@ -2396,6 +2560,7 @@ impl MultiTokenManager {
                 id: new_id,
                 credentials: validated_cred,
                 failure_count: 0,
+                refresh_failure_count: 0,
                 disabled: false,
                 disabled_reason: None,
                 success_count: 0,
@@ -2827,6 +2992,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_is_invalid_grant_response_matches_400_with_expected_body() {
+        let body = r#"{"error":"invalid_grant","error_description":"Invalid refresh token provided"}"#;
+        assert!(is_invalid_grant_response(400, body));
+    }
+
+    #[test]
+    fn test_is_invalid_grant_response_rejects_other_body() {
+        let body = r#"{"error":"server_error","error_description":"something else"}"#;
+        assert!(!is_invalid_grant_response(400, body));
+    }
+
+    #[test]
+    fn test_is_invalid_grant_response_rejects_non_400_status() {
+        let body = r#"{"error":"invalid_grant","error_description":"Invalid refresh token provided"}"#;
+        assert!(!is_invalid_grant_response(401, body));
+    }
+
     #[tokio::test]
     async fn test_add_credential_reject_duplicate_refresh_token() {
         let config = Config::default();
@@ -3011,6 +3194,116 @@ mod tests {
         assert_eq!(manager.available_count(), 2);
     }
 
+    #[tokio::test]
+    async fn test_acquire_context_self_heal_excludes_invalid_refresh_token() {
+        // TooManyRefreshFailures 属于瞬态故障，应参与全灭自愈；InvalidRefreshToken 是
+        // 服务端确认的永久性失效，重置重试只会立即再次失败，因此不参与自愈（覆盖 T12）
+        let config = Config::default();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_refresh_failure(1);
+        }
+        manager.report_refresh_token_invalid(2);
+        assert_eq!(manager.available_count(), 0);
+
+        // 触发自愈：#1（TooManyRefreshFailures）应被重置，#2（InvalidRefreshToken）应保持禁用
+        let ctx = manager.acquire_context(None).await.unwrap();
+        assert_eq!(ctx.id, 1);
+        assert_eq!(manager.available_count(), 1);
+
+        let entries = manager.entries.lock();
+        let entry1 = entries.iter().find(|e| e.id == 1).unwrap();
+        assert!(!entry1.disabled);
+        assert_eq!(entry1.disabled_reason, None);
+        assert_eq!(entry1.refresh_failure_count, 0);
+
+        let entry2 = entries.iter().find(|e| e.id == 2).unwrap();
+        assert!(
+            entry2.disabled,
+            "InvalidRefreshToken 不应参与全灭自愈，需人工更换凭证"
+        );
+        assert_eq!(entry2.disabled_reason, Some(DisabledReason::InvalidRefreshToken));
+    }
+
+    #[tokio::test]
+    async fn test_refresh_success_clears_refresh_failure_count() {
+        // 对称于 report_success 清零 failure_count：孤立的偶发刷新失败不应无限累积
+        let body = r#"{"access_token":"new-access-token","expires_in":3600}"#;
+        let endpoint = spawn_single_response_server(200, body).await;
+
+        let cred1 = KiroCredentials {
+            auth_method: Some("external_idp".to_string()),
+            refresh_token: Some("short-refresh-token".to_string()),
+            client_id: Some("client-id".to_string()),
+            token_endpoint: Some(endpoint),
+            expires_at: Some((Utc::now() - Duration::hours(1)).to_rfc3339()),
+            ..Default::default()
+        };
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(config, vec![cred1], None, None, false).unwrap();
+
+        manager.report_refresh_failure(1);
+        manager.report_refresh_failure(1);
+        {
+            let entries = manager.entries.lock();
+            assert_eq!(entries[0].refresh_failure_count, 2);
+        }
+
+        let ctx = manager.acquire_context_filtered(None, &[1]).await.unwrap();
+        assert_eq!(ctx.id, 1);
+
+        let entries = manager.entries.lock();
+        assert_eq!(
+            entries[0].refresh_failure_count, 0,
+            "刷新成功后应清零 refresh_failure_count"
+        );
+    }
+
+    #[test]
+    fn test_set_disabled_enable_clears_refresh_failure_count() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+
+        let manager = MultiTokenManager::new(config, vec![cred1], None, None, false).unwrap();
+
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_refresh_failure(1);
+        }
+        assert_eq!(manager.available_count(), 0);
+
+        manager.set_disabled(1, false).unwrap();
+
+        let entries = manager.entries.lock();
+        assert_eq!(entries[0].refresh_failure_count, 0);
+        assert!(!entries[0].disabled);
+        assert_eq!(entries[0].disabled_reason, None);
+    }
+
+    #[test]
+    fn test_reset_and_enable_clears_refresh_failure_count() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+
+        let manager = MultiTokenManager::new(config, vec![cred1], None, None, false).unwrap();
+
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_refresh_failure(1);
+        }
+        assert_eq!(manager.available_count(), 0);
+
+        manager.reset_and_enable(1).unwrap();
+
+        let entries = manager.entries.lock();
+        assert_eq!(entries[0].refresh_failure_count, 0);
+        assert!(!entries[0].disabled);
+        assert_eq!(entries[0].disabled_reason, None);
+    }
+
     #[test]
     fn test_multi_token_manager_report_quota_exhausted() {
         let config = Config::default();
@@ -3028,6 +3321,58 @@ mod tests {
         // 再禁用第二个后，无可用账号
         assert!(!manager.report_quota_exhausted(2));
         assert_eq!(manager.available_count(), 0);
+    }
+
+    #[test]
+    fn test_report_refresh_token_invalid_disables_immediately_without_counting() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+        let cred2 = KiroCredentials::default();
+
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        assert_eq!(manager.available_count(), 2);
+        // 单次调用即立即禁用，不像 report_refresh_failure 需要累计到阈值
+        assert!(manager.report_refresh_token_invalid(1));
+        assert_eq!(manager.available_count(), 1);
+
+        let entries = manager.entries.lock();
+        let entry = entries.iter().find(|e| e.id == 1).unwrap();
+        assert!(entry.disabled);
+        assert_eq!(entry.disabled_reason, Some(DisabledReason::InvalidRefreshToken));
+        assert_eq!(
+            entry.refresh_failure_count, 0,
+            "invalid_grant 是永久性失效，不应计入 refresh_failure_count"
+        );
+    }
+
+    #[test]
+    fn test_report_refresh_failure_counts_to_threshold_then_disables() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+        let cred2 = KiroCredentials::default();
+
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 未达阈值前保持可用
+        assert!(manager.report_refresh_failure(1));
+        assert!(manager.report_refresh_failure(1));
+        assert_eq!(manager.available_count(), 2);
+
+        // 第 3 次达到 MAX_FAILURES_PER_CREDENTIAL 阈值，禁用并设置正确的 disabled_reason
+        assert!(manager.report_refresh_failure(1));
+        assert_eq!(manager.available_count(), 1);
+
+        let entries = manager.entries.lock();
+        let entry = entries.iter().find(|e| e.id == 1).unwrap();
+        assert!(entry.disabled);
+        assert_eq!(
+            entry.disabled_reason,
+            Some(DisabledReason::TooManyRefreshFailures)
+        );
+        assert_eq!(entry.refresh_failure_count, MAX_FAILURES_PER_CREDENTIAL);
     }
 
     #[tokio::test]
@@ -3187,6 +3532,57 @@ mod tests {
         assert_eq!(
             refresh_url,
             "https://prod.ap-southeast-1.auth.desktop.kiro.dev/refreshToken"
+        );
+    }
+
+    /// 启动一个仅响应一次请求的本地 TCP 服务，返回固定的 HTTP 状态码 + body。
+    ///
+    /// 不引入 mock server crate（design.md 决策 6）：`external_idp` 的
+    /// `token_endpoint` 是账号级可配置 URL，可以直接指向本机地址，用已有的
+    /// tokio `net`（`full` feature 已启用）搭建裸响应即可，无需新依赖。
+    async fn spawn_single_response_server(status: u16, body: &'static str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf).await;
+                let response = format!(
+                    "HTTP/1.1 {} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    status,
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.shutdown().await;
+            }
+        });
+        format!("http://{}/token", addr)
+    }
+
+    #[tokio::test]
+    async fn test_refresh_external_idp_invalid_grant_returns_typed_error() {
+        let body = r#"{"error":"invalid_grant","error_description":"Invalid refresh token provided"}"#;
+        let endpoint = spawn_single_response_server(400, body).await;
+
+        let credentials = KiroCredentials {
+            auth_method: Some("external_idp".to_string()),
+            refresh_token: Some("short-refresh-token".to_string()),
+            client_id: Some("client-id".to_string()),
+            token_endpoint: Some(endpoint),
+            ..Default::default()
+        };
+
+        let config = Config::default();
+        let err = refresh_token(&credentials, &config, None)
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.downcast_ref::<RefreshTokenInvalidError>().is_some(),
+            "external_idp 400+invalid_grant 应返回 RefreshTokenInvalidError，实际: {}",
+            err
         );
     }
 
@@ -3394,6 +3790,89 @@ mod tests {
             .unwrap();
         // 返回另一个账号
         assert_ne!(ctx2.id, bound_id);
+    }
+
+    #[tokio::test]
+    async fn test_acquire_context_filtered_refresh_failure_counts_and_disables() {
+        // 缺少 refreshToken 会在 validate_refresh_token 阶段失败（无需真实网络请求），
+        // 命中 acquire_context_filtered 的 Err(e) 分支，验证其也接入了与 acquire_context
+        // 相同的分类/计数/禁用逻辑（覆盖 T10）
+        let config = Config::default();
+        // 无 access_token/refresh_token，强制走刷新且必然失败
+        let cred1 = KiroCredentials {
+            expires_at: Some((Utc::now() - Duration::hours(1)).to_rfc3339()),
+            ..Default::default()
+        };
+        let mut cred2 = make_valid_cred("t2");
+        // 更低优先级数值 = 更高优先级，固定 #1 为首选，避免同优先级 round-robin 导致选择不确定
+        cred2.priority = 1;
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            let ctx = manager
+                .acquire_context_filtered(None, &[1, 2])
+                .await
+                .unwrap();
+            // 白名单内 #1 必然失败，最终应回退到 #2
+            assert_eq!(ctx.id, 2);
+        }
+
+        let entries = manager.entries.lock();
+        let entry = entries.iter().find(|e| e.id == 1).unwrap();
+        assert!(entry.disabled);
+        assert_eq!(
+            entry.disabled_reason,
+            Some(DisabledReason::TooManyRefreshFailures)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_acquire_context_sticky_production_path_classifies_invalid_grant() {
+        // 验证生产路径 acquire_context_sticky 命中缓存后的 Err(e) 分支确实接入了
+        // RefreshTokenInvalidError 分类逻辑（覆盖 T11 / design.md 决策 10 的核心风险点：
+        // provider.rs 实际调用的是 acquire_context_sticky，遗漏该路径等于本次改动未生效）
+        let config = Config::default();
+        let cred1 = make_valid_cred("t1");
+        let cred2 = make_valid_cred("t2");
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 首次调用建立 sticky 绑定
+        let ctx1 = manager
+            .acquire_context_sticky(None, &[], Some("session-invalid-grant"))
+            .await
+            .unwrap();
+        let bound_id = ctx1.id;
+
+        // 让已绑定账号的下一次刷新命中 invalid_grant
+        let body = r#"{"error":"invalid_grant","error_description":"Invalid refresh token provided"}"#;
+        let endpoint = spawn_single_response_server(400, body).await;
+        {
+            let mut entries = manager.entries.lock();
+            let entry = entries.iter_mut().find(|e| e.id == bound_id).unwrap();
+            entry.credentials.expires_at = Some((Utc::now() - Duration::hours(1)).to_rfc3339());
+            entry.credentials.auth_method = Some("external_idp".to_string());
+            entry.credentials.client_id = Some("client-id".to_string());
+            entry.credentials.refresh_token = Some("short-refresh-token".to_string());
+            entry.credentials.token_endpoint = Some(endpoint);
+        }
+
+        // 命中同一 continuation_id：走缓存命中分支，刷新失败应驱逐并重选到另一账号
+        let ctx2 = manager
+            .acquire_context_sticky(None, &[], Some("session-invalid-grant"))
+            .await
+            .unwrap();
+        assert_ne!(ctx2.id, bound_id);
+
+        let entries = manager.entries.lock();
+        let entry = entries.iter().find(|e| e.id == bound_id).unwrap();
+        assert!(entry.disabled);
+        assert_eq!(entry.disabled_reason, Some(DisabledReason::InvalidRefreshToken));
+        assert_eq!(
+            entry.refresh_failure_count, 0,
+            "invalid_grant 不应计入 refresh_failure_count"
+        );
     }
 
     #[tokio::test]
@@ -3653,6 +4132,97 @@ mod tests {
             assert_eq!(
                 entries[0].disabled_reason,
                 Some(DisabledReason::TooManyFailures),
+                "重启后禁用原因退化为 Manual，账号将被永久钉死"
+            );
+        }
+    }
+
+    #[test]
+    fn test_invalid_refresh_token_disabled_reason_survives_restart() {
+        // 对称于 test_quota_disabled_reason_survives_restart：InvalidRefreshToken
+        // 必须只落盘到 kiro_stats.json，重启后不退化为 Manual，否则违反"需人工介入才能
+        // 恢复"的设计目标（覆盖 T13 白名单扩展）
+        let dir_guard =
+            TempDirGuard::new(&format!("k2cc_invalid_grant_restart_{}", std::process::id()));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut seed = make_valid_cred("t1");
+        seed.id = Some(1);
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config.clone(),
+            vec![seed],
+            None,
+            Some(cred_path.clone()),
+            true,
+        )
+        .unwrap();
+        manager.report_refresh_token_invalid(1);
+        manager.persist_credentials().unwrap();
+
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert!(
+            !persisted[0].disabled,
+            "invalid_grant 禁用不应写入 credentials.json，否则重启后退化为手动禁用"
+        );
+
+        let reloaded =
+            MultiTokenManager::new(config, persisted, None, Some(cred_path), true).unwrap();
+
+        {
+            let entries = reloaded.entries.lock();
+            assert_eq!(
+                entries[0].disabled_reason,
+                Some(DisabledReason::InvalidRefreshToken),
+                "重启后禁用原因退化为 Manual，账号将被永久钉死或错误自愈"
+            );
+        }
+    }
+
+    #[test]
+    fn test_too_many_refresh_failures_disabled_reason_survives_restart() {
+        // 对称于 test_too_many_failures_disabled_reason_survives_restart：
+        // TooManyRefreshFailures 必须只落盘到 kiro_stats.json（覆盖 T13 白名单扩展）
+        let dir_guard = TempDirGuard::new(&format!(
+            "k2cc_refresh_failures_restart_{}",
+            std::process::id()
+        ));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut seed = make_valid_cred("t1");
+        seed.id = Some(1);
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config.clone(),
+            vec![seed],
+            None,
+            Some(cred_path.clone()),
+            true,
+        )
+        .unwrap();
+        for _ in 0..MAX_FAILURES_PER_CREDENTIAL {
+            manager.report_refresh_failure(1);
+        }
+        manager.persist_credentials().unwrap();
+
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert!(
+            !persisted[0].disabled,
+            "连续刷新失败禁用不应写入 credentials.json，否则重启后退化为手动禁用"
+        );
+
+        let reloaded =
+            MultiTokenManager::new(config, persisted, None, Some(cred_path), true).unwrap();
+
+        {
+            let entries = reloaded.entries.lock();
+            assert_eq!(
+                entries[0].disabled_reason,
+                Some(DisabledReason::TooManyRefreshFailures),
                 "重启后禁用原因退化为 Manual，账号将被永久钉死"
             );
         }

@@ -1,0 +1,23 @@
+docs/源码全景解析.md
+  3197dd08cb02d783 20,541-622,1757
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "32be3ef0e45f3593803e3f703ff89fbd891a1ff1",
+  "prompts": {
+    "3197dd08cb02d783": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d85c284d-d7fe-4543-ab4f-6d23d474058d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    }
+  }
+}

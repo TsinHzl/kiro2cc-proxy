@@ -92,23 +92,28 @@ jobs:
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: nick-fields/retry@v3
         with:
-          context: .
-          platforms: ${{ matrix.platform }}
-          provenance: false
-          outputs: type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy,push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=kiro2cc-proxy Docker Image
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            docker buildx build \
+              --platform ${{ matrix.platform }} \
+              --provenance=false \
+              --output type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/kiro2cc-proxy,push-by-digest=true,name-canonical=true,push=true \
+              --cache-from type=gha,scope=${{ matrix.platform }} \
+              --cache-to type=gha,mode=max,scope=${{ matrix.platform }} \
+              --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+              --label org.opencontainers.image.description="kiro2cc-proxy Docker Image" \
+              --metadata-file /tmp/metadata.json \
+              .
 
       - name: Export digest
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           mkdir -p /tmp/digests
+          DIGEST=$(jq -r '."containerimage.digest"' /tmp/metadata.json)
+          [[ -n "$DIGEST" && "$DIGEST" != "null" ]] || { echo "::error::failed to extract digest from metadata.json"; exit 1; }
           touch "/tmp/digests/${DIGEST#sha256:}"
 
       - name: Upload digest

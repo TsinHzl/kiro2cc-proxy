@@ -1,0 +1,23 @@
+.github/workflows/docker-build.yaml
+  e592e8960753b044 95,97-110,115-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8151cf0744984941c4aacb9dcf79fafa7d76b469",
+  "prompts": {
+    "e592e8960753b044": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86f5e27c-3a96-4d0e-9e13-a14be7d8e093",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 12,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}

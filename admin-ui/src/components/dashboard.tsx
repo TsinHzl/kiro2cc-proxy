@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useRef, useId } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info, History } from 'lucide-react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info, History, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import kiroIcon from '@/assets/kiro-icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -98,10 +98,17 @@ function CreditsProgressRing({ percent }: { percent: number }) {
   )
 }
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'sidebar-collapsed'
+
+function readStoredSidebarCollapsed(): boolean {
+  return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+}
+
 export function Dashboard({ onLogout }: DashboardProps) {
   const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog'>('credentials')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(readStoredSidebarCollapsed)
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -371,6 +378,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
     storage.removeApiKey()
     queryClient.clear()
     onLogout()
+  }
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next))
+      return next
+    })
   }
 
   // 选择管理
@@ -738,27 +753,50 @@ export function Dashboard({ onLogout }: DashboardProps) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* 左侧 Sidebar */}
-      <aside className="w-[232px] bg-background border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10">
-        <div className="px-[22px] py-5 flex items-center justify-between gap-2.5 border-b border-border">
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} bg-background border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}>
+        <div className={`flex items-center border-b border-border ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'justify-between gap-2.5 px-[22px] py-5'}`}>
           <a
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2.5 group"
+            className={`flex items-center group ${sidebarCollapsed ? '' : 'gap-2.5'}`}
           >
-            <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg" />
-            <div>
-              <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Kiro2CCProxy</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">{t('dashboard.consoleSubtitle')}</div>
-            </div>
+            <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg shrink-0" />
+            {!sidebarCollapsed && (
+              <div>
+                <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Kiro2CCProxy</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">{t('dashboard.consoleSubtitle')}</div>
+              </div>
+            )}
           </a>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleLogout} title={t('common.logout')}>
-            <LogOut className="h-3.5 w-3.5" />
-          </Button>
+          <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-1' : 'gap-1'}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={toggleSidebarCollapsed}
+              title={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+              aria-label={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleLogout}
+              title={t('common.logout')}
+              aria-label={t('common.logout')}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           <div className="mb-[18px]">
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navMain')}</div>
+            {!sidebarCollapsed && (
+              <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navMain')}</div>
+            )}
             {[
               { label: t('dashboard.navCredentials'), icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
               { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
@@ -766,59 +804,78 @@ export function Dashboard({ onLogout }: DashboardProps) {
               { label: t('dashboard.navModels'), icon: <Boxes className="w-4 h-4 shrink-0" />, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
             ].map(({ label, icon, active, onClick }) => (
               <button key={label} onClick={onClick}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${active ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
+                title={sidebarCollapsed ? label : undefined}
+                aria-label={label}
+                className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${active ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
                 style={active ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
               >
-                {icon}{label}
+                {icon}{!sidebarCollapsed && label}
               </button>
             ))}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navSystem')}</div>
+            {!sidebarCollapsed && (
+              <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navSystem')}</div>
+            )}
             <button
               onClick={() => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'logs' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
+              title={sidebarCollapsed ? t('dashboard.navLogs') : undefined}
+              aria-label={t('dashboard.navLogs')}
+              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'logs' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'logs' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <ScrollText className="w-4 h-4 shrink-0" />
-              <span>{t('dashboard.navLogs')}</span>
+              {!sidebarCollapsed && <span>{t('dashboard.navLogs')}</span>}
             </button>
             <button
               onClick={() => { setActiveTab('changelog'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'changelog' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
+              title={sidebarCollapsed ? t('dashboard.navChangelog') : undefined}
+              aria-label={t('dashboard.navChangelog')}
+              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'changelog' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'changelog' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <History className="w-4 h-4 shrink-0" />
-              <span>{t('dashboard.navChangelog')}</span>
+              {!sidebarCollapsed && <span>{t('dashboard.navChangelog')}</span>}
             </button>
             <button
               onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${activeTab === 'settings' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
+              title={sidebarCollapsed ? t('dashboard.navSettings') : undefined}
+              aria-label={t('dashboard.navSettings')}
+              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'settings' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
               style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
             >
               <Settings className="w-4 h-4 shrink-0" />
-              <span>{t('dashboard.navSettings')}</span>
+              {!sidebarCollapsed && <span>{t('dashboard.navSettings')}</span>}
             </button>
           </div>
         </nav>
-        <div className="px-[18px] py-3 border-t border-border flex items-center justify-between">
+        <div className={`border-t border-border flex items-center ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'justify-between px-[18px] py-3'}`}>
           <a
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
+            title={sidebarCollapsed ? `kiro2cc-proxy v${serverInfo?.version ?? '...'}` : undefined}
+            aria-label={`kiro2cc-proxy v${serverInfo?.version ?? '...'}`}
             className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/70 hover:text-foreground transition-colors"
           >
-            <Github className="h-3.5 w-3.5" />
-            kiro2cc-proxy v{serverInfo?.version ?? '...'}
+            <Github className="h-3.5 w-3.5 shrink-0" />
+            {!sidebarCollapsed && <>kiro2cc-proxy v{serverInfo?.version ?? '...'}</>}
           </a>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
+            aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
+          >
             {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
           </Button>
         </div>
       </aside>
 
       {/* 主内容 */}
-      <main className="ml-[232px] flex-1 min-h-screen px-9 py-7">
+      <main className={`${sidebarCollapsed ? 'ml-16' : 'ml-[232px]'} flex-1 min-h-screen px-9 py-7 transition-all duration-200`}>
         {activeTab === 'logs' ? (
           <LogViewerPage />
         ) : activeTab === 'settings' ? (

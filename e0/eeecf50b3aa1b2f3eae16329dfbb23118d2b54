@@ -1,0 +1,23 @@
+src/admin/changelog.rs
+  f65999269435d901 65,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e0eeecf50b3aa1b2f3eae16329dfbb23118d2b54",
+  "prompts": {
+    "f65999269435d901": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63d9b97b-0ca8-42a7-bd4a-9a1ff7dc9b77",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

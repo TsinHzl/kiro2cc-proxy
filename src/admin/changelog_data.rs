@@ -62,9 +62,18 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     vec![
         ReleaseNote {
+            version: "2.9.5".to_string(),
+            date: "2026-08-13".to_string(),
+            is_latest: true,
+            groups: vec![feat_group(vec![Bilingual::new(
+                "Admin 后台侧边栏支持折叠/展开",
+                "Admin console sidebar now supports collapse/expand",
+            )])],
+        },
+        ReleaseNote {
             version: "2.9.0".to_string(),
             date: "2026-08-07".to_string(),
-            is_latest: true,
+            is_latest: false,
             groups: vec![
                 feat_group(vec![Bilingual::new(
                     "Admin 后台支持中英文全局切换",

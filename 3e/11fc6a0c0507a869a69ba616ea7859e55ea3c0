@@ -1,0 +1,57 @@
+src/anthropic/mod.rs
+  363ffc71bed3d42f 26
+src/openai/mod.rs
+  363ffc71bed3d42f 1-10
+src/openai/types.rs
+  363ffc71bed3d42f 1-145
+admin-ui/src/types/api.ts
+  363ffc71bed3d42f 226
+admin-ui/src/components/credential-detail-page.tsx
+  363ffc71bed3d42f 230,257-259
+admin-ui/src/i18n/locales/zh.json
+  363ffc71bed3d42f 33
+src/main.rs
+  363ffc71bed3d42f 11
+admin-ui/src/components/api-key-detail-page.tsx
+  363ffc71bed3d42f 196,223-225
+src/anthropic/converter.rs
+  363ffc71bed3d42f 28
+src/openai/converter.rs
+  363ffc71bed3d42f 1-101,103-283
+src/anthropic/handlers.rs
+  363ffc71bed3d42f 78,1379,1437
+src/anthropic/stream.rs
+  363ffc71bed3d42f 1494
+src/openai/handlers.rs
+  363ffc71bed3d42f 1-478
+admin-ui/src/i18n/locales/en.json
+  363ffc71bed3d42f 33
+admin-ui/src/components/daily-detail-page.tsx
+  363ffc71bed3d42f 143,169-170
+src/model/usage.rs
+  363ffc71bed3d42f 53-55,271,288,518,575-577,650,853,895,907,950,962
+src/openai/stream.rs
+  363ffc71bed3d42f 1-347
+src/anthropic/router.rs
+  363ffc71bed3d42f 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3e11fc6a0c0507a869a69ba616ea7859e55ea3c0",
+  "prompts": {
+    "363ffc71bed3d42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "584bd5b6-9fa6-444f-bdd6-42a9041d8cd6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1572,
+      "total_deletions": 88,
+      "accepted_lines": 1499,
+      "overriden_lines": 1
+    }
+  }
+}

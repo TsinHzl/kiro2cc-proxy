@@ -1,0 +1,61 @@
+admin-ui/tailwind.config.js
+  c0d8ad39f6fdb0d3 44-86,107-112,114-115
+admin-ui/src/components/ui/tooltip.tsx
+  c0d8ad39f6fdb0d3 1-28
+admin-ui/src/components/account-table.tsx
+  c0d8ad39f6fdb0d3 1-187
+admin-ui/src/index.css
+  c0d8ad39f6fdb0d3 6-9,11-17,19-26,28-63,67-81,83-116,126,128,136,139,143-151
+admin-ui/src/hooks/use-credentials.ts
+  c0d8ad39f6fdb0d3 36-38,44,170-172
+admin-ui/src/i18n/locales/en.json
+  c0d8ad39f6fdb0d3 47-49,52-53,64,106-155
+openspec/changes/redesign-account-management-ui/tasks.md
+  c0d8ad39f6fdb0d3 1-389
+openspec/changes/redesign-account-management-ui/specs/admin-ui/spec.md
+  c0d8ad39f6fdb0d3 1-292
+openspec/changes/redesign-account-management-ui/design.md
+  c0d8ad39f6fdb0d3 1-154
+admin-ui/src/components/dashboard.tsx
+  c0d8ad39f6fdb0d3 2-3,8,10-15,28,36-42,49-50,52-54,57-68,108-109,112-117,119-120,127-131,133-170,172-228,236,239,426,436-457,492-513,861-887,891-892,897,899-907,909-911,915-924,926-976,978,980-997,999-1020,1024,1029,1081-1082,1084-1104,1107-1124,1129-1156,1160-1161,1163,1165-1202,1204-1215,1222-1265
+admin-ui/src/components/account-row.tsx
+  c0d8ad39f6fdb0d3 1-461
+admin-ui/index.html
+  c0d8ad39f6fdb0d3 16-18
+admin-ui/src/lib/account-state.ts
+  c0d8ad39f6fdb0d3 1-132
+admin-ui/src/components/edit-credential-dialog.tsx
+  c0d8ad39f6fdb0d3 14,37,39-42,44-46,60,62,64,67-72,88,93-96,98-107,147-162
+admin-ui/src/components/account-toolbar.tsx
+  c0d8ad39f6fdb0d3 1-149
+admin-ui/src/components/account-metrics.tsx
+  c0d8ad39f6fdb0d3 1-256
+admin-ui/src/components/ui/dropdown-menu.tsx
+  c0d8ad39f6fdb0d3 1-57
+openspec/changes/redesign-account-management-ui/proposal.md
+  c0d8ad39f6fdb0d3 1-148
+admin-ui/src/components/account-panel-foot.tsx
+  c0d8ad39f6fdb0d3 1-128
+admin-ui/src/i18n/locales/zh.json
+  c0d8ad39f6fdb0d3 47-49,52-53,64,106-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "94a8739be7b31541042608ce716b3b6a39b11aad",
+  "prompts": {
+    "c0d8ad39f6fdb0d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bde76c34-823e-4c23-9bc7-39d7d82f2a28",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 4551,
+      "total_deletions": 1404,
+      "accepted_lines": 3638,
+      "overriden_lines": 0
+    }
+  }
+}

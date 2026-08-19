@@ -295,7 +295,7 @@ export function AccountRow({
               0
             </span>
           )}
-          {credential.throttleCount > 0 && (
+          {credential.throttleCount > 0 ? (
             <button
               type="button"
               onClick={() => onViewThrottleLog(credential.id)}
@@ -304,6 +304,13 @@ export function AccountRow({
             >
               {credential.throttleCount.toLocaleString(numFmt)}
             </button>
+          ) : (
+            <span
+              title={t('credentials.throttleLabel', { count: 0 })}
+              className="font-mono text-[11px] tabular-nums text-ink-3"
+            >
+              0
+            </span>
           )}
         </div>
       </td>

@@ -25,6 +25,14 @@ export interface AccountMetricsProps {
   requestsDeltaPercent: number | null
   /** 最近 7 天调用次数（日期升序）；不足 2 点不渲染 sparkline */
   requestTrend: number[]
+  /** 今日消耗 credits；null = 日用量数据未加载 */
+  todayCredits: number | null
+  /** 今日经缓存命中节省的 credits，须为非负（后端偶发负值由调用方裁剪）；null = 日用量数据未加载 */
+  todayCreditsSaved: number | null
+  /** 今日 credits 相对昨日的环比百分比；null = 无昨日基线 */
+  creditsDeltaPercent: number | null
+  /** 最近 7 天消耗 credits（日期升序）；不足 2 点不渲染 sparkline */
+  creditsTrend: number[]
   /** 账号池累计失败数 */
   cumulativeFailures: number
   /** 账号池累计失败率（百分比）；null = 尚无任何调用 */
@@ -40,7 +48,7 @@ function remainingTone(percent: number) {
   return { stroke: 'stroke-danger', text: 'text-danger' }
 }
 
-/** 指标条（设计稿 .metrics）：账号池 / 全局剩余积分 / 启用账号平均剩余 / 今日调用 */
+/** 指标条（设计稿 .metrics）：账号池 / 全局剩余积分 / 启用账号平均剩余 / 今日调用 / 今日消耗积分 */
 export function AccountMetrics({
   total,
   enabledCount,
@@ -53,6 +61,10 @@ export function AccountMetrics({
   todayRequests,
   requestsDeltaPercent,
   requestTrend,
+  todayCredits,
+  todayCreditsSaved,
+  creditsDeltaPercent,
+  creditsTrend,
   cumulativeFailures,
   cumulativeFailureRate,
   onTodayClick,
@@ -61,8 +73,10 @@ export function AccountMetrics({
   // 展示层兜底：上游若给出 NaN / Infinity，一律降级为「无数据」，绝不把 "NaN" 吐给用户
   const credits = Number.isFinite(creditsTotal) ? creditsTotal! : null
   const avg = Number.isFinite(avgRemainingPercent) ? avgRemainingPercent! : null
+  const usedCredits = Number.isFinite(todayCredits) ? todayCredits! : null
+  const savedCredits = Number.isFinite(todayCreditsSaved) ? todayCreditsSaved! : null
   return (
-    <MetricsBar>
+    <MetricsBar cols={5}>
       <Metric label={t('credentials.metricPoolLabel')}>
         <MetricValue value={String(total)} unit={t('credentials.metricPoolUnit')} />
         <MetricFoot>
@@ -132,6 +146,27 @@ export function AccountMetrics({
         {requestTrend.length >= 2 && (
           <MetricAside>
             <Sparkline values={requestTrend} />
+          </MetricAside>
+        )}
+      </Metric>
+
+      {/* 今日消耗积分：与「今日调用」同源于日用量接口，故共用同一跳转 */}
+      <Metric label={t('credentials.metricCreditsUsedLabel')} onClick={onTodayClick}>
+        <MetricValue
+          value={usedCredits === null ? '—' : usedCredits.toFixed(1)}
+          trailing={creditsDeltaPercent === null ? undefined : <Delta percent={creditsDeltaPercent} />}
+        />
+        <MetricFoot className="truncate pr-[92px]">
+          <span>
+            {t('credentials.metricCreditsSavedPrefix')}{' '}
+            <b className={savedCredits !== null && savedCredits > 0 ? 'font-medium text-ink-2' : 'font-medium'}>
+              {savedCredits === null ? '—' : savedCredits.toFixed(1)}
+            </b>
+          </span>
+        </MetricFoot>
+        {creditsTrend.length >= 2 && (
+          <MetricAside>
+            <Sparkline values={creditsTrend} />
           </MetricAside>
         )}
       </Metric>

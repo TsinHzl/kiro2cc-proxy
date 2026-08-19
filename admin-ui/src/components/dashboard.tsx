@@ -50,6 +50,15 @@ interface DashboardProps {
 // 侧栏身份区：后端仅有单一管理员口令，无用户名概念 → 名称固定，头像取首字母
 const ADMIN_NAME = 'admin'
 
+/**
+ * credits 环比的最小昨日基线。
+ *
+ * credits 是浮点量，可任意接近 0，若沿用调用次数那套「分母 > 0」守卫，昨日 0.001、
+ * 今日 5 会算出 ↑499900%，而 Delta 徽标不做上限裁剪，会把这种无意义的值直接渲染出来。
+ * 调用次数不存在该问题（整数分母最小为 1，放大倍数天然有上限）。
+ */
+const CREDITS_DELTA_MIN_BASE = 0.5
+
 /** 本地时区 YYYY-MM-DD（日用量接口按本地日期对齐） */
 function formatLocalDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -160,11 +169,21 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const requestsDeltaPercent = todayRequests !== null && yesterdayStats && yesterdayStats.totalRequests > 0
     ? ((todayRequests - yesterdayStats.totalRequests) / yesterdayStats.totalRequests) * 100
     : null
-  const requestTrend = (dailyUsageData ?? [])
+  // 最近 7 天（日期升序），两条 sparkline 共用同一份切片
+  const recent7 = (dailyUsageData ?? [])
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-7)
-    .map(d => d.totalRequests)
+  const requestTrend = recent7.map(d => d.totalRequests)
+  // 今日 credits 消耗：口径与 todayRequests 一致（未加载为 null，已加载但无当日记录为 0）
+  const todayCredits = dailyUsageData ? todayStats?.totalCredits ?? 0 : null
+  // 后端偶发负值（缓存基线漂移），「已节省」语义下负数无意义，统一裁剪到 0
+  const todayCreditsSaved = dailyUsageData ? Math.max(0, todayStats?.totalCreditsSaved ?? 0) : null
+  // credits 是浮点量，分母仅守 > 0 会让极小基线（如 0.001）放大出无意义的百分比；抬到 0.5 起算
+  const creditsDeltaPercent = todayCredits !== null && yesterdayStats && yesterdayStats.totalCredits >= CREDITS_DELTA_MIN_BASE
+    ? ((todayCredits - yesterdayStats.totalCredits) / yesterdayStats.totalCredits) * 100
+    : null
+  const creditsTrend = recent7.map(d => d.totalCredits)
   // 后端无按天失败数，只能给账号池累计值
   const cumulativeFailures = allCredentials.reduce((sum, c) => sum + c.failureCount, 0)
   const cumulativeAttempts = allCredentials.reduce((sum, c) => sum + c.successCount + c.failureCount, 0)
@@ -1121,6 +1140,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
             todayRequests={todayRequests}
             requestsDeltaPercent={requestsDeltaPercent}
             requestTrend={requestTrend}
+            todayCredits={todayCredits}
+            todayCreditsSaved={todayCreditsSaved}
+            creditsDeltaPercent={creditsDeltaPercent}
+            creditsTrend={creditsTrend}
             cumulativeFailures={cumulativeFailures}
             cumulativeFailureRate={cumulativeFailureRate}
             onTodayClick={() => { setDailyView('list'); setDailyFromSidebar(false) }}

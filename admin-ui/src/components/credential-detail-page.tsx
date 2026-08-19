@@ -1,53 +1,48 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BarChart3, DollarSign, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
+import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
+import { PageHead } from '@/components/page-head'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TH_BASE } from '@/components/table-kit'
+import { UsageLogTable, formatCost, getModelColor, recordCredits } from '@/components/usage-log-table'
 import { useCredentials, useCredentialUsageRecords, useCredentialTodaySummary } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
-import { formatDateTime, formatTokenCount } from '@/lib/locale'
+import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
+import { extractErrorMessage } from '@/lib/utils'
+import { formatTokenCount, localeTag } from '@/lib/locale'
 
 interface CredentialDetailPageProps {
   credentialId: number
   onBack: () => void
 }
 
-const MODEL_COLORS: Record<string, string> = {
-  opus: 'text-purple-600 dark:text-purple-400',
-  sonnet: 'text-blue-600 dark:text-blue-400',
-  haiku: 'text-green-600 dark:text-green-400',
-}
-
-function getModelColor(model: string): string {
-  const lower = model.toLowerCase()
-  for (const [key, cls] of Object.entries(MODEL_COLORS)) {
-    if (lower.includes(key)) return cls
-  }
-  return 'text-muted-foreground'
-}
-
-function formatCost(cost: number): string {
-  return `$${cost.toFixed(4)}`
-}
-
-// 镜像后端 src/model/usage.rs::get_k_ref 的模型档位换算率，用于旧记录（无 creditsUsed）的估算回退
-function getKRef(model: string): number {
-  const m = model.toLowerCase()
-  if (m.includes('opus-4-7') || m.includes('opus-4.7') || m.includes('opus-4-8') || m.includes('opus-4.8') || m.includes('opus-5') || m.includes('opus.5')) {
-    return 2.36
-  }
-  if (m.includes('opus-4-5') || m.includes('opus-4.5') || m.includes('opus-4-6') || m.includes('opus-4.6')) {
-    return 1.90
-  }
-  if (m.includes('opus') || m.includes('fable')) {
-    return 2.36
-  }
-  return 1.43
-}
-
 const PAGE_SIZE = 50
+
+/** 状态标签（设计稿 .tag）：20px 高 + 5px pip，配色取自账号管理页同一套派生状态 */
+const TAG =
+  'inline-flex h-5 items-center gap-[5px] whitespace-nowrap rounded-[6px] border px-[7px] text-[11px] font-semibold'
+
+/** 逐模型用量表头：模型 + 5 个右对齐数值列 */
+const MODEL_COLS: { labelKey: string; num?: boolean }[] = [
+  { labelKey: 'common.colModel' },
+  { labelKey: 'apiKeys.colRequests', num: true },
+  { labelKey: 'apiKeys.colInputTokens', num: true },
+  { labelKey: 'apiKeys.colOutputTokens', num: true },
+  { labelKey: 'common.colCost', num: true },
+  { labelKey: 'apiKeys.colCredits', num: true },
+]
+
+interface ModelAgg {
+  requests: number
+  inputTokens: number
+  outputTokens: number
+  cost: number
+  credits: number
+  creditsSaved: number
+}
 
 export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailPageProps) {
   const { t } = useTranslation()
@@ -58,258 +53,182 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
   const { data: todaySummary } = useCredentialTodaySummary(credentialId)
 
   const credential = credentialsData?.credentials.find((c) => c.id === credentialId)
+  // 详情页无余额查询上下文，hasBalance 恒 false：未查额度且零成功调用的账号显示为「待验证」
+  const visual = credential ? ACCOUNT_STATE_VISUAL[deriveAccountState(credential, false)] : null
+  const title = credential ? accountLabel(credential) : `#${credentialId}`
 
-  const allRecords = recordsData?.records ?? []
-  const pageIps = allRecords.map((r) => r.clientIp).filter((ip): ip is string => !!ip)
+  const records = recordsData?.records ?? []
+  const pageIps = records.map((r) => r.clientIp).filter((ip): ip is string => !!ip)
   const geoMap = useIpGeo(pageIps)
   const totalRequests = recordsData?.total ?? 0
+  const totalPages = Math.max(1, recordsData?.totalPages ?? 1)
 
-  // Per-model aggregation from current page (approximate — full aggregation would need all pages)
-  const byModel = allRecords.reduce<Record<string, { requests: number; inputTokens: number; outputTokens: number; cost: number; credits: number; creditsSaved: number }>>((acc, r) => {
-    const entry = acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0, credits: 0, creditsSaved: 0 }
+  // 逐模型聚合仅覆盖当前页（全量聚合需后端新接口），标题文案已含「（当前页）」限定
+  const byModel = records.reduce<Record<string, ModelAgg>>((acc, r) => {
+    const entry =
+      acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0, credits: 0, creditsSaved: 0 }
     entry.requests += 1
     entry.inputTokens += r.inputTokens
     entry.outputTokens += r.outputTokens
     entry.cost += r.estimatedCost
-    entry.credits += r.creditsUsed ?? r.estimatedCost * getKRef(r.model)
+    entry.credits += recordCredits(r)
     entry.creditsSaved += r.creditsSaved ?? 0
     acc[r.model] = entry
     return acc
   }, {})
 
+  const pageInput = records.reduce((s, r) => s + r.inputTokens, 0)
+  const pageOutput = records.reduce((s, r) => s + r.outputTokens, 0)
+  const pageCost = records.reduce((s, r) => s + r.estimatedCost, 0)
+  const pageCredits = records.reduce((s, r) => s + recordCredits(r), 0)
+  const pageSaved = records.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
+  const todaySaved = todaySummary?.totalCreditsSaved ?? 0
+  const todayRequests = todaySummary?.totalRequests ?? 0
+
+  // refetch 默认不抛异常，失败只体现在返回结果上，须显式检查（与 API Key 详情页同口径）
+  const handleRefresh = async () => {
+    const result = await refetch()
+    if (result.isError) {
+      toast.error(extractErrorMessage(result.error))
+      return
+    }
+    toast.success(t('apiKeys.toastLogRefreshed'))
+  }
+
+  const savedTrailing = (amount: number) =>
+    amount > 0 ? (
+      <span className="text-[11px] font-medium text-ok">
+        {t('common.savedPrefix', { amount: amount.toFixed(4) })}
+      </span>
+    ) : undefined
+
   return (
-    <div className="space-y-4">
-      {/* 顶部导航 */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-          <ArrowLeft className="h-4 w-4" />
-          {t('common.back')}
-        </Button>
-        {credential && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <code className="text-xs text-muted-foreground font-mono">#{credential.id}</code>
-            <span className="font-semibold">{credential.nickname || credential.email || t('credentials.accountFallbackName', { id: credential.id })}</span>
-            <Badge variant={credential.disabled ? 'destructive' : 'success'}>
-              {credential.disabled ? t('credentials.healthDisabled') : t('credentials.enabled')}
-            </Badge>
-          </div>
-        )}
-      </div>
-
-      {/* 汇总卡片 */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              {t('common.statTotalRequests')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalRequests}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('credentials.pageTokens')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm font-bold">
-              {t('common.inboundPrefix', { value: formatTokenCount(allRecords.reduce((s, r) => s + r.inputTokens, 0)) })} /
-              {t('common.outboundPrefix', { value: formatTokenCount(allRecords.reduce((s, r) => s + r.outputTokens, 0)) })}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <DollarSign className="h-3.5 w-3.5" />
-              {t('common.pageCost')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {formatCost(allRecords.reduce((s, r) => s + r.estimatedCost, 0))}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('common.pageCredits')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost * getKRef(r.model)), 0).toFixed(4)}
-            </div>
-            {(() => {
-              const savedTotal = allRecords.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
-              return savedTotal > 0 ? (
-                <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                  {t('common.savedPrefix', { amount: savedTotal.toFixed(4) })}
-                </div>
-              ) : null
-            })()}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('credentials.todayCredits')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
-              {(todaySummary?.totalCredits ?? 0).toFixed(4)}
-            </div>
-            {(todaySummary?.totalCreditsSaved ?? 0) > 0 && (
-              <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                {t('common.savedPrefix', { amount: (todaySummary?.totalCreditsSaved ?? 0).toFixed(4) })}
-              </div>
+    <div>
+      {/* 页头（设计稿 .head）：三级面包屑 + 返回钮 + 序号副标题 + 右侧状态标签与刷新 */}
+      <PageHead
+        crumb={[t('dashboard.navMain'), t('dashboard.navCredentials'), title]}
+        title={title}
+        note={<code className="font-mono">#{credentialId}</code>}
+        onBack={onBack}
+        actions={
+          <>
+            {visual && (
+              <span className={`${TAG} ${visual.tagClass}`}>
+                <span className={`size-[5px] flex-none rounded-full ${visual.pipClass}`} aria-hidden="true" />
+                {t(visual.labelKey)}
+              </span>
             )}
-            {(todaySummary?.totalRequests ?? 0) > 0 && (
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {t('credentials.todayRequestsCount', { count: todaySummary?.totalRequests })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+              <RotateCw className={isLoading ? 'animate-spin' : ''} />
+              {t('common.refresh')}
+            </Button>
+          </>
+        }
+      />
 
-      {/* 按模型分组（当前页） */}
+      {/* 指标条（设计稿 .metrics）：主值统一 ink 色，费用/积分不再单独染色 */}
+      <MetricsBar cols={5}>
+        <Metric label={t('common.statTotalRequests')}>
+          <MetricValue value={totalRequests.toLocaleString(localeTag())} />
+        </Metric>
+        <Metric label={t('credentials.pageTokens')}>
+          <MetricValue value={formatTokenCount(pageInput + pageOutput)} />
+          <MetricFoot>
+            <span>{t('common.inboundPrefix', { value: formatTokenCount(pageInput) })}</span>
+            <FootSep />
+            <span>{t('common.outboundPrefix', { value: formatTokenCount(pageOutput) })}</span>
+          </MetricFoot>
+        </Metric>
+        <Metric label={t('common.pageCost')}>
+          <MetricValue value={formatCost(pageCost)} />
+        </Metric>
+        <Metric label={t('common.pageCredits')}>
+          <MetricValue value={pageCredits.toFixed(4)} unit="cr" trailing={savedTrailing(pageSaved)} />
+        </Metric>
+        <Metric label={t('credentials.todayCredits')}>
+          <MetricValue
+            value={(todaySummary?.totalCredits ?? 0).toFixed(4)}
+            unit="cr"
+            trailing={savedTrailing(todaySaved)}
+          />
+          {todayRequests > 0 && (
+            <MetricFoot>{t('credentials.todayRequestsCount', { count: todayRequests })}</MetricFoot>
+          )}
+        </Metric>
+      </MetricsBar>
+
+      {/* 逐模型用量（原卡片网格改表格，与请求日志同一套表头/单元格原语） */}
       {Object.keys(byModel).length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('credentials.groupByModel')}</h3>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-            {Object.entries(byModel).map(([model, m]) => (
-              <Card key={model}>
-                <CardContent className="py-3 px-4">
-                  <div className={`text-sm font-medium truncate ${getModelColor(model)}`}>{model}</div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                    <span>{t('common.requestCountSuffix', { count: m.requests })}</span>
-                    <span>{t('common.inboundPrefix', { value: formatTokenCount(m.inputTokens) })}</span>
-                    <span>{t('common.outboundPrefix', { value: formatTokenCount(m.outputTokens) })}</span>
-                    <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
-                    <span className="font-medium text-blue-600 dark:text-blue-400">
-                      {m.credits.toFixed(4)} credits
-                      {m.creditsSaved > 0 && (
-                        <span className="ml-1 text-green-600 dark:text-green-400">({t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })})</span>
-                      )}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        <div className="mt-[15px]">
+          <h3 className={PANEL_TITLE}>{t('credentials.groupByModel')}</h3>
+          <section className={PANEL}>
+            <div className="max-h-[42vh] overflow-y-auto">
+              <table className="w-full border-separate border-spacing-0">
+                <thead>
+                  <tr>
+                    {MODEL_COLS.map((col) => (
+                      <th key={col.labelKey} className={`${TH_BASE} ${col.num ? 'text-right' : ''}`}>
+                        {t(col.labelKey)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child>td]:border-b-0">
+                  {Object.entries(byModel).map(([model, m]) => (
+                    <tr key={model} className="transition-colors hover:bg-surface-2">
+                      <td className={CELL}>
+                        <span className={`font-mono text-[12px] ${getModelColor(model)}`}>{model}</span>
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {m.requests.toLocaleString(localeTag())}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {formatTokenCount(m.inputTokens)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {formatTokenCount(m.outputTokens)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-warn`}>
+                        {formatCost(m.cost)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
+                        {m.credits.toFixed(4)}
+                        {m.creditsSaved > 0 && (
+                          <small className="block text-[10px] font-normal text-ok">
+                            {t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })}
+                          </small>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       )}
 
-      {/* 原始日志表格 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            {t('common.requestLog')}
-            {recordsData && <span className="ml-1">{t('common.totalCountSuffix', { count: recordsData.total })}</span>}
-          </h3>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</div>
-            ) : !recordsData || recordsData.records.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">{t('common.noRecords')}</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colTime')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colIp')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colAccount')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colModel')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colTokenUsage')}</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('common.colCost')}</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('credentials.colCredits')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* records are returned newest-first by the API */}
-                    {recordsData.records.map((record, idx) => {
-                      const geo = record.clientIp ? geoMap.get(record.clientIp) : undefined
-                      return (
-                      <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(record.createdAt)}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {record.clientIp ? (
-                            <span title={record.clientIp}>
-                              <span className="font-mono">{geo?.displayIp ?? record.clientIp}</span>
-                              {geo && geo.country && <span className="ml-1 text-muted-foreground dark:text-muted-foreground/60">{geo.country}·{geo.city}</span>}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
-                          {record.credentialLabel ?? '—'}
-                        </td>
-                        <td className={`px-4 py-2 font-mono text-xs ${getModelColor(record.model)}`}>
-                          {record.model}
-                        </td>
-                        <td className="px-4 py-2 text-xs whitespace-nowrap">
-                          <div className="space-y-0.5 text-left">
-                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokenCount(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
-                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokenCount(record.outputTokens)}</span></div>
-                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokenCount(record.cacheReadInputTokens ?? 0)}</span></div>
-                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokenCount(record.inputTokens)}</span></div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
-                          {formatCost(record.estimatedCost)}
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                          {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost * getKRef(record.model)).toFixed(4)}
-                          {record.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
-                          {record.creditsSaved != null && record.creditsSaved > 0 && (
-                            <span className="ml-1 text-xs text-green-600 dark:text-green-400">
-                              ({t('common.savedPrefix', { amount: record.creditsSaved.toFixed(4) })})
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 分页控件 */}
-        {recordsData && recordsData.totalPages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              {t('common.prevPage')}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t('common.pageInfoSimple', { current: page, total: recordsData.totalPages })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(recordsData.totalPages, p + 1))}
-              disabled={page === recordsData.totalPages}
-            >
-              {t('common.nextPage')}
-            </Button>
+      {/* 请求日志（.panel + .tscroll + .panel-foot） */}
+      <div className="mt-[15px]">
+        <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
+        <section className={PANEL}>
+          <div className="max-h-[70vh] overflow-y-auto">
+            <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
           </div>
-        )}
+
+          {/* 面板脚（设计稿 .panel-foot）：右区计数 + 页码 + 每页条数；服务端分页 */}
+          <div className={PANEL_FOOT}>
+            <div className="ml-auto flex flex-none items-center gap-2">
+              <span>{t('apiKeys.footRecords', { count: totalRequests })}</span>
+              {totalRequests > 0 && (
+                <>
+                  <Pager page={page} totalPages={totalPages} onPage={setPage} />
+                  <span>{t('credentials.footPerPage', { size: PAGE_SIZE })}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

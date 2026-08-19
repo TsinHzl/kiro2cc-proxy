@@ -53,9 +53,9 @@ export function BatchVerifyDialog({
                 <span>{t('credentials.verifyingProgressLabel')}</span>
                 <span>{progress.current} / {progress.total}</span>
               </div>
-              <div className="w-full bg-secondary rounded-full h-2">
+              <div className="h-1 w-full overflow-hidden rounded-[3px] bg-track">
                 <div
-                  className="bg-primary h-2 rounded-full transition-all"
+                  className="h-full rounded-[3px] bg-brand transition-all"
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 />
               </div>
@@ -74,18 +74,18 @@ export function BatchVerifyDialog({
 
           {/* 结果列表 */}
           {results.size > 0 && (
-            <div className="max-h-[400px] overflow-y-auto border rounded-md p-2 space-y-1">
+            <div className="max-h-[400px] space-y-1 overflow-y-auto rounded-[8px] border border-hairline p-2">
               {resultsArray.map((result) => (
                 <div
                   key={result.id}
-                  className={`text-sm p-2 rounded ${
+                  className={`rounded-[6px] p-2 text-[12px] ${
                     result.status === 'success'
-                      ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300'
+                      ? 'bg-ok-soft text-ok'
                       : result.status === 'failed'
-                      ? 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300'
+                      ? 'bg-danger-soft text-danger'
                       : result.status === 'verifying'
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                      : 'bg-gray-50 text-gray-700 dark:bg-gray-950 dark:text-gray-300'
+                      ? 'bg-brand-soft text-brand'
+                      : 'bg-surface-3 text-ink-2'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -116,7 +116,7 @@ export function BatchVerifyDialog({
 
           {/* 提示信息 */}
           {verifying && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] leading-[1.55] text-ink-3">
               {t('credentials.verifyBackgroundHint')}
             </p>
           )}

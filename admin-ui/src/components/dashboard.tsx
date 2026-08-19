@@ -31,6 +31,7 @@ import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
 import { ChangelogPage } from '@/components/changelog-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
+import { PageHead } from '@/components/page-head'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import {
@@ -1036,7 +1037,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {activeTab === 'logs' ? (
           <LogViewerPage />
         ) : activeTab === 'settings' ? (
-          <SettingsPanel />
+          <SettingsPanel
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebarCollapsed={toggleSidebarCollapsed}
+          />
         ) : activeTab === 'models' ? (
           <ModelListPage />
         ) : activeTab === 'changelog' ? (
@@ -1079,31 +1085,28 @@ export function Dashboard({ onLogout }: DashboardProps) {
         ) : (
         <>
         {/* 页头（设计稿 .head）：面包屑 + 19px 标题 + 同基线副标题 + 右侧刷新标签与文档入口 */}
-        <div className="mb-5 flex flex-wrap items-end gap-4">
-          <div>
-            {/* 面包屑末级与 h1 同文案，标 aria-hidden 避免读屏连读两次「账号管理」 */}
-            <div aria-hidden="true" className="mb-[5px] text-[11px] tracking-[.02em] text-ink-3">
-              {t('dashboard.navMain')}&nbsp;/&nbsp;<b className="font-medium text-ink-2">{t('dashboard.navCredentials')}</b>
-            </div>
-            <h1 className="text-[19px] font-semibold leading-[1.2] tracking-[-.02em]">{t('dashboard.navCredentials')}</h1>
-          </div>
-          <p className="ml-0.5 min-w-0 truncate pb-0.5 text-[11.5px] text-ink-3">{t('dashboard.pageSubtitle')}</p>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="inline-flex h-5 shrink-0 items-center gap-[5px] rounded-md border border-ok-line bg-ok-soft px-[7px] text-[11px] font-semibold text-ok">
-              <span className="h-[5px] w-[5px] shrink-0 animate-pulse rounded-full bg-ok ring-[2.5px] ring-ok-soft" aria-hidden="true" />
-              {t('dashboard.autoRefreshTag', { seconds: Math.round(CREDENTIALS_REFETCH_INTERVAL_MS / 1000) })}
-            </span>
-            <a
-              href="https://github.com/TsinHzl/kiro2cc-proxy#readme"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group inline-flex h-[31px] items-center gap-1.5 rounded-[7px] px-[11px] text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
-            >
-              <FileText className="h-3.5 w-3.5 text-ink-3 transition-colors group-hover:text-ink-2" />
-              {t('dashboard.docs')}
-            </a>
-          </div>
-        </div>
+        <PageHead
+          crumb={[t('dashboard.navMain'), t('dashboard.navCredentials')]}
+          title={t('dashboard.navCredentials')}
+          note={t('dashboard.pageSubtitle')}
+          actions={
+            <>
+              <span className="inline-flex h-5 shrink-0 items-center gap-[5px] rounded-md border border-ok-line bg-ok-soft px-[7px] text-[11px] font-semibold text-ok">
+                <span className="h-[5px] w-[5px] shrink-0 animate-pulse rounded-full bg-ok ring-[2.5px] ring-ok-soft" aria-hidden="true" />
+                {t('dashboard.autoRefreshTag', { seconds: Math.round(CREDENTIALS_REFETCH_INTERVAL_MS / 1000) })}
+              </span>
+              <a
+                href="https://github.com/TsinHzl/kiro2cc-proxy#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex h-[31px] items-center gap-1.5 rounded-[7px] px-[11px] text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+              >
+                <FileText className="h-3.5 w-3.5 text-ink-3 transition-colors group-hover:text-ink-2" />
+                {t('dashboard.docs')}
+              </a>
+            </>
+          }
+        />
         {/* 指标条（设计稿 .metrics） */}
         <div className="mb-[15px]">
           <AccountMetrics

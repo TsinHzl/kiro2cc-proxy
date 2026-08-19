@@ -329,18 +329,18 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
   const getStatusIcon = (status: VerificationResult['status']) => {
     switch (status) {
       case 'pending':
-        return <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
+        return <div className="w-5 h-5 rounded-full border-2 border-hairline-2" />
       case 'checking':
       case 'verifying':
-        return <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+        return <Loader2 className="w-5 h-5 animate-spin text-brand" />
       case 'verified':
-        return <CheckCircle2 className="w-5 h-5 text-green-500" />
+        return <CheckCircle2 className="w-5 h-5 text-ok" />
       case 'duplicate':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />
+        return <AlertCircle className="w-5 h-5 text-warn" />
       case 'skipped':
-        return <AlertCircle className="w-5 h-5 text-gray-400" />
+        return <AlertCircle className="w-5 h-5 text-ink-3" />
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-500" />
+        return <XCircle className="w-5 h-5 text-danger" />
     }
   }
 
@@ -387,7 +387,7 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">{t('credentials.kamJsonLabel')}</label>
+            <label className="text-[11.5px] font-medium text-ink-2">{t('credentials.kamJsonLabel')}</label>
             <textarea
               placeholder={t('credentials.kamImportPlaceholder')}
               value={jsonInput}
@@ -407,28 +407,28 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
                 }
               }}
               disabled={importing}
-              className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              className="min-h-[200px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-2.5 py-2 font-mono text-[12px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <p className="text-xs text-muted-foreground">{t('credentials.kamImportHint')}</p>
+            <p className="text-[11px] leading-[1.55] text-ink-3">{t('credentials.kamImportHint')}</p>
           </div>
 
           {/* 解析预览 */}
           {parseError && (
-            <div className="text-sm text-red-600 dark:text-red-400">{t('credentials.parseFailedLabel', { error: parseError })}</div>
+            <div className="text-[11.5px] text-danger">{t('credentials.parseFailedLabel', { error: parseError })}</div>
           )}
           {previewAccounts.length > 0 && !importing && results.length === 0 && (
             <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">
+              <div className="text-[11.5px] text-ink-3">
                 {t('credentials.recognizedAccountsCount', { count: previewAccounts.length })}
                 {errorAccountCount > 0 && t('credentials.errorStatusCountSuffix', { count: errorAccountCount })}
               </div>
               {errorAccountCount > 0 && (
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-[11.5px] text-ink-2">
                   <input
                     type="checkbox"
                     checked={skipErrorAccounts}
                     onChange={(e) => setSkipErrorAccounts(e.target.checked)}
-                    className="rounded border-gray-300"
+                    className="rounded-[4px] border-hairline-2 accent-brand"
                   />
                   {t('credentials.skipErrorAccountsLabel')}
                 </label>
@@ -444,33 +444,33 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
                   <span>{importing ? t('credentials.importingProgressLabel') : t('credentials.importCompleteLabel')}</span>
                   <span>{progress.current} / {progress.total}</span>
                 </div>
-                <div className="w-full bg-secondary rounded-full h-2">
+                <div className="h-1 w-full overflow-hidden rounded-[3px] bg-track">
                   <div
-                    className="bg-primary h-2 rounded-full transition-all"
+                    className="h-full rounded-[3px] bg-brand transition-all"
                     style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
                   />
                 </div>
                 {importing && currentProcessing && (
-                  <div className="text-xs text-muted-foreground">{currentProcessing}</div>
+                  <div className="text-[11px] text-ink-3">{currentProcessing}</div>
                 )}
               </div>
 
               <div className="flex gap-4 text-sm">
-                <span className="text-green-600 dark:text-green-400">
+                <span className="text-ok">
                   ✓ {t('credentials.statSuccessLabel')}: {results.filter(r => r.status === 'verified').length}
                 </span>
-                <span className="text-yellow-600 dark:text-yellow-400">
+                <span className="text-warn">
                   ⚠ {t('credentials.statDuplicateLabel')}: {results.filter(r => r.status === 'duplicate').length}
                 </span>
-                <span className="text-red-600 dark:text-red-400">
+                <span className="text-danger">
                   ✗ {t('credentials.statFailedLabel')}: {results.filter(r => r.status === 'failed').length}
                 </span>
-                <span className="text-gray-500">
+                <span className="text-ink-3">
                   ○ {t('credentials.statSkippedLabel')}: {results.filter(r => r.status === 'skipped').length}
                 </span>
               </div>
 
-              <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
+              <div className="max-h-[300px] divide-y divide-hairline overflow-y-auto rounded-[8px] border border-hairline">
                 {results.map((result) => (
                   <div key={result.index} className="p-3">
                     <div className="flex items-start gap-3">
@@ -480,18 +480,18 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
                           <span className="text-sm font-medium">
                             {result.email || t('credentials.accountFallbackName', { id: result.index })}
                           </span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-[11px] text-ink-3">
                             {getStatusText(result)}
                           </span>
                         </div>
                         {result.usage && (
-                          <div className="text-xs text-muted-foreground mt-1">{t('credentials.usageLabel', { usage: result.usage })}</div>
+                          <div className="mt-1 text-[11px] text-ink-3">{t('credentials.usageLabel', { usage: result.usage })}</div>
                         )}
                         {result.error && (
-                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">{result.error}</div>
+                          <div className="mt-1 text-[11px] text-danger">{result.error}</div>
                         )}
                         {result.rollbackError && (
-                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">{t('credentials.rollbackFailedLabel', { error: result.rollbackError })}</div>
+                          <div className="mt-1 text-[11px] text-danger">{t('credentials.rollbackFailedLabel', { error: result.rollbackError })}</div>
                         )}
                       </div>
                     </div>

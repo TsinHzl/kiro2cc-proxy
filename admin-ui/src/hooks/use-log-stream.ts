@@ -9,11 +9,14 @@ export interface LogEntry {
   message: string
 }
 
-const MAX_FRONT_LOGS = 2000
+/** 前端环形缓冲上限；页面侧的容量指标卡直接复用此常量 */
+export const MAX_FRONT_LOGS = 2000
 
 export function useLogStream(enabled: boolean): {
   logs: LogEntry[]
   connected: boolean
+  /** 清空缓冲：必须由 hook 内部清，否则下一条日志到达时旧内容会整体回填 */
+  clear: () => void
 } {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [connected, setConnected] = useState(false)
@@ -108,5 +111,7 @@ export function useLogStream(enabled: boolean): {
     }
   }, [enabled, connect])
 
-  return { logs, connected }
+  const clear = useCallback(() => setLogs([]), [])
+
+  return { logs, connected, clear }
 }

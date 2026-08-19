@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { FileText, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
-import { AccountCheckbox } from '@/components/account-table'
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
+import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -29,9 +29,6 @@ import { localeTag } from '@/lib/locale'
 import { getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
 
-/** 单元格基线（设计稿 tbody td）：11px/12px 内边距 + 分隔线 + 垂直居中 */
-const CELL = 'border-b border-hairline px-3 py-[11px] align-middle'
-
 /** 剩余额度阈值配色（design.md 决策：60/30 分界，比旧卡片的 50/20 更早预警） */
 function quotaTone(remainingPct: number): { text: string; bar: string } {
   if (remainingPct >= 60) return { text: 'text-ok', bar: 'bg-ok' }
@@ -41,10 +38,6 @@ function quotaTone(remainingPct: number): { text: string; bar: string } {
 
 /** RPM 高压阈值：设计稿把 12 染成 danger、1–3 用 accent，取 10 作分界 */
 const RPM_DANGER = 10
-
-/** 26px 图标钮（设计稿 .iconbtn） */
-const ICON_BTN =
-  'grid size-[26px] flex-none place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
@@ -160,7 +153,7 @@ export function AccountRow({
       }`}
     >
       <td className={CELL}>
-        <AccountCheckbox
+        <DataCheckbox
           checked={selected}
           onToggle={onToggleSelect}
           // 用 accountLabel（昵称 → 邮箱 → #ID）而非 displayName：后者无昵称时已含

@@ -4,18 +4,18 @@ import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { FOOT_BTN, PAGER_BTN, pageWindow } from '@/components/table-kit'
 
-export interface AccountPanelFootProps {
+export interface ApiKeyPanelFootProps {
   /** 跨页累计的已选数量；0 时左区整体不渲染 */
   selectedCount: number
-  /** 已选中处于禁用态的数量；0 时批量删除不可用 */
-  selectedDisabledCount: number
-  onBatchVerify: () => void
-  onBatchRestore: () => void
-  onBatchDelete: () => void
+  /** 已选中处于启用态的数量；0 时批量停用不可用 */
+  selectedEnabledCount: number
+  /** 批量操作进行中，禁用两个批量按钮 */
+  busy: boolean
+  onBatchDisable: () => void
+  onBatchResetUsage: () => void
   onDeselectAll: () => void
-  /** 当前筛选结果总数（分页依据），筛选生效时小于账号总量 */
+  /** 当前筛选结果总数（分页依据），筛选生效时小于 Key 总量 */
   totalCount: number
-  /** 搜索或状态筛选生效中：计数文案改为「筛选出 N 个」，避免被读成账号总量 */
   isFiltered: boolean
   page: number
   totalPages: number
@@ -23,13 +23,12 @@ export interface AccountPanelFootProps {
   onPageChange: (page: number) => void
 }
 
-/** 面板脚（设计稿 .panel-foot）：左区批量操作（仅有选中时出现），右区计数 + 页码 + 每页条数 */
-export function AccountPanelFoot({
+export function ApiKeyPanelFoot({
   selectedCount,
-  selectedDisabledCount,
-  onBatchVerify,
-  onBatchRestore,
-  onBatchDelete,
+  selectedEnabledCount,
+  busy,
+  onBatchDisable,
+  onBatchResetUsage,
   onDeselectAll,
   totalCount,
   isFiltered,
@@ -37,9 +36,9 @@ export function AccountPanelFoot({
   totalPages,
   itemsPerPage,
   onPageChange,
-}: AccountPanelFootProps) {
+}: ApiKeyPanelFootProps) {
   const { t } = useTranslation()
-  const deleteBlocked = selectedDisabledCount === 0
+  const disableBlocked = selectedEnabledCount === 0
   const blockedReasonId = useId()
 
   return (
@@ -47,30 +46,27 @@ export function AccountPanelFoot({
       {selectedCount > 0 && (
         <>
           <span className="flex-none">{t('dashboard.selectedCount', { count: selectedCount })}</span>
-          <button type="button" className={FOOT_BTN} onClick={onBatchVerify}>
-            {t('dashboard.batchVerify')}
-          </button>
-          <button type="button" className={FOOT_BTN} onClick={onBatchRestore}>
-            {t('dashboard.batchRestore')}
-          </button>
           {/* 原生 disabled button 不派发 hover 事件，title 挂外层 span 才能读到禁用原因；
               祖先 title 不被屏幕阅读器播报，另挂 aria-describedby 指向 sr-only 文本 */}
-          <span className="flex-none" title={deleteBlocked ? t('dashboard.deleteDisabledOnly') : undefined}>
+          <span className="flex-none" title={disableBlocked ? t('apiKeys.batchDisableBlocked') : undefined}>
             <button
               type="button"
-              className={`${FOOT_BTN} text-danger hover:bg-danger-soft hover:text-danger`}
-              onClick={onBatchDelete}
-              disabled={deleteBlocked}
-              aria-describedby={deleteBlocked ? blockedReasonId : undefined}
+              className={FOOT_BTN}
+              onClick={onBatchDisable}
+              disabled={busy || disableBlocked}
+              aria-describedby={disableBlocked ? blockedReasonId : undefined}
             >
-              {t('dashboard.batchDelete')}
+              {t('apiKeys.batchDisable')}
             </button>
-            {deleteBlocked && (
+            {disableBlocked && (
               <span id={blockedReasonId} className="sr-only">
-                {t('dashboard.deleteDisabledOnly')}
+                {t('apiKeys.batchDisableBlocked')}
               </span>
             )}
           </span>
+          <button type="button" className={FOOT_BTN} onClick={onBatchResetUsage} disabled={busy}>
+            {t('apiKeys.batchResetUsage')}
+          </button>
           <button type="button" className={FOOT_BTN} onClick={onDeselectAll}>
             {t('dashboard.deselectAll')}
           </button>
@@ -78,7 +74,7 @@ export function AccountPanelFoot({
       )}
 
       <div className="ml-auto flex flex-none items-center gap-2">
-        <span>{t(isFiltered ? 'credentials.footFiltered' : 'credentials.footTotal', { count: totalCount })}</span>
+        <span>{t(isFiltered ? 'apiKeys.footFiltered' : 'apiKeys.footTotal', { count: totalCount })}</span>
         {/* 筛选无结果时表体已给出空状态与清除入口，页码与每页条数在此无意义 */}
         {totalCount > 0 && (
           <>

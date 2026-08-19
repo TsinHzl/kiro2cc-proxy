@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
-import { ArrowDown, ArrowUp, Check, ChevronsUpDown, Minus, SearchX } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown, SearchX } from 'lucide-react'
+import { DataCheckbox, TH_BASE } from '@/components/table-kit'
 import type { AccountSortKey, SortDirection } from '@/lib/account-state'
 
 /** 列宽（设计稿 colgroup）：账号列为 undefined = auto，吃掉剩余宽度 */
@@ -22,43 +22,6 @@ const COLUMNS: { labelKey: string; num?: boolean; sortKey?: AccountSortKey }[] =
   { labelKey: 'credentials.colLastUsed' },
   { labelKey: 'credentials.colOps', num: true },
 ]
-
-/** 设计稿 thead th：10.5px 大写字距 .07em + surface-2 底 + sticky */
-const TH_BASE =
-  'sticky top-0 z-[2] whitespace-nowrap border-b border-hairline bg-surface-2 px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3'
-
-/**
- * 表格复选框（设计稿 .cb，14px / 4px 圆角）：表头需要 indeterminate 半选态且半选要显示横线
- * 而非对勾，shadcn 的 Checkbox 封装把指示器图标固定为 Check，故直接用 Radix Primitive。
- * 行内复选框（T16 起）复用同一规格，只是不传 indeterminate。
- */
-export function AccountCheckbox({
-  checked,
-  indeterminate = false,
-  disabled = false,
-  onToggle,
-  label,
-}: {
-  checked: boolean
-  indeterminate?: boolean
-  disabled?: boolean
-  onToggle: () => void
-  label: string
-}) {
-  return (
-    <CheckboxPrimitive.Root
-      checked={checked ? true : indeterminate ? 'indeterminate' : false}
-      onCheckedChange={onToggle}
-      disabled={disabled}
-      aria-label={label}
-      className="grid h-[14px] w-[14px] place-items-center rounded-[4px] border-[1.5px] border-hairline-2 bg-surface text-brand-fg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-brand data-[state=checked]:bg-brand data-[state=indeterminate]:border-brand data-[state=indeterminate]:bg-brand"
-    >
-      <CheckboxPrimitive.Indicator className="grid place-items-center text-current">
-        {checked ? <Check className="size-[10px]" /> : <Minus className="size-[10px]" />}
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
-  )
-}
 
 export interface AccountTableProps {
   /** 表体行：AccountRow 列表 */
@@ -111,7 +74,7 @@ export function AccountTable({
           <thead>
             <tr>
               <th className={TH_BASE}>
-                <AccountCheckbox
+                <DataCheckbox
                   checked={allSelected}
                   indeterminate={someSelected}
                   disabled={rowCount === 0}

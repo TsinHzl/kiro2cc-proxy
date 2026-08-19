@@ -1,6 +1,6 @@
 # 任务清单：redesign-account-management-ui
 
-## 状态：DONE
+## 状态：ARCHIVED
 
 ## 范围声明
 

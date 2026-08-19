@@ -1,0 +1,31 @@
+admin-ui/src/components/dashboard.tsx
+  df08713a7fca15b1 53-61,172-173,177-186,1143-1146
+admin-ui/src/components/account-metrics.tsx
+  df08713a7fca15b1 28-35,51,64-67,76-77,79,152-172
+admin-ui/src/i18n/locales/zh.json
+  df08713a7fca15b1 120-121,135
+admin-ui/src/i18n/locales/en.json
+  df08713a7fca15b1 120-121,135
+admin-ui/src/components/account-row.tsx
+  df08713a7fca15b1 298,307-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "743edbbe0773baad01e133f9c9a58188c6e355df",
+  "prompts": {
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 13,
+      "accepted_lines": 79,
+      "overriden_lines": 0
+    }
+  }
+}

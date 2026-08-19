@@ -780,8 +780,14 @@ impl KiroProvider {
                         ctx.id,
                         ids
                     ));
-                    // 单账号池无处可去时退避等待桶解封，多账号则立刻换号
-                    if small_pool && attempt + 1 < max_retries {
+                    // 所有候选账号都已端点全封时立刻换号是空转，需要退避等待桶解封。
+                    // 单账号池同理。桶封禁窗口固定，退避比连续空转更快拿到可用端点。
+                    let all_avoided = self
+                        .token_manager
+                        .credential_ids()
+                        .iter()
+                        .all(|id| throttled_in_request.contains(id));
+                    if (small_pool || all_avoided) && attempt + 1 < max_retries {
                         sleep(Self::throttle_delay(attempt)).await;
                     }
                     continue;

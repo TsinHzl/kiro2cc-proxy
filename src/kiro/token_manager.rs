@@ -1024,6 +1024,16 @@ impl MultiTokenManager {
         self.entries.lock().iter().filter(|e| !e.disabled).count()
     }
 
+    /// 返回当前未禁用账号的 id 列表
+    pub fn credential_ids(&self) -> Vec<u64> {
+        self.entries
+            .lock()
+            .iter()
+            .filter(|e| !e.disabled)
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// 返回 (sticky_hits, sticky_misses) 累计计数
     pub fn sticky_metrics(&self) -> (u64, u64) {
         (

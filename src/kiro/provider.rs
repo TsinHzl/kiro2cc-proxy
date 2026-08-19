@@ -750,7 +750,9 @@ impl KiroProvider {
             let endpoint = match self.select_endpoint(&ctx.credentials, attempt) {
                 Some(e) => e,
                 None => {
-                    // 4 桶全封：不静默切账号，返回明确错误
+                    // 4 桶全封：该账号本次请求内已无可用端点。
+                    // 登记避让后继续重试其它账号，仅在所有账号都走到这一步时才失败，
+                    // 避免多账号池里因单账号端点全封而直接返回 502。
                     let endpoints: Vec<EndpointName> = ctx
                         .credentials
                         .effective_endpoints(
@@ -765,11 +767,24 @@ impl KiroProvider {
                         .map(|n| n.as_str())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    return Err(anyhow::anyhow!(
+                    tracing::info!(
+                        "[ENDPOINT] credential={} 端点全封（{}），避让并尝试其它账号",
+                        ctx.id,
+                        ids
+                    );
+                    if !throttled_in_request.contains(&ctx.id) {
+                        throttled_in_request.push(ctx.id);
+                    }
+                    last_error = Some(anyhow::anyhow!(
                         "All endpoints throttled for credential {} (tried: [{}])",
                         ctx.id,
                         ids
                     ));
+                    // 单账号池无处可去时退避等待桶解封，多账号则立刻换号
+                    if small_pool && attempt + 1 < max_retries {
+                        sleep(Self::throttle_delay(attempt)).await;
+                    }
+                    continue;
                 }
             };
             tracing::debug!(

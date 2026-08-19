@@ -126,8 +126,8 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
   const q = query.trim()
   const tableRows = (filter === 'active' ? activeRows : rows)
     .filter((r) => q === '' || r.date.includes(q))
-    // 设计稿按积分降序；全零日之间退化为日期降序
-    .sort((a, b) => b.credits - a.credits || b.date.localeCompare(a.date))
+    // 日期降序（最新在前）：设计稿原为积分降序，但日期乱序不利于按天核对，故改为时间轴倒序
+    .sort((a, b) => b.date.localeCompare(a.date))
 
   // refetch 默认不抛异常，失败只体现在返回结果上，须显式检查（与其余页刷新同口径）
   const handleRefresh = async () => {

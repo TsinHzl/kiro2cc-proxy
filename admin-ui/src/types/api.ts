@@ -236,7 +236,7 @@ export interface UsageRecordsResponse {
 
 // 每日用量汇总
 export interface DailySummary {
-  date: string          // "2026-05-21" UTC
+  date: string          // "2026-05-21" CST (UTC+8)，与 get_daily_summaries() 的聚合口径一致
   totalRequests: number
   totalCost: number
   totalCredits: number

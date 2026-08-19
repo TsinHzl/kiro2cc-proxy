@@ -21,6 +21,9 @@ interface AddCredentialDialogProps {
 
 type AuthMethod = 'social' | 'idc'
 
+/** 对话框字段标签：字号对齐设计稿体系；中文标签不套 uppercase */
+const LABEL = 'text-[11.5px] font-medium text-ink-2'
+
 export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogProps) {
   const { t } = useTranslation()
   const [refreshToken, setRefreshToken] = useState('')
@@ -110,8 +113,8 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
           <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
             {/* Refresh Token */}
             <div className="space-y-2">
-              <label htmlFor="refreshToken" className="text-sm font-medium">
-                {t('credentials.refreshTokenLabel')} <span className="text-red-500">*</span>
+              <label htmlFor="refreshToken" className={LABEL}>
+                {t('credentials.refreshTokenLabel')} <span className="text-danger">*</span>
               </label>
               <Input
                 id="refreshToken"
@@ -125,7 +128,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
             {/* 用户名/邮箱 */}
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+              <label htmlFor="email" className={LABEL}>
                 {t('credentials.emailLabel')}
               </label>
               <Input
@@ -140,7 +143,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
             {/* 认证方式 */}
             <div className="space-y-2">
-              <label htmlFor="authMethod" className="text-sm font-medium">
+              <label htmlFor="authMethod" className={LABEL}>
                 {t('credentials.authMethodLabel')}
               </label>
               <select
@@ -148,7 +151,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 value={authMethod}
                 onChange={(e) => setAuthMethod(e.target.value as AuthMethod)}
                 disabled={isPending}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-[31px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-2.5 text-[12px] text-ink outline-none transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="social">Social</option>
                 <option value="idc">IdC/Builder-ID/IAM</option>
@@ -157,7 +160,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
             {/* Region 配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('credentials.regionConfigLabel')}</label>
+              <label className={LABEL}>{t('credentials.regionConfigLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Input
@@ -178,7 +181,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] leading-[1.55] text-ink-3">
                 {t('credentials.regionHintAdd')}
               </p>
             </div>
@@ -187,8 +190,8 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
             {authMethod === 'idc' && (
               <>
                 <div className="space-y-2">
-                  <label htmlFor="clientId" className="text-sm font-medium">
-                    {t('credentials.clientIdLabel')} <span className="text-red-500">*</span>
+                  <label htmlFor="clientId" className={LABEL}>
+                    {t('credentials.clientIdLabel')} <span className="text-danger">*</span>
                   </label>
                   <Input
                     id="clientId"
@@ -199,8 +202,8 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="clientSecret" className="text-sm font-medium">
-                    {t('credentials.clientSecretLabel')} <span className="text-red-500">*</span>
+                  <label htmlFor="clientSecret" className={LABEL}>
+                    {t('credentials.clientSecretLabel')} <span className="text-danger">*</span>
                   </label>
                   <Input
                     id="clientSecret"
@@ -216,7 +219,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
 
             {/* Profile ARN */}
             <div className="space-y-2">
-              <label htmlFor="profileArn" className="text-sm font-medium">
+              <label htmlFor="profileArn" className={LABEL}>
                 {t('credentials.profileArnLabel')}
               </label>
               <Input
@@ -226,14 +229,14 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 onChange={(e) => setProfileArn(e.target.value)}
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] leading-[1.55] text-ink-3">
                 {t('credentials.profileArnHintAdd')}
               </p>
             </div>
 
             {/* 优先级 */}
             <div className="space-y-2">
-              <label htmlFor="priority" className="text-sm font-medium">
+              <label htmlFor="priority" className={LABEL}>
                 {t('credentials.priorityFieldLabel')}
               </label>
               <Input
@@ -245,14 +248,14 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 onChange={(e) => setPriority(e.target.value)}
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] leading-[1.55] text-ink-3">
                 {t('credentials.priorityHint')}
               </p>
             </div>
 
             {/* Machine ID */}
             <div className="space-y-2">
-              <label htmlFor="machineId" className="text-sm font-medium">
+              <label htmlFor="machineId" className={LABEL}>
                 {t('credentials.machineIdLabel')}
               </label>
               <Input
@@ -262,14 +265,14 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 onChange={(e) => setMachineId(e.target.value)}
                 disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] leading-[1.55] text-ink-3">
                 {t('credentials.machineIdHint')}
               </p>
             </div>
 
             {/* 代理配置 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('credentials.proxyConfigLabel')}</label>
+              <label className={LABEL}>{t('credentials.proxyConfigLabel')}</label>
               <Input
                 id="proxyUrl"
                 placeholder={t('credentials.proxyUrlPlaceholderAdd')}
@@ -294,7 +297,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                   disabled={isPending}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] leading-[1.55] text-ink-3">
                 {t('credentials.proxyHintAdd')}
               </p>
             </div>

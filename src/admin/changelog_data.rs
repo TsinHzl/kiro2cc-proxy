@@ -62,9 +62,40 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     vec![
         ReleaseNote {
+            version: "2.10.0".to_string(),
+            date: "2026-08-19".to_string(),
+            is_latest: true,
+            groups: vec![
+                improve_group(vec![
+                    Bilingual::new(
+                        "Admin 后台全站 12 个页面按新设计稿改版，账号管理与 API Keys 改为表格化布局",
+                        "All 12 Admin console pages redesigned to the new visual spec; accounts and API Keys switched to a table layout",
+                    ),
+                    Bilingual::new(
+                        "实时日志页新增缓冲区/错误/警告指标卡、级别分段筛选与重复行折叠",
+                        "Realtime logs page adds buffer/error/warning metric cards, level segment filters, and duplicate-row collapsing",
+                    ),
+                    Bilingual::new(
+                        "每日统计页支持 7/14/30 天区间切换，趋势图仅标注峰值",
+                        "Daily stats page supports 7/14/30-day range switching; the trend chart annotates peaks only",
+                    ),
+                ]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "每日统计「今天」改按 CST(UTC+8) 计算，与后端聚合口径对齐",
+                        "Daily stats now computes \"today\" in CST (UTC+8) to match the backend aggregation window",
+                    ),
+                    Bilingual::new(
+                        "实时日志时间戳按浏览器时区渲染，不再把 UTC 时钟当本地时间显示",
+                        "Realtime log timestamps render in the browser time zone instead of showing the UTC clock as local time",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "2.9.5".to_string(),
             date: "2026-08-13".to_string(),
-            is_latest: true,
+            is_latest: false,
             groups: vec![feat_group(vec![Bilingual::new(
                 "Admin 后台侧边栏支持折叠/展开",
                 "Admin console sidebar now supports collapse/expand",

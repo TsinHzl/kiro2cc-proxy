@@ -33,12 +33,15 @@ import {
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
+// 账号列表轮询间隔：页头「自动刷新 30s」标签与此值同源，避免文案与实际行为漂移
+export const CREDENTIALS_REFETCH_INTERVAL_MS = 30_000
+
 // 查询凭据列表
 export function useCredentials() {
   return useQuery({
     queryKey: ['credentials'],
     queryFn: getCredentials,
-    refetchInterval: 30000, // 每 30 秒刷新一次
+    refetchInterval: CREDENTIALS_REFETCH_INTERVAL_MS,
   })
 }
 
@@ -164,6 +167,9 @@ export function useServerInfo() {
   return useQuery({
     queryKey: ['serverInfo'],
     queryFn: getServerInfo,
+    // 侧栏状态点需反映后端存活：全局默认 refetchOnWindowFocus: false 且无轮询，
+    // 不加此项则页面停留期间后端断开永无触发点，状态点不会转灰
+    refetchInterval: 30_000,
   })
 }
 

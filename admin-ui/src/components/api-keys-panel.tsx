@@ -1,13 +1,17 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Plus, Pencil, Trash2, Key, Check, Clock, BarChart3, RotateCcw, DollarSign, ArrowDownWideNarrow, Search, Loader2, Link2, Globe, ChevronDown, X, FileText } from 'lucide-react'
+import { Copy, Plus, Check, Clock, RotateCw, DollarSign, Search, Loader2, Link2, ChevronDown, X, FileText, Eye, EyeOff, Eraser, Box } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHead } from '@/components/page-head'
+import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring, Sparkline } from '@/components/metrics'
+import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
+import { ApiKeyTable } from '@/components/api-key-table'
+import { ApiKeyRow, quotaTone, type KeyStatus } from '@/components/api-key-row'
+import { ApiKeyPanelFoot } from '@/components/api-key-panel-foot'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
   DialogContent,
@@ -17,8 +21,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useQueryClient } from '@tanstack/react-query'
-import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances } from '@/hooks/use-credentials'
-import { deleteApiKey as deleteApiKeyApi } from '@/api/credentials'
+import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances, useDailyUsage } from '@/hooks/use-credentials'
+import {
+  deleteApiKey as deleteApiKeyApi,
+  resetKeyUsage as resetKeyUsageApi,
+  updateApiKey as updateApiKeyApi,
+} from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
 import { formatTokenCount, localeTag } from '@/lib/locale'
@@ -26,6 +34,22 @@ import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
 interface ApiKeysPanelProps {
   onViewDetail: (key: ApiKeyItem) => void
+}
+
+type KeyStatusFilter = 'all' | KeyStatus
+type SortBy = 'newest' | 'cost-desc' | 'cost-asc'
+
+/** 到期预警阈值：距今 ≤ 7 天 */
+const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000
+
+/** 每页行数，与账号管理页一致 */
+const ITEMS_PER_PAGE = 50
+
+/** 本地时区 YYYY-MM-DD（与日用量接口的日期口径一致） */
+function formatLocalDate(d: Date): string {
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
 }
 
 export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
@@ -48,8 +72,14 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editLimitUnit, setEditLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [copiedUrl, setCopiedUrl] = useState(false)
-  const [sortBy, setSortBy] = useState<'newest' | 'cost-desc' | 'cost-asc'>('newest')
+  const [sortBy, setSortBy] = useState<SortBy>('newest')
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<KeyStatusFilter>('all')
+  const [revealAll, setRevealAll] = useState(false)
+  /** 跨页保留的勾选集合（与账号管理页一致） */
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [currentPage, setCurrentPage] = useState(1)
+  const [batching, setBatching] = useState(false)
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false)
   const [purging, setPurging] = useState(false)
   const [createCredDropdownOpen, setCreateCredDropdownOpen] = useState(false)
@@ -81,9 +111,10 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   }
 
   const { data: credentials } = useCredentials()
-  const { data: apiKeys, isLoading } = useApiKeys()
-  const { data: usageData, dataUpdatedAt } = useAllUsage()
+  const { data: apiKeys, isLoading, refetch: refetchKeys } = useApiKeys()
+  const { data: usageData, dataUpdatedAt, refetch: refetchUsage } = useAllUsage()
   const { data: rpmData } = useRpm()
+  const { data: dailyUsageData } = useDailyUsage()
   const queryClient = useQueryClient()
   const { mutate: createKey, isPending: isCreating } = useCreateApiKey()
   const { mutate: updateKey } = useUpdateApiKey()
@@ -117,10 +148,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const usageMap = new Map<number, UsageSummary>()
   usageData?.forEach((u) => usageMap.set(u.apiKeyId, u))
 
-  const formatCost = (cost: number): string => {
-    return `$${cost.toFixed(4)}`
-  }
-
   const handleResetUsage = (key: ApiKeyItem) => {
     if (!confirm(t('apiKeys.confirmResetUsage', { name: key.name }))) return
     resetUsage(key.id, {
@@ -129,7 +156,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     })
   }
 
-  const getKeyStatus = (key: ApiKeyItem): 'active' | 'disabled' | 'expired' | 'pending' => {
+  const getKeyStatus = (key: ApiKeyItem): KeyStatus => {
     if (!key.enabled) return 'disabled'
     if (key.expiresAt && new Date(key.expiresAt) <= new Date()) return 'expired'
     if (key.durationDays != null && !key.activatedAt) return 'pending'
@@ -277,16 +304,12 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     setEditBoundCredentialIds(key.boundCredentialIds ?? [])
   }
 
-  const maskKey = (key: string) => key.slice(0, 7) + '...' + key.slice(-4)
-
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString(localeTag(), {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     })
   }
-
-  const formatSerial = (id: number) => `#${String(id).padStart(3, '0')}`
 
   // 将名称解析为数值（用于编号去重比较），非纯数字返回 null
   const parseNameAsNumber = (name: string): number | null => {
@@ -318,301 +341,515 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     return existingNumbers.has(num)
   })()
 
+  // refetch() 不抛异常（TanStack Query 默认 throwOnError: false），故检查返回结果的 isError 而非 try/catch
+  const handleRefresh = async () => {
+    const results = await Promise.all([refetchKeys(), refetchUsage()])
+    const failed = results.find((r) => r.isError)
+    if (failed) {
+      toast.error(extractErrorMessage(failed.error))
+      return
+    }
+    toast.success(t('apiKeys.toastRefreshed'))
+  }
+
+  // ===== 指标条派生 =====
+  const allKeys = apiKeys ?? []
+  const statusOf = new Map<number, KeyStatus>(allKeys.map((k) => [k.id, getKeyStatus(k)]))
+  const statusCounts: Record<KeyStatusFilter, number> = {
+    all: allKeys.length,
+    active: 0,
+    pending: 0,
+    disabled: 0,
+    expired: 0,
+  }
+  allKeys.forEach((k) => {
+    const s = statusOf.get(k.id)
+    if (s) statusCounts[s] += 1
+  })
+
+  const nowMs = Date.now()
+  // 已过期的不再计入「即将到期」（left > 0 过滤）
+  const expiringSoonCount = allKeys.filter((k) => {
+    if (!k.expiresAt) return false
+    const left = new Date(k.expiresAt).getTime() - nowMs
+    return left > 0 && left <= EXPIRING_SOON_MS
+  }).length
+
+  // 今日请求：后端仅提供全局按天汇总（无按 Key 拆分的按天数据），故本卡为全局口径
+  const todayStats = dailyUsageData?.find((d) => d.date === formatLocalDate(new Date(nowMs))) ?? null
+  const yesterdayStats = dailyUsageData?.find((d) => d.date === formatLocalDate(new Date(nowMs - 86_400_000))) ?? null
+  const todayRequests = dailyUsageData ? todayStats?.totalRequests ?? 0 : null
+  const requestsDeltaPercent =
+    todayRequests !== null && yesterdayStats && yesterdayStats.totalRequests > 0
+      ? ((todayRequests - yesterdayStats.totalRequests) / yesterdayStats.totalRequests) * 100
+      : null
+  const requestTrend = (dailyUsageData ?? [])
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7)
+    .map((d) => d.totalRequests)
+
+  // 累计口径限于当前 Key 集合，已删除 Key 的历史用量不计入
+  const cumulative = allKeys.reduce(
+    (acc, k) => {
+      const u = usageMap.get(k.id)
+      if (u) {
+        acc.requests += u.totalRequests
+        acc.tokens += u.totalInputTokens + u.totalOutputTokens
+      }
+      return acc
+    },
+    { requests: 0, tokens: 0 }
+  )
+  const earliestCreated = allKeys.reduce<string | null>(
+    (min, k) => (min === null || k.createdAt < min ? k.createdAt : min),
+    null
+  )
+  const sinceLabel = earliestCreated
+    ? new Date(earliestCreated).toLocaleDateString(localeTag(), { month: '2-digit', day: '2-digit' })
+    : null
+
+  // 配额占用最高：按 limitUnit 分流计量口径（credits 比 totalCredits，usd 比 totalCost）
+  const topQuota = allKeys.reduce<{ name: string; used: number; limit: number; unit: 'usd' | 'credits'; percent: number } | null>(
+    (top, k) => {
+      if (k.spendingLimit == null || k.spendingLimit <= 0) return top
+      const u = usageMap.get(k.id)
+      const used = k.limitUnit === 'credits' ? u?.totalCredits ?? 0 : u?.totalCost ?? 0
+      const percent = (used / k.spendingLimit) * 100
+      if (top !== null && top.percent >= percent) return top
+      return { name: k.name, used, limit: k.spendingLimit, unit: k.limitUnit, percent }
+    },
+    null
+  )
+
+  const statusSegments: SegmentedOption<KeyStatusFilter>[] = [
+    { key: 'all', label: t('credentials.filterAll'), count: statusCounts.all },
+    { key: 'active', label: t('apiKeys.statusActive'), pipClass: 'bg-ok', count: statusCounts.active },
+    { key: 'pending', label: t('apiKeys.statusPending'), pipClass: 'bg-brand', count: statusCounts.pending },
+    { key: 'disabled', label: t('apiKeys.statusDisabled'), pipClass: 'bg-ink-3', count: statusCounts.disabled },
+    { key: 'expired', label: t('apiKeys.statusExpired'), pipClass: 'bg-warn', count: statusCounts.expired },
+  ]
+  const sortSegments: SegmentedOption<SortBy>[] = [
+    { key: 'newest', label: t('apiKeys.sortNewest') },
+    { key: 'cost-desc', label: t('apiKeys.sortCostDesc') },
+    { key: 'cost-asc', label: t('apiKeys.sortCostAsc') },
+  ]
+
+  // 不做 useMemo：statusOf 依赖 getKeyStatus 内的当前时间，缓存会让筛选结果与实时状态徽章脱节
   const filteredKeys = (apiKeys ?? []).filter((key) => {
+    if (statusFilter !== 'all' && statusOf.get(key.id) !== statusFilter) return false
     if (!searchQuery.trim()) return true
     const q = searchQuery.trim().toLowerCase()
     const serialStr = String(key.id).padStart(3, '0')
     return serialStr.includes(q) || String(key.id).includes(q) || key.name.toLowerCase().includes(q)
   })
+
+  const isFiltered = searchQuery.trim() !== '' || statusFilter !== 'all'
+
+  // 筛选/排序变化后回到首页，避免停留在已不存在的页码上
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, sortBy])
+
+  // usageData 是排序依据（usageMap 每次渲染重建，不能进依赖数组）
+  // 注：filteredKeys 每次渲染都是新数组引用，此处缓存实质不生效，仅作意图声明；
+  //     当前量级（几十到几百条 Key）排序开销可忽略，不为此引入节流时间源
+  const sorted = useMemo(() => {
+    const costOf = (k: ApiKeyItem) => usageMap.get(k.id)?.totalCost ?? 0
+    return [...filteredKeys].sort((a, b) => {
+      if (sortBy === 'cost-desc') return costOf(b) - costOf(a)
+      if (sortBy === 'cost-asc') return costOf(a) - costOf(b)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+  }, [filteredKeys, sortBy, usageData])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE))
+  // 删除后总页数可能收缩，钳制到有效范围而不改 state（避免额外一轮渲染）
+  const page = Math.min(currentPage, totalPages)
+  const paged = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
+
+  const allPagedSelected = paged.length > 0 && paged.every((k) => selectedIds.has(k.id))
+  const somePagedSelected = !allPagedSelected && paged.some((k) => selectedIds.has(k.id))
+  // 行内单条删除不会清理 selectedIds，计数与批量操作一律以现存 Key 为准，避免对已删除 id 发请求
+  const selectedExistingIds = allKeys.filter((k) => selectedIds.has(k.id)).map((k) => k.id)
+  const selectedEnabledCount = allKeys.filter((k) => selectedIds.has(k.id) && k.enabled).length
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectPage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allPagedSelected) paged.forEach((k) => next.delete(k.id))
+      else paged.forEach((k) => next.add(k.id))
+      return next
+    })
+  }
+
+  /** 批量操作：逐个串行调用，单个失败不中断，结束后统一失效缓存并清空勾选 */
+  const runBatch = async (ids: number[], op: (id: number) => Promise<unknown>, successKey: string) => {
+    setBatching(true)
+    let done = 0
+    for (const id of ids) {
+      try {
+        await op(id)
+        done++
+      } catch {
+        // 单个失败不中断
+      }
+    }
+    setBatching(false)
+    queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
+    queryClient.invalidateQueries({ queryKey: ['apiKeyUsage'] })
+    setSelectedIds(new Set())
+    if (done < ids.length) {
+      toast.warning(t('apiKeys.toastBatchPartial', { done, total: ids.length }))
+      return
+    }
+    toast.success(t(successKey, { count: done }))
+  }
+
+  const handleBatchDisable = () => {
+    const ids = allKeys.filter((k) => selectedIds.has(k.id) && k.enabled).map((k) => k.id)
+    if (ids.length === 0) return
+    if (!confirm(t('apiKeys.confirmBatchDisable', { count: ids.length }))) return
+    void runBatch(ids, (id) => updateApiKeyApi(id, { enabled: false }), 'apiKeys.toastBatchDisabled')
+  }
+
+  const handleBatchResetUsage = () => {
+    const ids = selectedExistingIds
+    if (ids.length === 0) return
+    if (!confirm(t('apiKeys.confirmBatchReset', { count: ids.length }))) return
+    void runBatch(ids, resetKeyUsageApi, 'apiKeys.toastBatchReset')
+  }
+
+  /** 表格无独立到期列，把有效期/待激活说明降级为状态徽章的 title */
+  const statusTitleOf = (key: ApiKeyItem): string | undefined => {
+    if (key.durationDays != null && !key.activatedAt) {
+      return t('apiKeys.validityPending', { duration: formatDuration(key.durationDays) })
+    }
+    if (key.durationDays != null && key.expiresAt) {
+      return t('apiKeys.expiresWithDuration', {
+        date: formatDate(key.expiresAt),
+        duration: formatDuration(key.durationDays),
+      })
+    }
+    if (key.expiresAt) return t('apiKeys.expiresLabel', { date: formatDate(key.expiresAt) })
+    return undefined
+  }
+
+  /** 剩余天数（向上取整，最少 1 天）；已过期或超出预警窗口返回 null */
+  const expiringInDaysOf = (key: ApiKeyItem): number | null => {
+    if (!key.expiresAt) return null
+    const left = new Date(key.expiresAt).getTime() - nowMs
+    if (left <= 0 || left > EXPIRING_SOON_MS) return null
+    return Math.max(1, Math.ceil(left / 86_400_000))
+  }
+
+  const boundOf = (key: ApiKeyItem) =>
+    (key.boundCredentialIds ?? []).map((id) => {
+      const bal = credentialBalanceMap.get(id)
+      return {
+        label: credentialMap.get(id)?.email ?? `#${id}`,
+        balance: bal
+          ? t('apiKeys.boundBalanceCompact', {
+              remaining: bal.remaining.toFixed(2),
+              limit: bal.usageLimit.toFixed(2),
+              percent: (100 - bal.usagePercentage).toFixed(0),
+            })
+          : null,
+      }
+    })
+
   return (
-    <div className="space-y-4">
-      {/* 服务信息 */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            {t('apiKeys.serviceInfo')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-muted-foreground">API Base URL</div>
-              <code className="text-sm break-all">{window.location.origin}</code>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyToClipboard(window.location.origin, 'url')}
+    <div>
+      {/* 页头（设计稿 .head）：面包屑 + 19px 标题 + 同基线副标题 + 右侧状态标签与文档入口 */}
+      <PageHead
+        crumb={[t('dashboard.navMain'), t('apiKeys.pageTitle')]}
+        title={t('apiKeys.pageTitle')}
+        note={t('apiKeys.pageSubtitle')}
+        actions={
+          <>
+            <span className="inline-flex h-5 shrink-0 items-center gap-[5px] rounded-md border border-ok-line bg-ok-soft px-[7px] text-[11px] font-semibold text-ok">
+              <span className="h-[5px] w-[5px] shrink-0 animate-pulse rounded-full bg-ok ring-[2.5px] ring-ok-soft" aria-hidden="true" />
+              {t('apiKeys.serviceRunningTag')}
+            </span>
+            <a
+              href="https://github.com/TsinHzl/kiro2cc-proxy#readme"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex h-[31px] items-center gap-1.5 rounded-[7px] px-[11px] text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
             >
-              {copiedUrl ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <FileText className="h-3.5 w-3.5 text-ink-3 transition-colors group-hover:text-ink-2" />
+              {t('apiKeys.docsLink')}
+            </a>
+          </>
+        }
+      />
 
-      {/* 统计卡片 */}
-      {(() => {
-        const all = apiKeys ?? []
-        const active = all.filter((k) => getKeyStatus(k) === 'active').length
-        const pending = all.filter((k) => getKeyStatus(k) === 'pending').length
-        const disabled = all.filter((k) => getKeyStatus(k) === 'disabled').length
-        const expired = all.filter((k) => getKeyStatus(k) === 'expired').length
-        return (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statTotal')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{all.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statActiveLabel')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{active}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statPendingLabel')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-500">{pending}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statDisabledLabel')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{disabled}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.statExpiredLabel')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-500">{expired}</div>
-              </CardContent>
-            </Card>
+      {/* 连接卡（设计稿 .conn）：客户端接入所需的 Base URL 与兼容协议一次给全。
+          设计稿右侧的「在新窗口打开」未实现 —— 本服务无可浏览端点（/v1/* 均需认证），渲染即死交互 */}
+      <section className="flex shrink-0 flex-wrap items-center gap-4 rounded-[11px] border border-hairline bg-surface px-4 py-[13px] shadow-hair">
+        <div className="min-w-0">
+          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <Link2 className="size-[13px] shrink-0" />
+            {t('apiKeys.connBaseUrlLabel')}
           </div>
-        )
-      })()}
-
-      {/* API Key 列表 */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('apiKeys.pageTitle')}</h2>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <ArrowDownWideNarrow className="h-4 w-4 text-muted-foreground" />
-            <Button size="sm" variant={sortBy === 'newest' ? 'default' : 'outline'} onClick={() => setSortBy('newest')}>{t('apiKeys.sortNewest')}</Button>
-            <Button size="sm" variant={sortBy === 'cost-desc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-desc')}>{t('apiKeys.sortCostDesc')}</Button>
-            <Button size="sm" variant={sortBy === 'cost-asc' ? 'default' : 'outline'} onClick={() => setSortBy('cost-asc')}>{t('apiKeys.sortCostAsc')}</Button>
+          <div className="mt-1 truncate font-mono text-[14px] font-medium tracking-[-.01em]">
+            <span className="text-ink-3">{`${window.location.protocol}//`}</span>
+            {window.location.host}
+            <span className="text-ink-3">/v1</span>
           </div>
-          <Button onClick={() => { setNewName(generateUniqueSerial()); setCreateDialogOpen(true) }} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            {t('apiKeys.createButton')}
+        </div>
+        <span aria-hidden="true" className="mx-0.5 hidden w-px self-stretch bg-hairline sm:block" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <Box className="size-[13px] shrink-0" />
+            {t('apiKeys.connProtocolLabel')}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {['Anthropic Messages', 'Claude Code /cc/v1'].map((protocol) => (
+              <span
+                key={protocol}
+                className="whitespace-nowrap rounded-[5px] border border-hairline bg-surface-3 px-1.5 py-px text-[10.5px] font-semibold tracking-[.03em] text-ink-2"
+              >
+                {protocol}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* 复制成功时图标转 ok 色：基类 [&_svg]:text-ink-3 特异性更高，必须同修饰符组覆盖 */}
+          <Button
+            variant="outline"
+            className={copiedUrl ? '[&_svg]:text-ok hover:[&_svg]:text-ok' : ''}
+            onClick={() => copyToClipboard(`${window.location.origin}/v1`, 'url')}
+          >
+            {copiedUrl ? <Check /> : <Copy />}
+            {t('apiKeys.connCopyUrl')}
           </Button>
-          {invalidKeys.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setPurgeDialogOpen(true)}>
-              <Trash2 className="h-4 w-4 mr-2" />
+        </div>
+      </section>
+
+      {/* 指标条（设计稿 .metrics） */}
+      <div className="mt-[15px]">
+        <MetricsBar>
+          <Metric label={t('apiKeys.metricKeysLabel')}>
+            <MetricValue value={String(statusCounts.all)} unit={t('apiKeys.metricKeysUnit')} />
+            <MetricFoot>
+              <span>
+                <b className="font-medium text-ink-2">{statusCounts.active}</b> {t('apiKeys.statusActive')}
+              </span>
+              {statusCounts.pending > 0 && (
+                <>
+                  <FootSep />
+                  <span>
+                    <b className="font-medium text-ink-2">{statusCounts.pending}</b> {t('apiKeys.statusPending')}
+                  </span>
+                </>
+              )}
+              <FootSep />
+              <span>
+                <b className="font-medium text-ink-2">{statusCounts.disabled}</b> {t('apiKeys.statusDisabled')}
+              </span>
+              {statusCounts.expired > 0 && (
+                <>
+                  <FootSep />
+                  <span>
+                    <b className="font-medium text-ink-2">{statusCounts.expired}</b> {t('apiKeys.statusExpired')}
+                  </span>
+                </>
+              )}
+              {expiringSoonCount > 0 && (
+                <>
+                  <FootSep />
+                  <span className="font-semibold text-warn">
+                    {t('apiKeys.metricExpiringSoon', { count: expiringSoonCount })}
+                  </span>
+                </>
+              )}
+            </MetricFoot>
+          </Metric>
+
+          <Metric label={t('apiKeys.metricTodayLabel')}>
+            <MetricValue
+              value={todayRequests === null ? '—' : todayRequests.toLocaleString(localeTag())}
+              trailing={requestsDeltaPercent === null ? undefined : <Delta percent={requestsDeltaPercent} />}
+            />
+            <MetricFoot className="truncate pr-[92px]">
+              <span>
+                {t('apiKeys.metricTodayCost')}{' '}
+                <b className="font-medium text-ink-2">${(todayStats?.totalCost ?? 0).toFixed(2)}</b>
+              </span>
+              <FootSep />
+              <span>
+                {t('apiKeys.metricTodayCredits')}{' '}
+                <b className="font-medium text-ink-2">{(todayStats?.totalCredits ?? 0).toFixed(1)}</b>
+              </span>
+            </MetricFoot>
+            {requestTrend.length >= 2 && (
+              <MetricAside>
+                <Sparkline values={requestTrend} />
+              </MetricAside>
+            )}
+          </Metric>
+
+          <Metric label={t('apiKeys.metricTotalLabel')}>
+            <MetricValue value={cumulative.requests.toLocaleString(localeTag())} />
+            <MetricFoot>
+              <span>
+                Token <b className="font-medium text-ink-2">{formatTokenCount(cumulative.tokens)}</b>
+              </span>
+              {sinceLabel && (
+                <>
+                  <FootSep />
+                  <span>{t('apiKeys.metricSince', { date: sinceLabel })}</span>
+                </>
+              )}
+            </MetricFoot>
+          </Metric>
+
+          <Metric label={t('apiKeys.metricQuotaLabel')}>
+            <MetricValue
+              value={topQuota === null ? '—' : String(Math.round(topQuota.percent))}
+              unit={topQuota === null ? undefined : '%'}
+            />
+            {topQuota === null ? (
+              <div className="mt-[3px] text-[11px] text-ink-3">{t('apiKeys.metricQuotaEmpty')}</div>
+            ) : (
+              <div className="mt-[3px] truncate pr-14 text-[11px] text-ink-3">
+                Key <b className="font-medium text-ink-2">{topQuota.name}</b>
+                {' · '}
+                <span className={`font-semibold ${quotaTone(topQuota.percent).text}`}>
+                  {topQuota.unit === 'credits'
+                    ? t('apiKeys.metricQuotaUsedCredits', { used: topQuota.used.toFixed(1), limit: topQuota.limit })
+                    : t('apiKeys.metricQuotaUsedUsd', { used: topQuota.used.toFixed(2), limit: topQuota.limit })}
+                </span>
+              </div>
+            )}
+            <MetricAside>
+              <Ring
+                percent={topQuota === null ? null : topQuota.percent}
+                tone={topQuota === null ? undefined : quotaTone(topQuota.percent).stroke}
+              />
+            </MetricAside>
+          </Metric>
+        </MetricsBar>
+      </div>
+
+      {/* 操作条（设计稿 .actionbar）：危险操作用竖分隔线隔离并染红；「导出配置」依赖未实现的后端能力，不渲染 */}
+      <div className="flex flex-wrap items-center gap-[7px] pt-[15px]">
+        <Button variant="outline" onClick={handleRefresh}>
+          <RotateCw />
+          {t('apiKeys.refreshList')}
+        </Button>
+        <Button variant="outline" aria-pressed={revealAll} onClick={() => setRevealAll((v) => !v)}>
+          {revealAll ? <EyeOff /> : <Eye />}
+          {revealAll ? t('apiKeys.hideKeys') : t('apiKeys.revealKeys')}
+        </Button>
+        {/* 分隔线随危险按钮一起显隐，无无效 Key 时不留孤立竖线 */}
+        {invalidKeys.length > 0 && (
+          <>
+            <span aria-hidden="true" className="mx-0.5 h-[19px] w-px shrink-0 bg-hairline-2" />
+            <Button variant="destructive" onClick={() => setPurgeDialogOpen(true)}>
+              <Eraser />
               {t('apiKeys.purgeButton', { count: invalidKeys.length })}
             </Button>
-          )}
+          </>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Segmented value={sortBy} onChange={setSortBy} groupLabel={t('apiKeys.sortGroupLabel')} options={sortSegments} />
+          <Button onClick={() => { setNewName(generateUniqueSerial()); setCreateDialogOpen(true) }}>
+            <Plus />
+            {t('apiKeys.createButton')}
+          </Button>
         </div>
       </div>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder={t('apiKeys.searchPlaceholder')}
+
+      {/* 工具条（设计稿 .toolbar） */}
+      <Toolbar>
+        <SearchBox
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          onChange={setSearchQuery}
+          placeholder={t('apiKeys.searchPlaceholder')}
+          clearLabel={t('credentials.searchClear')}
         />
-      </div>
-      {isLoading ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">{t('common.loading')}</CardContent>
-        </Card>
-      ) : !apiKeys || apiKeys.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            {t('apiKeys.emptyNoKeys')}
-          </CardContent>
-        </Card>
-      ) : filteredKeys.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            {t('apiKeys.emptyNoMatch')}
-          </CardContent>
-        </Card>
-      ) : (() => {
-        const sortFn = (a: ApiKeyItem, b: ApiKeyItem) => {
-          if (sortBy === 'cost-desc') return (usageMap.get(b.id)?.totalCost ?? 0) - (usageMap.get(a.id)?.totalCost ?? 0)
-          if (sortBy === 'cost-asc') return (usageMap.get(a.id)?.totalCost ?? 0) - (usageMap.get(b.id)?.totalCost ?? 0)
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        }
-        const boundKeys = [...filteredKeys].filter(k => k.boundCredentialIds && k.boundCredentialIds.length > 0).sort(sortFn)
-        const globalKeys = [...filteredKeys].filter(k => !k.boundCredentialIds || k.boundCredentialIds.length === 0).sort(sortFn)
+        <Segmented
+          value={statusFilter}
+          onChange={setStatusFilter}
+          groupLabel={t('credentials.filterGroupLabel')}
+          options={statusSegments}
+        />
+        <UpdatedAgo dataUpdatedAt={dataUpdatedAt} />
+      </Toolbar>
 
-        const renderKeyCard = (apiKey: ApiKeyItem, isBound: boolean) => {
-          const status = getKeyStatus(apiKey)
-          const usage = usageMap.get(apiKey.id)
-          return (
-            <Card
-              key={apiKey.id}
-              className={[
-                status === 'disabled' || status === 'expired' ? 'opacity-60' : '',
-                isBound ? 'border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-950/20' : '',
-              ].filter(Boolean).join(' ')}
-            >
-              <CardContent className="py-3 px-3 sm:px-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <code className="text-xs text-muted-foreground font-mono">{formatSerial(apiKey.id)}</code>
-                        <span className="font-medium truncate">{apiKey.name}</span>
-                        <Badge variant={status === 'active' ? 'success' : status === 'pending' ? 'secondary' : status === 'expired' ? 'warning' : 'destructive'}>
-                          {status === 'active' ? t('apiKeys.statusActive') : status === 'pending' ? t('apiKeys.statusPending') : status === 'expired' ? t('apiKeys.statusExpired') : t('apiKeys.statusDisabled')}
-                        </Badge>
-                        {isBound && apiKey.boundCredentialIds && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700 px-2 py-0.5 text-xs font-medium">
-                            <Link2 className="h-3 w-3 shrink-0" />
-                            {apiKey.boundCredentialIds.map((id) => {
-                              const cred = credentialMap.get(id)
-                              const bal = credentialBalanceMap.get(id)
-                              const label = cred?.email ?? `#${id}`
-                              const balText = bal
-                                ? t('apiKeys.boundBalanceCompact', { remaining: bal.remaining.toFixed(2), limit: bal.usageLimit.toFixed(2), percent: (100 - bal.usagePercentage).toFixed(0) })
-                                : null
-                              return (
-                                <span key={id} className="inline-flex items-center gap-1">
-                                  <span>{label}</span>
-                                  {balText && (
-                                    <span className="text-violet-500 dark:text-violet-400 font-normal">{balText}</span>
-                                  )}
-                                </span>
-                              )
-                            }).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} className="opacity-40">·</span>, el], [])}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                        <code>{maskKey(apiKey.key)}</code>
-                        <span>{t('apiKeys.createdLabel', { date: formatDate(apiKey.createdAt) })}</span>
-                        {apiKey.spendingLimit != null ? (
-                          <span className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {apiKey.limitUnit === 'credits'
-                              ? t('apiKeys.quotaCreditsLabel', { used: (usage?.totalCredits ?? 0).toFixed(2), limit: apiKey.spendingLimit.toFixed(2) })
-                              : t('apiKeys.quotaUsdLabel', { used: (usage?.totalCost ?? 0).toFixed(2), limit: apiKey.spendingLimit.toFixed(2) })}
-                          </span>
-                        ) : apiKey.durationDays != null && !apiKey.activatedAt ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {t('apiKeys.validityPending', { duration: formatDuration(apiKey.durationDays) })}
-                          </span>
-                        ) : apiKey.durationDays != null && apiKey.expiresAt ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {t('apiKeys.expiresWithDuration', { date: formatDate(apiKey.expiresAt), duration: formatDuration(apiKey.durationDays) })}
-                          </span>
-                        ) : apiKey.expiresAt ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {t('apiKeys.expiresLabel', { date: formatDate(apiKey.expiresAt) })}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <BarChart3 className="h-3 w-3" />
-                          {t('apiKeys.requestsCountSuffix', { count: usage?.totalRequests ?? 0 })}
-                        </span>
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">
-                          RPM {rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {t('apiKeys.inOutTokens', { in: formatTokenCount(usage?.totalInputTokens ?? 0), out: formatTokenCount(usage?.totalOutputTokens ?? 0) })}
-                        </span>
-                        <span className="font-medium text-orange-600 dark:text-orange-400">
-                          {formatCost(usage?.totalCost ?? 0)}
-                        </span>
-                        {usage && usage.totalRequests > 0 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleResetUsage(apiKey)}
-                            title={t('apiKeys.resetUsageTitle')}
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                          </Button>
-                        )}
-                        {dataUpdatedAt > 0 && (
-                          <span className="text-muted-foreground dark:text-muted-foreground/60">
-                            · {new Date(dataUpdatedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 sm:ml-2 self-end sm:self-auto">
-                    <Button variant="ghost" size="sm" onClick={() => onViewDetail(apiKey)} title={t('apiKeys.viewLogsTitle')}>
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(t('apiKeys.copyContent', { name: apiKey.name, url: window.location.origin, key: apiKey.key }), apiKey.id)} title={t('apiKeys.copyUrlKeyTitle')}>
-                      {copiedId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                    <Switch checked={apiKey.enabled} onCheckedChange={() => handleToggleEnabled(apiKey)} />
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(apiKey)} title={t('apiKeys.editTitle')}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(apiKey)} title={t('common.delete')} className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
+      {/* 表格（设计稿 #p-keys .panel）：10 列 + sticky 表头 + 面板脚分页 */}
+      <ApiKeyTable
+        rowCount={paged.length}
+        emptyLoading={isLoading}
+        emptyText={
+          isLoading ? t('common.loading') : allKeys.length === 0 ? t('apiKeys.emptyNoKeys') : t('apiKeys.emptyNoMatch')
         }
-
-        return (
-          <div className="space-y-6">
-            {boundKeys.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-violet-700 dark:text-violet-400">
-                  <Link2 className="h-4 w-4" />
-                  {t('apiKeys.boundAccountsLabel')}
-                  <span className="text-xs font-normal text-muted-foreground">({boundKeys.length})</span>
-                </div>
-                <div className="grid gap-2">
-                  {boundKeys.map(k => renderKeyCard(k, true))}
-                </div>
-              </div>
-            )}
-            {globalKeys.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Globe className="h-4 w-4" />
-                  {t('apiKeys.globalPolicyLabel')}
-                  <span className="text-xs font-normal">({globalKeys.length})</span>
-                </div>
-                <div className="grid gap-2">
-                  {globalKeys.map(k => renderKeyCard(k, false))}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })()}
+        allSelected={allPagedSelected}
+        someSelected={somePagedSelected}
+        onToggleSelectAll={toggleSelectPage}
+        isFiltered={isFiltered}
+        onClearFilters={() => {
+          setSearchQuery('')
+          setStatusFilter('all')
+        }}
+        footer={
+          <ApiKeyPanelFoot
+            selectedCount={selectedExistingIds.length}
+            selectedEnabledCount={selectedEnabledCount}
+            busy={batching}
+            onBatchDisable={handleBatchDisable}
+            onBatchResetUsage={handleBatchResetUsage}
+            onDeselectAll={() => setSelectedIds(new Set())}
+            totalCount={sorted.length}
+            isFiltered={isFiltered}
+            page={page}
+            totalPages={totalPages}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        }
+      >
+        {paged.map((apiKey) => (
+          <ApiKeyRow
+            key={apiKey.id}
+            apiKey={apiKey}
+            status={statusOf.get(apiKey.id) ?? 'active'}
+            statusTitle={statusTitleOf(apiKey)}
+            expiringInDays={expiringInDaysOf(apiKey)}
+            usage={usageMap.get(apiKey.id)}
+            rpm={rpmData?.byApiKey?.[String(apiKey.id)] ?? 0}
+            bound={boundOf(apiKey)}
+            selected={selectedIds.has(apiKey.id)}
+            onToggleSelect={() => toggleSelect(apiKey.id)}
+            revealed={revealAll}
+            copied={copiedId === apiKey.id}
+            createdTitle={t('apiKeys.createdLabel', { date: formatDate(apiKey.createdAt) })}
+            onCopy={() =>
+              copyToClipboard(
+                t('apiKeys.copyContent', { name: apiKey.name, url: window.location.origin, key: apiKey.key }),
+                apiKey.id
+              )
+            }
+            onViewDetail={() => onViewDetail(apiKey)}
+            onEdit={() => openEdit(apiKey)}
+            onDelete={() => handleDelete(apiKey)}
+            onToggleEnabled={() => handleToggleEnabled(apiKey)}
+            onResetUsage={() => handleResetUsage(apiKey)}
+          />
+        ))}
+      </ApiKeyTable>
       {/* 创建对话框 */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>

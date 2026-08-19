@@ -41,7 +41,7 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
 
         {isLoading && (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-brand"></div>
           </div>
         )}
 
@@ -49,14 +49,14 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
           const parsed = parseError(error)
           return (
             <div className="py-6 space-y-3">
-              <div className="flex items-center justify-center gap-2 text-red-500">
+              <div className="flex items-center justify-center gap-2 text-danger">
                 <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
                 <span className="font-medium">{parsed.title}</span>
               </div>
               {parsed.detail && (
-                <div className="text-sm text-muted-foreground text-center px-4">
+                <div className="px-4 text-center text-[11.5px] leading-[1.55] text-ink-3">
                   {parsed.detail}
                 </div>
               )}
@@ -68,7 +68,7 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
           <div className="space-y-4">
             {/* 订阅类型 */}
             <div className="text-center">
-              <span className={`text-lg font-semibold ${balance.subscriptionTitle ? getSubscriptionColor(balance.subscriptionTitle) : 'text-muted-foreground'}`}>
+              <span className={`text-lg font-semibold ${balance.subscriptionTitle ? getSubscriptionColor(balance.subscriptionTitle) : 'text-ink-3'}`}>
                 {balance.subscriptionTitle || t('credentials.unknownSubscription')}
               </span>
             </div>
@@ -80,21 +80,21 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
                 <span>{t('credentials.limitLabel', { amount: formatNumber(balance.usageLimit) })}</span>
               </div>
               <Progress value={balance.usagePercentage} />
-              <div className="text-center text-sm text-muted-foreground">
+              <div className="text-center text-[11.5px] text-ink-3">
                 {t('credentials.usagePercentUsed', { percent: balance.usagePercentage.toFixed(1) })}
               </div>
             </div>
 
             {/* 详细信息 */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t text-sm">
+            <div className="grid grid-cols-2 gap-4 border-t border-hairline pt-4 text-[12px]">
               <div>
-                <span className="text-muted-foreground">{t('credentials.remainingQuotaLabel')}</span>
-                <span className="font-medium text-green-600">
+                <span className="text-ink-3">{t('credentials.remainingQuotaLabel')}</span>
+                <span className="font-medium text-ok">
                   ${formatNumber(balance.remaining)}
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground">{t('credentials.nextResetLabel')}</span>
+                <span className="text-ink-3">{t('credentials.nextResetLabel')}</span>
                 <span className="font-medium">
                   {formatDate(balance.nextResetAt)}
                 </span>

@@ -1,15 +1,18 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState, useEffect, useRef, useId } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, RotateCcw, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Github, Info, History, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import kiroIcon from '@/assets/kiro-icon.png'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Info, History, PanelLeftClose, PanelLeftOpen, FileText } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { storage } from '@/lib/storage'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { CredentialCard } from '@/components/credential-card'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { AccountRow } from '@/components/account-row'
+import { AccountMetrics } from '@/components/account-metrics'
+import { AccountToolbar, type AccountStatusFilter } from '@/components/account-toolbar'
+import { AccountTable } from '@/components/account-table'
+import { AccountPanelFoot } from '@/components/account-panel-foot'
 import { BalanceDialog } from '@/components/balance-dialog'
 import { AddCredentialDialog } from '@/components/add-credential-dialog'
 import { BatchImportDialog } from '@/components/batch-import-dialog'
@@ -22,81 +25,47 @@ import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
-import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
+import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo, CREDENTIALS_REFETCH_INTERVAL_MS } from '@/hooks/use-credentials'
 import { useTheme } from '@/hooks/use-theme'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
 import { ChangelogPage } from '@/components/changelog-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
+import { PageHead } from '@/components/page-head'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
+import {
+  accountLabel,
+  deriveAccountState,
+  sortCredentials,
+  type AccountSortKey,
+  type SortDirection,
+} from '@/lib/account-state'
 import type { BalanceResponse, ApiKeyItem } from '@/types/api'
 
 interface DashboardProps {
   onLogout: () => void
 }
 
-function useCountUp(target: number, duration = 700) {
-  const [value, setValue] = useState(target)
-  const fromRef = useRef(target)
-  useEffect(() => {
-    const from = fromRef.current
-    if (from === target) return
-    const safeDuration = duration > 0 ? duration : 1
-    const start = performance.now()
-    let rafId: number
-    const tick = (now: number) => {
-      const t = Math.min(1, Math.max(0, (now - start) / safeDuration))
-      const eased = 1 - Math.pow(1 - t, 3)
-      const current = from + (target - from) * eased
-      setValue(current)
-      fromRef.current = current
-      if (t < 1) rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [target, duration])
-  return value
+// 侧栏身份区：后端仅有单一管理员口令，无用户名概念 → 名称固定，头像取首字母
+const ADMIN_NAME = 'admin'
+
+/** 本地时区 YYYY-MM-DD（日用量接口按本地日期对齐） */
+function formatLocalDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function CreditsProgressRing({ percent }: { percent: number }) {
-  const { t } = useTranslation()
-  const gradientId = useId()
-  const safePercent = Number.isFinite(percent) ? percent : 0
-  const clamped = Math.min(100, Math.max(0, safePercent))
-  const displayPercent = useCountUp(clamped)
-  const radius = 15
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference * (1 - displayPercent / 100)
-  return (
-    <div
-      className="relative h-16 w-16 shrink-0"
-      role="img"
-      aria-label={t('dashboard.creditsRingLabel', { percent: Math.round(clamped) })}
-    >
-      <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
-        <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="4" className="stroke-purple-100 dark:stroke-purple-900/40" />
-        <circle
-          cx="18" cy="18" r={radius} fill="none"
-          stroke={`url(#${gradientId})`}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#c4b5fd" />
-            <stop offset="100%" stopColor="#7c3aed" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-purple-600 dark:text-purple-400">
-        {Math.round(displayPercent)}%
-      </span>
-    </div>
-  )
-}
+/** 操作条按钮基类（设计稿 .btn）：31px 高 / 7px 圆角 / 15px 图标 */
+const ACTION_BTN_BASE =
+  'inline-flex h-[31px] items-center gap-1.5 whitespace-nowrap rounded-[7px] border px-[11px] text-[12.5px] font-medium shadow-hair transition-colors [&_svg]:size-[15px] [&_svg]:shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50'
+/** 常规态（设计稿 .btn） */
+const ACTION_BTN = `${ACTION_BTN_BASE} border-hairline-2 bg-surface text-ink-2 [&_svg]:text-ink-3 hover:border-ink-3 hover:bg-surface-2 hover:text-ink hover:[&_svg]:text-ink-2`
+/** 危险态（设计稿 .btn-danger） */
+const ACTION_BTN_DANGER = `${ACTION_BTN_BASE} border-danger-line bg-surface text-danger [&_svg]:text-danger hover:border-danger hover:bg-danger-soft`
+/** 主按钮（设计稿 .btn-primary） */
+const ACTION_BTN_PRIMARY = `${ACTION_BTN_BASE} border-transparent bg-brand font-semibold text-brand-fg [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover`
+/** 竖分隔线（设计稿 .actionbar .vdiv） */
+const ACTION_VDIV = 'mx-0.5 h-[19px] w-px shrink-0 bg-hairline-2'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'sidebar-collapsed'
 
@@ -129,7 +98,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [queryInfoProgress, setQueryInfoProgress] = useState({ current: 0, total: 0 })
   const [liveCreditsTotal, setLiveCreditsTotal] = useState<number | null>(null)
   const [liveCreditsQueried, setLiveCreditsQueried] = useState(0)
-  const [liveCreditsCapacity, setLiveCreditsCapacity] = useState(0)
   const [dailyView, setDailyView] = useState<string | null>(null)
   const [dailyFromSidebar, setDailyFromSidebar] = useState(false)
   const cancelVerifyRef = useRef(false)
@@ -138,39 +106,138 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const prevDailyView = useRef<string | null>(null)
   const initialBalanceFetchDone = useRef(false)
   const isFetchingBalances = useRef(false)
+  // 单账号重查余额的防重入标记（见 handleRefetchBalance）
+  const refetchingBalanceIds = useRef<Set<number>>(new Set())
   const prevEnabledIdsRef = useRef<Set<number> | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 12
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<AccountStatusFilter>('all')
+  const [sortKey, setSortKey] = useState<AccountSortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDirection>('asc')
+  // 设计稿表体内滚 + 页脚显示「每页 50」
+  const itemsPerPage = 50
   const queryClient = useQueryClient()
-  const { data, isLoading, error, refetch } = useCredentials()
-  const { data: serverInfo } = useServerInfo()
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useCredentials()
+  const { data: serverInfo, isError: serverInfoError } = useServerInfo()
   const credentialsRef = useRef(data?.credentials)
   const { data: rpmData } = useRpm()
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
   const { data: dailyUsageData } = useDailyUsage()
 
-  const todayLocal = (() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })()
+  const now = new Date()
+  const todayLocal = formatLocalDate(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayLocal = formatLocalDate(yesterday)
   const todayStats = dailyUsageData?.find((d) => d.date === todayLocal) ?? null
+  const yesterdayStats = dailyUsageData?.find((d) => d.date === yesterdayLocal) ?? null
 
-  // 计算分页
-  const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentCredentials = data?.credentials.slice(startIndex, endIndex) || []
+  // ===== 指标条派生数据（仅用现有接口，缺数据一律降级为 null）=====
+  const allCredentials = data?.credentials ?? []
+  // 「异常」= error + warning；禁用与待查询不计入
+  const abnormalCount = allCredentials.filter(c => {
+    const state = deriveAccountState(c, balanceMap.has(c.id))
+    return state === 'error' || state === 'warning'
+  }).length
+  // 启用账号的剩余百分比：需已查到余额且 usageLimit > 0，否则跳过
+  const enabledRemaining = allCredentials.flatMap(c => {
+    if (c.disabled) return []
+    const balance = balanceMap.get(c.id)
+    if (!balance || balance.usageLimit <= 0) return []
+    // 脏数据（remaining > usageLimit）会让文本显示 134% 而环形图封顶，这里统一裁剪
+    const percent = Math.min(100, Math.max(0, (balance.remaining / balance.usageLimit) * 100))
+    return [{ name: accountLabel(c), percent }]
+  })
+  const avgRemainingPercent = enabledRemaining.length > 0
+    ? enabledRemaining.reduce((sum, item) => sum + item.percent, 0) / enabledRemaining.length
+    : null
+  const lowestAccount = enabledRemaining.length > 0
+    ? enabledRemaining.reduce((min, item) => (item.percent < min.percent ? item : min))
+    : null
+  // 日用量未加载时为 null（区别于「今天确实 0 次调用」）
+  const todayRequests = dailyUsageData ? todayStats?.totalRequests ?? 0 : null
+  const requestsDeltaPercent = todayRequests !== null && yesterdayStats && yesterdayStats.totalRequests > 0
+    ? ((todayRequests - yesterdayStats.totalRequests) / yesterdayStats.totalRequests) * 100
+    : null
+  const requestTrend = (dailyUsageData ?? [])
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7)
+    .map(d => d.totalRequests)
+  // 后端无按天失败数，只能给账号池累计值
+  const cumulativeFailures = allCredentials.reduce((sum, c) => sum + c.failureCount, 0)
+  const cumulativeAttempts = allCredentials.reduce((sum, c) => sum + c.successCount + c.failureCount, 0)
+  const cumulativeFailureRate = cumulativeAttempts > 0 ? (cumulativeFailures / cumulativeAttempts) * 100 : null
+
+  // ===== 搜索 / 筛选 / 分页派生管道（排序状态在 T15 接表头时接入 sortCredentials）=====
+  // 搜索：昵称 / 邮箱 / 账号 ID，不区分大小写
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return allCredentials
+    return allCredentials.filter(
+      c =>
+        (c.nickname ?? '').toLowerCase().includes(q) ||
+        (c.email ?? '').toLowerCase().includes(q) ||
+        String(c.id).includes(q),
+    )
+  }, [allCredentials, searchQuery])
+  // 分段计数基于搜索后的集合；设计稿把 error + warning 合并为「异常」一段
+  const stateCounts = useMemo(() => {
+    const counts: Record<AccountStatusFilter, number> = {
+      all: filtered.length, healthy: 0, abnormal: 0, disabled: 0, pending: 0,
+    }
+    filtered.forEach(c => {
+      const state = deriveAccountState(c, balanceMap.has(c.id))
+      if (state === 'error' || state === 'warning') counts.abnormal += 1
+      else counts[state] += 1
+    })
+    return counts
+  }, [filtered, balanceMap])
+  const visible = useMemo(() => {
+    if (statusFilter === 'all') return filtered
+    return filtered.filter(c => {
+      const state = deriveAccountState(c, balanceMap.has(c.id))
+      return statusFilter === 'abnormal' ? state === 'error' || state === 'warning' : state === statusFilter
+    })
+  }, [filtered, statusFilter, balanceMap])
+  // 排序键快照（T15 CR Medium ②）：按「剩余额度」排序时批量查询余额，每个结果到达都会改变
+  // 排序键，实时重排会让行位置持续跳动。改为只在查询静止时刷新快照 —— 查询期间维持既有顺序，
+  // 全部返回后一次性重排
+  const [remainingSnapshot, setRemainingSnapshot] = useState<Map<number, number>>(new Map())
+  useEffect(() => {
+    if (loadingBalanceIds.size > 0) return
+    setRemainingSnapshot(new Map([...balanceMap].map(([id, b]) => [id, b.remaining])))
+  }, [loadingBalanceIds, balanceMap])
+  // 排序（design.md 决策 4）：sortKey 为 null 时保持后端返回顺序，与设计稿默认中性排序态一致
+  const sorted = useMemo(
+    () =>
+      sortKey
+        ? sortCredentials(visible, sortKey, sortDir, id => remainingSnapshot.get(id) ?? null)
+        : visible,
+    [visible, sortKey, sortDir, remainingSnapshot],
+  )
+  const totalPages = Math.max(1, Math.ceil(sorted.length / itemsPerPage))
+  // 可见集合会随余额查询实时收缩（pending → healthy），页码在渲染期钳制，
+  // 不依赖重置 effect 的异步时序，避免停留在越界的空白页且分页控件被隐藏
+  const page = Math.min(currentPage, totalPages)
+  const startIndex = (page - 1) * itemsPerPage
+  const paged = sorted.slice(startIndex, startIndex + itemsPerPage)
+  // 全选只作用于当前页；跨页已选项保留，汇总在页脚（T18）
+  const allPagedSelected = paged.length > 0 && paged.every(c => selectedIds.has(c.id))
+  const somePagedSelected = !allPagedSelected && paged.some(c => selectedIds.has(c.id))
+  const isFiltered = searchQuery.trim() !== '' || statusFilter !== 'all'
+
   const disabledCredentialCount = data?.credentials.filter(credential => credential.disabled).length || 0
   const selectedDisabledCount = Array.from(selectedIds).filter(id => {
     const credential = data?.credentials.find(c => c.id === id)
     return Boolean(credential?.disabled)
   }).length
 
-  // 当凭据列表变化时重置到第一页
+  // 凭据列表 / 搜索词 / 状态筛选任一变化时回到第一页（排序变化的重置在 handleSort 内）
   useEffect(() => {
     setCurrentPage(1)
-  }, [data?.credentials.length])
+  }, [data?.credentials.length, searchQuery, statusFilter])
 
   // 只保留当前仍存在的凭据缓存，避免删除后残留旧数据
   useEffect(() => {
@@ -357,16 +424,36 @@ export function Dashboard({ onLogout }: DashboardProps) {
     if (!initialBalanceFetchDone.current || isFetchingBalances.current) return
 
     let total = 0
-    let capacity = 0
-    balanceMap.forEach(b => { total += b.remaining; capacity += b.usageLimit })
+    balanceMap.forEach(b => { total += b.remaining })
     setLiveCreditsTotal(balanceMap.size > 0 ? total : null)
     setLiveCreditsQueried(balanceMap.size)
-    setLiveCreditsCapacity(capacity)
   }, [balanceMap]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewBalance = (id: number) => {
     setSelectedCredentialId(id)
     setBalanceDialogOpen(true)
+  }
+
+  // 单账号重查余额（行内「更多 → 重新查询余额」）：与批量查询共用 loadingBalanceIds / balanceMap，
+  // 写回 balanceMap 后由既有 effect 自动重算全局积分与排序快照
+  const handleRefetchBalance = async (id: number) => {
+    // 防重入用 ref：state 在同一事件循环内读到的是渲染期快照，挡不住连点
+    if (refetchingBalanceIds.current.has(id)) return
+    refetchingBalanceIds.current.add(id)
+    setLoadingBalanceIds(prev => new Set(prev).add(id))
+    try {
+      const balance = await getCredentialBalance(id)
+      setBalanceMap(prev => new Map(prev).set(id, balance))
+    } catch (error) {
+      toast.error(t('credentials.toastOpFailed', { message: extractErrorMessage(error) }))
+    } finally {
+      refetchingBalanceIds.current.delete(id)
+      setLoadingBalanceIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
   }
 
   const handleRefresh = () => {
@@ -401,6 +488,28 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const deselectAll = () => {
     setSelectedIds(new Set())
+  }
+
+  const toggleSelectPage = () => {
+    const next = new Set(selectedIds)
+    paged.forEach(c => (allPagedSelected ? next.delete(c.id) : next.add(c.id)))
+    setSelectedIds(next)
+  }
+
+  // 同列再点切换升降序，换列一律从升序开始；排序改变后回到第一页
+  const handleSort = (key: AccountSortKey) => {
+    if (sortKey === key) {
+      setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setStatusFilter('all')
   }
 
   // 批量删除（仅删除已禁用项）
@@ -750,126 +859,175 @@ export function Dashboard({ onLogout }: DashboardProps) {
     )
   }
 
+  // 侧栏导航：分组 + 项数据驱动，count 为 undefined 时不渲染计数（避免数据未加载时出现误导性的 0）
+  // 页脚状态点：加载中 / 请求失败时 serverInfo 为 undefined；已有缓存后端再断开则由 isError 兜底转灰
+  const serverHealthy = !!serverInfo?.version && !serverInfoError
+  const serverStatusLabel = serverHealthy
+    ? `kiro2cc-proxy v${serverInfo.version} · ${t('dashboard.serviceRunning')}`
+    : t('dashboard.serviceUnknown')
+
+  const navGroups = [
+    {
+      title: t('dashboard.navMain'),
+      items: [
+        { key: 'credentials', label: t('dashboard.navCredentials'), icon: Server, count: data?.credentials.length, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'apikeys', label: 'API Keys', icon: Key, count: undefined, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'daily', label: t('dashboard.navDailyStats'), icon: BarChart2, count: undefined, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
+        { key: 'models', label: t('dashboard.navModels'), icon: Boxes, count: undefined, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+      ],
+    },
+    {
+      title: t('dashboard.navSystem'),
+      items: [
+        { key: 'logs', label: t('dashboard.navLogs'), icon: ScrollText, count: undefined, active: activeTab === 'logs', onClick: () => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'changelog', label: t('dashboard.navChangelog'), icon: History, count: undefined, active: activeTab === 'changelog', onClick: () => { setActiveTab('changelog'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'settings', label: t('dashboard.navSettings'), icon: Settings, count: undefined, active: activeTab === 'settings', onClick: () => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+      ],
+    },
+  ]
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* 左侧 Sidebar */}
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} bg-background border-r border-border fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}>
-        <div className={`flex items-center border-b border-border ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'justify-between gap-2.5 px-[22px] py-5'}`}>
+      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} bg-sidebar bg-grid-dot border-r border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}>
+        <div className={`flex items-center border-b border-hairline ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
           <a
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center group ${sidebarCollapsed ? '' : 'gap-2.5'}`}
+            className={`flex items-center group min-w-0 ${sidebarCollapsed ? '' : 'gap-2.5'}`}
           >
-            <img src={kiroIcon} alt="Kiro" className="h-8 w-8 rounded-lg shrink-0" />
+            <span
+              className="grid h-[30px] w-[30px] place-items-center rounded-[9px] shrink-0 shadow-hair text-brand-fg"
+              style={{ backgroundImage: 'linear-gradient(150deg, var(--brand), var(--brand-deep))' }}
+            >
+              <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" aria-hidden="true">
+                <path d="M5 20V7a7 7 0 0 1 14 0v13l-2.3-2-2.4 2-2.3-2-2.3 2-2.4-2z" />
+                <path d="M9.5 10h.01M14.5 10h.01" />
+              </svg>
+            </span>
             {!sidebarCollapsed && (
-              <div>
-                <div className="text-[15px] font-semibold tracking-[-0.01em] group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Kiro2CCProxy</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">{t('dashboard.consoleSubtitle')}</div>
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors">Kiro2CCProxy</div>
+                <div className="text-[10.5px] tracking-[.02em] text-ink-3 group-hover:text-brand transition-colors">{t('dashboard.consoleSubtitle')}</div>
               </div>
             )}
-          </a>
-          <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-1' : 'gap-1'}`}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={toggleSidebarCollapsed}
-              title={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
-              aria-label={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
-            >
-              {sidebarCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={handleLogout}
-              title={t('common.logout')}
-              aria-label={t('common.logout')}
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-        <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
-          <div className="mb-[18px]">
-            {!sidebarCollapsed && (
-              <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navMain')}</div>
-            )}
-            {[
-              { label: t('dashboard.navCredentials'), icon: <Server className="w-4 h-4 shrink-0" />, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-              { label: 'API Keys', icon: <Key className="w-4 h-4 shrink-0" />, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-              { label: t('dashboard.navDailyStats'), icon: <BarChart2 className="w-4 h-4 shrink-0" />, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
-              { label: t('dashboard.navModels'), icon: <Boxes className="w-4 h-4 shrink-0" />, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-            ].map(({ label, icon, active, onClick }) => (
-              <button key={label} onClick={onClick}
-                title={sidebarCollapsed ? label : undefined}
-                aria-label={label}
-                className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${active ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
-                style={active ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
-              >
-                {icon}{!sidebarCollapsed && label}
-              </button>
-            ))}
-          </div>
-          <div>
-            {!sidebarCollapsed && (
-              <div className="text-[10px] uppercase tracking-[.08em] text-muted-foreground dark:text-muted-foreground/70 px-3 pb-1.5 font-semibold">{t('dashboard.navSystem')}</div>
-            )}
-            <button
-              onClick={() => { setActiveTab('logs'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              title={sidebarCollapsed ? t('dashboard.navLogs') : undefined}
-              aria-label={t('dashboard.navLogs')}
-              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'logs' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
-              style={activeTab === 'logs' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
-            >
-              <ScrollText className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span>{t('dashboard.navLogs')}</span>}
-            </button>
-            <button
-              onClick={() => { setActiveTab('changelog'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              title={sidebarCollapsed ? t('dashboard.navChangelog') : undefined}
-              aria-label={t('dashboard.navChangelog')}
-              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'changelog' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
-              style={activeTab === 'changelog' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
-            >
-              <History className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span>{t('dashboard.navChangelog')}</span>}
-            </button>
-            <button
-              onClick={() => { setActiveTab('settings'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) }}
-              title={sidebarCollapsed ? t('dashboard.navSettings') : undefined}
-              aria-label={t('dashboard.navSettings')}
-              className={`flex w-full items-center px-3 py-2 text-[13px] font-medium rounded-md transition-all mb-0.5 ${sidebarCollapsed ? 'justify-center' : 'gap-2.5'} ${activeTab === 'settings' ? 'text-foreground bg-card dark:bg-secondary' : 'text-muted-foreground hover:text-foreground hover:bg-secondary dark:hover:bg-card'}`}
-              style={activeTab === 'settings' ? { boxShadow: 'inset 2px 0 0 hsl(var(--primary))' } : undefined}
-            >
-              <Settings className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span>{t('dashboard.navSettings')}</span>}
-            </button>
-          </div>
-        </nav>
-        <div className={`border-t border-border flex items-center ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'justify-between px-[18px] py-3'}`}>
-          <a
-            href="https://github.com/TsinHzl/kiro2cc-proxy"
-            target="_blank"
-            rel="noopener noreferrer"
-            title={sidebarCollapsed ? `kiro2cc-proxy v${serverInfo?.version ?? '...'}` : undefined}
-            aria-label={`kiro2cc-proxy v${serverInfo?.version ?? '...'}`}
-            className="flex items-center gap-1.5 text-[11px] font-mono text-foreground/70 hover:text-foreground transition-colors"
-          >
-            <Github className="h-3.5 w-3.5 shrink-0" />
-            {!sidebarCollapsed && <>kiro2cc-proxy v{serverInfo?.version ?? '...'}</>}
           </a>
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarCollapsed ? '' : 'ml-auto'}`}
+            onClick={toggleSidebarCollapsed}
+            title={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+            aria-label={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          <TooltipProvider delayDuration={200}>
+            {navGroups.map((group, groupIndex) => (
+              <div key={group.title}>
+                {sidebarCollapsed ? (
+                  /* 设计稿 .shell.is-collapsed .nav-group：标题降级为 1px 分隔线，首组不渲染 */
+                  groupIndex > 0 && (
+                    <div role="separator" aria-label={group.title} className="mx-[14px] my-[9px] h-px bg-hairline-2" />
+                  )
+                ) : (
+                  <div className={`px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[.09em] text-ink-3 ${groupIndex === 0 ? 'pt-0.5' : 'pt-3'}`}>
+                    {group.title}
+                  </div>
+                )}
+                {group.items.map(({ key, label, icon: Icon, count, active, onClick }) => {
+                  // tooltip 与 aria-label 同源：收起态文案 / 计数被隐藏，可访问名称仍完整
+                  const fullLabel = count === undefined ? label : `${label} · ${count}`
+                  const item = (
+                    <button
+                      key={key}
+                      onClick={onClick}
+                      aria-label={fullLabel}
+                      aria-current={active ? 'true' : undefined}
+                      className={`relative mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${sidebarCollapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
+                    >
+                      {active && (
+                        /* -left-2 与 <nav> 的 px-2 数值耦合：竖条要贴在侧栏左边缘（padding-box x=0），
+                           两处必须同步；展开态与 64px 收起态共用此几何，对齐设计稿 .nav-item::before{left:-8px} */
+                        <span className="absolute -left-2 top-2 bottom-2 w-[2.5px] rounded-r-[3px] bg-brand" aria-hidden="true" />
+                      )}
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {!sidebarCollapsed && (
+                        <>
+                          <span className="truncate">{label}</span>
+                          {count !== undefined && (
+                            <span className={`ml-auto text-[10.5px] font-medium ${active ? 'text-brand' : 'text-ink-3'}`}>{count}</span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  )
+                  return sidebarCollapsed ? (
+                    <Tooltip key={key}>
+                      <TooltipTrigger asChild>{item}</TooltipTrigger>
+                      <TooltipContent side="right">{fullLabel}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    item
+                  )
+                })}
+              </div>
+            ))}
+          </TooltipProvider>
+        </nav>
+        {/* 身份区（设计稿 .side-user）：头像 + 名称 / 角色 + 退出（hover 转 danger） */}
+        <div className={`flex items-center border-t border-hairline ${sidebarCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-[9px] px-3 py-2.5'}`}>
+          <div aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-hairline-2 bg-surface-3 text-[11.5px] font-bold text-ink-2">
+            {ADMIN_NAME.charAt(0).toUpperCase()}
+          </div>
+          {!sidebarCollapsed && (
+            <div className="min-w-0">
+              <div className="text-[12px] font-semibold leading-[1.3]">{ADMIN_NAME}</div>
+              <div className="text-[10px] text-ink-3">{t('dashboard.adminRole')}</div>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${sidebarCollapsed ? '' : 'ml-auto'}`}
+            onClick={handleLogout}
+            title={t('common.logout')}
+            aria-label={t('common.logout')}
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        {/* 页脚（设计稿 .side-foot）：运行状态点 + 版本号 + 主题切换 */}
+        <div className={`flex items-center border-t border-hairline ${sidebarCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
+          <span
+            role="img"
+            aria-label={serverStatusLabel}
+            title={serverStatusLabel}
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ring-[3px] ${serverHealthy ? 'bg-ok ring-ok-soft' : 'bg-ink-3 ring-surface-3'}`}
+          />
+          {/* 加载中 / 请求失败时连同版本号一并隐藏，只留灰点，避免展示 `v...` 这类无效版本 */}
+          {!sidebarCollapsed && serverHealthy && (
+            <a
+              href="https://github.com/TsinHzl/kiro2cc-proxy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate text-[10.5px] text-ink-3 hover:text-brand transition-colors"
+            >
+              kiro2cc-proxy v{serverInfo.version}
+            </a>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarCollapsed ? '' : 'ml-auto'}`}
             onClick={toggleTheme}
             title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
             aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
           >
-            {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </aside>
@@ -879,7 +1037,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {activeTab === 'logs' ? (
           <LogViewerPage />
         ) : activeTab === 'settings' ? (
-          <SettingsPanel />
+          <SettingsPanel
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebarCollapsed={toggleSidebarCollapsed}
+          />
         ) : activeTab === 'models' ? (
           <ModelListPage />
         ) : activeTab === 'changelog' ? (
@@ -921,221 +1084,188 @@ export function Dashboard({ onLogout }: DashboardProps) {
           />
         ) : (
         <>
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-[22px] font-bold tracking-[-0.02em]">{t('dashboard.navCredentials')}</h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">{t('dashboard.pageSubtitle')}</p>
-          </div>
-        </div>
-        {/* 统计卡片 */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t('dashboard.statTotal')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{data?.total || 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t('dashboard.statAvailable')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{data?.available || 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t('dashboard.statGlobalCredits')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-2xl font-bold text-orange-600 truncate">
-                  {liveCreditsTotal !== null ? liveCreditsTotal.toFixed(1) : '-'}
-                </div>
-                {liveCreditsTotal !== null && (
-                  <div className="mt-1 text-xs text-muted-foreground truncate">
-                    {t('dashboard.statQueried', { queried: liveCreditsQueried, total: data?.credentials.length || 0 })}
-                  </div>
-                )}
-              </div>
-              {liveCreditsTotal !== null && (
-                <CreditsProgressRing
-                  percent={liveCreditsCapacity > 0 ? (liveCreditsTotal ?? 0) / liveCreditsCapacity * 100 : 0}
-                />
-              )}
-            </CardContent>
-          </Card>
-          <Card
-            className="cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => { setDailyView('list'); setDailyFromSidebar(false) }}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t('dashboard.statTodayUsage')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {todayStats ? (
-                <div>
-                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    {todayStats.totalCredits.toFixed(2)} Credits
-                  </div>
-                  <div className="text-sm text-orange-600 dark:text-orange-400 font-medium mt-0.5">
-                    ${todayStats.totalCost.toFixed(4)}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-2xl font-bold text-muted-foreground">—</div>
-              )}
-            </CardContent>
-          </Card>
+        {/* 页头（设计稿 .head）：面包屑 + 19px 标题 + 同基线副标题 + 右侧刷新标签与文档入口 */}
+        <PageHead
+          crumb={[t('dashboard.navMain'), t('dashboard.navCredentials')]}
+          title={t('dashboard.navCredentials')}
+          note={t('dashboard.pageSubtitle')}
+          actions={
+            <>
+              <span className="inline-flex h-5 shrink-0 items-center gap-[5px] rounded-md border border-ok-line bg-ok-soft px-[7px] text-[11px] font-semibold text-ok">
+                <span className="h-[5px] w-[5px] shrink-0 animate-pulse rounded-full bg-ok ring-[2.5px] ring-ok-soft" aria-hidden="true" />
+                {t('dashboard.autoRefreshTag', { seconds: Math.round(CREDENTIALS_REFETCH_INTERVAL_MS / 1000) })}
+              </span>
+              <a
+                href="https://github.com/TsinHzl/kiro2cc-proxy#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex h-[31px] items-center gap-1.5 rounded-[7px] px-[11px] text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink"
+              >
+                <FileText className="h-3.5 w-3.5 text-ink-3 transition-colors group-hover:text-ink-2" />
+                {t('dashboard.docs')}
+              </a>
+            </>
+          }
+        />
+        {/* 指标条（设计稿 .metrics） */}
+        <div className="mb-[15px]">
+          <AccountMetrics
+            total={data?.total ?? 0}
+            enabledCount={allCredentials.length - disabledCredentialCount}
+            disabledCount={disabledCredentialCount}
+            abnormalCount={abnormalCount}
+            creditsTotal={liveCreditsTotal}
+            creditsQueried={liveCreditsQueried}
+            avgRemainingPercent={avgRemainingPercent}
+            lowestAccount={lowestAccount}
+            todayRequests={todayRequests}
+            requestsDeltaPercent={requestsDeltaPercent}
+            requestTrend={requestTrend}
+            cumulativeFailures={cumulativeFailures}
+            cumulativeFailureRate={cumulativeFailureRate}
+            onTodayClick={() => { setDailyView('list'); setDailyFromSidebar(false) }}
+          />
         </div>
 
         {/* 凭据列表 */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {selectedIds.size > 0 && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{t('dashboard.selectedCount', { count: selectedIds.size })}</Badge>
-                  <Button onClick={deselectAll} size="sm" variant="ghost">
-                    {t('dashboard.deselectAll')}
-                  </Button>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selectedIds.size > 0 && (
-                <>
-                  <Button onClick={handleBatchVerify} size="sm" variant="outline">
-                    <CheckCircle2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{t('dashboard.batchVerify')}</span>
-                  </Button>
-                  <Button onClick={handleBatchResetFailure} size="sm" variant="outline">
-                    <RotateCcw className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{t('dashboard.batchRestore')}</span>
-                  </Button>
-                  <Button
-                    onClick={handleBatchDelete}
-                    size="sm"
-                    variant="destructive"
-                    disabled={selectedDisabledCount === 0}
-                    title={selectedDisabledCount === 0 ? t('dashboard.deleteDisabledOnly') : undefined}
-                  >
-                    <Trash2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{t('dashboard.batchDelete')}</span>
-                  </Button>
-                </>
-              )}
-              {verifying && !verifyDialogOpen && (
-                <Button onClick={() => setVerifyDialogOpen(true)} size="sm" variant="secondary">
-                  <CheckCircle2 className="h-4 w-4 mr-2 animate-spin" />
-                  {t('dashboard.verifyingProgress', { current: verifyProgress.current, total: verifyProgress.total })}
-                </Button>
-              )}
-              <Button onClick={handleRefresh} size="sm" variant="outline">
-                <RefreshCw className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{t('dashboard.refreshList')}</span>
-              </Button>
-              {data?.credentials && data.credentials.length > 0 && (
-                <Button
-                  onClick={handleQueryCurrentPageInfo}
-                  size="sm"
-                  variant="outline"
-                  disabled={queryingInfo}
-                >
-                  <Info className={`h-4 w-4 sm:mr-2 ${queryingInfo ? 'animate-pulse' : ''}`} />
-                  <span className="hidden sm:inline">{queryingInfo ? t('dashboard.queryingProgress', { current: queryInfoProgress.current, total: queryInfoProgress.total }) : t('dashboard.queryInfo')}</span>
-                </Button>
-              )}
-              {data?.credentials && data.credentials.length > 0 && (
-                <Button
+          {/* 操作条（设计稿 .actionbar）：6 项常驻操作，危险操作用竖分隔线隔离并染红 */}
+          <div className="flex flex-wrap items-center gap-[7px]">
+            <button type="button" onClick={handleRefresh} aria-label={t('dashboard.refreshList')} className={ACTION_BTN}>
+              <RefreshCw />
+              <span className="hidden sm:inline">{t('dashboard.refreshList')}</span>
+            </button>
+            {allCredentials.length > 0 && (
+              <button
+                type="button"
+                onClick={handleQueryCurrentPageInfo}
+                disabled={queryingInfo}
+                aria-label={t('dashboard.queryInfo')}
+                className={ACTION_BTN}
+              >
+                <Info className={queryingInfo ? 'animate-pulse' : ''} />
+                <span className="hidden sm:inline">
+                  {queryingInfo
+                    ? t('dashboard.queryingProgress', { current: queryInfoProgress.current, total: queryInfoProgress.total })
+                    : t('dashboard.queryInfo')}
+                </span>
+              </button>
+            )}
+            {/* 「清除已禁用」两侧的竖线随按钮一起显隐，空列表时不留孤立分隔线 */}
+            {allCredentials.length > 0 && (
+              <>
+                <span aria-hidden="true" className={ACTION_VDIV} />
+                <button
+                  type="button"
                   onClick={handleClearAll}
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
                   disabled={disabledCredentialCount === 0}
                   title={disabledCredentialCount === 0 ? t('dashboard.noClearableDisabled') : undefined}
+                  aria-label={t('dashboard.clearDisabled')}
+                  className={ACTION_BTN_DANGER}
                 >
-                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <Trash2 />
                   <span className="hidden sm:inline">{t('dashboard.clearDisabled')}</span>
-                </Button>
-              )}
-              <Button onClick={() => setKamImportDialogOpen(true)} size="sm" variant="outline">
-                <FileUp className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{t('dashboard.kamImport')}</span>
-              </Button>
-              <Button onClick={() => setBatchImportDialogOpen(true)} size="sm" variant="outline">
-                <Upload className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{t('dashboard.batchImport')}</span>
-              </Button>
-              <Button onClick={() => setAddDialogOpen(true)} size="sm">
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{t('dashboard.addAccount')}</span>
-              </Button>
-            </div>
+                </button>
+                <span aria-hidden="true" className={ACTION_VDIV} />
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setKamImportDialogOpen(true)}
+              aria-label={t('dashboard.kamImport')}
+              className={ACTION_BTN}
+            >
+              <FileUp />
+              <span className="hidden sm:inline">{t('dashboard.kamImport')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setBatchImportDialogOpen(true)}
+              aria-label={t('dashboard.batchImport')}
+              className={ACTION_BTN}
+            >
+              <Upload />
+              <span className="hidden sm:inline">{t('dashboard.batchImport')}</span>
+            </button>
+            {/* 验活进度浮动入口：设计稿无此项，为保留既有能力挂在主按钮左侧 */}
+            {verifying && !verifyDialogOpen && (
+              <button type="button" onClick={() => setVerifyDialogOpen(true)} className={ACTION_BTN}>
+                <CheckCircle2 className="animate-spin" />
+                {t('dashboard.verifyingProgress', { current: verifyProgress.current, total: verifyProgress.total })}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAddDialogOpen(true)}
+              aria-label={t('dashboard.addAccount')}
+              className={`${ACTION_BTN_PRIMARY} ml-auto`}
+            >
+              <Plus />
+              <span className="hidden sm:inline">{t('dashboard.addAccount')}</span>
+            </button>
           </div>
-          {data?.credentials.length === 0 ? (
+
+          {/* 工具栏（设计稿 .toolbar）：搜索 + 状态分段筛选 + 更新时间 */}
+          <AccountToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            counts={stateCounts}
+            dataUpdatedAt={dataUpdatedAt}
+          />
+
+          {allCredentials.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 {t('dashboard.noAccounts')}
               </CardContent>
             </Card>
           ) : (
-            <>
-              <div className="space-y-2">
-                {currentCredentials.map((credential) => (
-                  <CredentialCard
-                    key={credential.id}
-                    credential={credential}
-                    onViewBalance={handleViewBalance}
-                    onViewDetail={(id) => setDetailCredentialId(id)}
-                    onViewThrottleLog={(id) => setThrottleLogCredentialId(id)}
-                    onViewFailureLog={(id) => setFailureLogCredentialId(id)}
-                    selected={selectedIds.has(credential.id)}
-                    onToggleSelect={() => toggleSelect(credential.id)}
-                    balance={balanceMap.get(credential.id) || null}
-                    loadingBalance={loadingBalanceIds.has(credential.id)}
-                    rpm={rpmData?.byCredential?.[String(credential.id)] ?? 0}
-                  />
-                ))}
-              </div>
-
-              {/* 分页控件 */}
-              {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 sm:gap-4 mt-6">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    {t('common.prevPage')}
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    <span className="sm:hidden">{currentPage}/{totalPages}</span>
-                    <span className="hidden sm:inline">{t('dashboard.pageInfo', { current: currentPage, total: totalPages, count: data?.credentials.length })}</span>
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    {t('common.nextPage')}
-                  </Button>
-                </div>
-              )}
-            </>
+            <AccountTable
+              rowCount={paged.length}
+              allSelected={allPagedSelected}
+              someSelected={somePagedSelected}
+              onToggleSelectAll={toggleSelectPage}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              isFiltered={isFiltered}
+              onClearFilters={clearFilters}
+              footer={
+                <AccountPanelFoot
+                  selectedCount={selectedIds.size}
+                  selectedDisabledCount={selectedDisabledCount}
+                  onBatchVerify={handleBatchVerify}
+                  onBatchRestore={handleBatchResetFailure}
+                  onBatchDelete={handleBatchDelete}
+                  onDeselectAll={deselectAll}
+                  totalCount={sorted.length}
+                  isFiltered={isFiltered}
+                  page={page}
+                  totalPages={totalPages}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                />
+              }
+            >
+              {paged.map((credential) => (
+                <AccountRow
+                  key={credential.id}
+                  credential={credential}
+                  balance={balanceMap.get(credential.id) ?? null}
+                  loadingBalance={loadingBalanceIds.has(credential.id)}
+                  rpm={rpmData?.byCredential?.[String(credential.id)] ?? 0}
+                  selected={selectedIds.has(credential.id)}
+                  onToggleSelect={() => toggleSelect(credential.id)}
+                  onViewFailureLog={(id) => setFailureLogCredentialId(id)}
+                  onViewThrottleLog={(id) => setThrottleLogCredentialId(id)}
+                  onViewBalance={handleViewBalance}
+                  onViewDetail={(id) => setDetailCredentialId(id)}
+                  onRefetchBalance={handleRefetchBalance}
+                />
+              ))}
+            </AccountTable>
           )}
         </div>
         </>

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useUpdateCredential } from '@/hooks/use-credentials'
+import { useSetPriority, useUpdateCredential } from '@/hooks/use-credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { CredentialStatusItem } from '@/types/api'
 
@@ -34,10 +34,16 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
   const [proxyUrl, setProxyUrl] = useState('')
   const [proxyUsername, setProxyUsername] = useState('')
   const [proxyPassword, setProxyPassword] = useState('')
+  const [priority, setPriority] = useState('')
 
-  const { mutate, isPending } = useUpdateCredential()
+  const { mutateAsync: updateAsync, isPending: updatePending } = useUpdateCredential()
+  const { mutateAsync: setPriorityAsync, isPending: priorityPending } = useSetPriority()
+  // 两个端点串行提交，任一进行中即锁表单
+  const isPending = updatePending || priorityPending
 
-  // 当对话框打开或凭据变化时，重置表单
+  // 仅在对话框打开时按当前凭据重置表单。
+  // 依赖取 credential.id 而非整个 credential 对象 —— 列表每 30s 自动刷新，
+  // TanStack Query 会为数据有变动的行生成新引用，依赖整个对象会在用户编辑中途静默清空已输入内容。
   useEffect(() => {
     if (open) {
       setAuthRegion('')
@@ -51,11 +57,19 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
       setProxyUrl(credential.proxyUrl || '')
       setProxyUsername('')
       setProxyPassword('')
+      setPriority(String(credential.priority))
     }
-  }, [open, credential])
+  }, [open, credential.id])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 优先级不在 UpdateCredentialRequest 里，走独立端点；先校验避免半途失败
+    const priorityChanged = priority !== String(credential.priority)
+    if (priorityChanged && !/^\d+$/.test(priority)) {
+      toast.error(t('credentials.toastPriorityInvalid'))
+      return
+    }
 
     // 构建只包含有变更的字段
     const data: Record<string, string> = {}
@@ -71,23 +85,26 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (proxyUsername !== '') data.proxyUsername = proxyUsername
     if (proxyPassword !== '') data.proxyPassword = proxyPassword
 
-    if (Object.keys(data).length === 0) {
+    if (!priorityChanged && Object.keys(data).length === 0) {
       toast.info(t('credentials.toastNoFieldsToUpdate'))
       return
     }
 
-    mutate(
-      { id: credential.id, data },
-      {
-        onSuccess: (res) => {
-          toast.success(res.message)
-          onOpenChange(false)
-        },
-        onError: (error: unknown) => {
-          toast.error(t('credentials.toastUpdateFailed', { message: extractErrorMessage(error) }))
-        },
+    const done: string[] = []
+    try {
+      if (priorityChanged) {
+        done.push((await setPriorityAsync({ id: credential.id, priority: Number(priority) })).message)
       }
-    )
+      if (Object.keys(data).length > 0) {
+        done.push((await updateAsync({ id: credential.id, data })).message)
+      }
+      toast.success(done.join(' · '))
+      onOpenChange(false)
+    } catch (error) {
+      // 串行提交下优先级先落地：失败时把已成功的部分一并告知，避免用户重复设置
+      const failed = t('credentials.toastUpdateFailed', { message: extractErrorMessage(error) })
+      toast.error(done.length > 0 ? `${done.join(' · ')} · ${failed}` : failed)
+    }
   }
 
   const isIdc = credential.authMethod === 'idc'
@@ -125,6 +142,22 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isPending}
               />
+            </div>
+
+            {/* 优先级（独立端点）：旧卡片的行内编辑入口在新表格中收敛到此处 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('credentials.priorityFieldLabel')}</label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                placeholder={t('credentials.priorityPlaceholder')}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                disabled={isPending}
+              />
+              <p className="text-xs text-muted-foreground">{t('credentials.priorityHint')}</p>
             </div>
 
             {/* Region 配置 */}

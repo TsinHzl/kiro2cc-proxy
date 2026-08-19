@@ -1,13 +1,18 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, BarChart3, DollarSign, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
+import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Metric, MetricValue, MetricsBar } from '@/components/metrics'
+import { PageHead } from '@/components/page-head'
+import { STATUS_VISUAL, TAG_BASE, type KeyStatus } from '@/components/api-key-row'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TH_BASE } from '@/components/table-kit'
+import { UsageLogTable, fallbackCredits, formatCost, getModelColor } from '@/components/usage-log-table'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
-import { formatDateTime, formatTokenCount } from '@/lib/locale'
+import { extractErrorMessage } from '@/lib/utils'
+import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { ApiKeyItem } from '@/types/api'
 
 interface ApiKeyDetailPageProps {
@@ -15,25 +20,7 @@ interface ApiKeyDetailPageProps {
   onBack: () => void
 }
 
-const MODEL_COLORS: Record<string, string> = {
-  opus: 'text-purple-600 dark:text-purple-400',
-  sonnet: 'text-blue-600 dark:text-blue-400',
-  haiku: 'text-green-600 dark:text-green-400',
-}
-
-function getModelColor(model: string): string {
-  const lower = model.toLowerCase()
-  for (const [key, cls] of Object.entries(MODEL_COLORS)) {
-    if (lower.includes(key)) return cls
-  }
-  return 'text-muted-foreground'
-}
-
-function formatCost(cost: number): string {
-  return `$${cost.toFixed(4)}`
-}
-
-function getKeyStatus(key: ApiKeyItem): 'active' | 'disabled' | 'expired' | 'pending' {
+function getKeyStatus(key: ApiKeyItem): KeyStatus {
   if (!key.enabled) return 'disabled'
   if (key.expiresAt && new Date(key.expiresAt) <= new Date()) return 'expired'
   if (key.durationDays != null && !key.activatedAt) return 'pending'
@@ -41,6 +28,15 @@ function getKeyStatus(key: ApiKeyItem): 'active' | 'disabled' | 'expired' | 'pen
 }
 
 const PAGE_SIZE = 50
+
+const MODEL_COLS: { labelKey: string; num?: boolean }[] = [
+  { labelKey: 'common.colModel' },
+  { labelKey: 'apiKeys.colRequests', num: true },
+  { labelKey: 'apiKeys.colInputTokens', num: true },
+  { labelKey: 'apiKeys.colOutputTokens', num: true },
+  { labelKey: 'common.colCost', num: true },
+  { labelKey: 'apiKeys.colCredits', num: true },
+]
 
 export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
   const { t } = useTranslation()
@@ -53,229 +49,155 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
   const apiKey = apiKeys?.find((k) => k.id === keyId)
   const summary = allUsage?.find((u) => u.apiKeyId === keyId)
   const status = apiKey ? getKeyStatus(apiKey) : null
+  const serial = `#${String(keyId).padStart(3, '0')}`
+  const title = apiKey?.name ?? serial
 
   const pageIps = (recordsData?.records ?? []).map((r) => r.clientIp).filter((ip): ip is string => !!ip)
   const geoMap = useIpGeo(pageIps)
 
+  const records = recordsData?.records ?? []
+  const totalRecords = recordsData?.total ?? 0
+  const totalPages = Math.max(1, recordsData?.totalPages ?? 1)
+  const savedCredits = summary?.totalCreditsSaved ?? 0
+
+  // refetch 默认不抛异常，失败只体现在返回结果上，须显式检查（与列表页刷新同口径）
+  const handleRefresh = async () => {
+    const result = await refetch()
+    if (result.isError) {
+      toast.error(extractErrorMessage(result.error))
+      return
+    }
+    toast.success(t('apiKeys.toastLogRefreshed'))
+  }
+
   return (
-    <div className="space-y-4">
-      {/* 顶部导航 */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-          <ArrowLeft className="h-4 w-4" />
-          {t('common.back')}
-        </Button>
-        {apiKey && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <code className="text-xs text-muted-foreground font-mono">
-              #{String(apiKey.id).padStart(3, '0')}
-            </code>
-            <span className="font-semibold">{apiKey.name}</span>
+    <div>
+      {/* 页头（设计稿 .head）：三级面包屑 + 返回钮 + 序号副标题 + 右侧状态标签与刷新 */}
+      <PageHead
+        crumb={[t('dashboard.navMain'), t('apiKeys.pageTitle'), title]}
+        title={title}
+        note={<code className="font-mono">{serial}</code>}
+        onBack={onBack}
+        actions={
+          <>
             {status && (
-              <Badge variant={status === 'active' ? 'success' : status === 'pending' ? 'secondary' : status === 'expired' ? 'warning' : 'destructive'}>
-                {status === 'active' ? t('apiKeys.statusActive') : status === 'pending' ? t('apiKeys.statusPending') : status === 'expired' ? t('apiKeys.statusExpired') : t('apiKeys.statusDisabled')}
-              </Badge>
+              <span className={`${TAG_BASE} ${STATUS_VISUAL[status].cls}`}>
+                <span
+                  className={`size-[5px] flex-none rounded-full ${STATUS_VISUAL[status].pip}`}
+                  aria-hidden="true"
+                />
+                {t(STATUS_VISUAL[status].labelKey)}
+              </span>
             )}
-          </div>
-        )}
-      </div>
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+              <RotateCw className={isLoading ? 'animate-spin' : ''} />
+              {t('common.refresh')}
+            </Button>
+          </>
+        }
+      />
 
-      {/* 汇总卡片 */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              {t('common.statTotalRequests')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.totalRequests ?? 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Input Tokens</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatTokenCount(summary?.totalInputTokens ?? 0)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Output Tokens</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatTokenCount(summary?.totalOutputTokens ?? 0)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <DollarSign className="h-3.5 w-3.5" />
-              {t('apiKeys.totalCostLabel')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {formatCost(summary?.totalCost ?? 0)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('apiKeys.totalCreditsLabel')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {((summary?.totalCost ?? 0) / 0.72).toFixed(4)}
-            </div>
-            {summary?.totalCreditsSaved != null && summary.totalCreditsSaved > 0 && (
-              <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                {t('common.savedPrefix', { amount: summary.totalCreditsSaved.toFixed(4) })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* 指标条（设计稿 .metrics）：主值统一 ink 色，费用/积分不再单独染色 */}
+      <MetricsBar cols={5}>
+        <Metric label={t('common.statTotalRequests')}>
+          <MetricValue value={(summary?.totalRequests ?? 0).toLocaleString(localeTag())} />
+        </Metric>
+        <Metric label={t('apiKeys.colInputTokens')}>
+          <MetricValue value={formatTokenCount(summary?.totalInputTokens ?? 0)} />
+        </Metric>
+        <Metric label={t('apiKeys.colOutputTokens')}>
+          <MetricValue value={formatTokenCount(summary?.totalOutputTokens ?? 0)} />
+        </Metric>
+        <Metric label={t('apiKeys.totalCostLabel')}>
+          <MetricValue value={formatCost(summary?.totalCost ?? 0)} />
+        </Metric>
+        <Metric label={t('apiKeys.totalCreditsLabel')}>
+          <MetricValue
+            value={fallbackCredits(summary?.totalCost ?? 0).toFixed(4)}
+            unit="cr"
+            trailing={
+              savedCredits > 0 ? (
+                <span className="text-[11px] font-medium text-ok">
+                  {t('common.savedPrefix', { amount: savedCredits.toFixed(4) })}
+                </span>
+              ) : undefined
+            }
+          />
+        </Metric>
+      </MetricsBar>
 
-      {/* 按模型分组 */}
+      {/* 逐模型用量（原卡片网格改表格，与列表页同一套表头/单元格原语） */}
       {summary && summary.byModel.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('apiKeys.byModelTitle')}</h3>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-            {summary.byModel.map((m) => (
-              <Card key={m.model}>
-                <CardContent className="py-3 px-4">
-                  <div className={`text-sm font-medium truncate ${getModelColor(m.model)}`}>{m.model}</div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                    <span>{t('common.requestCountSuffix', { count: m.requests })}</span>
-                    <span>{t('common.inboundPrefix', { value: formatTokenCount(m.inputTokens) })}</span>
-                    <span>{t('common.outboundPrefix', { value: formatTokenCount(m.outputTokens) })}</span>
-                    <span className="font-medium text-orange-600 dark:text-orange-400">{formatCost(m.cost)}</span>
-                    <span className="font-medium text-blue-600 dark:text-blue-400">
-                      {m.credits.toFixed(4)} credits
-                      {m.creditsSaved > 0 && (
-                        <span className="ml-1 text-green-600 dark:text-green-400">({t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })})</span>
-                      )}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        <div className="mt-[15px]">
+          <h3 className={PANEL_TITLE}>{t('apiKeys.byModelTitle')}</h3>
+          <section className={PANEL}>
+            <div className="max-h-[42vh] overflow-y-auto">
+              <table className="w-full border-separate border-spacing-0">
+                <thead>
+                  <tr>
+                    {MODEL_COLS.map((col) => (
+                      <th key={col.labelKey} className={`${TH_BASE} ${col.num ? 'text-right' : ''}`}>
+                        {t(col.labelKey)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child>td]:border-b-0">
+                  {summary.byModel.map((m) => (
+                    <tr key={m.model} className="transition-colors hover:bg-surface-2">
+                      <td className={CELL}>
+                        <span className={`font-mono text-[12px] ${getModelColor(m.model)}`}>{m.model}</span>
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {m.requests.toLocaleString(localeTag())}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {formatTokenCount(m.inputTokens)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                        {formatTokenCount(m.outputTokens)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-warn`}>
+                        {formatCost(m.cost)}
+                      </td>
+                      <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
+                        {m.credits.toFixed(4)}
+                        {m.creditsSaved > 0 && (
+                          <small className="block text-[10px] font-normal text-ok">
+                            {t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })}
+                          </small>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       )}
 
-      {/* 原始日志表格 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            {t('common.requestLog')}
-            {recordsData && <span className="ml-1">{t('common.totalCountSuffix', { count: recordsData.total })}</span>}
-          </h3>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-
-        <Card>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">{t('common.loading')}</div>
-            ) : !recordsData || recordsData.records.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">{t('common.noRecords')}</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colTime')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colIp')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colAccount')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colModel')}</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">{t('common.colTokenUsage')}</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('common.colCost')}</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground">{t('apiKeys.colCredits')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* records are returned newest-first by the API */}
-                    {recordsData.records.map((record, idx) => {
-                      const geo = record.clientIp ? geoMap.get(record.clientIp) : undefined
-                      return (
-                      <tr key={`${record.createdAt}-${record.model}-${idx}`} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(record.createdAt)}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                          {record.clientIp ? (
-                            <span title={record.clientIp}>
-                              <span className="font-mono">{geo?.displayIp ?? record.clientIp}</span>
-                              {geo && geo.country && <span className="ml-1 text-muted-foreground dark:text-muted-foreground/60">{geo.country}·{geo.city}</span>}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-muted-foreground max-w-[120px] truncate" title={record.credentialLabel}>
-                          {record.credentialLabel ?? '—'}
-                        </td>
-                        <td className={`px-4 py-2 font-mono text-xs ${getModelColor(record.model)}`}>
-                          {record.model}
-                        </td>
-                        <td className="px-4 py-2 text-xs whitespace-nowrap">
-                          <div className="space-y-0.5 text-left">
-                            <div>{t('common.inputTokensLabel')}<span className="tabular-nums">{formatTokenCount(Math.max(0, record.inputTokens - (record.cacheReadInputTokens ?? 0)))}</span></div>
-                            <div>{t('common.outputTokensLabel')}<span className="tabular-nums">{formatTokenCount(record.outputTokens)}</span></div>
-                            <div className="text-green-600 dark:text-green-400">{t('common.cacheReadLabel')}<span className="tabular-nums">{formatTokenCount(record.cacheReadInputTokens ?? 0)}</span></div>
-                            <div className="font-medium">{t('common.totalInputLabel')}<span className="tabular-nums">{formatTokenCount(record.inputTokens)}</span></div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums font-medium text-orange-600 dark:text-orange-400">
-                          {formatCost(record.estimatedCost)}
-                        </td>
-                        <td className="px-4 py-2 text-right tabular-nums font-medium text-blue-600 dark:text-blue-400">
-                          {record.creditsUsed != null ? record.creditsUsed.toFixed(4) : (record.estimatedCost / 0.72).toFixed(4)}
-                          {record.creditsUsed != null && <span className="ml-1 text-xs text-green-500">✓</span>}
-                          {record.creditsSaved != null && record.creditsSaved > 0 && (
-                            <span className="ml-1 text-xs text-green-600 dark:text-green-400">
-                              ({t('common.savedPrefix', { amount: record.creditsSaved.toFixed(4) })})
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 分页控件 */}
-        {recordsData && recordsData.totalPages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              {t('common.prevPage')}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t('common.pageInfoSimple', { current: page, total: recordsData.totalPages })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(recordsData.totalPages, p + 1))}
-              disabled={page === recordsData.totalPages}
-            >
-              {t('common.nextPage')}
-            </Button>
+      {/* 请求日志（.panel + .tscroll + .panel-foot） */}
+      <div className="mt-[15px]">
+        <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
+        <section className={PANEL}>
+          <div className="max-h-[70vh] overflow-y-auto">
+            <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
           </div>
-        )}
+
+          {/* 面板脚（设计稿 .panel-foot）：右区计数 + 页码 + 每页条数；服务端分页 */}
+          <div className={PANEL_FOOT}>
+            <div className="ml-auto flex flex-none items-center gap-2">
+              <span>{t('apiKeys.footRecords', { count: totalRecords })}</span>
+              {totalRecords > 0 && (
+                <>
+                  <Pager page={page} totalPages={totalPages} onPage={setPage} />
+                  <span>{t('credentials.footPerPage', { size: PAGE_SIZE })}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

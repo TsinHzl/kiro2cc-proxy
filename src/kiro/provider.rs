@@ -442,12 +442,19 @@ impl KiroProvider {
         let mut last_error: Option<anyhow::Error> = None;
 
         let continuation_id = Self::extract_continuation_id_from_request(request_body);
+        // 本次请求内已限流的账号：重试时避开，但不销毁 sticky 绑定
+        let mut throttled_in_request: Vec<u64> = Vec::new();
 
         for attempt in 0..max_retries {
             // 获取调用上下文（MCP 不涉及模型选择，但同样应用 sticky 路由）
             let ctx = match self
                 .token_manager
-                .acquire_context_sticky(None, bound_ids, continuation_id.as_deref())
+                .acquire_context_sticky(
+                    None,
+                    bound_ids,
+                    continuation_id.as_deref(),
+                    &throttled_in_request,
+                )
                 .await
             {
                 Ok(c) => c,
@@ -469,7 +476,10 @@ impl KiroProvider {
                 );
                 self.token_manager.report_throttled_for_rotation(ctx.id);
                 if let Some(cid) = continuation_id.as_deref() {
-                    self.token_manager.evict_sticky(cid);
+                    self.token_manager.report_sticky_throttled(cid, ctx.id);
+                }
+                if !throttled_in_request.contains(&ctx.id) {
+                    throttled_in_request.push(ctx.id);
                 }
                 last_error = Some(anyhow::anyhow!(
                     "RPM limit exceeded for credential {}",
@@ -584,7 +594,10 @@ impl KiroProvider {
                 self.token_manager.report_throttled(ctx.id);
                 self.token_manager.report_throttled_for_rotation(ctx.id);
                 if let Some(cid) = continuation_id.as_deref() {
-                    self.token_manager.evict_sticky(cid);
+                    self.token_manager.report_sticky_throttled(cid, ctx.id);
+                }
+                if !throttled_in_request.contains(&ctx.id) {
+                    throttled_in_request.push(ctx.id);
                 }
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(ctx.id, "mcp", status.as_u16(), &body, None);
@@ -690,12 +703,19 @@ impl KiroProvider {
         // 尝试从请求体中提取模型信息和会话 ID
         let model = Self::extract_model_from_request(request_body);
         let continuation_id = Self::extract_continuation_id_from_request(request_body);
+        // 本次请求内已限流的账号：重试时避开，但不销毁 sticky 绑定
+        let mut throttled_in_request: Vec<u64> = Vec::new();
 
         for attempt in 0..max_retries {
             // 获取调用上下文（优先路由到同一会话的缓存账号）
             let ctx = match self
                 .token_manager
-                .acquire_context_sticky(model.as_deref(), bound_ids, continuation_id.as_deref())
+                .acquire_context_sticky(
+                    model.as_deref(),
+                    bound_ids,
+                    continuation_id.as_deref(),
+                    &throttled_in_request,
+                )
                 .await
             {
                 Ok(c) => c,
@@ -714,7 +734,10 @@ impl KiroProvider {
                 tracing::info!("[RPM-GATE] credential={} RPM 满，跳过切换下一账号", ctx.id);
                 self.token_manager.report_throttled_for_rotation(ctx.id);
                 if let Some(cid) = continuation_id.as_deref() {
-                    self.token_manager.evict_sticky(cid);
+                    self.token_manager.report_sticky_throttled(cid, ctx.id);
+                }
+                if !throttled_in_request.contains(&ctx.id) {
+                    throttled_in_request.push(ctx.id);
                 }
                 last_error = Some(anyhow::anyhow!(
                     "RPM limit exceeded for credential {}",
@@ -900,7 +923,10 @@ impl KiroProvider {
                 self.endpoint_registry
                     .throttle(ctx.id, endpoint.name, BUCKET_THROTTLE_DURATION);
                 if let Some(cid) = continuation_id.as_deref() {
-                    self.token_manager.evict_sticky(cid);
+                    self.token_manager.report_sticky_throttled(cid, ctx.id);
+                }
+                if !throttled_in_request.contains(&ctx.id) {
+                    throttled_in_request.push(ctx.id);
                 }
                 if let Some(ref store) = self.throttle_log_store {
                     store.record(

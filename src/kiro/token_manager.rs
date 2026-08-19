@@ -815,6 +815,12 @@ const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
 /// Sticky cache 条目存活时间（60 分钟不活跃后自动淘汰）
 const STICKY_CACHE_TTL: StdDuration = StdDuration::from_secs(60 * 60);
 
+/// 同一会话在同一账号上连续 429 多少次后才解除 sticky 绑定
+///
+/// Kiro 的 429 常是端点级短时限流，配合 rotation_bias 递增与端点桶封禁已足以让
+/// 新会话避让该账号；过早解绑会让长会话反复丢失 prompt cache，反而放大限流。
+const STICKY_THROTTLE_EVICT_THRESHOLD: u32 = 3;
+
 const TOKEN_REFRESH_COOLDOWN: StdDuration = StdDuration::from_secs(30);
 
 /// Sticky cache 条目：记录会话到账号的绑定关系
@@ -822,6 +828,12 @@ struct StickyCacheEntry {
     credential_id: u64,
     /// 最后一次命中/写入时间，用于 TTL 计算
     inserted_at: Instant,
+    /// 该会话在当前绑定账号上连续遭遇 429 的次数
+    ///
+    /// 单次 429 多为端点级瞬时限流，立即解绑会丢弃已建立的 prompt cache。
+    /// 仅当连续限流达到 STICKY_THROTTLE_EVICT_THRESHOLD 才判定该账号确实不适合
+    /// 承载此会话，执行解绑重选。任一次成功即清零。
+    consecutive_throttles: u32,
 }
 
 /// 原子写文件：写临时文件 → fsync → rename 替换 → fsync 父目录。
@@ -1294,19 +1306,63 @@ impl MultiTokenManager {
         }
     }
 
+    /// 在排除 `avoid_ids` 的前提下选账号
+    ///
+    /// 用于同一请求内的重试：绑定账号刚被限流时换个账号完成本次调用。
+    /// 排除后无账号可用时回退到不排除的选择逻辑，保证不会因避让而彻底失败。
+    async fn acquire_context_avoiding(
+        &self,
+        model: Option<&str>,
+        allowed_ids: &[u64],
+        avoid_ids: &[u64],
+    ) -> anyhow::Result<CallContext> {
+        let base_ids: Vec<u64> = if allowed_ids.is_empty() {
+            self.entries.lock().iter().map(|e| e.id).collect()
+        } else {
+            allowed_ids.to_vec()
+        };
+        let remaining: Vec<u64> = base_ids
+            .iter()
+            .filter(|id| !avoid_ids.contains(id))
+            .copied()
+            .collect();
+
+        if remaining.is_empty() {
+            // 所有候选账号都已限流：回到原逻辑，由上层重试与退避处理
+            return self.acquire_context_filtered(model, allowed_ids).await;
+        }
+
+        match self.acquire_context_filtered(model, &remaining).await {
+            Ok(ctx) => Ok(ctx),
+            Err(_) => self.acquire_context_filtered(model, allowed_ids).await,
+        }
+    }
+
     /// 基于 agentContinuationId 的 sticky 路由
     ///
     /// 同一会话优先路由到缓存中的同一账号，保证 Kiro prompt cache 命中率。
     /// 缓存条目 TTL 60 分钟（每次命中续期），不健康时自动驱逐并重选。
+    ///
+    /// `avoid_ids` 是本次请求内已经限流过的账号：绑定命中这些账号时跳过复用改选其它
+    /// 账号，但**不删除绑定关系**，下一次请求仍可回到原账号继续命中 prompt cache。
     pub async fn acquire_context_sticky(
         &self,
         model: Option<&str>,
         allowed_ids: &[u64],
         continuation_id: Option<&str>,
+        avoid_ids: &[u64],
     ) -> anyhow::Result<CallContext> {
         let Some(cid) = continuation_id else {
             // 新会话无 continuation_id 是正常流程，不计入 miss，避免稀释真实掉线率
             return self.acquire_context_filtered(model, allowed_ids).await;
+        };
+
+        // 绑定是否指向本次请求内已限流的账号：决定后续是否保留绑定
+        let bound_to_avoided = {
+            let cache = self.sticky_cache.lock();
+            cache
+                .get(cid)
+                .is_some_and(|e| avoid_ids.contains(&e.credential_id))
         };
 
         // 步骤 ①②：从 sticky_cache 查找，验证 TTL + 健康状态
@@ -1316,12 +1372,19 @@ impl MultiTokenManager {
                 if entry.inserted_at.elapsed() < STICKY_CACHE_TTL {
                     // TTL 未过期，检查账号健康状态
                     let entries = self.entries.lock();
+                    // 健康度门槛：仅 Unhealthy/Disabled 才放弃绑定。
+                    // Degraded/Warning 表示账号近期有限流但仍可服务，此时保留绑定
+                    // 更有利于 prompt cache 命中；真正不可用时下面的调用链会重选。
                     entries
                         .iter()
                         .find(|e| {
                             e.id == entry.credential_id
+                                && !avoid_ids.contains(&e.id)
                                 && !e.disabled
-                                && Self::compute_health(e) != HealthStatus::Unhealthy
+                                && !matches!(
+                                    Self::compute_health(e),
+                                    HealthStatus::Unhealthy | HealthStatus::Disabled
+                                )
                                 && (allowed_ids.is_empty() || allowed_ids.contains(&e.id))
                         })
                         .map(|e| (e.id, e.credentials.clone()))
@@ -1344,6 +1407,8 @@ impl MultiTokenManager {
                         .entry(cid.to_string())
                         .and_modify(|e| {
                             e.inserted_at = Instant::now();
+                            // 成功命中说明该账号仍可承载此会话，清零连续限流计数
+                            e.consecutive_throttles = 0;
                         });
                     return Ok(ctx);
                 }
@@ -1364,25 +1429,37 @@ impl MultiTokenManager {
                     self.sticky_misses.fetch_add(1, Ordering::Relaxed);
                 }
             }
+        } else if bound_to_avoided {
+            // 本次请求内该账号已限流：换账号完成这次调用，但保留绑定关系，
+            // 让后续请求仍能回到原账号命中 prompt cache。不计 miss，避免稀释掉线率。
         } else {
             // TTL 过期或不健康，清理旧条目
             self.sticky_cache.lock().remove(cid);
             self.sticky_misses.fetch_add(1, Ordering::Relaxed);
         }
 
-        // 步骤 ④：走原有选择逻辑
-        let ctx = self.acquire_context_filtered(model, allowed_ids).await?;
+        // 步骤 ④：走原有选择逻辑（排除本次请求内已限流的账号）
+        let ctx = if avoid_ids.is_empty() {
+            self.acquire_context_filtered(model, allowed_ids).await?
+        } else {
+            self.acquire_context_avoiding(model, allowed_ids, avoid_ids)
+                .await?
+        };
 
         // 步骤 ⑤⑥：写入 sticky_cache，懒惰 GC
         {
             let mut cache = self.sticky_cache.lock();
-            cache.insert(
-                cid.to_string(),
-                StickyCacheEntry {
-                    credential_id: ctx.id,
-                    inserted_at: Instant::now(),
-                },
-            );
+            // 绑定仍指向本次请求内被避让的账号时保留原绑定，不要改写为临时替补账号
+            if !bound_to_avoided {
+                cache.insert(
+                    cid.to_string(),
+                    StickyCacheEntry {
+                        credential_id: ctx.id,
+                        inserted_at: Instant::now(),
+                        consecutive_throttles: 0,
+                    },
+                );
+            }
             // 懒惰 GC：清理所有过期条目
             cache.retain(|_, v| v.inserted_at.elapsed() < STICKY_CACHE_TTL);
         }
@@ -1392,12 +1469,52 @@ impl MultiTokenManager {
 
     /// 驱逐 sticky cache 中指定 continuation_id 的绑定
     ///
-    /// 用于 429 发生后主动解除会话与被限流账号的绑定，使下次请求重新选择账号
+    /// 无条件解绑，供账号被禁用、额度耗尽等确定性不可用场景使用。
+    /// 限流场景请改用 `report_sticky_throttled`，避免瞬时 429 破坏 prompt cache。
+    #[allow(dead_code)]
     pub fn evict_sticky(&self, continuation_id: &str) {
         let removed = self.sticky_cache.lock().remove(continuation_id).is_some();
         if removed {
             tracing::debug!("sticky cache 已驱逐: continuation_id={}", continuation_id);
         }
+    }
+
+    /// 记录一次 429 并按阈值决定是否解除 sticky 绑定
+    ///
+    /// Kiro 的 429 多为端点级瞬时限流，此时 `rotation_bias` 递增与端点桶封禁已能让
+    /// 新会话避让该账号；若同时立刻解绑，长会话会反复丢失 prompt cache，触发更多
+    /// 输入 token 重算，反而加剧限流。因此仅当同一会话在同一账号上连续限流达到
+    /// `STICKY_THROTTLE_EVICT_THRESHOLD` 次，才认为该账号确实无法承载此会话。
+    ///
+    /// 返回 `true` 表示本次已解除绑定。
+    pub fn report_sticky_throttled(&self, continuation_id: &str, credential_id: u64) -> bool {
+        let mut cache = self.sticky_cache.lock();
+        let Some(entry) = cache.get_mut(continuation_id) else {
+            return false;
+        };
+        // 绑定已指向其它账号：本次限流与当前绑定无关，保留绑定
+        if entry.credential_id != credential_id {
+            return false;
+        }
+        entry.consecutive_throttles = entry.consecutive_throttles.saturating_add(1);
+        if entry.consecutive_throttles < STICKY_THROTTLE_EVICT_THRESHOLD {
+            tracing::debug!(
+                "sticky 绑定保留: continuation_id={} 账号 #{} 连续限流 {}/{}",
+                continuation_id,
+                credential_id,
+                entry.consecutive_throttles,
+                STICKY_THROTTLE_EVICT_THRESHOLD
+            );
+            return false;
+        }
+        cache.remove(continuation_id);
+        tracing::info!(
+            "sticky 绑定已解除: continuation_id={} 账号 #{} 连续限流达到 {} 次",
+            continuation_id,
+            credential_id,
+            STICKY_THROTTLE_EVICT_THRESHOLD
+        );
+        true
     }
 
     /// 切换到下一个优先级最高的可用账号（内部方法）
@@ -2898,6 +3015,7 @@ impl MultiTokenManager {
             StickyCacheEntry {
                 credential_id,
                 inserted_at: Instant::now() - STICKY_CACHE_TTL - StdDuration::from_secs(1),
+                consecutive_throttles: 0,
             },
         );
     }
@@ -3684,7 +3802,7 @@ mod tests {
 
         // continuation_id = None 时正常返回账号
         let ctx = manager
-            .acquire_context_sticky(None, &[], None)
+            .acquire_context_sticky(None, &[], None, &[])
             .await
             .unwrap();
         assert_eq!(ctx.token, "t1");
@@ -3700,15 +3818,166 @@ mod tests {
 
         // 首次调用选定某账号
         let ctx1 = manager
-            .acquire_context_sticky(None, &[], Some("session-abc"))
+            .acquire_context_sticky(None, &[], Some("session-abc"), &[])
             .await
             .unwrap();
         // 再次调用同一 continuation_id，应返回同一账号
         let ctx2 = manager
-            .acquire_context_sticky(None, &[], Some("session-abc"))
+            .acquire_context_sticky(None, &[], Some("session-abc"), &[])
             .await
             .unwrap();
         assert_eq!(ctx1.id, ctx2.id);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_throttle_below_threshold_keeps_binding() {
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let ctx = manager
+            .acquire_context_sticky(None, &[], Some("session-throttle"), &[])
+            .await
+            .unwrap();
+
+        // 阈值以下的连续限流不应解绑，保住已建立的 prompt cache
+        for _ in 0..(STICKY_THROTTLE_EVICT_THRESHOLD - 1) {
+            assert!(!manager.report_sticky_throttled("session-throttle", ctx.id));
+        }
+
+        let again = manager
+            .acquire_context_sticky(None, &[], Some("session-throttle"), &[])
+            .await
+            .unwrap();
+        assert_eq!(ctx.id, again.id);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_throttle_reaching_threshold_evicts() {
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let ctx = manager
+            .acquire_context_sticky(None, &[], Some("session-evict"), &[])
+            .await
+            .unwrap();
+
+        let mut evicted = false;
+        for _ in 0..STICKY_THROTTLE_EVICT_THRESHOLD {
+            evicted = manager.report_sticky_throttled("session-evict", ctx.id);
+        }
+        assert!(evicted);
+        assert!(!manager.sticky_cache.lock().contains_key("session-evict"));
+    }
+
+    #[tokio::test]
+    async fn test_sticky_avoid_switches_credential_but_keeps_binding() {
+        // 请求内重试：绑定账号刚被限流时应换账号完成本次调用，
+        // 但绑定关系必须保留，下次请求仍回到原账号命中 prompt cache。
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let bound = manager
+            .acquire_context_sticky(None, &[], Some("session-avoid"), &[])
+            .await
+            .unwrap();
+
+        // 避让绑定账号：应拿到另一个账号
+        let retry = manager
+            .acquire_context_sticky(None, &[], Some("session-avoid"), &[bound.id])
+            .await
+            .unwrap();
+        assert_ne!(retry.id, bound.id);
+
+        // 绑定未被改写，也未被删除
+        assert_eq!(
+            manager
+                .sticky_cache
+                .lock()
+                .get("session-avoid")
+                .map(|e| e.credential_id),
+            Some(bound.id)
+        );
+
+        // 下一次正常请求回到原账号
+        let back = manager
+            .acquire_context_sticky(None, &[], Some("session-avoid"), &[])
+            .await
+            .unwrap();
+        assert_eq!(back.id, bound.id);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_avoid_all_falls_back_instead_of_failing() {
+        // 所有候选账号都已在本次请求内限流时，不能因避让而彻底失败，
+        // 应回退到原选择逻辑，由上层重试与退避处理。
+        let config = Config::default();
+        let manager =
+            MultiTokenManager::new(config, vec![make_valid_cred("t1")], None, None, false).unwrap();
+
+        let bound = manager
+            .acquire_context_sticky(None, &[], Some("session-avoid-all"), &[])
+            .await
+            .unwrap();
+
+        let ctx = manager
+            .acquire_context_sticky(None, &[], Some("session-avoid-all"), &[bound.id])
+            .await
+            .unwrap();
+        assert_eq!(ctx.id, bound.id);
+    }
+
+    #[tokio::test]
+    async fn test_sticky_hit_resets_throttle_counter() {
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config,
+            vec![make_valid_cred("t1"), make_valid_cred("t2")],
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let ctx = manager
+            .acquire_context_sticky(None, &[], Some("session-reset"), &[])
+            .await
+            .unwrap();
+
+        assert!(!manager.report_sticky_throttled("session-reset", ctx.id));
+        // 一次成功命中即清零，避免跨越较长时间的零散限流累积成解绑
+        manager
+            .acquire_context_sticky(None, &[], Some("session-reset"), &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            manager
+                .sticky_cache
+                .lock()
+                .get("session-reset")
+                .map(|e| e.consecutive_throttles),
+            Some(0)
+        );
     }
 
     #[tokio::test]
@@ -3724,7 +3993,7 @@ mod tests {
 
         // 过期后应重新选择（不一定是 #1）
         let ctx = manager
-            .acquire_context_sticky(None, &[], Some("session-xyz"))
+            .acquire_context_sticky(None, &[], Some("session-xyz"), &[])
             .await
             .unwrap();
         // 只要能正常返回账号即可；过期条目已被替换
@@ -3748,14 +4017,14 @@ mod tests {
         // balanced 模式下，无 sticky cache 时 round-robin 会轮转 t1→t2→t1→t2
         // 有 sticky cache 时，同一 continuation_id 应始终返回同一账号
         let ctx1 = manager
-            .acquire_context_sticky(None, &[], Some("session-balanced"))
+            .acquire_context_sticky(None, &[], Some("session-balanced"), &[])
             .await
             .unwrap();
         let expected_id = ctx1.id;
 
         for _ in 0..5 {
             let ctx = manager
-                .acquire_context_sticky(None, &[], Some("session-balanced"))
+                .acquire_context_sticky(None, &[], Some("session-balanced"), &[])
                 .await
                 .unwrap();
             assert_eq!(
@@ -3775,7 +4044,7 @@ mod tests {
 
         // 首次调用建立绑定
         let ctx1 = manager
-            .acquire_context_sticky(None, &[], Some("session-dis"))
+            .acquire_context_sticky(None, &[], Some("session-dis"), &[])
             .await
             .unwrap();
         let bound_id = ctx1.id;
@@ -3785,7 +4054,7 @@ mod tests {
 
         // 再次调用同一 continuation_id：缓存命中但账号已禁用，应驱逐并重选
         let ctx2 = manager
-            .acquire_context_sticky(None, &[], Some("session-dis"))
+            .acquire_context_sticky(None, &[], Some("session-dis"), &[])
             .await
             .unwrap();
         // 返回另一个账号
@@ -3840,7 +4109,7 @@ mod tests {
 
         // 首次调用建立 sticky 绑定
         let ctx1 = manager
-            .acquire_context_sticky(None, &[], Some("session-invalid-grant"))
+            .acquire_context_sticky(None, &[], Some("session-invalid-grant"), &[])
             .await
             .unwrap();
         let bound_id = ctx1.id;
@@ -3860,7 +4129,7 @@ mod tests {
 
         // 命中同一 continuation_id：走缓存命中分支，刷新失败应驱逐并重选到另一账号
         let ctx2 = manager
-            .acquire_context_sticky(None, &[], Some("session-invalid-grant"))
+            .acquire_context_sticky(None, &[], Some("session-invalid-grant"), &[])
             .await
             .unwrap();
         assert_ne!(ctx2.id, bound_id);

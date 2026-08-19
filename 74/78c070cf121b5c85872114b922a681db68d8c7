@@ -1,0 +1,117 @@
+admin-ui/src/components/daily-detail-page.tsx
+  c0d8ad39f6fdb0d3 4-5,7-10,13-14,21,23-29,39-41,45-65,68-77,79-105,107,109-146,148
+admin-ui/src/components/login-page.tsx
+  c0d8ad39f6fdb0d3 12-14,36-60,62-83
+admin-ui/src/components/settings-panel.tsx
+  c0d8ad39f6fdb0d3 2,5,8,15,17-177,186-203,205-216,221-257,259,262-263,266,268-272,274-321,325
+openspec/changes/redesign-remaining-pages-ui/design.md
+  c0d8ad39f6fdb0d3 1-134
+admin-ui/src/components/api-key-row.tsx
+  c0d8ad39f6fdb0d3 1-295
+admin-ui/src/components/daily-credits-trend-chart.tsx
+  c0d8ad39f6fdb0d3 2,5-8,11-17,19,21-22,25-26,30-32,35-43,45-51,53-79,82-87,89-195
+openspec/changes/redesign-remaining-pages-ui/tasks.md
+  c0d8ad39f6fdb0d3 1-738
+admin-ui/src/i18n/locales/zh.json
+  c0d8ad39f6fdb0d3 36,306-328,420-448,458-504,507,527-531,533-539,541-560,565-567,569-594,598,600-612,622-631,635-638,643-644,649,651-657
+admin-ui/src/components/daily-stats-page.tsx
+  c0d8ad39f6fdb0d3 2,4-5,8-13,15,23-38,41-66,70-90,93-94,97-130,132-140,143-249,252-364,366-384
+admin-ui/src/types/api.ts
+  c0d8ad39f6fdb0d3 239
+admin-ui/src/components/usage-log-table.tsx
+  c0d8ad39f6fdb0d3 1-201
+admin-ui/src/components/throttle-log-page.tsx
+  c0d8ad39f6fdb0d3 3-5,12,15,18-35
+openspec/changes/redesign-remaining-pages-ui/proposal.md
+  c0d8ad39f6fdb0d3 1-99
+admin-ui/src/components/account-panel-foot.tsx
+  c0d8ad39f6fdb0d3 2,5,43,56-57,64,68-72
+admin-ui/src/components/ui/progress.tsx
+  c0d8ad39f6fdb0d3 17-18,25-26
+admin-ui/src/components/api-key-table.tsx
+  c0d8ad39f6fdb0d3 1-114
+admin-ui/src/components/credential-detail-page.tsx
+  c0d8ad39f6fdb0d3 4-5,7-10,13-15,22,24-44,56-58,60-61,64,66-69,74,80-96,98-103,107-119,121-158,160,162-207,211-217,219-229,231
+admin-ui/src/components/log-viewer-page.tsx
+  c0d8ad39f6fdb0d3 4-6,8-15,17-20,22-23,25-66,69-111,114-125,139-140,147,149,151,153-166,184-194,199,215-222,224-225,227-234,238-244,247-251,261-263,265-298,301-319,321-325,327-330,332-341,343-362,364-395,397-407,409-414,416-435,439-440,442-445,447-459,461
+admin-ui/src/components/failure-log-page.tsx
+  c0d8ad39f6fdb0d3 3-5,12,15,18-35
+admin-ui/src/components/ui/button.tsx
+  c0d8ad39f6fdb0d3 7-9,13-16,18-19,21-26,29-34
+admin-ui/src/components/account-metrics.tsx
+  c0d8ad39f6fdb0d3 3,65,68,82,106,115,131,138
+admin-ui/src/components/api-key-detail-page.tsx
+  c0d8ad39f6fdb0d3 4-5,7-11,14-15,23,32-40,52-53,58-71,75-82,84-90,92-127,129,131-176,180-186,188-198,200
+admin-ui/src/components/kam-import-dialog.tsx
+  c0d8ad39f6fdb0d3 332,335,337,339,341,343,390,410,412,417,421,426,431,447,449,454,459,462,465,468,473,483,488,491,494
+admin-ui/src/components/batch-import-dialog.tsx
+  c0d8ad39f6fdb0d3 287,290,292,294,296,337,345,347,360,362,367,375,378,381,387,397,402,407,412
+admin-ui/src/components/ui/dialog.tsx
+  c0d8ad39f6fdb0d3 22-23,42-43,49,108
+admin-ui/src/components/event-log-page.tsx
+  c0d8ad39f6fdb0d3 1-242
+admin-ui/src/components/ui/badge.tsx
+  c0d8ad39f6fdb0d3 6-7,11-21
+admin-ui/src/i18n/locales/en.json
+  c0d8ad39f6fdb0d3 36,306-328,420-448,458-504,507,527-531,533-539,541-560,565-567,569-594,598,600-612,622-631,635-638,643-644,649,651-657
+admin-ui/src/components/table-kit.tsx
+  c0d8ad39f6fdb0d3 1-120
+admin-ui/src/components/balance-dialog.tsx
+  c0d8ad39f6fdb0d3 44,52,59,71,83,89,91-92,97
+admin-ui/src/components/ui/card.tsx
+  c0d8ad39f6fdb0d3 11-13
+admin-ui/src/components/batch-verify-dialog.tsx
+  c0d8ad39f6fdb0d3 56,58,77,81,83,85,87-88,119
+admin-ui/src/index.css
+  c0d8ad39f6fdb0d3 154-327
+admin-ui/src/components/toolbar.tsx
+  c0d8ad39f6fdb0d3 1-216
+admin-ui/src/components/model-list-page.tsx
+  c0d8ad39f6fdb0d3 2,4-5,7-11,13-15,18-43,46-49,51-56,58,61-130,136-139,141-198,201-321,325-400,403-406,409-505
+admin-ui/src/hooks/use-log-stream.ts
+  c0d8ad39f6fdb0d3 12-13,18-19,114-116
+admin-ui/src/components/ui/input.tsx
+  c0d8ad39f6fdb0d3 4-10,12-15,18-37,42-45
+admin-ui/src/components/account-row.tsx
+  c0d8ad39f6fdb0d3 9,156
+admin-ui/src/components/api-key-panel-foot.tsx
+  c0d8ad39f6fdb0d3 1-118
+admin-ui/src/components/account-table.tsx
+  c0d8ad39f6fdb0d3 4-5,77
+openspec/changes/redesign-remaining-pages-ui/specs/admin-ui/spec.md
+  c0d8ad39f6fdb0d3 1-251
+admin-ui/src/components/page-head.tsx
+  c0d8ad39f6fdb0d3 1-58
+admin-ui/src/components/dashboard.tsx
+  c0d8ad39f6fdb0d3 34,1040-1045,1088-1109
+admin-ui/src/components/add-credential-dialog.tsx
+  c0d8ad39f6fdb0d3 24-26,116-117,131,146,154,163,184,193-194,205-206,222,232,239,251,258,268,275,300
+admin-ui/src/components/account-toolbar.tsx
+  c0d8ad39f6fdb0d3 3,37-42,45-59
+admin-ui/src/components/api-keys-panel.tsx
+  c0d8ad39f6fdb0d3 2,4,6-11,24-28,39-54,75,77-82,114-115,117,159,344-438,440,446-569,572-587,589-602,604-607,609-614,616-635,637-761,764-771,774-777,779-781,783-797,799-821,823-852
+admin-ui/src/components/changelog-page.tsx
+  c0d8ad39f6fdb0d3 2,4,6-9,11,13-144,148-149,151-201,204-223,226-230,232-234,236-257,259-262,264-266,268-299
+admin-ui/src/components/metrics.tsx
+  c0d8ad39f6fdb0d3 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7478c070cf121b5c85872114b922a681db68d8c7",
+  "prompts": {
+    "c0d8ad39f6fdb0d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bde76c34-823e-4c23-9bc7-39d7d82f2a28",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 7080,
+      "total_deletions": 2887,
+      "accepted_lines": 6628,
+      "overriden_lines": 0
+    }
+  }
+}

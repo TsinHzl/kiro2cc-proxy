@@ -62,9 +62,40 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     vec![
         ReleaseNote {
+            version: "2.10.2".to_string(),
+            date: "2026-08-20".to_string(),
+            is_latest: true,
+            groups: vec![
+                improve_group(vec![
+                    Bilingual::new(
+                        "/cc/v1/messages 改为实时流式转发，删除整段缓冲，首字延迟不再等待上游响应结束",
+                        "/cc/v1/messages now forwards the stream in real time; the full-response buffer is gone, so time-to-first-token no longer waits for the upstream to finish",
+                    ),
+                    Bilingual::new(
+                        "Admin/User 前端图标改用 Aurora Prism 方案，侧边栏 logo 随明暗主题切换",
+                        "Admin/User front-end icons switched to the Aurora Prism set; the sidebar logo follows the light/dark theme",
+                    ),
+                ]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "上报给客户端的 output_tokens 解除 380 固定上限，并按来源排除 thinking 内容",
+                        "Client-facing output_tokens no longer capped at 380, and thinking content is excluded by source rather than by cap",
+                    ),
+                    Bilingual::new(
+                        "输出 token 估算改为累加字符数后统一取整，消除逐 chunk 向上取整的累积高估",
+                        "Output token estimation accumulates characters and rounds once at the end, removing the systematic overestimate from per-chunk rounding",
+                    ),
+                    Bilingual::new(
+                        "上下文超窗错误改用 Anthropic 官方文案格式，便于客户端识别并触发自动压缩重试",
+                        "Context-overflow errors now use Anthropic's official message format so clients can recognize them and trigger auto-compaction retries",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "2.10.0".to_string(),
             date: "2026-08-19".to_string(),
-            is_latest: true,
+            is_latest: false,
             groups: vec![
                 improve_group(vec![
                     Bilingual::new(

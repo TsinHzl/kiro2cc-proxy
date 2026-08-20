@@ -596,6 +596,14 @@ const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
 /// Ctx 100%，已回滚 —— Claude Code 对 opus 的 Ctx% 分母同为 200K，不是 1M。
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 
+/// Claude Code 计算 Ctx% 时假设的上下文窗口（分母）。
+///
+/// 与 `CLIENT_TOKEN_DISPLAY_SCALE` 同属「客户端展示口径」——客户端对所有模型
+/// （含官方 1M 窗口的 opus 系列）均按 200K 算 Ctx%，实测依据见上方常量注释。
+/// 超窗错误文案里的 maximum 必须取这个值，而不是 `context_window_for_model`：
+/// 后者是上游真实窗口（1M），用它会让「N tokens > M maximum」里 N < M 自相矛盾。
+pub(crate) const CLIENT_ASSUMED_CONTEXT_WINDOW: i32 = 200_000;
+
 /// 对客户端展示用的 token 值缩放（向上取整保证非零）。
 pub(crate) fn scale_for_client(n: i32, _model: &str) -> i32 {
     if n <= 0 {

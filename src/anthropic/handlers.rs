@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
 use super::middleware::{ApiKeyContext, AppState};
-use super::stream::{SseEvent, StreamContext};
+use super::stream::{CLIENT_ASSUMED_CONTEXT_WINDOW, SseEvent, StreamContext, scale_for_client};
 use super::types::{
     CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse,
     OutputConfig, Thinking,
@@ -75,6 +75,20 @@ pub async fn ping(
     }))
 }
 
+/// 超窗错误文案（对齐 Anthropic 官方 `prompt is too long: N tokens > M maximum`）。
+///
+/// N 取客户端展示口径（`scale_for_client`）、M 取 `CLIENT_ASSUMED_CONTEXT_WINDOW`，
+/// 与同一会话中 usage 字段口径一致。N 兜底为 M+1：上游报超窗但本地估算异常偏小
+/// （远程 count_tokens 返回 0 等）时，照实填会产出 `0 tokens > 200000 maximum`
+/// 这种 N ≤ M 的自相矛盾文案 —— 正是本函数要消除的形态。
+fn format_prompt_too_long(estimated_input_tokens: i32, model: &str) -> String {
+    let n = scale_for_client(estimated_input_tokens, model).max(CLIENT_ASSUMED_CONTEXT_WINDOW + 1);
+    format!(
+        "prompt is too long: {} tokens > {} maximum",
+        n, CLIENT_ASSUMED_CONTEXT_WINDOW
+    )
+}
+
 fn map_provider_error_with_context(
     err: Error,
     model: &str,
@@ -90,11 +104,16 @@ fn map_provider_error_with_context(
             estimated_input_tokens = estimated_input_tokens,
             "上游拒绝请求：上下文窗口已满（不应重试）— 请检查是否真正达到 1M 上下文限制"
         );
+        // 文案对齐 Anthropic 官方超窗格式 `prompt is too long: N tokens > M maximum`。
+        // 原自造文案不匹配任何客户端识别模式，Claude Code 收到后只会硬报错中断（#25）；
+        // 官方格式才有机会被识别为「压缩后重试」。两个数字统一用客户端展示口径
+        // （N 经 scale_for_client 缩放、M 取客户端假设的 200K 窗口），与同一会话中
+        // usage 字段的口径一致，客户端自算 Ctx% 不会与这段文案矛盾。
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse::new(
                 "invalid_request_error",
-                "Context window is full. Reduce conversation history, system prompt, or tools.",
+                format_prompt_too_long(estimated_input_tokens, model),
             )),
         )
             .into_response();
@@ -2071,6 +2090,52 @@ mod tests {
         assert!(
             !text.contains("额度用尽") && !text.contains("连续认证失败"),
             "502 响应体不应回显内部账号池细节: {}",
+            text
+        );
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_context_length_uses_official_too_long_format() {
+        // #25 回归：自造文案不被客户端识别为超窗，只会硬报错中断。必须对齐
+        // Anthropic 官方 `prompt is too long: N tokens > M maximum`，且 N > M 才成立。
+        let err = anyhow::anyhow!(
+            r#"流式 API 请求失败: 400 Bad Request {{"message":"Input content length exceeds threshold.","reason":"CONTENT_LENGTH_EXCEEDS_THRESHOLD"}}"#
+        );
+        let resp = map_provider_error_with_context(err, "claude-opus-5", 754_234);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 期望值动态取自缩放函数：系数是校准量，改它不应弄红这条错误映射测试
+        let n = scale_for_client(754_234, "claude-opus-5");
+        assert!(
+            n > CLIENT_ASSUMED_CONTEXT_WINDOW,
+            "N({}) 必须大于 M({}) 才构成超窗语义",
+            n,
+            CLIENT_ASSUMED_CONTEXT_WINDOW
+        );
+        let text = response_body_text(resp).await;
+        assert!(
+            text.contains(&format_prompt_too_long(754_234, "claude-opus-5")),
+            "超窗文案未对齐官方格式: {}",
+            text
+        );
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_context_length_never_emits_n_le_m() {
+        // 上游报超窗但本地估算异常偏小（远程 count_tokens 返回 0）时，照实填会产出
+        // `0 tokens > 200000 maximum` —— N ≤ M 自相矛盾，正是本次修复要消除的形态。
+        let err = anyhow::anyhow!("CONTENT_LENGTH_EXCEEDS_THRESHOLD");
+        let resp = map_provider_error_with_context(err, "claude-opus-5", 0);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let text = response_body_text(resp).await;
+        // 期望值不复用被测函数，避免同义反复
+        assert!(
+            text.contains(&format!(
+                "prompt is too long: {} tokens > {} maximum",
+                CLIENT_ASSUMED_CONTEXT_WINDOW + 1,
+                CLIENT_ASSUMED_CONTEXT_WINDOW
+            )),
+            "N 未兜底到 M+1: {}",
             text
         );
     }

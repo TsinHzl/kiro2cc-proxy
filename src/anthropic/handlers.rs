@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
 use super::middleware::{ApiKeyContext, AppState};
-use super::stream::{BufferedStreamContext, SseEvent, StreamContext};
+use super::stream::{SseEvent, StreamContext};
 use super::types::{
     CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse,
     OutputConfig, Thinking,
@@ -887,6 +887,7 @@ pub async fn post_messages(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            None, // /v1 无全局 deadline（保持现有行为）
         )
         .await
     } else {
@@ -924,6 +925,8 @@ async fn handle_stream_request(
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
+    // 上游流的全局超时；None 表示不限时（/v1 的现有行为）
+    stream_deadline: Option<Duration>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
@@ -941,7 +944,12 @@ async fn handle_stream_request(
     let initial_events = ctx.generate_initial_events();
 
     // 创建 SSE 流
-    let stream = create_sse_stream(response, ctx, initial_events);
+    let stream = create_sse_stream(
+        response,
+        ctx,
+        initial_events,
+        stream_deadline.map(|d| Instant::now() + d),
+    );
 
     // 返回 SSE 响应
     Response::builder()
@@ -955,6 +963,18 @@ async fn handle_stream_request(
 
 /// Ping 事件间隔（25秒）
 const PING_INTERVAL_SECS: u64 = 25;
+
+/// 等待全局 deadline；`None` 时永不就绪，使调用方的 `select!` 分支等价于不存在
+///
+/// 不用 `select!` 的 `if` precondition：分支的 future 表达式必须无论 precondition
+/// 真假都能构造，而 `sleep_until` 需要已解包的 `Instant`，那样得凭空造一个
+/// 「很远的未来」哨兵值。
+async fn wait_deadline(deadline: Option<Instant>) {
+    match deadline {
+        Some(d) => tokio::time::sleep_until(d).await,
+        None => std::future::pending::<()>().await,
+    }
+}
 
 /// 创建 ping 事件的 SSE 字符串
 fn create_ping_sse() -> Bytes {
@@ -1013,6 +1033,7 @@ fn create_sse_stream(
     response: reqwest::Response,
     ctx: StreamContext,
     initial_events: Vec<SseEvent>,
+    deadline: Option<Instant>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     // 先发送初始事件
     let initial_stream = stream::iter(
@@ -1025,13 +1046,18 @@ fn create_sse_stream(
     let body_stream = response.bytes_stream();
 
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS))),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
+        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline),
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
             if finished {
                 return None;
             }
 
-            // 使用 select! 同时等待数据和 ping 定时器
+            // 使用 select! 同时等待数据、ping 定时器与全局 deadline
+            // 有意不加 biased：不加时 select! 对同时就绪的分支做随机选择，任一分支被
+            // 连续跳过的概率指数衰减，ping 与 deadline 都不会被密集 chunk 饿死。
+            // （已删除的 create_buffered_sse_stream 需要 biased，是因为它在单次 poll
+            //  内用显式 loop 反复 select 且 chunk 分支不返回 —— 那才是确定性饿死源。）
+            // 加 biased 会改变 /v1 现有的分支优先级。
             tokio::select! {
                 // 处理数据流
                 chunk_result = body_stream.next() => {
@@ -1063,7 +1089,7 @@ fn create_sse_stream(
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
 
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
@@ -1090,7 +1116,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                         }
                         None => {
                             let mut out_events = Vec::new();
@@ -1113,7 +1139,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                         }
                     }
                 }
@@ -1121,7 +1147,20 @@ fn create_sse_stream(
                 _ = ping_interval.tick() => {
                     tracing::trace!("发送 ping 保活事件");
                     let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
+                }
+                // 全局 deadline：防止上游挂起导致请求永不结束（deadline 为 None 时永不就绪）
+                _ = wait_deadline(deadline) => {
+                    tracing::error!("流式转发全局超时，强制终止");
+                    let err_event = SseEvent::new("error", serde_json::json!({
+                        "type": "error",
+                        "error": {
+                            "type": "overloaded_error",
+                            "message": "Upstream response timed out (streaming mode deadline)"
+                        }
+                    }));
+                    let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                 }
             }
         },
@@ -1530,8 +1569,10 @@ pub async fn count_tokens(
 /// POST /cc/v1/messages
 ///
 /// Claude Code 兼容端点，与 /v1/messages 的区别在于：
-/// - 流式响应会等待 kiro 端返回 contextUsageEvent 后再发送 message_start
-/// - message_start 中的 input_tokens 是从 contextUsageEvent 计算的准确值
+/// - 流式响应带 300s 全局 deadline，防止上游挂起导致请求永不结束（/v1 无此限制）
+///
+/// 其余行为与 /v1/messages 完全一致：同为实时转发，`message_start` 先给估算
+/// `input_tokens`，末尾 `message_delta` 给出终值。
 pub async fn post_messages_cc(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
@@ -1698,8 +1739,9 @@ pub async fn post_messages_cc(
         .unwrap_or(false);
 
     if payload.stream {
-        // 流式响应（缓冲模式）
-        handle_stream_request_buffered(
+        // 流式响应：与 /v1 相同的实时转发，额外带 300s 全局 deadline
+        // （上游挂起保护，沿用此端点历史上一直具备的 5min 上限）
+        handle_stream_request(
             provider,
             &request_body,
             &payload.model,
@@ -1711,6 +1753,7 @@ pub async fn post_messages_cc(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            Some(Duration::from_secs(300)),
         )
         .await
     } else {
@@ -1732,187 +1775,6 @@ pub async fn post_messages_cc(
         )
         .await
     }
-}
-
-/// 处理流式请求（缓冲版本）
-///
-/// 与 `handle_stream_request` 不同，此函数会缓冲所有事件直到流结束，
-/// 然后用从 contextUsageEvent 计算的正确 input_tokens 生成 message_start 事件。
-#[allow(clippy::too_many_arguments)]
-async fn handle_stream_request_buffered(
-    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
-    request_body: &str,
-    model: &str,
-    estimated_input_tokens: i32,
-    prefix_estimated_tokens: i32,
-    thinking_enabled: bool,
-    usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
-    api_key_id: Option<u32>,
-    prompt_cache_usage: crate::cache::PromptCacheUsage,
-    bound_ids: Vec<u64>,
-    client_ip: Option<String>,
-) -> Response {
-    // 调用 Kiro API（支持多账号故障转移）
-    let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
-        Ok(resp) => resp,
-        Err(e) => return map_provider_error_with_context(e, model, estimated_input_tokens),
-    };
-
-    // 创建缓冲流处理上下文
-    let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
-        .with_prompt_cache_usage(prompt_cache_usage)
-        .with_prefix_estimated_tokens(prefix_estimated_tokens);
-
-    // 创建缓冲 SSE 流
-    let stream = create_buffered_sse_stream(response, ctx);
-
-    // 返回 SSE 响应
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/event-stream")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .header(header::CONNECTION, "keep-alive")
-        .body(Body::from_stream(stream))
-        .unwrap()
-}
-
-/// 创建缓冲 SSE 事件流
-///
-/// 工作流程：
-/// 1. 等待上游流完成，期间只发送 ping 保活信号
-/// 2. 使用 StreamContext 的事件处理逻辑处理所有 Kiro 事件，结果缓存
-/// 3. 流结束后，用正确的 input_tokens 更正 message_start 事件
-/// 4. 一次性发送所有事件
-fn create_buffered_sse_stream(
-    response: reqwest::Response,
-    ctx: BufferedStreamContext,
-) -> impl Stream<Item = Result<Bytes, Infallible>> {
-    let body_stream = response.bytes_stream();
-    let deadline = Instant::now() + Duration::from_secs(300);
-
-    stream::unfold(
-        (
-            body_stream,
-            ctx,
-            EventStreamDecoder::new(),
-            false,
-            interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)),
-            deadline,
-        ),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
-            if finished {
-                return None;
-            }
-
-            loop {
-                tokio::select! {
-                    // 使用 biased 模式，优先检查 ping 定时器
-                    // 避免在上游 chunk 密集时 ping 被"饿死"
-                    biased;
-
-                    // 全局 deadline：防止上游挂起导致请求永不结束
-                    _ = tokio::time::sleep_until(deadline) => {
-                        tracing::error!("缓冲模式全局超时（5分钟），强制终止");
-                        let err_event = SseEvent::new("error", serde_json::json!({
-                            "type": "error",
-                            "error": {
-                                "type": "overloaded_error",
-                                "message": "Upstream response timed out (buffered mode, 5min deadline)"
-                            }
-                        }));
-                        let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                    }
-
-                    // 优先检查 ping 保活（等待期间唯一发送的数据）
-                    _ = ping_interval.tick() => {
-                        tracing::trace!("发送 ping 保活事件（缓冲模式）");
-                        let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)));
-                    }
-
-                    // 然后处理数据流
-                    chunk_result = body_stream.next() => {
-                        match chunk_result {
-                            Some(Ok(chunk)) => {
-                                // 解码事件
-                                if let Err(e) = decoder.feed(&chunk) {
-                                    tracing::warn!("缓冲区溢出: {}", e);
-                                }
-
-                                for result in decoder.decode_iter() {
-                                    match result {
-                                        Ok(frame) => {
-                                            if let Ok(event) = Event::from_frame(frame) {
-                                                // 缓冲事件（复用 StreamContext 的处理逻辑）
-                                                ctx.process_and_buffer(&event);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!("解码事件失败: {}", e);
-                                        }
-                                    }
-                                }
-                                // 继续读取下一个 chunk，不发送任何数据
-                            }
-                            Some(Err(e)) => {
-                                tracing::error!("读取响应流失败: {}", e);
-                                let all_events = if ctx.is_empty_response() {
-                                    let oversized = ctx.empty_response_is_oversized_context();
-                                    tracing::warn!(
-                                        oversized_context = oversized,
-                                        "流解码错误且无内容（buffered 路径），补发 error 事件"
-                                    );
-                                    if oversized {
-                                        ctx.finish_and_get_all_events()
-                                    } else {
-                                        vec![empty_response_error_event(false)]
-                                    }
-                                } else {
-                                    // buffered 端点是 all-or-nothing 契约：此前缓冲的 message_start/
-                                    // thinking/text/tool_use 从未发给客户端，中断时随本次 error 事件一并
-                                    // 丢弃即可，无需（也无法）像 streaming 路径那样只替换收尾帧。
-                                    tracing::warn!(
-                                        est_input_tokens = ctx.input_tokens(),
-                                        "流读取错误但已产生部分内容（buffered 路径），补发 error 事件防止伪装成正常完成"
-                                    );
-                                    vec![stream_interrupted_error_event()]
-                                };
-                                let bytes: Vec<Result<Bytes, Infallible>> = all_events
-                                    .into_iter()
-                                    .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                    .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                            }
-                            None => {
-                                if ctx.is_empty_response() {
-                                    let oversized = ctx.empty_response_is_oversized_context();
-                                    tracing::warn!(
-                                        oversized_context = oversized,
-                                        "上游返回空响应（buffered 路径，无任何内容事件），补发 error 事件"
-                                    );
-                                    if !oversized {
-                                        let err_event = empty_response_error_event(false);
-                                        let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                                    }
-                                }
-                                // 流结束，完成处理并返回所有事件（已更正 input_tokens）
-                                let all_events = ctx.finish_and_get_all_events();
-                                let bytes: Vec<Result<Bytes, Infallible>> = all_events
-                                    .into_iter()
-                                    .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                    .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    )
-    .flatten()
 }
 
 #[cfg(test)]
@@ -2211,5 +2073,21 @@ mod tests {
             "502 响应体不应回显内部账号池细节: {}",
             text
         );
+    }
+
+    // deadline 为 None 时 wait_deadline 必须永不就绪 —— 这是 /v1 行为零变化的前提：
+    // create_sse_stream 的 select! 里该分支等价于不存在。
+    #[tokio::test]
+    async fn test_wait_deadline_none_never_resolves() {
+        let r = tokio::time::timeout(Duration::from_millis(50), wait_deadline(None)).await;
+        assert!(r.is_err(), "deadline 为 None 时 wait_deadline 不应就绪");
+    }
+
+    // deadline 已过期时立即就绪，保证撞线后 select! 当轮即可选中该分支。
+    #[tokio::test]
+    async fn test_wait_deadline_past_instant_resolves_immediately() {
+        let past = Instant::now() - Duration::from_secs(1);
+        let r = tokio::time::timeout(Duration::from_millis(50), wait_deadline(Some(past))).await;
+        assert!(r.is_ok(), "deadline 已过期时 wait_deadline 应立即就绪");
     }
 }

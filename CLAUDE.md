@@ -39,7 +39,7 @@ Client (Anthropic format)
   ▼
 src/anthropic/middleware.rs   ← 认证（API Key / Bearer）、RPM 计数、用量追踪
   │
-src/anthropic/handlers.rs     ← /v1/messages 路由入口；/cc/v1/messages 为缓冲模式
+src/anthropic/handlers.rs     ← /v1/messages 路由入口；/cc/v1/messages 额外带 300s deadline
   │
 src/anthropic/converter.rs    ← Anthropic → Kiro 协议转换（工具 schema 规范化、消息结构重组）
   │
@@ -76,7 +76,7 @@ Client (Anthropic SSE format)
 
 ### /cc/v1 vs /v1
 
-`/cc/v1/messages` 是 Claude Code 专用端点：等待上游流完成后再返回（缓冲模式），`input_tokens` 使用实际值而非估算；期间每 25s 发送 SSE ping 保活。`/v1/messages` 为直通流式转发。
+`/cc/v1/messages` 是 Claude Code 专用端点，与 `/v1/messages` 同为实时流式转发，唯一差异是带 300s 全局 deadline（上游挂起保护），超时发 `overloaded_error` 后终止。两者均每 25s 发送 SSE ping 保活，`input_tokens` 均为 `message_start` 给估算值、末尾 `message_delta` 校准为终值。
 
 ## 代码索引
 

@@ -625,10 +625,10 @@ curl http://127.0.0.1:5678/v1/messages \
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
-| `/cc/v1/messages` | POST | 缓冲模式，`input_tokens` 更准确 |
+| `/cc/v1/messages` | POST | 实时流式转发，带 300s 上游挂起保护 |
 | `/cc/v1/messages/count_tokens` | POST | 估算 Token 数量 |
 
-> `/cc/v1/messages` 会等待上游流完成后再返回，`input_tokens` 使用实际值而非估算值，等待期间每 25 秒发送 `ping` 保活。
+> `/cc/v1/messages` 与 `/v1/messages` 同为实时流式转发（上游首帧到达即转发），唯一差异是带 300 秒全局 deadline —— 上游长时间无响应时发送 `overloaded_error` 后终止，已流出的内容保持有效。两个端点均每 25 秒发送 `ping` 保活。
 
 ### 客户端认证
 

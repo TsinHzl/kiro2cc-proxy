@@ -172,6 +172,45 @@ fn find_real_thinking_start_tag(buffer: &str) -> Option<usize> {
     None
 }
 
+/// 从上游整段响应文本中分离 thinking 与可见内容（非流式路径专用）
+///
+/// Kiro 把推理内容内联在 `AssistantResponse.content` 的 `<thinking>...</thinking>`
+/// 里，与请求是否流式无关（`converter::generate_thinking_prefix` 只看 `req.thinking`）。
+/// 流式路径由 `process_content_with_thinking` 增量剥离；非流式路径此前直接把整段
+/// content 当可见文本，导致 `<thinking>` 原文作为 `text` 块发给客户端、并混入
+/// `output_tokens`。本函数复用同一组标签识别规则做一次性分离。
+///
+/// 返回 `(thinking, visible)`。未闭合的 `<thinking>` 视为其后全部属于 thinking。
+pub(crate) fn split_thinking_and_visible(content: &str) -> (String, String) {
+    let mut thinking = String::new();
+    let mut visible = String::new();
+    let mut rest = content;
+
+    while let Some(start) = find_real_thinking_start_tag(rest) {
+        visible.push_str(&rest[..start]);
+        let body = &rest[start + "<thinking>".len()..];
+
+        // 优先按 `</thinking>\n\n` 识别；末尾无 `\n\n` 时退化为"其后全空白"规则
+        match find_real_thinking_end_tag(body)
+            .or_else(|| find_real_thinking_end_tag_at_buffer_end(body))
+        {
+            Some(end_pos) => {
+                thinking.push_str(&body[..end_pos]);
+                let after = &body[end_pos + "</thinking>".len()..];
+                // 结束标签紧随的 `\n\n` 属于标签的一部分，不计入可见内容
+                rest = after.strip_prefix("\n\n").unwrap_or(after);
+            }
+            None => {
+                thinking.push_str(body);
+                return (thinking, visible);
+            }
+        }
+    }
+
+    visible.push_str(rest);
+    (thinking, visible)
+}
+
 /// SSE 事件
 #[derive(Debug, Clone)]
 pub struct SseEvent {
@@ -569,12 +608,6 @@ fn empty_response_oversized_threshold(model: &str) -> i32 {
 /// 导致客户端 agentic 循环卡住。output < 此阈值且无工具调用时，视为近似空响应。
 const NEAR_EMPTY_OUTPUT_THRESHOLD: i32 = 30;
 
-/// output_tokens 上报的最大值
-///
-/// 检测工具对 output_tokens 总和 > 800 扣 15 分，> 500 扣 8 分。
-/// 限制上报值在安全范围内。thinking 内容不应计入对外报告的 output_tokens。
-const OUTPUT_TOKENS_REPORT_CAP: i32 = 380;
-
 /// 返回给客户端的 token 类字段缩放系数。
 ///
 /// 仅影响给客户端（如 Claude Code）看到的 usage.input_tokens / cache_* 字段。
@@ -633,8 +666,14 @@ pub struct StreamContext {
     pub input_tokens: i32,
     /// 从 contextUsageEvent 计算的实际输入 tokens
     pub context_input_tokens: Option<i32>,
-    /// 输出 tokens 累计
-    pub output_tokens: i32,
+    /// 计费口径的输出字符累计（含 thinking），中文桶。见 `output_tokens()`
+    pub output_chars_cn: i64,
+    /// 计费口径的输出字符累计（含 thinking），非中文桶
+    pub output_chars_other: i64,
+    /// 上报口径的输出字符累计（不含 thinking），中文桶。见 `visible_output_tokens()`
+    pub visible_chars_cn: i64,
+    /// 上报口径的输出字符累计（不含 thinking），非中文桶
+    pub visible_chars_other: i64,
     /// 工具块索引映射 (tool_id -> block_index)
     pub tool_block_indices: HashMap<String, i32>,
     /// thinking 是否启用
@@ -692,7 +731,10 @@ impl StreamContext {
             message_id: format!("msg_{}", Uuid::new_v4().to_string().replace('-', "")),
             input_tokens,
             context_input_tokens: None,
-            output_tokens: 0,
+            output_chars_cn: 0,
+            output_chars_other: 0,
+            visible_chars_cn: 0,
+            visible_chars_other: 0,
             tool_block_indices: HashMap::new(),
             thinking_enabled,
             thinking_buffer: String::new(),
@@ -743,9 +785,43 @@ impl StreamContext {
         self
     }
 
+    /// 派生对客户端上报的 (non_cached_input, cache_creation, cache_read)。
+    ///
+    /// message_start 与末尾 message_delta 必须共用此逻辑：早前两者分别取
+    /// `prompt_cache_usage` 随机模拟值与前缀估算，导致 message_start 报出
+    /// cache_creation > 0 而 message_delta 报 0。客户端按字段取 max 记账，
+    /// 于是每个请求都凭空多出一笔 cache write（实测 2.6k / 会话）。
+    ///
+    /// 优先级：
+    ///   1. Kiro metering 透传 cache_read/creation（实测当前版本不透传，保留兜底；
+    ///      message_start 阶段 metering 事件尚未到达，天然落到 2）
+    ///   2. 前缀估算 prefix_estimated_tokens.min(input_tokens)  ← 主路径
+    ///   3. PromptCacheUsage 模拟值（仅当前缀未注入）
+    fn derive_report_cache_usage(&self, input_tokens: i32) -> (i32, i32, i32) {
+        if let (Some(read), Some(creation)) = (
+            self.metering_cache_read_tokens,
+            self.metering_cache_creation_tokens,
+        ) {
+            let non_cached = input_tokens.saturating_sub(read).saturating_sub(creation);
+            (non_cached, creation, read)
+        } else if let Some(prefix) = self.prefix_estimated_tokens {
+            let read = prefix.max(0).min(input_tokens);
+            (input_tokens.saturating_sub(read), 0, read)
+        } else {
+            let sim = self.prompt_cache_usage.scale_to(input_tokens);
+            (
+                sim.input_tokens,
+                sim.cache_creation_input_tokens,
+                sim.cache_read_input_tokens,
+            )
+        }
+    }
+
     /// 生成 message_start 事件
     pub fn create_message_start_event(&self) -> serde_json::Value {
-        let usage = self.prompt_cache_usage;
+        // 与末尾 message_delta 共用派生逻辑，避免 cache_* 口径不一致
+        let input = cap_input_tokens(self.input_tokens, self.input_tokens, &self.model);
+        let (non_cached, cache_creation, cache_read) = self.derive_report_cache_usage(input);
         json!({
             "type": "message_start",
             "message": {
@@ -757,10 +833,10 @@ impl StreamContext {
                 "stop_reason": null,
                 "stop_sequence": null,
                 "usage": {
-                    "input_tokens": scale_for_client(usage.input_tokens, &self.model),
+                    "input_tokens": scale_for_client(non_cached, &self.model),
                     "output_tokens": 1,
-                    "cache_creation_input_tokens": scale_for_client(usage.cache_creation_input_tokens, &self.model),
-                    "cache_read_input_tokens": scale_for_client(usage.cache_read_input_tokens, &self.model)
+                    "cache_creation_input_tokens": scale_for_client(cache_creation, &self.model),
+                    "cache_read_input_tokens": scale_for_client(cache_read, &self.model)
                 }
             }
         })
@@ -890,8 +966,10 @@ impl StreamContext {
             return Vec::new();
         }
 
-        // 估算 tokens
-        self.output_tokens += estimate_tokens(content);
+        // 累加字符数而非 token —— 取整统一留到 output_tokens() 收尾做一次
+        let (cn, other) = count_token_chars(content);
+        self.output_chars_cn += cn;
+        self.output_chars_other += other;
 
         // 如果启用了thinking，需要处理thinking块
         if self.thinking_enabled {
@@ -1105,6 +1183,10 @@ impl StreamContext {
                 }
             }),
         ) {
+            // 只统计真正发出的文本 —— 被状态机拒绝的 delta 客户端收不到，不应计入上报
+            let (cn, other) = count_token_chars(text);
+            self.visible_chars_cn += cn;
+            self.visible_chars_other += other;
             events.push(delta_event);
         }
 
@@ -1217,7 +1299,11 @@ impl StreamContext {
 
         // 发送参数增量 (ToolUseEvent.input 是 String 类型)
         if !tool_use.input.is_empty() {
-            self.output_tokens += (tool_use.input.len() as i32 + 3) / 4; // 估算 token
+            // tool input 是 JSON，整体归入非中文桶（与原 `(len+3)/4` 同口径，去掉逐次取整）
+            let tool_input_chars = tool_use.input.len() as i64;
+            // 计费口径与 text 分支一致（`process_assistant_response` 也是无条件累加）：
+            // 上游已生成这段内容即已计费，代理侧状态机是否转发不改变上游成本。
+            self.output_chars_other += tool_input_chars;
 
             if let Some(delta_event) = self.state_manager.handle_content_block_delta(
                 block_index,
@@ -1230,6 +1316,9 @@ impl StreamContext {
                     }
                 }),
             ) {
+                // 上报口径只统计真正发出的内容 —— 被状态机拒绝的 delta 客户端收不到
+                // （如同一 tool_use_id 在 stop 之后又收到迟到帧）。
+                self.visible_chars_other += tool_input_chars;
                 events.push(delta_event);
             }
         }
@@ -1291,6 +1380,27 @@ impl StreamContext {
         events
     }
 
+    /// 计费口径的输出 tokens（含 thinking）——用于入库、`effective_rate` 与近似空响应判定
+    ///
+    /// 由字符计数器一次性派生，而非逐 chunk 累加 token：`estimate_tokens` 对
+    /// 中文/非中文两个桶各做一次向上取整，每 chunk 调用一次会累积出系统性高估
+    /// （实测同一响应计费口径 8703、上报口径 8061，+7.96%，差值全部是取整噪音）。
+    pub fn output_tokens(&self) -> i32 {
+        tokens_from_chars(self.output_chars_cn, self.output_chars_other)
+    }
+
+    /// 对客户端上报的输出 tokens：只统计实际发出的 text_delta 与 tool_use 参数，
+    /// 不含 thinking。
+    ///
+    /// 早前对外上报 `output_tokens.min(380)`，注释理由是"检测工具对 output_tokens
+    /// 总和 > 800 扣 15 分，thinking 内容不应计入对外报告"。但固定上限把正常长回复
+    /// 一并砍掉（实测真实 10145 上报 380 —— 客户端 /cost 低估 26 倍，auto-compact
+    /// 判定少算最近一轮输出）。改为按来源精确排除 thinking：膨胀源头本就是 thinking
+    /// （`process_assistant_response` 在分离标签前就计入计费口径），排除后无需上限。
+    pub fn visible_output_tokens(&self) -> i32 {
+        tokens_from_chars(self.visible_chars_cn, self.visible_chars_other)
+    }
+
     /// 检测上游是否返回了无效的空/近似空响应。
     ///
     /// 两种判定路径：
@@ -1305,16 +1415,17 @@ impl StreamContext {
     pub fn is_empty_response(&self) -> bool {
         let no_tool_use = !self.state_manager.has_tool_use();
         let thinking_empty = self.thinking_buffer.trim().is_empty();
+        let output_tokens = self.output_tokens();
 
         // 路径 1：完全空
-        if self.output_tokens == 0 && no_tool_use && thinking_empty {
+        if output_tokens == 0 && no_tool_use && thinking_empty {
             return true;
         }
 
         // 路径 2：近似空 + 上下文过大
         // 当 output 极少且无工具调用时，若上下文已超过阈值，判定为退化的空响应
-        if self.output_tokens > 0
-            && self.output_tokens < NEAR_EMPTY_OUTPUT_THRESHOLD
+        if output_tokens > 0
+            && output_tokens < NEAR_EMPTY_OUTPUT_THRESHOLD
             && no_tool_use
             && thinking_empty
         {
@@ -1323,7 +1434,7 @@ impl StreamContext {
                 tracing::warn!(
                     "[near-empty] 检测到近似空响应: output_tokens={} input_tokens={} \
                      threshold={} — 视为上下文过大导致的退化响应",
-                    self.output_tokens,
+                    output_tokens,
                     est,
                     empty_response_oversized_threshold(&self.model),
                 );
@@ -1443,34 +1554,15 @@ impl StreamContext {
             final_input_tokens
         );
 
-        // 对外报告的 output_tokens 需要限制在合理范围
-        let reported_output_tokens = self.output_tokens.min(OUTPUT_TOKENS_REPORT_CAP);
+        // 对客户端上报「可见输出」token（已排除 thinking），不再套用固定上限
+        let reported_output_tokens = self.visible_output_tokens();
+        // 计费口径（含 thinking），派生一次复用
+        let billed_output_tokens = self.output_tokens();
 
-        // cache_read 派生优先级：
-        //   1. Kiro metering 透传 cache_read/creation（实测当前版本不透传，保留兜底）
-        //   2. 前缀估算 prefix_estimated_tokens.min(final_input_tokens)  ← 主路径
-        //   3. PromptCacheUsage 模拟值（仅当前缀=0，例如无 system/tools 的单条请求）
-        let sim_usage = self.prompt_cache_usage.scale_to(final_input_tokens);
-        let (report_input, report_cache_creation, report_cache_read) =
-            if let (Some(read), Some(creation)) = (
-                self.metering_cache_read_tokens,
-                self.metering_cache_creation_tokens,
-            ) {
-                let non_cached = final_input_tokens
-                    .saturating_sub(read)
-                    .saturating_sub(creation);
-                (non_cached, Some(creation), Some(read))
-            } else if let Some(prefix) = self.prefix_estimated_tokens {
-                let read = prefix.max(0).min(final_input_tokens);
-                let non_cached = final_input_tokens.saturating_sub(read);
-                (non_cached, Some(0_i32), Some(read))
-            } else {
-                (
-                    sim_usage.input_tokens,
-                    Some(sim_usage.cache_creation_input_tokens),
-                    Some(sim_usage.cache_read_input_tokens),
-                )
-            };
+        // 派生逻辑见 derive_report_cache_usage（与 message_start 共用同一口径）
+        let (report_input, cache_creation, cache_read) =
+            self.derive_report_cache_usage(final_input_tokens);
+        let (report_cache_creation, report_cache_read) = (Some(cache_creation), Some(cache_read));
 
         // 记录用量（内部记录使用真实值）
         if let (Some(tracker), Some(key_id)) = (&self.usage_tracker, self.api_key_id) {
@@ -1482,14 +1574,14 @@ impl StreamContext {
                 }
             });
             let effective_rate = self.metering_usage.map(|c| {
-                let denom = final_input_tokens as f64 + 5.0 * self.output_tokens as f64;
+                let denom = final_input_tokens as f64 + 5.0 * billed_output_tokens as f64;
                 if denom > 0.0 { c / denom * 1000.0 } else { 0.0 }
             });
             tracing::info!(
                 "[usage] 入库: model={} input={} output={} metering_credits={:?} credits_per_ktok={:?} effective_rate={:?} cache_read={:?} cache_creation={:?} api_key={} credential={:?}",
                 self.model,
                 final_input_tokens,
-                self.output_tokens,
+                billed_output_tokens,
                 self.metering_usage,
                 credits_per_ktok,
                 effective_rate,
@@ -1503,7 +1595,7 @@ impl StreamContext {
                 self.credential_id,
                 self.model.clone(),
                 final_input_tokens,
-                self.output_tokens,
+                billed_output_tokens,
                 self.client_ip.clone(),
                 self.metering_usage,
                 report_cache_read,
@@ -1530,7 +1622,11 @@ impl StreamContext {
     }
 }
 
-fn generate_fake_signature() -> String {
+/// 生成伪造的 thinking 签名（长度 >= 100 的 base64 形状字符串）
+///
+/// 上游不返回真实签名，流式与非流式路径共用这一份伪造实现，保证两端
+/// thinking 块结构一致。
+pub(crate) fn generate_fake_signature() -> String {
     const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let len = 160;
     let mut sig = String::with_capacity(len + 2);
@@ -1543,30 +1639,206 @@ fn generate_fake_signature() -> String {
     sig
 }
 
-/// 简单的 token 估算
-fn estimate_tokens(text: &str) -> i32 {
-    let chars: Vec<char> = text.chars().collect();
-    let mut chinese_count = 0;
-    let mut other_count = 0;
-
-    for c in &chars {
-        if *c >= '\u{4E00}' && *c <= '\u{9FFF}' {
-            chinese_count += 1;
+/// 按中文 / 非中文分桶统计字符数（不做取整）
+///
+/// 单独暴露分桶计数，是为了让跨多次调用的累加只在收尾做一次向上取整 ——
+/// 每 chunk 各自 ceil 会累积出系统性高估。
+fn count_token_chars(text: &str) -> (i64, i64) {
+    let mut chinese = 0i64;
+    let mut other = 0i64;
+    for c in text.chars() {
+        if ('\u{4E00}'..='\u{9FFF}').contains(&c) {
+            chinese += 1;
         } else {
-            other_count += 1;
+            other += 1;
         }
     }
+    (chinese, other)
+}
 
-    // 中文约 1.5 字符/token，英文约 4 字符/token
-    let chinese_tokens = (chinese_count * 2 + 2) / 3;
-    let other_tokens = (other_count + 3) / 4;
-
-    (chinese_tokens + other_tokens).max(1)
+/// 由分桶字符数派生 token 数：中文约 1.5 字符/token，英文约 4 字符/token
+///
+/// 两桶皆空时返回 0 —— `is_empty_response` 依赖"零输出"这一状态，
+/// 不能像单次估算那样兜底成 1。
+fn tokens_from_chars(chinese: i64, other: i64) -> i32 {
+    if chinese == 0 && other == 0 {
+        return 0;
+    }
+    (((chinese * 2 + 2) / 3 + (other + 3) / 4) as i32).max(1)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 测试辅助：单段文本的 token 估算 —— 生产路径已改为分桶累加 + 收尾取整，
+    /// 不再需要这个封装，只在断言里用来算「若单次估算会得到多少」。
+    fn est(text: &str) -> i32 {
+        let (cn, other) = count_token_chars(text);
+        tokens_from_chars(cn, other)
+    }
+
+    /// 非流式整段分离：thinking 与可见文本必须彻底分开，标签原文不得残留
+    #[test]
+    fn test_split_thinking_and_visible() {
+        let (t, v) = split_thinking_and_visible("<thinking>推理过程</thinking>\n\n可见回答");
+        assert_eq!(t, "推理过程");
+        assert_eq!(v, "可见回答");
+
+        // 无 thinking：原样落到可见内容
+        let (t, v) = split_thinking_and_visible("纯文本回答");
+        assert!(t.is_empty());
+        assert_eq!(v, "纯文本回答");
+
+        // 结束标签后无 `\n\n`（流末尾场景）
+        let (t, v) = split_thinking_and_visible("<thinking>abc</thinking>");
+        assert_eq!(t, "abc");
+        assert!(v.is_empty());
+
+        // 未闭合：其后全部归 thinking，可见内容只保留标签之前的部分
+        let (t, v) = split_thinking_and_visible("前置<thinking>没有闭合");
+        assert_eq!(t, "没有闭合");
+        assert_eq!(v, "前置");
+
+        // 被引用字符包裹的标签不算真标签
+        let (t, v) = split_thinking_and_visible("讨论 `<thinking>` 标签本身");
+        assert!(t.is_empty());
+        assert_eq!(v, "讨论 `<thinking>` 标签本身");
+    }
+
+    /// tool_use 的两个 token 口径分工：计费口径无条件累加（与 text 分支一致，
+    /// 上游已生成即已计费），上报口径只统计真正发出的 delta。
+    #[test]
+    fn test_tool_use_tokens_split_billing_and_reported() {
+        use crate::kiro::model::events::ToolUseEvent;
+
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-5", 100, false);
+        let ev = ToolUseEvent {
+            name: "Read".to_string(),
+            tool_use_id: "tu_1".to_string(),
+            input: r#"{"file_path":"/tmp/a.txt"}"#.to_string(),
+            stop: true,
+        };
+
+        let events = ctx.process_tool_use(&ev);
+        assert!(events.iter().any(|e| e.event == "content_block_delta"));
+        let expected = (ev.input.len() as i32 + 3) / 4;
+        assert_eq!(ctx.visible_output_tokens(), expected);
+        assert_eq!(ctx.output_tokens(), expected);
+
+        // 同一 tool_use_id 在 stop 之后再来一帧：delta 被状态机拒绝，
+        // 上报口径不增长，但计费口径照记（上游成本已产生）
+        let late = ctx.process_tool_use(&ev);
+        assert!(!late.iter().any(|e| e.event == "content_block_delta"));
+        assert_eq!(ctx.visible_output_tokens(), expected);
+        // 两帧的计费口径由累计字符数一次派生，不是 expected * 2 ——
+        // 差掉的 1 token 正是被消除的逐次取整噪音
+        let billed_two = tokens_from_chars(0, ev.input.len() as i64 * 2);
+        assert_eq!(ctx.output_tokens(), billed_two);
+        assert!(billed_two < expected * 2);
+    }
+
+    /// 本次修复的核心等价性：同一段文本无论被切成多少个 chunk 投喂，两个 token
+    /// 口径的派生结果都必须完全一致。旧实现每 chunk 各自向上取整（中文桶与非中文桶
+    /// 各一次），切得越碎高估越多 —— 实测同一响应计费口径 8703、上报口径 8061，
+    /// 差值 642 全部是取整噪音（该响应 thinking 块数为 0）。
+    #[test]
+    fn test_output_tokens_invariant_to_chunking() {
+        let full = "这是一段中英混合的输出 with some ASCII words，用来验证分块不变性。".repeat(20);
+
+        // 一次性投喂
+        let mut whole = StreamContext::new_with_thinking("claude-sonnet-5", 100, false);
+        let _ = whole.process_assistant_response(&full);
+
+        // 切成小 chunk 逐段投喂（按 char 边界切，避免截断多字节 UTF-8）
+        let mut chunked = StreamContext::new_with_thinking("claude-sonnet-5", 100, false);
+        let chars: Vec<char> = full.chars().collect();
+        for piece in chars.chunks(7) {
+            let s: String = piece.iter().collect();
+            let _ = chunked.process_assistant_response(&s);
+        }
+
+        assert_eq!(
+            chunked.output_tokens(),
+            whole.output_tokens(),
+            "分块 {} vs 整段 {} —— 计费口径必须与分块粒度无关",
+            chunked.output_tokens(),
+            whole.output_tokens()
+        );
+        // 上报口径同理（thinking 未启用，所有 delta 都实际发出）
+        assert_eq!(
+            chunked.visible_output_tokens(),
+            whole.visible_output_tokens()
+        );
+        // 防止未来把 repeat 改小导致本测试失去区分度
+        let chunk_count = chars.len().div_ceil(7);
+        assert!(
+            chunk_count > 50,
+            "chunk 数 {chunk_count} 太少，测不出取整噪音的量级"
+        );
+    }
+
+    /// 对客户端上报的 output_tokens 必须是「可见输出」——排除 thinking，且不再被
+    /// 固定上限截断（旧实现把真实 10145 上报成 380）。
+    #[test]
+    fn test_visible_output_tokens_excludes_thinking_and_is_uncapped() {
+        let mut ctx = StreamContext::new_with_thinking("gpt-5.6-luna", 1000, true);
+        let thinking = "y".repeat(4000); // ≈1000 token
+        let visible = "x".repeat(8000); // ≈2000 token，远超旧的 380 上限
+        // 结束标签必须写成 `</thinking>\n\n` —— find_real_thinking_end_tag 要求尾随空行
+        let _ = ctx
+            .process_assistant_response(&format!("<thinking>{thinking}</thinking>\n\n{visible}"));
+        let _ = ctx.generate_final_events(); // flush 掉 lookahead 缓冲
+
+        let visible_est = est(&visible);
+        let thinking_est = est(&thinking);
+        // 上报量 ≈ 可见文本；分段 delta 的向上取整允许微小上浮，但绝不含 thinking 的量级
+        assert!(
+            ctx.visible_output_tokens() >= visible_est,
+            "visible={} output={} visible_est={} thinking_est={} buf_len={}",
+            ctx.visible_output_tokens(),
+            ctx.output_tokens(),
+            visible_est,
+            thinking_est,
+            ctx.thinking_buffer.len()
+        );
+        assert!(ctx.visible_output_tokens() < visible_est + thinking_est);
+        // 旧的 380 固定上限已不再截断
+        assert!(ctx.visible_output_tokens() > 380);
+        // 计费口径仍含 thinking，未受本次改动影响
+        assert!(ctx.output_tokens() >= visible_est + thinking_est);
+    }
+
+    /// message_start 与 message_delta 的 cache_* 必须同口径 —— 防止 message_start
+    /// 泄漏 PromptCacheUsage 模拟值，被客户端记成凭空的 cache write。
+    #[test]
+    fn test_message_start_cache_usage_matches_final() {
+        let ctx = StreamContext::new_with_thinking("gpt-5.6-luna", 45409, false)
+            // 模拟值刻意给非零 creation，若被泄漏则断言失败
+            .with_prompt_cache_usage(PromptCacheUsage {
+                input_tokens: 5000,
+                cache_creation_input_tokens: 3906,
+                cache_read_input_tokens: 36503,
+                cache_creation_5m_input_tokens: 3906,
+                cache_creation_1h_input_tokens: 0,
+            })
+            .with_prefix_estimated_tokens(36348);
+
+        let start = ctx.create_message_start_event();
+        let start_usage = &start["message"]["usage"];
+        assert_eq!(start_usage["cache_creation_input_tokens"], 0);
+        assert_eq!(
+            start_usage["cache_read_input_tokens"],
+            scale_for_client(36348, "gpt-5.6-luna")
+        );
+        assert_eq!(
+            start_usage["input_tokens"],
+            scale_for_client(45409 - 36348, "gpt-5.6-luna")
+        );
+
+        // 末尾 message_delta 走同一派生逻辑，三元组必须一致
+        assert_eq!(ctx.derive_report_cache_usage(45409), (9061, 0, 36348));
+    }
 
     #[test]
     fn test_scale_for_client_basic() {
@@ -1806,9 +2078,11 @@ mod tests {
 
     #[test]
     fn test_estimate_tokens() {
-        assert!(estimate_tokens("Hello") > 0);
-        assert!(estimate_tokens("你好") > 0);
-        assert!(estimate_tokens("Hello 你好") > 0);
+        assert!(est("Hello") > 0);
+        assert!(est("你好") > 0);
+        assert!(est("Hello 你好") > 0);
+        // 两桶皆空返回 0 —— is_empty_response 依赖这个状态
+        assert_eq!(est(""), 0);
     }
 
     #[test]
@@ -2465,8 +2739,8 @@ mod tests {
         // 大上下文（>28万）+ 极短输出（< 30 tokens）+ 无工具调用 → 视为退化空响应
         let mut ctx = StreamContext::new_with_thinking("test-model", 300_000, false);
         let _ = ctx.generate_initial_events();
-        // 模拟极短输出（手动设置 output_tokens 为一个小值）
-        ctx.output_tokens = 10;
+        // 模拟极短输出（40 个非中文字符 = 10 token）
+        ctx.output_chars_other = 40;
         assert!(
             ctx.is_empty_response(),
             "大上下文+极短输出应判定为近似空响应"
@@ -2478,7 +2752,7 @@ mod tests {
         // 小上下文 + 极短输出 → 不应判定为空响应（可能是正常的短回复）
         let mut ctx = StreamContext::new_with_thinking("test-model", 50_000, false);
         let _ = ctx.generate_initial_events();
-        ctx.output_tokens = 10;
+        ctx.output_chars_other = 40;
         assert!(
             !ctx.is_empty_response(),
             "小上下文+极短输出不应判定为空响应"
@@ -2490,7 +2764,7 @@ mod tests {
         // 大上下文 + 极短输出 + 有工具调用 → 不应判定为空响应（工具调用是有效响应）
         let mut ctx = StreamContext::new_with_thinking("test-model", 300_000, false);
         let _ = ctx.generate_initial_events();
-        ctx.output_tokens = 10;
+        ctx.output_chars_other = 40;
         ctx.state_manager.set_has_tool_use(true);
         assert!(!ctx.is_empty_response(), "有工具调用时不应判定为空响应");
     }

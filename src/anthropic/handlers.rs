@@ -1189,6 +1189,46 @@ fn create_sse_stream(
     initial_stream.chain(processing_stream)
 }
 
+/// 组装非流式响应的 content 数组
+///
+/// 块顺序与流式路径一致：thinking → text → tool_use。
+///
+/// 返回 `(content, thinking_only)`。`thinking_only` 为 true 表示整段响应只有
+/// thinking、既无可见文本也无工具调用 —— 此时补一个占位空格 text 块，避免客户端
+/// 把 content 判定为空响应而卡住（流式路径在 `generate_final_events` 里有等价
+/// 兜底）。调用方需据此把 `stop_reason` 调整为 `max_tokens`。
+fn build_non_stream_content(
+    thinking_content: &str,
+    text_content: &str,
+    tool_uses: Vec<serde_json::Value>,
+) -> (Vec<serde_json::Value>, bool) {
+    let thinking_only =
+        !thinking_content.is_empty() && text_content.is_empty() && tool_uses.is_empty();
+
+    let mut content: Vec<serde_json::Value> = Vec::new();
+
+    // thinking 块必须排在可见内容之前。上游不返回真实签名，沿用流式路径同一份
+    // 伪造实现，保证两端 thinking 块结构一致。
+    if !thinking_content.is_empty() {
+        content.push(json!({
+            "type": "thinking",
+            "thinking": thinking_content,
+            "signature": super::stream::generate_fake_signature()
+        }));
+    }
+
+    let visible = if thinking_only { " " } else { text_content };
+    if !visible.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": visible
+        }));
+    }
+
+    content.extend(tool_uses);
+    (content, thinking_only)
+}
+
 /// 处理非流式请求
 #[allow(clippy::too_many_arguments)]
 async fn handle_non_stream_request(
@@ -1334,22 +1374,27 @@ async fn handle_non_stream_request(
         stop_reason = "tool_use".to_string();
     }
 
+    // 上游把推理内容内联在 AssistantResponse.content 的 <thinking> 标签里（与是否
+    // 流式无关）。流式路径由 process_content_with_thinking 剥离；非流式此前直接把
+    // 整段当可见文本，导致标签原文发给客户端、混入 output_tokens，并让
+    // strip_json_fences 无法产出可解析的结构化输出。
+    let (thinking_content, visible_text) = super::stream::split_thinking_and_visible(&text_content);
+    text_content = visible_text;
+
     // JSON schema 结构化输出：去除模型可能添加的 Markdown 代码围栏
     if json_schema_requested && !text_content.is_empty() {
         text_content = strip_json_fences(text_content);
     }
 
     // 构建响应内容
-    let mut content: Vec<serde_json::Value> = Vec::new();
+    let (content, thinking_only) =
+        build_non_stream_content(&thinking_content, &text_content, tool_uses);
 
-    if !text_content.is_empty() {
-        content.push(json!({
-            "type": "text",
-            "text": text_content
-        }));
+    // 退化响应（只有 thinking）与流式路径对齐报 max_tokens；但绝不覆盖 tool_use ——
+    // 那会让客户端只渲染工具块而不执行（见上方 [TOOLUSE-DIAG] 注释）。
+    if thinking_only && !has_tool_use {
+        stop_reason = "max_tokens".to_string();
     }
-
-    content.extend(tool_uses);
 
     // 估算输出 tokens
     let output_tokens = token::estimate_output_tokens(&content);
@@ -1371,9 +1416,6 @@ async fn handle_non_stream_request(
         input_tokens,
         final_input_tokens
     );
-
-    // 对外报告的 output_tokens 限制在安全范围
-    let reported_output_tokens = output_tokens.min(380);
 
     // 四层降级链：metering 真值 → prefix 估算 → 指纹追踪 → 比例模拟
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
@@ -1446,10 +1488,13 @@ async fn handle_non_stream_request(
         "model": model,
         "stop_reason": stop_reason,
         "stop_sequence": null,
-        // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值
+        // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值。
+        // content 构建前已分离 thinking，且 estimate_output_tokens 只累加 text 与
+        // tool_use.input（thinking 块的字段名是 "thinking"，不参与统计），
+        // 因此 output_tokens 就是可见输出，直接上报真值，不再套 min(380) 上限。
         "usage": {
             "input_tokens": super::stream::scale_for_client(report_input, model),
-            "output_tokens": reported_output_tokens,
+            "output_tokens": output_tokens,
             "cache_creation_input_tokens": super::stream::scale_for_client(report_cache_creation, model),
             "cache_read_input_tokens": super::stream::scale_for_client(report_cache_read, model),
             "cache_creation": {
@@ -2154,5 +2199,41 @@ mod tests {
         let past = Instant::now() - Duration::from_secs(1);
         let r = tokio::time::timeout(Duration::from_millis(50), wait_deadline(Some(past))).await;
         assert!(r.is_ok(), "deadline 已过期时 wait_deadline 应立即就绪");
+    }
+
+    /// 非流式 content 组装：块顺序 thinking → text → tool_use；
+    /// 只有 thinking 的退化响应补占位空格并回报 thinking_only。
+    #[test]
+    fn test_build_non_stream_content() {
+        // thinking + text：thinking 块在前，可见文本原样保留
+        let (content, thinking_only) = build_non_stream_content("推理过程", "最终回答", Vec::new());
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[0]["thinking"], "推理过程");
+        assert!(content[0]["signature"].as_str().unwrap().len() >= 100);
+        assert_eq!(content[1]["type"], "text");
+        assert_eq!(content[1]["text"], "最终回答");
+
+        // 只有 thinking：补一个占位空格 text 块，避免客户端判定空响应
+        let (content, thinking_only) = build_non_stream_content("只有推理", "", Vec::new());
+        assert!(thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[1]["text"], " ");
+
+        // 无 thinking：只有一个 text 块
+        let (content, thinking_only) = build_non_stream_content("", "普通回答", Vec::new());
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 1);
+        assert_eq!(content[0]["type"], "text");
+
+        // thinking + tool_use（无可见文本）：不是退化响应，不补占位空格
+        let tool = json!({"type": "tool_use", "id": "tu_1", "name": "Read", "input": {}});
+        let (content, thinking_only) = build_non_stream_content("推理", "", vec![tool]);
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[1]["type"], "tool_use");
     }
 }

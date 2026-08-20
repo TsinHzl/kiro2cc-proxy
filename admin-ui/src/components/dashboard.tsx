@@ -918,13 +918,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
           >
             {/* 方案 4（Aurora Prism）图标自带圆角底座与极光边框，故不再套品牌渐变方块；
                 随主题切换 dark / light 两版，与设计稿 preview.html 的实机模拟一致 */}
+            {/* 必须走 BASE_URL 拼接：vite 的 base('/admin/') 只重写 index.html 的
+                href/src，不改 TS 源码字符串，写死 "/logo-*.svg" 会打到根路径 404 */}
             <img
-              src="/logo-aurora-dark.svg"
+              src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
               alt="Kiro2CCProxy"
               className="hidden h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:block"
             />
             <img
-              src="/logo-aurora-light.svg"
+              src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
               alt="Kiro2CCProxy"
               className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
             />

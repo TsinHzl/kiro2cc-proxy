@@ -916,15 +916,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
             rel="noopener noreferrer"
             className={`flex items-center group min-w-0 ${sidebarCollapsed ? '' : 'gap-2.5'}`}
           >
-            <span
-              className="grid h-[30px] w-[30px] place-items-center rounded-[9px] shrink-0 shadow-hair text-brand-fg"
-              style={{ backgroundImage: 'linear-gradient(150deg, var(--brand), var(--brand-deep))' }}
-            >
-              <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" aria-hidden="true">
-                <path d="M5 20V7a7 7 0 0 1 14 0v13l-2.3-2-2.4 2-2.3-2-2.3 2-2.4-2z" />
-                <path d="M9.5 10h.01M14.5 10h.01" />
-              </svg>
-            </span>
+            {/* 方案 4（Aurora Prism）图标自带圆角底座与极光边框，故不再套品牌渐变方块；
+                随主题切换 dark / light 两版，与设计稿 preview.html 的实机模拟一致 */}
+            {/* 必须走 BASE_URL 拼接：vite 的 base('/admin/') 只重写 index.html 的
+                href/src，不改 TS 源码字符串，写死 "/logo-*.svg" 会打到根路径 404 */}
+            <img
+              src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
+              alt="Kiro2CCProxy"
+              className="hidden h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:block"
+            />
+            <img
+              src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
+              alt="Kiro2CCProxy"
+              className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
+            />
             {!sidebarCollapsed && (
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors">Kiro2CCProxy</div>

@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
 use super::middleware::{ApiKeyContext, AppState};
-use super::stream::{BufferedStreamContext, SseEvent, StreamContext};
+use super::stream::{CLIENT_ASSUMED_CONTEXT_WINDOW, SseEvent, StreamContext, scale_for_client};
 use super::types::{
     CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse,
     OutputConfig, Thinking,
@@ -75,6 +75,20 @@ pub async fn ping(
     }))
 }
 
+/// 超窗错误文案（对齐 Anthropic 官方 `prompt is too long: N tokens > M maximum`）。
+///
+/// N 取客户端展示口径（`scale_for_client`）、M 取 `CLIENT_ASSUMED_CONTEXT_WINDOW`，
+/// 与同一会话中 usage 字段口径一致。N 兜底为 M+1：上游报超窗但本地估算异常偏小
+/// （远程 count_tokens 返回 0 等）时，照实填会产出 `0 tokens > 200000 maximum`
+/// 这种 N ≤ M 的自相矛盾文案 —— 正是本函数要消除的形态。
+fn format_prompt_too_long(estimated_input_tokens: i32, model: &str) -> String {
+    let n = scale_for_client(estimated_input_tokens, model).max(CLIENT_ASSUMED_CONTEXT_WINDOW + 1);
+    format!(
+        "prompt is too long: {} tokens > {} maximum",
+        n, CLIENT_ASSUMED_CONTEXT_WINDOW
+    )
+}
+
 fn map_provider_error_with_context(
     err: Error,
     model: &str,
@@ -90,11 +104,16 @@ fn map_provider_error_with_context(
             estimated_input_tokens = estimated_input_tokens,
             "上游拒绝请求：上下文窗口已满（不应重试）— 请检查是否真正达到 1M 上下文限制"
         );
+        // 文案对齐 Anthropic 官方超窗格式 `prompt is too long: N tokens > M maximum`。
+        // 原自造文案不匹配任何客户端识别模式，Claude Code 收到后只会硬报错中断（#25）；
+        // 官方格式才有机会被识别为「压缩后重试」。两个数字统一用客户端展示口径
+        // （N 经 scale_for_client 缩放、M 取客户端假设的 200K 窗口），与同一会话中
+        // usage 字段的口径一致，客户端自算 Ctx% 不会与这段文案矛盾。
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse::new(
                 "invalid_request_error",
-                "Context window is full. Reduce conversation history, system prompt, or tools.",
+                format_prompt_too_long(estimated_input_tokens, model),
             )),
         )
             .into_response();
@@ -887,6 +906,7 @@ pub async fn post_messages(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            None, // /v1 无全局 deadline（保持现有行为）
         )
         .await
     } else {
@@ -924,6 +944,8 @@ async fn handle_stream_request(
     prompt_cache_usage: crate::cache::PromptCacheUsage,
     bound_ids: Vec<u64>,
     client_ip: Option<String>,
+    // 上游流的全局超时；None 表示不限时（/v1 的现有行为）
+    stream_deadline: Option<Duration>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
@@ -941,7 +963,12 @@ async fn handle_stream_request(
     let initial_events = ctx.generate_initial_events();
 
     // 创建 SSE 流
-    let stream = create_sse_stream(response, ctx, initial_events);
+    let stream = create_sse_stream(
+        response,
+        ctx,
+        initial_events,
+        stream_deadline.map(|d| Instant::now() + d),
+    );
 
     // 返回 SSE 响应
     Response::builder()
@@ -955,6 +982,18 @@ async fn handle_stream_request(
 
 /// Ping 事件间隔（25秒）
 const PING_INTERVAL_SECS: u64 = 25;
+
+/// 等待全局 deadline；`None` 时永不就绪，使调用方的 `select!` 分支等价于不存在
+///
+/// 不用 `select!` 的 `if` precondition：分支的 future 表达式必须无论 precondition
+/// 真假都能构造，而 `sleep_until` 需要已解包的 `Instant`，那样得凭空造一个
+/// 「很远的未来」哨兵值。
+async fn wait_deadline(deadline: Option<Instant>) {
+    match deadline {
+        Some(d) => tokio::time::sleep_until(d).await,
+        None => std::future::pending::<()>().await,
+    }
+}
 
 /// 创建 ping 事件的 SSE 字符串
 fn create_ping_sse() -> Bytes {
@@ -1013,6 +1052,7 @@ fn create_sse_stream(
     response: reqwest::Response,
     ctx: StreamContext,
     initial_events: Vec<SseEvent>,
+    deadline: Option<Instant>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     // 先发送初始事件
     let initial_stream = stream::iter(
@@ -1025,13 +1065,18 @@ fn create_sse_stream(
     let body_stream = response.bytes_stream();
 
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS))),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
+        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline),
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
             if finished {
                 return None;
             }
 
-            // 使用 select! 同时等待数据和 ping 定时器
+            // 使用 select! 同时等待数据、ping 定时器与全局 deadline
+            // 有意不加 biased：不加时 select! 对同时就绪的分支做随机选择，任一分支被
+            // 连续跳过的概率指数衰减，ping 与 deadline 都不会被密集 chunk 饿死。
+            // （已删除的 create_buffered_sse_stream 需要 biased，是因为它在单次 poll
+            //  内用显式 loop 反复 select 且 chunk 分支不返回 —— 那才是确定性饿死源。）
+            // 加 biased 会改变 /v1 现有的分支优先级。
             tokio::select! {
                 // 处理数据流
                 chunk_result = body_stream.next() => {
@@ -1063,7 +1108,7 @@ fn create_sse_stream(
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
 
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
@@ -1090,7 +1135,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                         }
                         None => {
                             let mut out_events = Vec::new();
@@ -1113,7 +1158,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                         }
                     }
                 }
@@ -1121,7 +1166,20 @@ fn create_sse_stream(
                 _ = ping_interval.tick() => {
                     tracing::trace!("发送 ping 保活事件");
                     let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
+                }
+                // 全局 deadline：防止上游挂起导致请求永不结束（deadline 为 None 时永不就绪）
+                _ = wait_deadline(deadline) => {
+                    tracing::error!("流式转发全局超时，强制终止");
+                    let err_event = SseEvent::new("error", serde_json::json!({
+                        "type": "error",
+                        "error": {
+                            "type": "overloaded_error",
+                            "message": "Upstream response timed out (streaming mode deadline)"
+                        }
+                    }));
+                    let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
                 }
             }
         },
@@ -1129,6 +1187,46 @@ fn create_sse_stream(
     .flatten();
 
     initial_stream.chain(processing_stream)
+}
+
+/// 组装非流式响应的 content 数组
+///
+/// 块顺序与流式路径一致：thinking → text → tool_use。
+///
+/// 返回 `(content, thinking_only)`。`thinking_only` 为 true 表示整段响应只有
+/// thinking、既无可见文本也无工具调用 —— 此时补一个占位空格 text 块，避免客户端
+/// 把 content 判定为空响应而卡住（流式路径在 `generate_final_events` 里有等价
+/// 兜底）。调用方需据此把 `stop_reason` 调整为 `max_tokens`。
+fn build_non_stream_content(
+    thinking_content: &str,
+    text_content: &str,
+    tool_uses: Vec<serde_json::Value>,
+) -> (Vec<serde_json::Value>, bool) {
+    let thinking_only =
+        !thinking_content.is_empty() && text_content.is_empty() && tool_uses.is_empty();
+
+    let mut content: Vec<serde_json::Value> = Vec::new();
+
+    // thinking 块必须排在可见内容之前。上游不返回真实签名，沿用流式路径同一份
+    // 伪造实现，保证两端 thinking 块结构一致。
+    if !thinking_content.is_empty() {
+        content.push(json!({
+            "type": "thinking",
+            "thinking": thinking_content,
+            "signature": super::stream::generate_fake_signature()
+        }));
+    }
+
+    let visible = if thinking_only { " " } else { text_content };
+    if !visible.is_empty() {
+        content.push(json!({
+            "type": "text",
+            "text": visible
+        }));
+    }
+
+    content.extend(tool_uses);
+    (content, thinking_only)
 }
 
 /// 处理非流式请求
@@ -1276,22 +1374,27 @@ async fn handle_non_stream_request(
         stop_reason = "tool_use".to_string();
     }
 
+    // 上游把推理内容内联在 AssistantResponse.content 的 <thinking> 标签里（与是否
+    // 流式无关）。流式路径由 process_content_with_thinking 剥离；非流式此前直接把
+    // 整段当可见文本，导致标签原文发给客户端、混入 output_tokens，并让
+    // strip_json_fences 无法产出可解析的结构化输出。
+    let (thinking_content, visible_text) = super::stream::split_thinking_and_visible(&text_content);
+    text_content = visible_text;
+
     // JSON schema 结构化输出：去除模型可能添加的 Markdown 代码围栏
     if json_schema_requested && !text_content.is_empty() {
         text_content = strip_json_fences(text_content);
     }
 
     // 构建响应内容
-    let mut content: Vec<serde_json::Value> = Vec::new();
+    let (content, thinking_only) =
+        build_non_stream_content(&thinking_content, &text_content, tool_uses);
 
-    if !text_content.is_empty() {
-        content.push(json!({
-            "type": "text",
-            "text": text_content
-        }));
+    // 退化响应（只有 thinking）与流式路径对齐报 max_tokens；但绝不覆盖 tool_use ——
+    // 那会让客户端只渲染工具块而不执行（见上方 [TOOLUSE-DIAG] 注释）。
+    if thinking_only && !has_tool_use {
+        stop_reason = "max_tokens".to_string();
     }
-
-    content.extend(tool_uses);
 
     // 估算输出 tokens
     let output_tokens = token::estimate_output_tokens(&content);
@@ -1313,9 +1416,6 @@ async fn handle_non_stream_request(
         input_tokens,
         final_input_tokens
     );
-
-    // 对外报告的 output_tokens 限制在安全范围
-    let reported_output_tokens = output_tokens.min(380);
 
     // 四层降级链：metering 真值 → prefix 估算 → 指纹追踪 → 比例模拟
     let sim_usage = prompt_cache_usage.scale_to(final_input_tokens);
@@ -1388,10 +1488,13 @@ async fn handle_non_stream_request(
         "model": model,
         "stop_reason": stop_reason,
         "stop_sequence": null,
-        // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值
+        // 客户端展示缩放（output_tokens 不缩放）；tracker 已写入真实值。
+        // content 构建前已分离 thinking，且 estimate_output_tokens 只累加 text 与
+        // tool_use.input（thinking 块的字段名是 "thinking"，不参与统计），
+        // 因此 output_tokens 就是可见输出，直接上报真值，不再套 min(380) 上限。
         "usage": {
             "input_tokens": super::stream::scale_for_client(report_input, model),
-            "output_tokens": reported_output_tokens,
+            "output_tokens": output_tokens,
             "cache_creation_input_tokens": super::stream::scale_for_client(report_cache_creation, model),
             "cache_read_input_tokens": super::stream::scale_for_client(report_cache_read, model),
             "cache_creation": {
@@ -1530,8 +1633,10 @@ pub async fn count_tokens(
 /// POST /cc/v1/messages
 ///
 /// Claude Code 兼容端点，与 /v1/messages 的区别在于：
-/// - 流式响应会等待 kiro 端返回 contextUsageEvent 后再发送 message_start
-/// - message_start 中的 input_tokens 是从 contextUsageEvent 计算的准确值
+/// - 流式响应带 300s 全局 deadline，防止上游挂起导致请求永不结束（/v1 无此限制）
+///
+/// 其余行为与 /v1/messages 完全一致：同为实时转发，`message_start` 先给估算
+/// `input_tokens`，末尾 `message_delta` 给出终值。
 pub async fn post_messages_cc(
     State(state): State<AppState>,
     identity: Option<Extension<ApiKeyContext>>,
@@ -1698,8 +1803,9 @@ pub async fn post_messages_cc(
         .unwrap_or(false);
 
     if payload.stream {
-        // 流式响应（缓冲模式）
-        handle_stream_request_buffered(
+        // 流式响应：与 /v1 相同的实时转发，额外带 300s 全局 deadline
+        // （上游挂起保护，沿用此端点历史上一直具备的 5min 上限）
+        handle_stream_request(
             provider,
             &request_body,
             &payload.model,
@@ -1711,6 +1817,7 @@ pub async fn post_messages_cc(
             prompt_cache_usage,
             bound_ids,
             client_ip,
+            Some(Duration::from_secs(300)),
         )
         .await
     } else {
@@ -1732,187 +1839,6 @@ pub async fn post_messages_cc(
         )
         .await
     }
-}
-
-/// 处理流式请求（缓冲版本）
-///
-/// 与 `handle_stream_request` 不同，此函数会缓冲所有事件直到流结束，
-/// 然后用从 contextUsageEvent 计算的正确 input_tokens 生成 message_start 事件。
-#[allow(clippy::too_many_arguments)]
-async fn handle_stream_request_buffered(
-    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
-    request_body: &str,
-    model: &str,
-    estimated_input_tokens: i32,
-    prefix_estimated_tokens: i32,
-    thinking_enabled: bool,
-    usage_tracker: Option<std::sync::Arc<crate::model::usage::UsageTracker>>,
-    api_key_id: Option<u32>,
-    prompt_cache_usage: crate::cache::PromptCacheUsage,
-    bound_ids: Vec<u64>,
-    client_ip: Option<String>,
-) -> Response {
-    // 调用 Kiro API（支持多账号故障转移）
-    let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
-        Ok(resp) => resp,
-        Err(e) => return map_provider_error_with_context(e, model, estimated_input_tokens),
-    };
-
-    // 创建缓冲流处理上下文
-    let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled)
-        .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
-        .with_prompt_cache_usage(prompt_cache_usage)
-        .with_prefix_estimated_tokens(prefix_estimated_tokens);
-
-    // 创建缓冲 SSE 流
-    let stream = create_buffered_sse_stream(response, ctx);
-
-    // 返回 SSE 响应
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/event-stream")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .header(header::CONNECTION, "keep-alive")
-        .body(Body::from_stream(stream))
-        .unwrap()
-}
-
-/// 创建缓冲 SSE 事件流
-///
-/// 工作流程：
-/// 1. 等待上游流完成，期间只发送 ping 保活信号
-/// 2. 使用 StreamContext 的事件处理逻辑处理所有 Kiro 事件，结果缓存
-/// 3. 流结束后，用正确的 input_tokens 更正 message_start 事件
-/// 4. 一次性发送所有事件
-fn create_buffered_sse_stream(
-    response: reqwest::Response,
-    ctx: BufferedStreamContext,
-) -> impl Stream<Item = Result<Bytes, Infallible>> {
-    let body_stream = response.bytes_stream();
-    let deadline = Instant::now() + Duration::from_secs(300);
-
-    stream::unfold(
-        (
-            body_stream,
-            ctx,
-            EventStreamDecoder::new(),
-            false,
-            interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)),
-            deadline,
-        ),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
-            if finished {
-                return None;
-            }
-
-            loop {
-                tokio::select! {
-                    // 使用 biased 模式，优先检查 ping 定时器
-                    // 避免在上游 chunk 密集时 ping 被"饿死"
-                    biased;
-
-                    // 全局 deadline：防止上游挂起导致请求永不结束
-                    _ = tokio::time::sleep_until(deadline) => {
-                        tracing::error!("缓冲模式全局超时（5分钟），强制终止");
-                        let err_event = SseEvent::new("error", serde_json::json!({
-                            "type": "error",
-                            "error": {
-                                "type": "overloaded_error",
-                                "message": "Upstream response timed out (buffered mode, 5min deadline)"
-                            }
-                        }));
-                        let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                    }
-
-                    // 优先检查 ping 保活（等待期间唯一发送的数据）
-                    _ = ping_interval.tick() => {
-                        tracing::trace!("发送 ping 保活事件（缓冲模式）");
-                        let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)));
-                    }
-
-                    // 然后处理数据流
-                    chunk_result = body_stream.next() => {
-                        match chunk_result {
-                            Some(Ok(chunk)) => {
-                                // 解码事件
-                                if let Err(e) = decoder.feed(&chunk) {
-                                    tracing::warn!("缓冲区溢出: {}", e);
-                                }
-
-                                for result in decoder.decode_iter() {
-                                    match result {
-                                        Ok(frame) => {
-                                            if let Ok(event) = Event::from_frame(frame) {
-                                                // 缓冲事件（复用 StreamContext 的处理逻辑）
-                                                ctx.process_and_buffer(&event);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!("解码事件失败: {}", e);
-                                        }
-                                    }
-                                }
-                                // 继续读取下一个 chunk，不发送任何数据
-                            }
-                            Some(Err(e)) => {
-                                tracing::error!("读取响应流失败: {}", e);
-                                let all_events = if ctx.is_empty_response() {
-                                    let oversized = ctx.empty_response_is_oversized_context();
-                                    tracing::warn!(
-                                        oversized_context = oversized,
-                                        "流解码错误且无内容（buffered 路径），补发 error 事件"
-                                    );
-                                    if oversized {
-                                        ctx.finish_and_get_all_events()
-                                    } else {
-                                        vec![empty_response_error_event(false)]
-                                    }
-                                } else {
-                                    // buffered 端点是 all-or-nothing 契约：此前缓冲的 message_start/
-                                    // thinking/text/tool_use 从未发给客户端，中断时随本次 error 事件一并
-                                    // 丢弃即可，无需（也无法）像 streaming 路径那样只替换收尾帧。
-                                    tracing::warn!(
-                                        est_input_tokens = ctx.input_tokens(),
-                                        "流读取错误但已产生部分内容（buffered 路径），补发 error 事件防止伪装成正常完成"
-                                    );
-                                    vec![stream_interrupted_error_event()]
-                                };
-                                let bytes: Vec<Result<Bytes, Infallible>> = all_events
-                                    .into_iter()
-                                    .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                    .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                            }
-                            None => {
-                                if ctx.is_empty_response() {
-                                    let oversized = ctx.empty_response_is_oversized_context();
-                                    tracing::warn!(
-                                        oversized_context = oversized,
-                                        "上游返回空响应（buffered 路径，无任何内容事件），补发 error 事件"
-                                    );
-                                    if !oversized {
-                                        let err_event = empty_response_error_event(false);
-                                        let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                                    }
-                                }
-                                // 流结束，完成处理并返回所有事件（已更正 input_tokens）
-                                let all_events = ctx.finish_and_get_all_events();
-                                let bytes: Vec<Result<Bytes, Infallible>> = all_events
-                                    .into_iter()
-                                    .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                    .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)));
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    )
-    .flatten()
 }
 
 #[cfg(test)]
@@ -2211,5 +2137,103 @@ mod tests {
             "502 响应体不应回显内部账号池细节: {}",
             text
         );
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_context_length_uses_official_too_long_format() {
+        // #25 回归：自造文案不被客户端识别为超窗，只会硬报错中断。必须对齐
+        // Anthropic 官方 `prompt is too long: N tokens > M maximum`，且 N > M 才成立。
+        let err = anyhow::anyhow!(
+            r#"流式 API 请求失败: 400 Bad Request {{"message":"Input content length exceeds threshold.","reason":"CONTENT_LENGTH_EXCEEDS_THRESHOLD"}}"#
+        );
+        let resp = map_provider_error_with_context(err, "claude-opus-5", 754_234);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 期望值动态取自缩放函数：系数是校准量，改它不应弄红这条错误映射测试
+        let n = scale_for_client(754_234, "claude-opus-5");
+        assert!(
+            n > CLIENT_ASSUMED_CONTEXT_WINDOW,
+            "N({}) 必须大于 M({}) 才构成超窗语义",
+            n,
+            CLIENT_ASSUMED_CONTEXT_WINDOW
+        );
+        let text = response_body_text(resp).await;
+        assert!(
+            text.contains(&format_prompt_too_long(754_234, "claude-opus-5")),
+            "超窗文案未对齐官方格式: {}",
+            text
+        );
+    }
+
+    #[tokio::test]
+    async fn test_map_provider_error_context_length_never_emits_n_le_m() {
+        // 上游报超窗但本地估算异常偏小（远程 count_tokens 返回 0）时，照实填会产出
+        // `0 tokens > 200000 maximum` —— N ≤ M 自相矛盾，正是本次修复要消除的形态。
+        let err = anyhow::anyhow!("CONTENT_LENGTH_EXCEEDS_THRESHOLD");
+        let resp = map_provider_error_with_context(err, "claude-opus-5", 0);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let text = response_body_text(resp).await;
+        // 期望值不复用被测函数，避免同义反复
+        assert!(
+            text.contains(&format!(
+                "prompt is too long: {} tokens > {} maximum",
+                CLIENT_ASSUMED_CONTEXT_WINDOW + 1,
+                CLIENT_ASSUMED_CONTEXT_WINDOW
+            )),
+            "N 未兜底到 M+1: {}",
+            text
+        );
+    }
+
+    // deadline 为 None 时 wait_deadline 必须永不就绪 —— 这是 /v1 行为零变化的前提：
+    // create_sse_stream 的 select! 里该分支等价于不存在。
+    #[tokio::test]
+    async fn test_wait_deadline_none_never_resolves() {
+        let r = tokio::time::timeout(Duration::from_millis(50), wait_deadline(None)).await;
+        assert!(r.is_err(), "deadline 为 None 时 wait_deadline 不应就绪");
+    }
+
+    // deadline 已过期时立即就绪，保证撞线后 select! 当轮即可选中该分支。
+    #[tokio::test]
+    async fn test_wait_deadline_past_instant_resolves_immediately() {
+        let past = Instant::now() - Duration::from_secs(1);
+        let r = tokio::time::timeout(Duration::from_millis(50), wait_deadline(Some(past))).await;
+        assert!(r.is_ok(), "deadline 已过期时 wait_deadline 应立即就绪");
+    }
+
+    /// 非流式 content 组装：块顺序 thinking → text → tool_use；
+    /// 只有 thinking 的退化响应补占位空格并回报 thinking_only。
+    #[test]
+    fn test_build_non_stream_content() {
+        // thinking + text：thinking 块在前，可见文本原样保留
+        let (content, thinking_only) = build_non_stream_content("推理过程", "最终回答", Vec::new());
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[0]["thinking"], "推理过程");
+        assert!(content[0]["signature"].as_str().unwrap().len() >= 100);
+        assert_eq!(content[1]["type"], "text");
+        assert_eq!(content[1]["text"], "最终回答");
+
+        // 只有 thinking：补一个占位空格 text 块，避免客户端判定空响应
+        let (content, thinking_only) = build_non_stream_content("只有推理", "", Vec::new());
+        assert!(thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[1]["text"], " ");
+
+        // 无 thinking：只有一个 text 块
+        let (content, thinking_only) = build_non_stream_content("", "普通回答", Vec::new());
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 1);
+        assert_eq!(content[0]["type"], "text");
+
+        // thinking + tool_use（无可见文本）：不是退化响应，不补占位空格
+        let tool = json!({"type": "tool_use", "id": "tu_1", "name": "Read", "input": {}});
+        let (content, thinking_only) = build_non_stream_content("推理", "", vec![tool]);
+        assert!(!thinking_only);
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["type"], "thinking");
+        assert_eq!(content[1]["type"], "tool_use");
     }
 }

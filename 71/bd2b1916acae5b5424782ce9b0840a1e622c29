@@ -1,0 +1,27 @@
+admin-ui/src/components/dashboard.tsx
+  df08713a7fca15b1 921-922,924,929
+admin-ui/index.html
+  df08713a7fca15b1 5-7
+user-ui/index.html
+  df08713a7fca15b1 5-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "71bd2b1916acae5b5424782ce9b0840a1e622c29",
+  "prompts": {
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 6,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

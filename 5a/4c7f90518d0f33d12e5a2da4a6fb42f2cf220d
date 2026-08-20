@@ -1,0 +1,33 @@
+docs/源码全景解析.md
+  df08713a7fca15b1 179,201,244-246,649,966-967,1065,1067,1069,1073,1076-1078,1081,1083,1357,1624,1894-1895,1917-1919
+CLAUDE.md
+  df08713a7fca15b1 42,79
+src/anthropic/handlers.rs
+  df08713a7fca15b1 28,928,947-951,967-977,1049,1055-1059,1150-1162,1572-1574,1742-1743,2077-2091
+README.md
+  df08713a7fca15b1 628,631
+docs/代码速查表.md
+  df08713a7fca15b1 55,375-376,419
+src/anthropic/mod.rs
+  df08713a7fca15b1 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5a4c7f90518d0f33d12e5a2da4a6fb42f2cf220d",
+  "prompts": {
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 788,
+      "total_deletions": 138,
+      "accepted_lines": 700,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -77,6 +77,8 @@ const ACTION_BTN_PRIMARY = `${ACTION_BTN_BASE} border-transparent bg-brand font-
 const ACTION_VDIV = 'mx-0.5 h-[19px] w-px shrink-0 bg-hairline-2'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'sidebar-collapsed'
+// 与 aside/main 的 Tailwind `duration-200` 宽度过渡保持一致，Logo 头部布局延迟这么久才跟随切换
+const SIDEBAR_TRANSITION_MS = 200
 
 function readStoredSidebarCollapsed(): boolean {
   return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
@@ -87,6 +89,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const { theme, toggleTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog'>('credentials')
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(readStoredSidebarCollapsed)
+  // 侧边栏内容（header/nav/footer 的 flex 方向、间距、文字显隐）无法被 CSS transition 平滑插值，
+  // 故延迟到宽度动画半程、内容淡为透明时才瞬切，避免可见的布局跳变
+  const [sidebarContentCollapsed, setSidebarContentCollapsed] = useState<boolean>(sidebarCollapsed)
+  // 与 sidebarContentCollapsed 的瞬切时机配合：切换前淡出、切换后淡入，把布局跳变藏在不可见的瞬间
+  const [sidebarContentFading, setSidebarContentFading] = useState(false)
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -493,6 +500,20 @@ export function Dashboard({ onLogout }: DashboardProps) {
       return next
     })
   }
+
+  const isSidebarMount = useRef(true)
+  useEffect(() => {
+    if (isSidebarMount.current) {
+      isSidebarMount.current = false
+      return
+    }
+    setSidebarContentFading(true)
+    const timer = window.setTimeout(() => {
+      setSidebarContentCollapsed(sidebarCollapsed)
+      setSidebarContentFading(false)
+    }, SIDEBAR_TRANSITION_MS / 2)
+    return () => window.clearTimeout(timer)
+  }, [sidebarCollapsed])
 
   // 选择管理
   const toggleSelect = (id: number) => {
@@ -909,12 +930,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
     <div className="flex min-h-screen bg-background">
       {/* 左侧 Sidebar */}
       <aside className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} bg-sidebar bg-grid-dot border-r border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}>
-        <div className={`flex items-center border-b border-hairline ${sidebarCollapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
+        {/* 内容区整体做一次透明度过渡：把 header/nav/footer 所有跟随收起态瞬时切换的布局
+            （flex 方向、文字显隐、ml-auto）都藏在这次淡出淡入的不可见瞬间，避免逐处单独处理时互相错位 */}
+        <div className={`flex h-full flex-col transition-opacity duration-100 ${sidebarContentFading ? 'opacity-0' : 'opacity-100'}`}>
+        <div className={`flex items-center border-b border-hairline ${sidebarContentCollapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
           <a
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center group min-w-0 ${sidebarCollapsed ? '' : 'gap-2.5'}`}
+            className={`flex items-center group min-w-0 ${sidebarContentCollapsed ? '' : 'gap-2.5'}`}
           >
             {/* 方案 4（Aurora Prism）图标自带圆角底座与极光边框，故不再套品牌渐变方块；
                 随主题切换 dark / light 两版，与设计稿 preview.html 的实机模拟一致 */}
@@ -930,7 +954,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               alt="Kiro2CCProxy"
               className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
             />
-            {!sidebarCollapsed && (
+            {!sidebarContentCollapsed && (
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors">Kiro2CCProxy</div>
                 <div className="text-[10.5px] tracking-[.02em] text-ink-3 group-hover:text-brand transition-colors">{t('dashboard.consoleSubtitle')}</div>
@@ -940,7 +964,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarCollapsed ? '' : 'ml-auto'}`}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
             onClick={toggleSidebarCollapsed}
             title={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
             aria-label={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
@@ -952,7 +976,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <TooltipProvider delayDuration={200}>
             {navGroups.map((group, groupIndex) => (
               <div key={group.title}>
-                {sidebarCollapsed ? (
+                {sidebarContentCollapsed ? (
                   /* 设计稿 .shell.is-collapsed .nav-group：标题降级为 1px 分隔线，首组不渲染 */
                   groupIndex > 0 && (
                     <div role="separator" aria-label={group.title} className="mx-[14px] my-[9px] h-px bg-hairline-2" />
@@ -971,7 +995,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       onClick={onClick}
                       aria-label={fullLabel}
                       aria-current={active ? 'true' : undefined}
-                      className={`relative mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${sidebarCollapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
+                      className={`relative mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${sidebarContentCollapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
                     >
                       {active && (
                         /* -left-2 与 <nav> 的 px-2 数值耦合：竖条要贴在侧栏左边缘（padding-box x=0），
@@ -979,7 +1003,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         <span className="absolute -left-2 top-2 bottom-2 w-[2.5px] rounded-r-[3px] bg-brand" aria-hidden="true" />
                       )}
                       <Icon className="w-4 h-4 shrink-0" />
-                      {!sidebarCollapsed && (
+                      {!sidebarContentCollapsed && (
                         <>
                           <span className="truncate">{label}</span>
                           {count !== undefined && (
@@ -989,7 +1013,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       )}
                     </button>
                   )
-                  return sidebarCollapsed ? (
+                  return sidebarContentCollapsed ? (
                     <Tooltip key={key}>
                       <TooltipTrigger asChild>{item}</TooltipTrigger>
                       <TooltipContent side="right">{fullLabel}</TooltipContent>
@@ -1003,11 +1027,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </TooltipProvider>
         </nav>
         {/* 身份区（设计稿 .side-user）：头像 + 名称 / 角色 + 退出（hover 转 danger） */}
-        <div className={`flex items-center border-t border-hairline ${sidebarCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-[9px] px-3 py-2.5'}`}>
+        <div className={`flex items-center border-t border-hairline ${sidebarContentCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-[9px] px-3 py-2.5'}`}>
           <div aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-hairline-2 bg-surface-3 text-[11.5px] font-bold text-ink-2">
             {ADMIN_NAME.charAt(0).toUpperCase()}
           </div>
-          {!sidebarCollapsed && (
+          {!sidebarContentCollapsed && (
             <div className="min-w-0">
               <div className="text-[12px] font-semibold leading-[1.3]">{ADMIN_NAME}</div>
               <div className="text-[10px] text-ink-3">{t('dashboard.adminRole')}</div>
@@ -1016,7 +1040,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${sidebarCollapsed ? '' : 'ml-auto'}`}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
             onClick={handleLogout}
             title={t('common.logout')}
             aria-label={t('common.logout')}
@@ -1025,7 +1049,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </Button>
         </div>
         {/* 页脚（设计稿 .side-foot）：运行状态点 + 版本号 + 主题切换 */}
-        <div className={`flex items-center border-t border-hairline ${sidebarCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
+        <div className={`flex items-center border-t border-hairline ${sidebarContentCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
           <span
             role="img"
             aria-label={serverStatusLabel}
@@ -1033,7 +1057,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             className={`h-1.5 w-1.5 shrink-0 rounded-full ring-[3px] ${serverHealthy ? 'bg-ok ring-ok-soft' : 'bg-ink-3 ring-surface-3'}`}
           />
           {/* 加载中 / 请求失败时连同版本号一并隐藏，只留灰点，避免展示 `v...` 这类无效版本 */}
-          {!sidebarCollapsed && serverHealthy && (
+          {!sidebarContentCollapsed && serverHealthy && (
             <a
               href="https://github.com/TsinHzl/kiro2cc-proxy"
               target="_blank"
@@ -1046,13 +1070,14 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarCollapsed ? '' : 'ml-auto'}`}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
             onClick={toggleTheme}
             title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
             aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
           >
             {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </Button>
+        </div>
         </div>
       </aside>
 

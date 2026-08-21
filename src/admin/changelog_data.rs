@@ -62,9 +62,33 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     vec![
         ReleaseNote {
+            version: "3.0.2".to_string(),
+            date: "2026-08-21".to_string(),
+            is_latest: true,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "登录页密码框移除 autoFocus，避免打开页面即自动触发系统输入法切换",
+                "Removed autoFocus from the login password field so opening the page no longer auto-triggers a system input-method switch",
+            )])],
+        },
+        ReleaseNote {
+            version: "3.0.1".to_string(),
+            date: "2026-08-21".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "新增 OpenAI 兼容端点 /v1/chat/completions 与 /v1/responses，支持 Codex CLI 与 OpenAI SDK 类客户端直接接入，用 Kiro 额度调用 GPT-5.6 系列模型",
+                    "Added OpenAI-compatible endpoints /v1/chat/completions and /v1/responses, letting Codex CLI and OpenAI SDK clients connect directly and run GPT-5.6 models on Kiro credits",
+                )]),
+                fix_group(vec![Bilingual::new(
+                    "修复 OpenAI 兼容端点流式转换中孤儿 tool_call 与 SSE 溢出日志的问题",
+                    "Fixed orphaned tool_call handling and SSE overflow logging in the OpenAI-compatible streaming conversion",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "2.10.2".to_string(),
             date: "2026-08-20".to_string(),
-            is_latest: true,
+            is_latest: false,
             groups: vec![
                 improve_group(vec![
                     Bilingual::new(

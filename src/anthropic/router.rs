@@ -10,6 +10,7 @@ use axum::{
 use tower_http::trace::TraceLayer;
 
 use crate::kiro::provider::KiroProvider;
+use crate::openai::{post_chat_completions, post_responses};
 
 use super::{
     handlers::{count_tokens, get_model, get_models, ping, post_messages, post_messages_cc},
@@ -60,6 +61,9 @@ fn build_router(state: AppState) -> Router {
         .route("/models/{model_id}", get(get_model))
         .route("/messages", post(post_messages))
         .route("/messages/count_tokens", post(count_tokens))
+        // OpenAI 兼容端点：翻译后复用 post_messages 的完整下游链路
+        .route("/chat/completions", post(post_chat_completions))
+        .route("/responses", post(post_responses))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

@@ -12,7 +12,7 @@
 
 ### 📖 快速导航
 
-🚀 快速开始 ・ 🍎 macOS 部署 ・ 🪟 Windows 部署 ・ 🐧 Linux 部署 ・ 🔑 获取账号 ・ ⚙️ 配置详解 ・ 🤖 接入 Claude Code ・ 🔌 API 端点 ・ 🗺️ 模型映射 ・ 🛡️ Admin 面板 ・ ❓ 常见问题 ・ ⚠️ 注意事项
+🚀 快速开始 ・ 🍎 macOS 部署 ・ 🪟 Windows 部署 ・ 🐧 Linux 部署 ・ 🔑 获取账号 ・ ⚙️ 配置详解 ・ 🤖 接入 Claude Code ・ 🧬 接入 Codex CLI ・ 🔌 API 端点 ・ 🗺️ 模型映射 ・ 🛡️ Admin 面板 ・ ❓ 常见问题 ・ ⚠️ 注意事项
 
 ---
 
@@ -611,6 +611,71 @@ curl http://127.0.0.1:5678/v1/messages \
 
 ---
 
+## 🧬 接入 Codex CLI / OpenAI SDK
+
+除 Anthropic 协议外，代理同时提供两个 OpenAI 兼容端点，因此可以直接用 Kiro 额度驱动 Codex CLI 或任意 OpenAI SDK 客户端。两个端点都是"翻译 + 转发"：请求转成 Anthropic 格式后复用 `/v1/messages` 的完整下游链路（多账号故障转移、RPM 计数、用量统计、限流处理），响应再转回 OpenAI 格式。
+
+### 接入 Codex CLI
+
+编辑 `~/.codex/config.toml`（Codex CLI 与 ChatGPT.app 桌面客户端共用同一份文件）：
+
+```toml
+model = "gpt-5.6-terra"
+model_provider = "kiro"
+
+[model_providers.kiro]
+name = "kiro2cc-proxy"
+base_url = "http://127.0.0.1:5678/v1"
+wire_api = "responses"        # 也可填 "chat"
+env_key = "KIRO_API_KEY"
+```
+
+密钥写进 `~/.codex/.env`（Codex 底层静态链接了 Rust `dotenvy` crate，每次调用都会自动重新加载该文件，配置全部集中在 `~/.codex/` 目录内，不需要碰任何 shell 环境变量，改完立即生效也不用重启）：
+
+```bash
+echo 'KIRO_API_KEY=your-api-key' > ~/.codex/.env
+chmod 600 ~/.codex/.env
+codex
+```
+
+> **避免重复定义**：若用 `-p/--profile <name>` 建了 `~/.codex/<name>.config.toml`，profile 会层叠在 `config.toml` 之上——只有 profile 里显式写的字段才会覆盖，未写的字段从 base config 继承。若 profile 的 `model`/`model_provider` 等字段与 base config 完全一样，说明这份 profile 已经冗余（可用 `codex exec` 分别不带 `-p` 和带 `-p <name>` 各跑一次对比输出验证），直接删掉即可，没必要维护两份相同配置。
+
+> **ChatGPT.app 桌面客户端**同样读取这份 `config.toml`（顶层 `model_provider` 生效，暂无独立 profile 机制），但它是常驻进程启动时一次性加载配置，改 `config.toml` 后需要**完全重启 App** 才生效；而 `~/.codex/.env` 每次调用都重新读取，改完立即生效，不用重启。
+
+**`wire_api` 两种取值：**
+
+| 取值 | 使用的端点 | 说明 |
+|------|-----------|------|
+| `responses` | `/v1/responses` | Codex CLI 默认协议，功能最完整（含 reasoning 事件、自由文本工具） |
+| `chat` | `/v1/chat/completions` | 通用 Chat Completions 协议，兼容性最广 |
+
+两者都支持流式与工具调用往返，日常使用推荐 `responses`。
+
+### 接入 OpenAI SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:5678/v1", api_key="your-api-key")
+
+resp = client.chat.completions.create(
+    model="gpt-5.6-terra",
+    messages=[{"role": "user", "content": "你好"}],
+)
+print(resp.choices[0].message.content)
+```
+
+模型名可填 `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`，也可直接填 `claude-*` 系模型名（原样透传给上游）。Codex CLI 自带的 `gpt-5-codex` / `gpt-5.1-codex` 会自动映射到 `gpt-5.6-terra`，`gpt-5.1-codex-max` 映射到 `gpt-5.6-luna`。
+
+### 已知限制
+
+- **不支持 `previous_response_id`** —— 代理无状态，不保存历史响应。带该字段的请求直接返回 400 且不产生上游调用；请在 `input` 中回传完整对话历史（Codex CLI 默认即如此，无需额外配置）。
+- **`tool_choice` 仅支持 `auto`** —— 其他取值（`required` / 指定函数名）会记 WARN 后按 `auto` 处理，这是上游 Kiro API 的既有限制。
+- **`reasoning.effort` 对 `gpt-5.6-luna` 无效** —— 该模型上游恒返回 `thinking=0`。
+- **`include: ["reasoning.encrypted_content"]` 被忽略** —— 代理不产出加密 reasoning 内容。
+
+---
+
 ## 🔌 API 端点
 
 ### 标准端点 (/v1)
@@ -620,6 +685,15 @@ curl http://127.0.0.1:5678/v1/messages \
 | `/v1/models` | GET | 获取可用模型列表 |
 | `/v1/messages` | POST | 创建消息（对话） |
 | `/v1/messages/count_tokens` | POST | 估算 Token 数量 |
+
+### OpenAI 兼容端点 (/v1)
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/v1/chat/completions` | POST | OpenAI Chat Completions 协议，支持流式、工具调用、`reasoning_effort` |
+| `/v1/responses` | POST | OpenAI Responses 协议，Codex CLI 默认 `wire_api` |
+
+> 详见 [🧬 接入 Codex CLI / OpenAI SDK](#-接入-codex-cli--openai-sdk)。
 
 ### Claude Code 兼容端点 (/cc/v1)
 

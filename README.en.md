@@ -12,7 +12,7 @@
 
 ### 📖 Quick Navigation
 
-🚀 Quick Start ・ 🍎 macOS Deployment ・ 🪟 Windows Deployment ・ 🐧 Linux Deployment ・ 🔑 Get Accounts ・ ⚙️ Configuration ・ 🤖 Claude Code Integration ・ 🔌 API Endpoints ・ 🗺️ Model Mapping ・ 🛡️ Admin Panel ・ ❓ FAQ ・ ⚠️ Notes
+🚀 Quick Start ・ 🍎 macOS Deployment ・ 🪟 Windows Deployment ・ 🐧 Linux Deployment ・ 🔑 Get Accounts ・ ⚙️ Configuration ・ 🤖 Claude Code Integration ・ 🧬 Codex CLI / OpenAI SDK ・ 🔌 API Endpoints ・ 🗺️ Model Mapping ・ 🛡️ Admin Panel ・ ❓ FAQ ・ ⚠️ Notes
 
 ---
 
@@ -590,6 +590,71 @@ curl http://127.0.0.1:5678/v1/messages \
 
 ---
 
+## 🧬 Codex CLI / OpenAI SDK Integration
+
+In addition to the Anthropic protocol, the proxy also exposes two OpenAI-compatible endpoints, so you can drive Codex CLI or any OpenAI SDK client with your Kiro quota. Both endpoints work by "translate + forward": the request is converted to Anthropic format and reuses the full `/v1/messages` downstream pipeline (multi-account failover, RPM counting, usage tracking, rate limiting), then the response is converted back to OpenAI format.
+
+### Codex CLI Setup
+
+Edit `~/.codex/config.toml` (shared by the Codex CLI and the ChatGPT.app desktop client):
+
+```toml
+model = "gpt-5.6-terra"
+model_provider = "kiro"
+
+[model_providers.kiro]
+name = "kiro2cc-proxy"
+base_url = "http://127.0.0.1:5678/v1"
+wire_api = "responses"        # or "chat"
+env_key = "KIRO_API_KEY"
+```
+
+Put the key in `~/.codex/.env` (Codex statically links the Rust `dotenvy` crate and reloads this file on every invocation — everything stays inside `~/.codex/`, no shell environment variables needed, and changes take effect immediately without a restart):
+
+```bash
+echo 'KIRO_API_KEY=your-api-key' > ~/.codex/.env
+chmod 600 ~/.codex/.env
+codex
+```
+
+> **Avoid duplicate definitions**: if you created a profile with `-p/--profile <name>` (`~/.codex/<name>.config.toml`), the profile is layered on top of `config.toml` — only fields explicitly set in the profile override the base config; everything else is inherited. If the profile's `model` / `model_provider` etc. are identical to the base config, the profile is redundant (verify by running `codex exec` once without `-p` and once with `-p <name>`, then diff the output) — just delete it instead of maintaining two copies.
+
+> **ChatGPT.app desktop client** reads the same `config.toml` (the top-level `model_provider` applies; there's currently no separate profile mechanism for the app), but it's a long-running process that loads the config once at startup — changing `config.toml` requires a **full app restart** to take effect. `~/.codex/.env`, on the other hand, is re-read on every call, so edits apply immediately without restarting anything.
+
+**`wire_api` values:**
+
+| Value | Endpoint used | Notes |
+|-------|---------------|-------|
+| `responses` | `/v1/responses` | Codex CLI's default protocol, most complete feature set (reasoning events, freeform tools) |
+| `chat` | `/v1/chat/completions` | Generic Chat Completions protocol, widest compatibility |
+
+Both support streaming and tool-call round trips; `responses` is recommended for everyday use.
+
+### OpenAI SDK Setup
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:5678/v1", api_key="your-api-key")
+
+resp = client.chat.completions.create(
+    model="gpt-5.6-terra",
+    messages=[{"role": "user", "content": "hello"}],
+)
+print(resp.choices[0].message.content)
+```
+
+Model name can be `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`, or any `claude-*` model name (passed through as-is to upstream). Codex CLI's built-in `gpt-5-codex` / `gpt-5.1-codex` auto-map to `gpt-5.6-terra`, and `gpt-5.1-codex-max` maps to `gpt-5.6-luna`.
+
+### Known Limitations
+
+- **`previous_response_id` is not supported** — the proxy is stateless and doesn't persist prior responses. Requests containing this field return 400 immediately without an upstream call; send the full conversation history in `input` instead (Codex CLI already does this by default, no extra config needed).
+- **`tool_choice` only supports `auto`** — other values (`required` or a specific function name) are logged as WARN and treated as `auto`; this is an existing limitation of the upstream Kiro API.
+- **`reasoning.effort` has no effect on `gpt-5.6-luna`** — this model always returns `thinking=0` upstream.
+- **`include: ["reasoning.encrypted_content"]` is ignored** — the proxy doesn't produce encrypted reasoning content.
+
+---
+
 ## 🔌 API Endpoints
 
 ### Standard Endpoints (/v1)
@@ -599,6 +664,15 @@ curl http://127.0.0.1:5678/v1/messages \
 | `/v1/models` | GET | List available models |
 | `/v1/messages` | POST | Create a message (chat) |
 | `/v1/messages/count_tokens` | POST | Estimate token count |
+
+### OpenAI Compatible Endpoints (/v1)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/chat/completions` | POST | OpenAI Chat Completions protocol; supports streaming, tool calls, `reasoning_effort` |
+| `/v1/responses` | POST | OpenAI Responses protocol; Codex CLI's default `wire_api` |
+
+> See [🧬 Codex CLI / OpenAI SDK Integration](#-codex-cli--openai-sdk-integration) for details.
 
 ### Claude Code Compatible Endpoints (/cc/v1)
 

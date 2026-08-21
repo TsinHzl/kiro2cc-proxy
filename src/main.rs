@@ -8,6 +8,7 @@ mod http_client;
 mod kiro;
 mod log_capture;
 mod model;
+mod openai;
 pub mod token;
 mod user;
 mod user_ui;
@@ -268,6 +269,8 @@ async fn main() {
     tracing::info!("  GET  /v1/models");
     tracing::info!("  POST /v1/messages");
     tracing::info!("  POST /v1/messages/count_tokens");
+    tracing::info!("  POST /v1/chat/completions  (OpenAI 兼容)");
+    tracing::info!("  POST /v1/responses         (OpenAI 兼容 / Codex CLI)");
     if admin_key_valid {
         tracing::info!("Admin API:");
         tracing::info!("  GET  /api/admin/credentials");

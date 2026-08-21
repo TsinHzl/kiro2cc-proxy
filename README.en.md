@@ -12,7 +12,7 @@
 
 ### 📖 Quick Navigation
 
-🚀 Quick Start ・ 🍎 macOS Deployment ・ 🪟 Windows Deployment ・ 🐧 Linux Deployment ・ 🔑 Get Accounts ・ ⚙️ Configuration ・ 🤖 Claude Code Integration ・ 🧬 Codex CLI / OpenAI SDK ・ 🔌 API Endpoints ・ 🗺️ Model Mapping ・ 🛡️ Admin Panel ・ ❓ FAQ ・ ⚠️ Notes
+[🚀 Quick Start](#-quick-start-new-users) ・ [🍎 macOS Deployment](#-local-deployment-macos) ・ [🪟 Windows Deployment](#-local-deployment-windows) ・ [🐧 Linux Deployment](#-server-deployment-linux) ・ [🔑 Get Accounts](#-getting-kiro-accounts) ・ [⚙️ Configuration](#-configuration-reference) ・ [🤖 Claude Code Integration](#-claude-code-integration) ・ [🧬 Codex CLI / OpenAI SDK](#-codex-cli--openai-sdk-integration) ・ [🔌 API Endpoints](#-api-endpoints) ・ [🗺️ Model Mapping](#-model-mapping) ・ [🛡️ Admin Panel](#-admin-panel) ・ [❓ FAQ](#-faq) ・ [⚠️ Notes](#-notes)
 
 ---
 

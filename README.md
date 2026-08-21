@@ -12,7 +12,7 @@
 
 ### 📖 快速导航
 
-🚀 快速开始 ・ 🍎 macOS 部署 ・ 🪟 Windows 部署 ・ 🐧 Linux 部署 ・ 🔑 获取账号 ・ ⚙️ 配置详解 ・ 🤖 接入 Claude Code ・ 🧬 接入 Codex CLI ・ 🔌 API 端点 ・ 🗺️ 模型映射 ・ 🛡️ Admin 面板 ・ ❓ 常见问题 ・ ⚠️ 注意事项
+[🚀 快速开始](#-快速开始新手必读) ・ [🍎 macOS 部署](#-本地部署macos) ・ [🪟 Windows 部署](#-本地部署windows) ・ [🐧 Linux 部署](#-服务器部署linux) ・ [🔑 获取账号](#-获取-kiro-账号) ・ [⚙️ 配置详解](#-配置详解) ・ [🤖 接入 Claude Code](#-接入-claude-code) ・ [🧬 接入 Codex CLI](#-接入-codex-cli--openai-sdk) ・ [🔌 API 端点](#-api-端点) ・ [🗺️ 模型映射](#-模型映射) ・ [🛡️ Admin 面板](#-admin-管理面板) ・ [❓ 常见问题](#-常见问题) ・ [⚠️ 注意事项](#-注意事项)
 
 ---
 

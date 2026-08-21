@@ -27,6 +27,7 @@
 | 特性 | 说明 |
 |---|---|
 | **🔌 Anthropic API 兼容** | 完整支持 Anthropic Claude API 格式 |
+| **🧬 OpenAI 兼容 / Codex CLI** | 提供 `/v1/chat/completions` 与 `/v1/responses` 端点，可直接接入 Codex CLI 及任意 OpenAI SDK 客户端 |
 | **📡 流式响应** | 支持 SSE (Server-Sent Events) 流式输出 |
 | **🔄 Token 自动刷新** | 自动管理和刷新 OAuth Token |
 | **👥 多账号支持** | 支持配置多个账号，按优先级自动故障转移 |
@@ -625,8 +626,8 @@ model_provider = "kiro"
 
 [model_providers.kiro]
 name = "kiro2cc-proxy"
-base_url = "http://127.0.0.1:5678/v1"
-wire_api = "responses"        # 也可填 "chat"
+base_url = "http://127.0.0.1:5678/v1"  # 本机部署用 127.0.0.1；服务器部署请替换为你的域名或公网 IP
+wire_api = "responses"        # 推荐填 "responses"，也可填 "chat"
 env_key = "KIRO_API_KEY"
 ```
 

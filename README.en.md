@@ -27,6 +27,7 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 | Feature | Description |
 |---|---|
 | **🔌 Anthropic API Compatible** | Full support for the Anthropic Claude API format |
+| **🧬 OpenAI Compatible / Codex CLI** | Exposes `/v1/chat/completions` and `/v1/responses` endpoints for direct Codex CLI and OpenAI SDK client integration |
 | **📡 Streaming Responses** | SSE (Server-Sent Events) streaming support |
 | **🔄 Auto Token Refresh** | Automatically manages and refreshes OAuth tokens |
 | **👥 Multi-Account Support** | Configure multiple accounts with automatic priority-based failover |
@@ -604,8 +605,8 @@ model_provider = "kiro"
 
 [model_providers.kiro]
 name = "kiro2cc-proxy"
-base_url = "http://127.0.0.1:5678/v1"
-wire_api = "responses"        # or "chat"
+base_url = "http://127.0.0.1:5678/v1"  # 127.0.0.1 for local deployment; replace with your domain/public IP for server deployments
+wire_api = "responses"        # recommended; or "chat"
 env_key = "KIRO_API_KEY"
 ```
 

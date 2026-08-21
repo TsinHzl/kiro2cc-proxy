@@ -337,13 +337,16 @@ impl ChatStreamConverter {
             return Vec::new();
         }
 
+        let (Some(id), Some(name)) = (
+            block.get("id").and_then(Value::as_str),
+            block.get("name").and_then(Value::as_str),
+        ) else {
+            tracing::warn!("流式 tool_use 块缺少 id 或 name，已跳过");
+            return Vec::new();
+        };
+
         let block_index = data.get("index").and_then(Value::as_i64).unwrap_or(0);
         let tool_index = self.assign_tool_index(block_index);
-        let id = block.get("id").and_then(Value::as_str).unwrap_or_default();
-        let name = block
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
 
         let mut frames = self.ensure_role_frame();
         frames.push(self.frame(json!([{
@@ -411,7 +414,11 @@ impl ChatStreamConverter {
                     return Vec::new();
                 }
                 let block_index = data.get("index").and_then(Value::as_i64).unwrap_or(0);
-                let tool_index = self.assign_tool_index(block_index);
+                // 对应 tool_use 块的 start 因缺 id/name 被跳过时不会注册 index，这里也跳过，
+                // 避免下发一条客户端从未见过 id/name 的孤儿 tool_call delta
+                let Some(&tool_index) = self.tool_index_by_block.get(&block_index) else {
+                    return Vec::new();
+                };
                 let mut frames = self.ensure_role_frame();
                 frames.push(self.frame(json!([{
                     "index": 0,

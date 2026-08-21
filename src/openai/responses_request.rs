@@ -372,9 +372,13 @@ fn tool_use_block(item: &Value, form: ToolInputForm) -> Option<Value> {
     let input = match form {
         ToolInputForm::Json => parse_tool_arguments(item.get("arguments"), name),
         // 自由文本入参装进降级 schema 约定的 input 字段
-        ToolInputForm::FreeText => json!({
-            "input": item.get("input").and_then(Value::as_str).unwrap_or_default(),
-        }),
+        ToolInputForm::FreeText => {
+            let text = item.get("input").and_then(Value::as_str).unwrap_or_else(|| {
+                tracing::warn!("custom_tool_call 缺少 input 字段，已降级为空文本");
+                ""
+            });
+            json!({"input": text})
+        }
     };
 
     Some(json!({"type": "tool_use", "id": id, "name": name, "input": input}))

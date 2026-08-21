@@ -20,7 +20,7 @@
 //! 顺序一致），但不带 `encrypted_content`——本代理产不出可回传的加密推理内容，客户端
 //! 把它原样回传时会被 [`super::responses_request`] 静默丢弃。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -293,7 +293,7 @@ pub(crate) struct ResponsesStreamConverter {
     usage: Option<Value>,
     next_output_index: i64,
     /// Anthropic block index → 打开中的 output item
-    open: std::collections::HashMap<i64, OpenItem>,
+    open: HashMap<i64, OpenItem>,
     /// 已收尾的 output item，用于 `response.completed` 的快照
     completed_items: Vec<Value>,
     /// 请求侧声明为 `custom` 的工具名
@@ -312,7 +312,7 @@ impl ResponsesStreamConverter {
             truncated: false,
             usage: None,
             next_output_index: 0,
-            open: std::collections::HashMap::new(),
+            open: HashMap::new(),
             completed_items: Vec::new(),
             custom_tools,
         }

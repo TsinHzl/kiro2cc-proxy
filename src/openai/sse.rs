@@ -41,8 +41,8 @@ pub(crate) enum SseItem {
 #[derive(Debug, Default)]
 pub(crate) struct SseParser {
     buf: Vec<u8>,
-    /// 已因超限丢弃过残余数据，用于抑制重复日志
-    overflowed: bool,
+    /// 已发生的缓冲区溢出次数，用于让重复溢出仍可被追踪，而非发生一次后永久静默
+    overflow_count: u64,
 }
 
 impl SseParser {
@@ -64,11 +64,14 @@ impl SseParser {
         // 走到这里 buf 里已不含帧边界（否则循环不会退出），剩下的是等待续传的半帧。
         // 半帧超限说明上游未按协议分帧，丢弃残余以防无界增长；后续恢复正常分帧仍能继续解析。
         if self.buf.len() > MAX_BUFFERED_BYTES {
-            if !self.overflowed {
-                self.overflowed = true;
+            self.overflow_count += 1;
+            // 按 10 的幂次限流：第 1/10/100/1000... 次才打日志，避免持续吐脏数据的
+            // 长连接以「每攒够 8MB 一次」的频率无限刷屏，同时仍能追踪到重复溢出
+            if is_power_of_ten(self.overflow_count) {
                 tracing::error!(
                     buffered = self.buf.len(),
                     limit = MAX_BUFFERED_BYTES,
+                    overflow_count = self.overflow_count,
                     "SSE 缓冲区超限且未见帧边界，已丢弃残余数据"
                 );
             }
@@ -106,6 +109,18 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+/// 判断 n 是否为 10 的幂（1, 10, 100, 1000...），用于溢出日志限流
+fn is_power_of_ten(n: u64) -> bool {
+    if n == 0 {
+        return false;
+    }
+    let mut n = n;
+    while n % 10 == 0 {
+        n /= 10;
+    }
+    n == 1
 }
 
 /// 解析单帧文本为 [`SseItem`]；返回 `None` 表示该帧应被丢弃

@@ -1,0 +1,25 @@
+src/admin/changelog_data.rs
+  df08713a7fca15b1 65-87,91
+src/admin/changelog.rs
+  df08713a7fca15b1 65,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "24d20c03d700aeb0795576e99607bb79a13be16b",
+  "prompts": {
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 40,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}

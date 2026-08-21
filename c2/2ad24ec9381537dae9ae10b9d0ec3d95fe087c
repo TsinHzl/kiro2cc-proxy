@@ -1,0 +1,53 @@
+src/openai/model_map.rs
+  df08713a7fca15b1 1-115
+src/openai/chat_response.rs
+  df08713a7fca15b1 1-1054
+docs/使用指南.md
+  df08713a7fca15b1 14,230-256
+Cargo.toml
+  df08713a7fca15b1 3
+src/openai/handlers.rs
+  df08713a7fca15b1 1-69,71-117,119-292,295-302,304-329,333,335-336,338-340,342-350
+src/openai/sse.rs
+  df08713a7fca15b1 1-331
+README.md
+  df08713a7fca15b1 15,614-678,689-696
+src/openai/mod.rs
+  df08713a7fca15b1 1-20,23-30
+README.en.md
+  df08713a7fca15b1 15,593-657,668-675
+src/openai/chat_request.rs
+  df08713a7fca15b1 1-793,795-828
+src/openai/error.rs
+  df08713a7fca15b1 1-88,90-260
+src/main.rs
+  df08713a7fca15b1 11,272-273
+docs/代码速查表.md
+  df08713a7fca15b1 25-26,476-591,1011-1014
+src/openai/responses_response.rs
+  df08713a7fca15b1 1-961,963-1897
+src/anthropic/router.rs
+  df08713a7fca15b1 13,64-66
+src/openai/responses_request.rs
+  df08713a7fca15b1 1-207,209-938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c22ad24ec9381537dae9ae10b9d0ec3d95fe087c",
+  "prompts": {
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6815,
+      "total_deletions": 262,
+      "accepted_lines": 6574,
+      "overriden_lines": 28
+    }
+  }
+}

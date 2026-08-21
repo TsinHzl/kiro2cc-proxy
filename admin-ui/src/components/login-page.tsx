@@ -70,7 +70,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <Input
             id="admin-psw"
             type="password"
-            autoFocus
             autoComplete="current-password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}

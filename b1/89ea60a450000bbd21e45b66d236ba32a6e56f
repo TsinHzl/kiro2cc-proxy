@@ -1,0 +1,40 @@
+admin-ui/src/i18n/locales/en.json
+  6fa64e423ca6f850 311-312,314-315,373
+admin-ui/src/components/api-keys-panel.tsx
+  e01a0ce59b6f814d 74,190,192-194,602,607-613,628,638,642-647,650-651,653-654,860-865
+admin-ui/src/i18n/locales/zh.json
+  6fa64e423ca6f850 311-312,314-315,373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b189ea60a450000bbd21e45b66d236ba32a6e56f",
+  "prompts": {
+    "6fa64e423ca6f850": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd9ac679-5e44-45e0-89d8-77214b6fd0e1",
+        "model": "gemini-3.7-flash-tiered"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 6,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "e01a0ce59b6f814d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6698e5c2-4a5a-4df8-a396-5e80eecb9b53",
+        "model": "gemini-3.7-flash-tiered"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 13,
+      "accepted_lines": 75,
+      "overriden_lines": 0
+    }
+  }
+}

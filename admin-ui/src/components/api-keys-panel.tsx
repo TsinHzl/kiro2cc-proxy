@@ -71,7 +71,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editSpendingLimit, setEditSpendingLimit] = useState(50)
   const [editLimitUnit, setEditLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [copiedId, setCopiedId] = useState<number | null>(null)
-  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [copiedType, setCopiedType] = useState<'cc' | 'codex' | null>(null)
   const [sortBy, setSortBy] = useState<SortBy>('newest')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<KeyStatusFilter>('all')
@@ -187,11 +187,11 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     toast.success(t('apiKeys.toastPurgeSuccess', { count: deleted }))
   }
 
-  const copyToClipboard = async (text: string, target: 'url' | number) => {
+  const copyToClipboard = async (text: string, target: 'cc' | 'codex' | number) => {
     await writeToClipboard(text)
-    if (target === 'url') {
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 2000)
+    if (target === 'cc' || target === 'codex') {
+      setCopiedType(target)
+      setTimeout(() => setCopiedType(null), 2000)
     } else {
       setCopiedId(target)
       setTimeout(() => setCopiedId(null), 2000)
@@ -599,7 +599,18 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         <div className="min-w-0">
           <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
             <Link2 className="size-[13px] shrink-0" />
-            {t('apiKeys.connBaseUrlLabel')}
+            {t('apiKeys.connCcBaseUrlLabel')}
+          </div>
+          <div className="mt-1 truncate font-mono text-[14px] font-medium tracking-[-.01em]">
+            <span className="text-ink-3">{`${window.location.protocol}//`}</span>
+            {window.location.host}
+          </div>
+        </div>
+        <span aria-hidden="true" className="mx-0.5 hidden w-px self-stretch bg-hairline sm:block" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <Link2 className="size-[13px] shrink-0" />
+            {t('apiKeys.connCodexBaseUrlLabel')}
           </div>
           <div className="mt-1 truncate font-mono text-[14px] font-medium tracking-[-.01em]">
             <span className="text-ink-3">{`${window.location.protocol}//`}</span>
@@ -614,7 +625,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             {t('apiKeys.connProtocolLabel')}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {['Anthropic Messages', 'Claude Code /cc/v1'].map((protocol) => (
+            {['Anthropic Messages', 'Claude Code /cc/v1', 'Codex Responses', 'OpenAI Chat'].map((protocol) => (
               <span
                 key={protocol}
                 className="whitespace-nowrap rounded-[5px] border border-hairline bg-surface-3 px-1.5 py-px text-[10.5px] font-semibold tracking-[.03em] text-ink-2"
@@ -624,15 +635,23 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             ))}
           </div>
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           {/* 复制成功时图标转 ok 色：基类 [&_svg]:text-ink-3 特异性更高，必须同修饰符组覆盖 */}
           <Button
             variant="outline"
-            className={copiedUrl ? '[&_svg]:text-ok hover:[&_svg]:text-ok' : ''}
-            onClick={() => copyToClipboard(`${window.location.origin}/v1`, 'url')}
+            className={copiedType === 'cc' ? '[&_svg]:text-ok hover:[&_svg]:text-ok' : ''}
+            onClick={() => copyToClipboard(window.location.origin, 'cc')}
           >
-            {copiedUrl ? <Check /> : <Copy />}
-            {t('apiKeys.connCopyUrl')}
+            {copiedType === 'cc' ? <Check /> : <Copy />}
+            {t('apiKeys.connCopyCcUrl')}
+          </Button>
+          <Button
+            variant="outline"
+            className={copiedType === 'codex' ? '[&_svg]:text-ok hover:[&_svg]:text-ok' : ''}
+            onClick={() => copyToClipboard(`${window.location.origin}/v1`, 'codex')}
+          >
+            {copiedType === 'codex' ? <Check /> : <Copy />}
+            {t('apiKeys.connCopyCodexUrl')}
           </Button>
         </div>
       </section>
@@ -838,7 +857,12 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             createdTitle={t('apiKeys.createdLabel', { date: formatDate(apiKey.createdAt) })}
             onCopy={() =>
               copyToClipboard(
-                t('apiKeys.copyContent', { name: apiKey.name, url: window.location.origin, key: apiKey.key }),
+                t('apiKeys.copyContent', {
+                  name: apiKey.name,
+                  ccUrl: window.location.origin,
+                  codexUrl: `${window.location.origin}/v1`,
+                  key: apiKey.key,
+                }),
                 apiKey.id
               )
             }

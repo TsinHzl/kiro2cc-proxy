@@ -7,7 +7,7 @@ import { PageHead } from '@/components/page-head'
 import { PANEL } from '@/components/table-kit'
 import { TAG_BASE } from '@/components/api-key-row'
 import { extractErrorMessage } from '@/lib/utils'
-import { useChangelog } from '@/hooks/use-credentials'
+import { useChangelog, useServerInfo } from '@/hooks/use-credentials'
 import type { ReleaseNote, ReleaseNoteGroup } from '@/types/api'
 
 /** 分区语义档：与后端 changelog_data.rs 固定的三类分组一一对应，未知标题落 other */
@@ -146,9 +146,11 @@ function buildIndex(notes: ReleaseNote[]): { recent: IndexEntry[]; archive: Inde
 export function ChangelogPage() {
   const { t, i18n } = useTranslation()
   const { data, isLoading, isError, error, refetch } = useChangelog()
+  const { data: serverInfo } = useServerInfo()
   const notes = data?.data ?? NO_NOTES
   const lang = i18n.language === 'en' ? 'en' : 'zh'
-  const latest = notes.find((note) => note.is_latest) ?? notes[0]
+  const currentVersion = serverInfo?.version
+  const displayVersion = currentVersion ?? notes.find((note) => note.is_latest)?.version ?? notes[0]?.version
 
   const { recent, archive } = useMemo(() => buildIndex(notes), [notes])
   const [activeVersion, setActiveVersion] = useState<string | null>(null)
@@ -208,10 +210,10 @@ export function ChangelogPage() {
         note={t('changelog.headNote')}
         actions={
           <>
-            {latest && (
+            {displayVersion && (
               <span className={TAG_CURRENT}>
                 <span className="size-[5px] flex-none rounded-full bg-brand" aria-hidden="true" />
-                {t('changelog.tagCurrent', { version: latest.version })}
+                {t('changelog.tagCurrent', { version: displayVersion })}
               </span>
             )}
             <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
@@ -246,56 +248,59 @@ export function ChangelogPage() {
           </nav>
 
           <div ref={mainRef} className="tl-main min-w-0">
-            {notes.map((note) => (
-              <article
-                key={note.version}
-                id={`rel-${note.version}`}
-                data-version={note.version}
-                className={`rel ${note.is_latest ? 'is-new' : ''}`}
-              >
-                <div className="mb-[3px] flex flex-wrap items-center gap-[9px]">
-                  <span className="font-mono text-[15px] font-semibold tracking-[-.02em]">v{note.version}</span>
-                  {note.is_latest && (
-                    <span className={TAG_CURRENT}>
-                      <span className="size-[5px] flex-none rounded-full bg-brand" aria-hidden="true" />
-                      {t('changelog.tagCurrentVersion')}
+            {notes.map((note) => {
+              const isCurrent = currentVersion ? note.version === currentVersion : note.is_latest
+              return (
+                <article
+                  key={note.version}
+                  id={`rel-${note.version}`}
+                  data-version={note.version}
+                  className={`rel ${isCurrent ? 'is-new' : ''}`}
+                >
+                  <div className="mb-[3px] flex flex-wrap items-center gap-[9px]">
+                    <span className="font-mono text-[15px] font-semibold tracking-[-.02em]">v{note.version}</span>
+                    {isCurrent && (
+                      <span className={TAG_CURRENT}>
+                        <span className="size-[5px] flex-none rounded-full bg-brand" aria-hidden="true" />
+                        {t('changelog.tagCurrentVersion')}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-ink-3">
+                      {note.date} · {t('changelog.changeCount', { count: changeCount(note) })}
                     </span>
-                  )}
-                  <span className="text-[11px] text-ink-3">
-                    {note.date} · {t('changelog.changeCount', { count: changeCount(note) })}
-                  </span>
-                </div>
-
-                {note.groups.length > 0 && (
-                  <div className="mt-[9px] overflow-hidden rounded-[10px] border border-hairline bg-surface shadow-hair">
-                    {note.groups.map((group, groupIdx) => {
-                      const kind = kindOf(group)
-                      const Icon = SECTION_ICON[kind]
-                      return (
-                        <div key={groupIdx} className="border-b border-hairline px-[14px] py-[11px] last:border-b-0">
-                          <div
-                            className={`mb-[7px] flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.07em] ${SECTION_STYLE[kind]}`}
-                          >
-                            <Icon className="size-3" aria-hidden="true" />
-                            {lang === 'zh' ? group.title_zh : group.title_en}
-                          </div>
-                          <ul>
-                            {group.items.map((item, itemIdx) => (
-                              <li
-                                key={itemIdx}
-                                className="rel-li flex gap-[9px] py-[2.5px] text-[12.5px] leading-[1.5] text-ink-2"
-                              >
-                                <span className="min-w-0">{renderInline(lang === 'zh' ? item.zh : item.en)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )
-                    })}
                   </div>
-                )}
-              </article>
-            ))}
+
+                  {note.groups.length > 0 && (
+                    <div className="mt-[9px] overflow-hidden rounded-[10px] border border-hairline bg-surface shadow-hair">
+                      {note.groups.map((group, groupIdx) => {
+                        const kind = kindOf(group)
+                        const Icon = SECTION_ICON[kind]
+                        return (
+                          <div key={groupIdx} className="border-b border-hairline px-[14px] py-[11px] last:border-b-0">
+                            <div
+                              className={`mb-[7px] flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.07em] ${SECTION_STYLE[kind]}`}
+                            >
+                              <Icon className="size-3" aria-hidden="true" />
+                              {lang === 'zh' ? group.title_zh : group.title_en}
+                            </div>
+                            <ul>
+                              {group.items.map((item, itemIdx) => (
+                                <li
+                                  key={itemIdx}
+                                  className="rel-li flex gap-[9px] py-[2.5px] text-[12.5px] leading-[1.5] text-ink-2"
+                                >
+                                  <span className="min-w-0">{renderInline(lang === 'zh' ? item.zh : item.en)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
           </div>
         </div>
       )}

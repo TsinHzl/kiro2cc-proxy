@@ -58,18 +58,15 @@ fn fix_group(items: Vec<Bilingual>) -> ReleaseNoteGroup {
     }
 }
 
+/// 当前发布版本（来自 Cargo.toml 的 [package].version 字段），编译期常量
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// 构建更新日志列表，固定按版本号从新到旧声明（不做运行时排序）
+///
+/// `is_latest` 由 `CURRENT_VERSION` 与条目 `version` 比对自动设定，
+/// bump Cargo.toml 后无需手动改此标记。
 pub fn build_release_notes() -> Vec<ReleaseNote> {
-    vec![
-        ReleaseNote {
-            version: "3.0.2".to_string(),
-            date: "2026-08-21".to_string(),
-            is_latest: true,
-            groups: vec![fix_group(vec![Bilingual::new(
-                "登录页密码框移除 autoFocus，避免打开页面即自动触发系统输入法切换",
-                "Removed autoFocus from the login password field so opening the page no longer auto-triggers a system input-method switch",
-            )])],
-        },
+    let mut notes = vec![
         ReleaseNote {
             version: "3.0.1".to_string(),
             date: "2026-08-21".to_string(),
@@ -241,7 +238,22 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
                 "Fixed a build failure caused by the Dockerfile missing a COPY assets step, which left the ip2region xdb file absent in the container",
             )])],
         },
-    ]
+    ];
+
+    // is_latest 后处理：与 CURRENT_VERSION 匹配的条目标为最新，
+    // 列表里找不到时全部置 false（避免历史版本继续被高亮）
+    let matched = notes.iter().filter(|n| n.version == CURRENT_VERSION).count();
+    if matched == 1 {
+        for n in notes.iter_mut() {
+            n.is_latest = n.version == CURRENT_VERSION;
+        }
+    } else {
+        for n in notes.iter_mut() {
+            n.is_latest = false;
+        }
+    }
+
+    notes
 }
 
 #[cfg(test)]
@@ -251,8 +263,19 @@ mod tests {
     #[test]
     fn test_exactly_one_latest_version() {
         let notes = build_release_notes();
-        let latest_count = notes.iter().filter(|n| n.is_latest).count();
-        assert_eq!(latest_count, 1, "必须有且仅有一条 is_latest=true");
+        // 至多一条 is_latest=true（changelog 未列当前版本时全部 false）
+        assert!(
+            notes.iter().filter(|n| n.is_latest).count() <= 1,
+            "is_latest=true 至多一条"
+        );
+        // 当前版本在 changelog 里时必须被标 latest
+        if notes.iter().any(|n| n.version == CURRENT_VERSION) {
+            assert!(
+                notes.iter().any(|n| n.version == CURRENT_VERSION && n.is_latest),
+                "当前版本 {} 在 changelog 中时必须 is_latest=true",
+                CURRENT_VERSION
+            );
+        }
     }
 
     #[test]

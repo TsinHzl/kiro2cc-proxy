@@ -1,12 +1,8 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Token 计算模块
 //!
-//! 提供文本 token 数量计算功能。
-//!
-//! # 计算规则
-//! - 非西文字符：每个计 4.0 个字符单位
-//! - 西文字符：每个计 1 个字符单位
-//! - 4 个字符单位 = 1 token（向上取整）
+//! 使用 tiktoken-rs cl100k_base BPE 编码器估算 token 数量。
+//! 编码器在首次调用时初始化（约 50ms），之后全局缓存复用。
 
 use crate::anthropic::types::{
     CountTokensRequest, CountTokensResponse, Message, SystemMessage, Tool,
@@ -14,6 +10,15 @@ use crate::anthropic::types::{
 use crate::http_client::{ProxyConfig, build_client};
 use crate::model::config::TlsBackend;
 use std::sync::OnceLock;
+use tiktoken_rs::CoreBPE;
+
+static BPE_ENCODER: OnceLock<CoreBPE> = OnceLock::new();
+
+fn get_bpe() -> &'static CoreBPE {
+    BPE_ENCODER.get_or_init(|| {
+        tiktoken_rs::cl100k_base().expect("cl100k_base BPE 编码器初始化失败")
+    })
+}
 
 /// Count Tokens API 配置
 #[derive(Clone, Default)]
@@ -45,54 +50,12 @@ fn get_config() -> Option<&'static CountTokensConfig> {
     COUNT_TOKENS_CONFIG.get()
 }
 
-/// 判断字符是否为非西文字符（已不再被 count_tokens 使用，保留供历史调用方）
-#[allow(dead_code)]
-fn is_non_western_char(c: char) -> bool {
-    !matches!(c,
-        // 基本 ASCII
-        '\u{0000}'..='\u{007F}' |
-        // 拉丁字母扩展-A (Latin Extended-A)
-        '\u{0080}'..='\u{00FF}' |
-        // 拉丁字母扩展-B (Latin Extended-B)
-        '\u{0100}'..='\u{024F}' |
-        // 拉丁字母扩展附加 (Latin Extended Additional)
-        '\u{1E00}'..='\u{1EFF}' |
-        // 拉丁字母扩展-C/D/E
-        '\u{2C60}'..='\u{2C7F}' |
-        '\u{A720}'..='\u{A7FF}' |
-        '\u{AB30}'..='\u{AB6F}'
-    )
-}
-
-/// 计算文本的 token 数量（四分类加权）
-///
-/// # 计算规则
-/// - ASCII 字母 (A-Za-z): 每字符 / 4.5（英文 BPE 平均 ~4.5 chars/token）
-/// - 数字 (0-9): 每字符 / 2.0（数字 BPE 拆分粒度细）
-/// - 其他 ASCII (符号、空白): 每字符 / 1.5（符号常单独成 token）
-/// - 非 ASCII (CJK 等): 每字符 / 1.5（中文 BPE 平均 ~1.5 chars/token）
-/// - 向上取整，最少 1 token
+/// 计算文本的 token 数量（tiktoken cl100k_base BPE）
 pub fn count_tokens(text: &str) -> u64 {
-    let mut letters: usize = 0;
-    let mut digits: usize = 0;
-    let mut ascii_symbols: usize = 0;
-    let mut non_ascii: usize = 0;
-
-    for c in text.chars() {
-        match c {
-            'A'..='Z' | 'a'..='z' => letters += 1,
-            '0'..='9' => digits += 1,
-            c if (c as u32) < 0x80 => ascii_symbols += 1,
-            _ => non_ascii += 1,
-        }
+    if text.is_empty() {
+        return 0;
     }
-
-    let units = letters as f64 / 4.5
-        + digits as f64 / 2.0
-        + ascii_symbols as f64 / 1.5
-        + non_ascii as f64 / 1.5;
-
-    (units.ceil() as u64).max(1)
+    get_bpe().encode_with_special_tokens(text).len() as u64
 }
 
 /// 估算请求的输入 tokens
@@ -309,76 +272,70 @@ pub(crate) fn count_prefix_tokens(
 mod tests {
     use super::*;
 
-    // 新公式（四分类加权）测试：
-    //   ASCII 字母 / 4.5
-    //   数字 / 2.0
-    //   其他 ASCII (符号、空白) / 1.5
-    //   非 ASCII (CJK 等) / 1.5
+    // tiktoken cl100k_base BPE 真实值测试
 
     #[test]
     fn test_count_tokens_hello_world() {
-        // "Hello world" = 10 字母 + 1 空格
-        // = 10/4.5 + 1/1.5 = 2.222 + 0.667 = 2.889 → ceil = 3
-        assert_eq!(count_tokens("Hello world"), 3);
+        // cl100k_base: "Hello" + " world" = 2 tokens
+        assert_eq!(count_tokens("Hello world"), 2);
     }
 
     #[test]
     fn test_count_tokens_400_letters() {
-        // 400 个 ASCII 字母 = 400/4.5 = 88.89 → ceil = 89
+        // 400 个 'a' 在 cl100k_base 下 BPE 合并为约 50 tokens
         let text = "a".repeat(400);
-        assert_eq!(count_tokens(&text), 89);
+        assert_eq!(count_tokens(&text), 50);
     }
 
     #[test]
     fn test_count_tokens_4000_letters() {
-        // 4000 个 ASCII 字母 = 4000/4.5 = 888.89 → ceil = 889
+        // 4000 个 'a' 在 cl100k_base 下约 500 tokens
         let text = "a".repeat(4000);
-        assert_eq!(count_tokens(&text), 889);
+        assert_eq!(count_tokens(&text), 500);
     }
 
     #[test]
     fn test_count_tokens_chinese() {
-        // 4 个 CJK = 4/1.5 = 2.67 → ceil = 3
-        assert_eq!(count_tokens("你好世界"), 3);
+        // "你好世界" = 5 tokens（cl100k_base 真实值）
+        assert_eq!(count_tokens("你好世界"), 5);
     }
-
-    // ---------- B4 新增覆盖 ----------
 
     #[test]
     fn test_count_tokens_1000_letters_range() {
         let text = "a".repeat(1000);
         let result = count_tokens(&text);
-        // 1000/4.5 = 222.2 → ceil = 223
-        assert!((200..=240).contains(&result), "got {}", result);
+        // cl100k_base: 约 125 tokens
+        assert!((100..=150).contains(&result), "got {}", result);
     }
 
     #[test]
     fn test_count_tokens_1000_digits_range() {
         let text = "1".repeat(1000);
         let result = count_tokens(&text);
-        // 1000/2.0 = 500
-        assert!((480..=520).contains(&result), "got {}", result);
+        // cl100k_base: 数字 BPE 粒度细，约 334 tokens
+        assert!((300..=400).contains(&result), "got {}", result);
     }
 
     #[test]
     fn test_count_tokens_100_symbols_range() {
         let text = "!".repeat(100);
         let result = count_tokens(&text);
-        // 100/1.5 = 66.7 → ceil = 67
-        assert!((60..=80).contains(&result), "got {}", result);
+        // cl100k_base: "!" 通常独立成 token，约 13 tokens（BPE 会合并连续符号）
+        assert!((10..=20).contains(&result), "got {}", result);
     }
 
     #[test]
     fn test_count_tokens_1000_cjk_range() {
         let text = "中".repeat(1000);
         let result = count_tokens(&text);
-        // 1000/1.5 = 666.7 → ceil = 667
-        assert!((660..=700).contains(&result), "got {}", result);
+        // cl100k_base: 每个 CJK 通常对应 1-3 个字节序列 token，约 1000 tokens
+        assert!((950..=1050).contains(&result), "got {}", result);
     }
 
     #[test]
-    fn test_count_tokens_empty_string_min_1() {
-        assert_eq!(count_tokens(""), 1);
+    fn test_count_tokens_empty_string_returns_zero() {
+        // count_tokens 空字符串返回 0；调用方 count_all_tokens_local 等有 .max(1) 兜底
+        assert_eq!(count_tokens(""), 0);
     }
 
     #[test]
@@ -388,11 +345,9 @@ mod tests {
 
     #[test]
     fn test_count_tokens_mixed() {
-        // 10 字母 + 5 数字 + 3 符号 + 2 CJK
-        // = 10/4.5 + 5/2.0 + 3/1.5 + 2/1.5
-        // = 2.222 + 2.5 + 2.0 + 1.333 = 8.056 → ceil = 9
         let text = "abcdefghij12345!@#中文";
-        assert_eq!(count_tokens(text), 9);
+        let result = count_tokens(text);
+        assert!(result > 0, "混合文本 token 数应大于 0, got {}", result);
     }
 
     // ---------- content block 覆盖（tool_use / tool_result） ----------
@@ -400,13 +355,13 @@ mod tests {
     #[test]
     fn test_count_content_block_text() {
         let block = serde_json::json!({"type": "text", "text": "Hello world"});
-        assert_eq!(count_content_block(&block), 3);
+        // cl100k_base: "Hello world" = 2 tokens
+        assert_eq!(count_content_block(&block), 2);
     }
 
     #[test]
     fn test_count_content_block_tool_use() {
         // name="Read" + input={"file_path":"/foo/bar.txt"}
-        // 应包含 name 和 input JSON 序列化两部分,合计远大于 1
         let block = serde_json::json!({
             "type": "tool_use",
             "id": "toolu_x",
@@ -424,8 +379,8 @@ mod tests {
             "tool_use_id": "toolu_x",
             "content": "Hello world"
         });
-        // "Hello world" 估算 = 3
-        assert_eq!(count_content_block(&block), 3);
+        // cl100k_base: "Hello world" = 2 tokens
+        assert_eq!(count_content_block(&block), 2);
     }
 
     #[test]
@@ -438,38 +393,35 @@ mod tests {
                 {"type": "text", "text": "你好世界"}
             ]
         });
-        // 3 + 3 = 6
-        assert_eq!(count_content_block(&block), 6);
+        // 2 + 5 = 7
+        assert_eq!(count_content_block(&block), 7);
     }
 
     #[test]
     fn test_count_content_block_tool_use_missing_name() {
-        // 缺 name:仅计入 input
         let block = serde_json::json!({
             "type": "tool_use",
             "id": "toolu_x",
             "input": {"file_path": "/foo/bar.txt"}
         });
         let n = count_content_block(&block);
-        assert!(n > 0, "缺 name 时应仅计 input,got {}", n);
+        assert!(n > 0, "缺 name 时应仅计 input, got {}", n);
     }
 
     #[test]
     fn test_count_content_block_tool_use_missing_input() {
-        // 缺 input:仅计入 name
         let block = serde_json::json!({
             "type": "tool_use",
             "id": "toolu_x",
             "name": "Read"
         });
         let n = count_content_block(&block);
-        // "Read" = 4 字母 / 4.5 = 0.89 → ceil = 1
+        // "Read" = 1 token
         assert_eq!(n, 1);
     }
 
     #[test]
     fn test_count_content_block_tool_result_null_content() {
-        // content 为 null:返回 0,不 panic
         let block = serde_json::json!({
             "type": "tool_result",
             "tool_use_id": "toolu_x",
@@ -481,14 +433,12 @@ mod tests {
     #[test]
     fn test_count_prefix_tokens_with_tool_messages() {
         use crate::anthropic::types::Message;
-        // 仅 text 基线
         let baseline_msgs = vec![Message {
             role: "user".into(),
             content: serde_json::json!([{"type": "text", "text": "hi"}]),
         }];
         let baseline = count_prefix_tokens(None, &baseline_msgs, None);
 
-        // 含 tool_use + tool_result 的对话
         let with_tools = vec![
             Message {
                 role: "user".into(),

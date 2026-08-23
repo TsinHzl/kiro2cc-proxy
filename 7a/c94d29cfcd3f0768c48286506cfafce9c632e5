@@ -1,0 +1,57 @@
+Cargo.toml
+  9ad99c14d60725f0 3
+src/admin/changelog.rs
+  48b6e2de30fca9b5 66-67
+  9ad99c14d60725f0 65,84-88
+src/admin/changelog_data.rs
+  48b6e2de30fca9b5 62-63,65,69
+  9ad99c14d60725f0 61,66-67,241-256,266-278
+admin-ui/src/components/changelog-page.tsx
+  9ad99c14d60725f0 10,149,152-153,213,216,251-269,271,273-295,297-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7ac94d29cfcd3f0768c48286506cfafce9c632e5",
+  "prompts": {
+    "11ee63f9f11ce825": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b41e129c-68e6-4105-89ed-bb2fe798628e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 60,
+      "overriden_lines": 0
+    },
+    "48b6e2de30fca9b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e080491d-6c2f-4ef7-9ea2-1a16b90ff89a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 51,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    },
+    "9ad99c14d60725f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9cb4a51e-9e86-48d2-85cb-54b1dde8c6f7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 138,
+      "accepted_lines": 96,
+      "overriden_lines": 0
+    }
+  }
+}

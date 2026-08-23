@@ -12,12 +12,8 @@ use crate::model::config::TlsBackend;
 use std::sync::OnceLock;
 use tiktoken_rs::CoreBPE;
 
-static BPE_ENCODER: OnceLock<CoreBPE> = OnceLock::new();
-
 fn get_bpe() -> &'static CoreBPE {
-    BPE_ENCODER.get_or_init(|| {
-        tiktoken_rs::cl100k_base().expect("cl100k_base BPE 编码器初始化失败")
-    })
+    tiktoken_rs::cl100k_base_singleton()
 }
 
 /// Count Tokens API 配置

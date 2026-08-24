@@ -1,0 +1,77 @@
+Cargo.toml
+  622126f380dddade 3
+admin-ui/src/components/event-log-page.tsx
+  622126f380dddade 198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "412d9854fa68f83324a32bb2ff9d5492c6f3a3fa",
+  "prompts": {
+    "622126f380dddade": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9aaf4f67-9d8f-49b8-986f-c95c2034d079",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "9ad99c14d60725f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9cb4a51e-9e86-48d2-85cb-54b1dde8c6f7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 138,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "c0d8ad39f6fdb0d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bde76c34-823e-4c23-9bc7-39d7d82f2a28",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 241,
+      "overriden_lines": 0
+    },
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 108,
+      "total_deletions": 102,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "e592e8960753b044": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86f5e27c-3a96-4d0e-9e13-a14be7d8e093",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

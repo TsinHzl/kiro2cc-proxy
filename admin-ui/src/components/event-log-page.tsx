@@ -195,7 +195,7 @@ export function EventLogPage({
                           type="button"
                           onClick={() => setSelectedBody(record.responseBody)}
                           title={record.responseBody}
-                          className="block max-w-[420px] truncate text-left text-[11.5px] text-ink-2 transition-colors hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                          className="block w-full truncate text-left text-[11.5px] text-ink-2 transition-colors hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         >
                           {record.responseBody}
                         </button>

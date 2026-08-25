@@ -1,0 +1,39 @@
+admin-ui/src/components/account-toolbar.tsx
+  4a72065b4b52ec99 6-12,19-20
+src/admin/types.rs
+  4a72065b4b52ec99 60-62
+admin-ui/src/types/api.ts
+  4a72065b4b52ec99 29-39
+admin-ui/src/lib/account-state.ts
+  4a72065b4b52ec99 5-11,45-47,99-106,116
+admin-ui/src/components/dashboard.tsx
+  4a72065b4b52ec99 214-219
+src/kiro/token_manager.rs
+  4a72065b4b52ec99 628,755-758,2421
+admin-ui/src/i18n/locales/zh.json
+  4a72065b4b52ec99 129,154
+admin-ui/src/i18n/locales/en.json
+  4a72065b4b52ec99 129,154
+src/admin/service.rs
+  4a72065b4b52ec99 145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d028a18024e9f65663267e17d0aad65e96e95a90",
+  "prompts": {
+    "4a72065b4b52ec99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9837adf8-f334-41d3-8355-fc40396eb31e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 4,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -13,8 +13,7 @@ const AXIS_DIVISIONS = 3
 /** 点数超过此值时 X 轴标签抽稀，否则 30 天档标签必然重叠 */
 const XLABEL_DENSE_THRESHOLD = 20
 const XLABEL_STEP = 3
-/** 数值标注只给前 2 名有消耗日（设计稿 2 个 .plot-val） */
-const ANNOTATED_COUNT = 2
+/** 数值标注给所有有消耗日 */
 
 /** 上界取「好数」并保证能被 3 整除；全零区间取 1，避免 credits/axisMax 除零 */
 function niceAxisMax(value: number): number {
@@ -59,8 +58,9 @@ export function DailyCreditsTrendChart({ points }: { points: TrendPoint[] }) {
 
   // 零消耗日不落点（设计稿）；全零时 annotated 为空 → 不渲染 .is-peak 与 .plot-val
   const active = coords.filter((c) => c.credits > 0)
-  const annotated = [...active].sort((a, b) => b.credits - a.credits).slice(0, ANNOTATED_COUNT)
-  const peakDate = annotated[0]?.date ?? null
+  const peakDate = active.length
+    ? active.reduce((max, c) => (c.credits > max.credits ? c : max), active[0]).date
+    : null
 
   // 从区间末尾往前数的连续零消耗天数；≥2 天才画带（单日不成「区间」）
   let zeroStreak = 0
@@ -171,7 +171,7 @@ export function DailyCreditsTrendChart({ points }: { points: TrendPoint[] }) {
               ))}
 
               {/* 设计稿 .plot-val */}
-              {annotated.map((c) => (
+              {active.map((c) => (
                 <span
                   key={c.date}
                   className="absolute z-[3] whitespace-nowrap font-mono text-[10.5px] font-semibold tabular-nums text-brand [transform:translate(-50%,-9px)]"

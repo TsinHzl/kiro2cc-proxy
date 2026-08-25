@@ -142,6 +142,7 @@ impl AdminService {
                     .as_ref()
                     .map(|s| s.count_within(entry.id, since) as u64)
                     .unwrap_or(0),
+                disabled_reason: entry.disabled_reason,
             })
             .collect();
 

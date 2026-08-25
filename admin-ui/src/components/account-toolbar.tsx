@@ -3,13 +3,21 @@ import { useTranslation } from 'react-i18next'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
 
 /** 分段筛选口径：设计稿把 warning + error 合并为「异常」一段（与指标条 abnormalCount 同源） */
-export type AccountStatusFilter = 'all' | 'healthy' | 'abnormal' | 'disabled' | 'pending'
+export type AccountStatusFilter =
+  | 'all'
+  | 'healthy'
+  | 'abnormal'
+  | 'disabled'
+  | 'quota_exceeded'
+  | 'pending'
 
 const SEGMENTS: { key: AccountStatusFilter; labelKey: string; pipClass?: string }[] = [
   { key: 'all', labelKey: 'credentials.filterAll' },
   { key: 'healthy', labelKey: 'credentials.filterHealthy', pipClass: 'bg-ok' },
   { key: 'abnormal', labelKey: 'credentials.filterAbnormal', pipClass: 'bg-warn' },
   { key: 'disabled', labelKey: 'credentials.filterDisabled', pipClass: 'bg-ink-3' },
+  // 额度耗尽桶：与「已禁用」并列展示，避免跨月可恢复的账号被人工永久禁用桶吞掉
+  { key: 'quota_exceeded', labelKey: 'credentials.filterQuotaExceeded', pipClass: 'bg-danger' },
   { key: 'pending', labelKey: 'credentials.filterPending', pipClass: 'bg-brand' },
 ]
 

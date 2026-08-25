@@ -26,6 +26,17 @@ export interface CredentialStatusItem {
   proxyUrl?: string
   healthStatus: 'healthy' | 'warning' | 'degraded' | 'unhealthy' | 'disabled'
   throttleCount: number
+  /**
+   * 禁用原因；与 `disabled` 配套使用。
+   * - quota_exceeded：上游 402 MONTHLY_REQUEST_COUNT 触发，跨自然月自动恢复
+   * - 其他：手动 / 连续失败 / refreshToken 撤销 等需人工介入
+   */
+  disabledReason?:
+    | 'manual'
+    | 'too_many_failures'
+    | 'quota_exceeded'
+    | 'invalid_refresh_token'
+    | 'too_many_refresh_failures'
 }
 
 // 余额响应

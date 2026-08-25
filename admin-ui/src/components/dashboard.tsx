@@ -211,7 +211,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 分段计数基于搜索后的集合；设计稿把 error + warning 合并为「异常」一段
   const stateCounts = useMemo(() => {
     const counts: Record<AccountStatusFilter, number> = {
-      all: filtered.length, healthy: 0, abnormal: 0, disabled: 0, pending: 0,
+      all: filtered.length,
+      healthy: 0,
+      abnormal: 0,
+      disabled: 0,
+      quota_exceeded: 0,
+      pending: 0,
     }
     filtered.forEach(c => {
       const state = deriveAccountState(c, balanceMap.has(c.id))

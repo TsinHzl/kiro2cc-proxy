@@ -625,7 +625,7 @@ struct CredentialEntry {
 /// 禁用原因
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum DisabledReason {
+pub enum DisabledReason {
     /// Admin API 手动禁用
     Manual,
     /// 连续失败达到阈值后自动禁用
@@ -752,6 +752,10 @@ pub struct CredentialEntrySnapshot {
     pub health_status: HealthStatus,
     /// 被限流次数（429 响应，累计）
     pub throttle_count: u64,
+    /// 禁用原因（manual / too_many_failures / quota_exceeded / invalid_refresh_token /
+    /// too_many_refresh_failures）；None = 未禁用。Admin 面板据此区分「已禁用」与「额度已用尽」
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_reason: Option<DisabledReason>,
 }
 
 /// 账号管理器状态快照
@@ -2414,6 +2418,7 @@ impl MultiTokenManager {
                     proxy_url: e.credentials.proxy_url.clone(),
                     health_status: Self::compute_health(e),
                     throttle_count: e.throttle_count,
+                    disabled_reason: e.disabled_reason,
                 })
                 .collect(),
             current_id,

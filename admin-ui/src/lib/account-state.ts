@@ -2,7 +2,13 @@ import type { CredentialStatusItem } from '@/types/api'
 import { localeTag } from '@/lib/locale'
 
 /** 账号派生状态（design.md 决策 5：状态列 / 工具栏计数 / 筛选共用同一判定） */
-export type AccountState = 'disabled' | 'error' | 'warning' | 'pending' | 'healthy'
+export type AccountState =
+  | 'quota_exceeded'
+  | 'disabled'
+  | 'error'
+  | 'warning'
+  | 'pending'
+  | 'healthy'
 
 /** 账号显示名（昵称 → 邮箱 → #ID）：搜索、排序、头像首字母共用同一口径 */
 export function accountLabel(item: CredentialStatusItem): string {
@@ -36,6 +42,9 @@ export function deriveAccountState(
   item: CredentialStatusItem,
   hasBalance: boolean,
 ): AccountState {
+  // 额度耗尽优先于通用「已禁用」：仪表盘禁用计数 + 工具栏「已禁用」筛选项
+  // 都不应吞掉这一类，让用户能在筛选里精确看到下月自动恢复的账号
+  if (item.disabled && item.disabledReason === 'quota_exceeded') return 'quota_exceeded'
   if (item.disabled) return 'disabled'
   if (item.healthStatus === 'unhealthy' || item.healthStatus === 'degraded') return 'error'
   if (item.healthStatus === 'warning') return 'warning'
@@ -87,6 +96,14 @@ export const ACCOUNT_STATE_VISUAL: Record<AccountState, AccountStateVisual> = {
     pipClass: 'bg-ink-3 ring-[2.5px] ring-surface-3',
     avatarClass: 'bg-surface-3 text-ink-3',
   },
+  // 复用 danger 配色（与异常同色系）让用户一眼区分「额度耗尽」与「通用已禁用」；
+  // 文案独立以便跨月自动恢复时给出更明确的提示
+  quota_exceeded: {
+    labelKey: 'credentials.stateQuotaExceeded',
+    tagClass: 'text-danger bg-danger-soft border-danger-line',
+    pipClass: 'bg-danger ring-[2.5px] ring-danger-soft',
+    avatarClass: 'bg-danger-soft text-danger',
+  },
 }
 
 /** 工具栏分段筛选顺序（「全部」之后依次排列） */
@@ -96,6 +113,7 @@ export const ACCOUNT_STATE_ORDER: readonly AccountState[] = [
   'error',
   'pending',
   'disabled',
+  'quota_exceeded',
 ]
 
 /** 可排序列（设计稿仅「账号」「剩余额度」两列可点击排序） */

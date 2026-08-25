@@ -57,6 +57,9 @@ pub struct CredentialStatusItem {
     pub health_status: crate::kiro::token_manager::HealthStatus,
     /// 最近 7 天限流次数（429 响应，滚动 7×24 小时窗口）
     pub throttle_count: u64,
+    /// 禁用原因（None = 未禁用；QuotaExceeded 时前端显示「额度已用尽」而非通用「已禁用」）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_reason: Option<crate::kiro::token_manager::DisabledReason>,
 }
 
 // ============ 操作请求 ============

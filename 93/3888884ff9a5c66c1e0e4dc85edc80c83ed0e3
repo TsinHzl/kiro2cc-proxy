@@ -1,0 +1,25 @@
+Cargo.toml
+  4fab9dbe96ef7f10 3
+src/kiro/provider.rs
+  4fab9dbe96ef7f10 81,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "933888884ff9a5c66c1e0e4dc85edc80c83ed0e3",
+  "prompts": {
+    "4fab9dbe96ef7f10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b3c869c-e80f-46cd-ad7b-0aa6962e6ef8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

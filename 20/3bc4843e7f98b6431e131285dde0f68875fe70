@@ -1,0 +1,25 @@
+Cargo.toml
+  f9f15ddb46ec8093 3
+admin-ui/src/components/changelog-page.tsx
+  f9f15ddb46ec8093 207-227,241,260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "203bc4843e7f98b6431e131285dde0f68875fe70",
+  "prompts": {
+    "f9f15ddb46ec8093": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f609a0a8-cfa4-4c9c-86e1-42351718c67f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 22,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -204,25 +204,27 @@ export function ChangelogPage() {
 
   return (
     <div>
-      <PageHead
-        crumb={[t('dashboard.navSystem'), t('changelog.pageTitle')]}
-        title={t('changelog.pageTitle')}
-        note={t('changelog.headNote')}
-        actions={
-          <>
-            {displayVersion && (
-              <span className={TAG_CURRENT}>
-                <span className="size-[5px] flex-none rounded-full bg-brand" aria-hidden="true" />
-                {t('changelog.tagCurrent', { version: displayVersion })}
-              </span>
-            )}
-            <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
-              <RotateCw className={isLoading ? 'animate-spin' : ''} />
-              {t('common.refresh')}
-            </Button>
-          </>
-        }
-      />
+      <div className="sticky top-0 z-20 -mx-9 bg-background px-9 pt-7">
+        <PageHead
+          crumb={[t('dashboard.navSystem'), t('changelog.pageTitle')]}
+          title={t('changelog.pageTitle')}
+          note={t('changelog.headNote')}
+          actions={
+            <>
+              {displayVersion && (
+                <span className={TAG_CURRENT}>
+                  <span className="size-[5px] flex-none rounded-full bg-brand" aria-hidden="true" />
+                  {t('changelog.tagCurrent', { version: displayVersion })}
+                </span>
+              )}
+              <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+                <RotateCw className={isLoading ? 'animate-spin' : ''} />
+                {t('common.refresh')}
+              </Button>
+            </>
+          }
+        />
+      </div>
 
       {isLoading ? (
         <div className={`${PANEL} px-4 py-8 text-center text-[12.5px] text-ink-3`}>{t('common.loading')}</div>
@@ -236,7 +238,7 @@ export function ChangelogPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-0 pb-6 lg:grid-cols-[150px_1fr]">
-          <nav className="hidden self-start pt-0.5 lg:sticky lg:top-7 lg:block">
+          <nav className="hidden self-start pt-0.5 lg:sticky lg:top-[84px] lg:block">
             <div className={TL_IDX_LAB}>{t('changelog.idxLabelVersions')}</div>
             {recent.map(renderLink)}
             {archive.length > 0 && (
@@ -255,7 +257,7 @@ export function ChangelogPage() {
                   key={note.version}
                   id={`rel-${note.version}`}
                   data-version={note.version}
-                  className={`rel ${isCurrent ? 'is-new' : ''}`}
+                  className={`rel scroll-mt-[84px] ${isCurrent ? 'is-new' : ''}`}
                 >
                   <div className="mb-[3px] flex flex-wrap items-center gap-[9px]">
                     <span className="font-mono text-[15px] font-semibold tracking-[-.02em]">v{note.version}</span>

@@ -266,7 +266,7 @@
     "statusSkippedError": "Skipped (error status)",
     "batchImportDialogTitle": "Batch Import Accounts (Auto-Verify)",
     "jsonFormatAccountsLabel": "JSON Format Accounts",
-    "batchImportPlaceholder": "Paste accounts in JSON format (single object or array supported)\nExample: [{\"refreshToken\":\"...\",\"clientId\":\"...\",\"clientSecret\":\"...\",\"authRegion\":\"us-east-1\",\"apiRegion\":\"us-west-2\"}]\nThe region field is automatically mapped to authRegion",
+    "batchImportPlaceholder": "Paste accounts in JSON format (single object or array supported)\nExample: [{\"refreshToken\":\"...\",\"clientId\":\"...\",\"clientSecret\":\"...\",\"authRegion\":\"us-east-1\",\"apiRegion\":\"us-west-2\",\"profileArn\":\"arn:aws:codewhisperer:us-east-1:<account-id>:profile/<profile-id>\"}]\nThe region field is automatically mapped to authRegion",
     "batchImportHint": "💡 Accounts are auto-verified on import; failed accounts will be excluded",
     "verifyingProgressLabel": "Verifying",
     "verifyCompleteLabel": "Verification Complete",

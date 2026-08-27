@@ -29,6 +29,7 @@ interface CredentialInput {
   region?: string
   authRegion?: string
   apiRegion?: string
+  profileArn?: string
   priority?: number
   machineId?: string
 }
@@ -102,6 +103,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             authMethod: a.credentials?.authMethod,
             clientId: a.credentials?.clientId || undefined,
             clientSecret: a.credentials?.clientSecret || undefined,
+            profileArn: a.credentials?.profileArn || a.profileArn || undefined,
           }))
           .filter((c: CredentialInput) => c.refreshToken)
       } else {
@@ -197,6 +199,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             apiRegion: cred.apiRegion?.trim() || undefined,
             clientId,
             clientSecret,
+            profileArn: cred.profileArn?.trim() || undefined,
             priority: cred.priority || 0,
             machineId: cred.machineId?.trim() || undefined,
           })

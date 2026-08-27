@@ -266,7 +266,7 @@
     "statusSkippedError": "已跳过（error 状态）",
     "batchImportDialogTitle": "批量导入账号（自动验活）",
     "jsonFormatAccountsLabel": "JSON 格式账号",
-    "batchImportPlaceholder": "粘贴 JSON 格式的账号（支持单个对象或数组）\n例如: [{\"refreshToken\":\"...\",\"clientId\":\"...\",\"clientSecret\":\"...\",\"authRegion\":\"us-east-1\",\"apiRegion\":\"us-west-2\"}]\n支持 region 字段自动映射为 authRegion",
+    "batchImportPlaceholder": "粘贴 JSON 格式的账号（支持单个对象或数组）\n例如: [{\"refreshToken\":\"...\",\"clientId\":\"...\",\"clientSecret\":\"...\",\"authRegion\":\"us-east-1\",\"apiRegion\":\"us-west-2\",\"profileArn\":\"arn:aws:codewhisperer:us-east-1:<account-id>:profile/<profile-id>\"}]\n支持 region 字段自动映射为 authRegion",
     "batchImportHint": "💡 导入时自动验活，失败的账号会被排除",
     "verifyingProgressLabel": "验活进度",
     "verifyCompleteLabel": "验活完成",

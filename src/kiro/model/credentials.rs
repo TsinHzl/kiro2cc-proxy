@@ -20,8 +20,21 @@ pub struct KiroCredentials {
     pub id: Option<u64>,
 
     /// 访问令牌
+    ///
+    /// - Social / external_idp 账号：即为上游返回的 accessToken
+    /// - IdC 账号：存放的是 AWS SSO OIDC `/token` 响应中的 `idToken`（JWT），
+    ///   因为 Q 数据面接口（`generateAssistantResponse` 等）只接受 idToken。
+    ///   控制面接口（如 `getUsageLimits`）需要的是 `sso_access_token` 字段。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
+
+    /// IdC 账号专用：AWS SSO OIDC `/token` 响应中的 `accessToken`（SSO portal session token）
+    ///
+    /// 仅 IdC 认证方式会填充此字段。用于 `getUsageLimits` 等 Q 控制面接口的鉴权，
+    /// 与 `access_token`（此场景下存放的是 idToken，用于数据面接口）区分。
+    /// 旧版本 credentials.json 不含此字段，反序列化时为 `None`，向后兼容。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sso_access_token: Option<String>,
 
     /// 刷新令牌
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +157,7 @@ impl std::fmt::Debug for KiroCredentials {
         f.debug_struct("KiroCredentials")
             .field("id", &self.id)
             .field("access_token", &redact(&self.access_token))
+            .field("sso_access_token", &redact(&self.sso_access_token))
             .field("refresh_token", &redact(&self.refresh_token))
             .field("profile_arn", &self.profile_arn)
             .field("expires_at", &self.expires_at)
@@ -425,6 +439,7 @@ mod tests {
         let creds = KiroCredentials {
             id: None,
             access_token: Some("token".to_string()),
+            sso_access_token: None,
             refresh_token: None,
             profile_arn: None,
             expires_at: None,
@@ -548,6 +563,7 @@ mod tests {
         let creds = KiroCredentials {
             id: None,
             access_token: None,
+            sso_access_token: None,
             refresh_token: Some("test".to_string()),
             profile_arn: None,
             expires_at: None,
@@ -583,6 +599,7 @@ mod tests {
         let creds = KiroCredentials {
             id: None,
             access_token: None,
+            sso_access_token: None,
             refresh_token: Some("test".to_string()),
             profile_arn: None,
             expires_at: None,
@@ -700,6 +717,7 @@ mod tests {
         let original = KiroCredentials {
             id: Some(42),
             access_token: Some("token".to_string()),
+            sso_access_token: None,
             refresh_token: Some("refresh".to_string()),
             profile_arn: None,
             expires_at: None,

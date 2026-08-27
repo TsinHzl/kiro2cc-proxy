@@ -778,6 +778,10 @@ This was fixed in v2.7.3: the `crypto.subtle` encryption API is only available i
 
 Enterprise IdC accounts calling the Q endpoint require a `profileArn`, but the IdC token refresh response doesn't include it — it must be entered manually. The admin panel's "Add Account / Edit Account" dialog now has a **Profile ARN** field; fill in a value like `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>`. You can obtain the `profileArn` from the Kiro IDE local cache or via `ListAvailableProfiles`; its region must match the account's `apiRegion`. Social accounts usually don't need this field.
 
+**Q: After filling in profileArn, an Enterprise IdC account still returns <code>403 Forbidden: Invalid token</code> when checking balance**
+
+This has been fixed: the AWS SSO OIDC refresh endpoint returns both an `accessToken` (SSO portal session token) and an `idToken` (JWT). The Amazon Q data-plane endpoint (chat requests) only accepts the idToken, while the usage/quota endpoint (`getUsageLimits`) requires the original accessToken — previously the proxy only kept a single token and reused it for both, so only one of the two could work at a time. After the fix, the proxy stores both tokens separately and picks the right one per endpoint, with no action needed from you; it takes effect automatically after the account's next token refresh (`credentials.json` gains an internal `ssoAccessToken` field, fully backward compatible with existing config files — no manual editing required). If it still fails after upgrading, try resetting the account in the admin panel or wait for the token to expire and refresh automatically.
+
 **Q: Can sub-API-Key spending limits be metered in real Kiro credits instead of estimated USD?**
 
 Yes. When creating/editing a sub API Key, the limit unit can be set to "USD estimate" or "real credits" (`limitUnit`: usd/credits). With credits, the limit is checked against the real `credits_used` accumulated in usage records (falls back to `estimated_cost × k_ref` for older records without `credits_used`). Defaults to `usd`, fully backward compatible.

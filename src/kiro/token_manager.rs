@@ -371,21 +371,32 @@ async fn refresh_idc_token(
     }
 
     let data: IdcRefreshResponse = response.json().await?;
-
     let mut new_credentials = credentials.clone();
-    // Amazon Q generateAssistantResponse 需要 idToken（JWT），accessToken 是 SSO portal session token
-    new_credentials.access_token = Some(data.id_token.unwrap_or(data.access_token));
+    apply_idc_refresh_response(&mut new_credentials, data);
+
+    Ok(new_credentials)
+}
+
+/// 将 IdC token 刷新响应写入凭据（纯逻辑，便于单测，不涉及网络）。
+///
+/// - `access_token`（此结构体字段用于承载最终 Bearer token）保存 idToken：
+///   Amazon Q 数据面接口（`generateAssistantResponse` 等）只接受 idToken。
+/// - `sso_access_token` 保存 AWS SSO OIDC 原始返回的 accessToken（SSO portal
+///   session token）：`getUsageLimits` 等 Q 控制面接口需要它，见 issue #31。
+/// - 若响应未返回 `id_token`（部分环境/旧行为），回退用 accessToken 顶替，
+///   保持与历史行为一致（commit 4f39dd7 之前的 fallback 语义）。
+fn apply_idc_refresh_response(credentials: &mut KiroCredentials, data: IdcRefreshResponse) {
+    credentials.sso_access_token = Some(data.access_token.clone());
+    credentials.access_token = Some(data.id_token.unwrap_or(data.access_token));
 
     if let Some(new_refresh_token) = data.refresh_token {
-        new_credentials.refresh_token = Some(new_refresh_token);
+        credentials.refresh_token = Some(new_refresh_token);
     }
 
     if let Some(expires_in) = data.expires_in {
         let expires_at = Utc::now() + Duration::seconds(expires_in);
-        new_credentials.expires_at = Some(expires_at.to_rfc3339());
+        credentials.expires_at = Some(expires_at.to_rfc3339());
     }
-
-    Ok(new_credentials)
 }
 
 /// 刷新 external_idp Token（Microsoft Entra ID / Azure AD 等 OIDC IdP）
@@ -472,6 +483,24 @@ async fn refresh_external_idp_token(
 /// getUsageLimits API 所需的 x-amz-user-agent header 前缀
 const USAGE_LIMITS_AMZ_USER_AGENT_PREFIX: &str = "aws-sdk-js/1.0.0";
 
+/// 为 `getUsageLimits`（Q 控制面接口）选择合适的 Bearer token。
+///
+/// IdC 账号的 `credentials.access_token` 存放的是 idToken（供数据面接口使用，见
+/// `refresh_idc_token`），`getUsageLimits` 需要的是 SSO portal 的原始 accessToken
+/// （`credentials.sso_access_token`）。若该字段缺失（如旧版 credentials.json 尚未
+/// 刷新过、或反序列化自旧格式文件），回退到传入的 `token` 参数以保持向后兼容。
+/// 非 IdC 账号不受影响，始终使用传入的 `token`。
+pub(crate) fn select_usage_limits_token<'a>(
+    credentials: &'a KiroCredentials,
+    token: &'a str,
+) -> &'a str {
+    if credentials.auth_method.as_deref() == Some("idc") {
+        credentials.sso_access_token.as_deref().unwrap_or(token)
+    } else {
+        token
+    }
+}
+
 /// 获取使用额度信息
 pub(crate) async fn get_usage_limits(
     credentials: &KiroCredentials,
@@ -511,6 +540,12 @@ pub(crate) async fn get_usage_limits(
 
     let client = build_client(proxy, 60, config.tls_backend)?;
 
+    // getUsageLimits 是 Q 控制面接口，鉴权需要 SSO portal 的 accessToken；
+    // 而传入的 `token` 参数在 IdC 场景下是 credentials.access_token（存放的是 idToken，
+    // 用于数据面接口）。IdC 账号若已保存 sso_access_token，则优先使用它，
+    // 避免复用 idToken 导致 403 Invalid token（见 issue #31）。非 IdC 账号保持原逻辑不变。
+    let effective_token = select_usage_limits_token(credentials, token);
+
     let response = client
         .get(&url)
         .header("x-amz-user-agent", &amz_user_agent)
@@ -518,7 +553,7 @@ pub(crate) async fn get_usage_limits(
         .header("host", &host)
         .header("amz-sdk-invocation-id", uuid::Uuid::new_v4().to_string())
         .header("amz-sdk-request", "attempt=1; max=1")
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", effective_token))
         .header("Connection", "close")
         .send()
         .await?;
@@ -3657,6 +3692,161 @@ mod tests {
         let refresh_url = format!("https://oidc.{}.amazonaws.com/token", region);
 
         assert_eq!(refresh_url, "https://oidc.eu-central-1.amazonaws.com/token");
+    }
+
+    #[test]
+    fn test_apply_idc_refresh_response_saves_both_id_and_access_token() {
+        // issue #31：IdC 刷新后需同时保存 idToken（数据面用，写入 access_token 字段）
+        // 和 accessToken（控制面 getUsageLimits 用，写入新增的 sso_access_token 字段），
+        // 二者不能相互覆盖。
+        let mut credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            ..Default::default()
+        };
+        let data = IdcRefreshResponse {
+            access_token: "sso-portal-access-token".to_string(),
+            id_token: Some("jwt-id-token".to_string()),
+            refresh_token: Some("new-refresh-token".to_string()),
+            expires_in: Some(3600),
+        };
+
+        apply_idc_refresh_response(&mut credentials, data);
+
+        assert_eq!(
+            credentials.access_token.as_deref(),
+            Some("jwt-id-token"),
+            "access_token 字段应保存 idToken（供数据面接口使用）"
+        );
+        assert_eq!(
+            credentials.sso_access_token.as_deref(),
+            Some("sso-portal-access-token"),
+            "sso_access_token 字段应保存原始 accessToken（供 getUsageLimits 使用）"
+        );
+        assert_eq!(
+            credentials.refresh_token.as_deref(),
+            Some("new-refresh-token")
+        );
+        assert!(credentials.expires_at.is_some());
+    }
+
+    #[test]
+    fn test_apply_idc_refresh_response_falls_back_when_no_id_token() {
+        // 若上游响应未返回 id_token（历史/异常场景），access_token 字段回退用
+        // accessToken 顶替，保持与 commit 4f39dd7 之前一致的 fallback 行为；
+        // sso_access_token 仍然独立保存该值。
+        let mut credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            ..Default::default()
+        };
+        let data = IdcRefreshResponse {
+            access_token: "only-access-token".to_string(),
+            id_token: None,
+            refresh_token: None,
+            expires_in: None,
+        };
+
+        apply_idc_refresh_response(&mut credentials, data);
+
+        assert_eq!(credentials.access_token.as_deref(), Some("only-access-token"));
+        assert_eq!(
+            credentials.sso_access_token.as_deref(),
+            Some("only-access-token")
+        );
+    }
+
+    #[test]
+    fn test_select_usage_limits_token_idc_prefers_sso_access_token() {
+        // issue #31 核心修复：IdC 账号查询 getUsageLimits 时，即便传入的 token
+        // 参数是 idToken（credentials.access_token），也应优先使用
+        // sso_access_token（原始 accessToken），避免 403 Invalid token。
+        let credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            access_token: Some("id-token-for-data-plane".to_string()),
+            sso_access_token: Some("sso-access-token-for-control-plane".to_string()),
+            ..Default::default()
+        };
+
+        let selected = select_usage_limits_token(&credentials, "id-token-for-data-plane");
+
+        assert_eq!(selected, "sso-access-token-for-control-plane");
+    }
+
+    #[test]
+    fn test_select_usage_limits_token_idc_falls_back_without_sso_token() {
+        // 旧版 credentials.json（尚无 sso_access_token 字段）或尚未刷新过的 IdC
+        // 账号，应回退使用传入的 token 参数，保持向后兼容，不 panic、不报错。
+        let credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            access_token: Some("legacy-id-token".to_string()),
+            sso_access_token: None,
+            ..Default::default()
+        };
+
+        let selected = select_usage_limits_token(&credentials, "legacy-id-token");
+
+        assert_eq!(selected, "legacy-id-token");
+    }
+
+    #[test]
+    fn test_select_usage_limits_token_non_idc_ignores_sso_access_token() {
+        // 非 IdC 账号（social/external_idp）逻辑不受影响：即便 sso_access_token
+        // 意外被设置，也应始终使用传入的 token 参数。
+        let credentials = KiroCredentials {
+            auth_method: Some("social".to_string()),
+            access_token: Some("social-access-token".to_string()),
+            sso_access_token: Some("should-be-ignored".to_string()),
+            ..Default::default()
+        };
+
+        let selected = select_usage_limits_token(&credentials, "social-access-token");
+
+        assert_eq!(selected, "social-access-token");
+    }
+
+    #[test]
+    fn test_sso_access_token_not_serialized_when_none() {
+        // 向后兼容：旧版 credentials.json 没有 sso_access_token 字段，
+        // 序列化时该字段为 None 也不应输出到 JSON，避免污染旧格式文件。
+        let credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&credentials).unwrap();
+        assert!(!json.contains("ssoAccessToken"));
+    }
+
+    #[test]
+    fn test_sso_access_token_roundtrip_serialization() {
+        // camelCase 序列化/反序列化正确性验证
+        let credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            sso_access_token: Some("abc123".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&credentials).unwrap();
+        assert!(json.contains("\"ssoAccessToken\":\"abc123\""));
+
+        let parsed: KiroCredentials = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.sso_access_token.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn test_legacy_credentials_json_without_sso_access_token_deserializes() {
+        // 向后兼容：不含 ssoAccessToken 字段的旧版 credentials.json 应能正常解析，
+        // 且新字段默认为 None。
+        let legacy_json = r#"{
+            "accessToken": "old-token",
+            "refreshToken": "refresh-abc",
+            "authMethod": "idc",
+            "clientId": "client-1",
+            "clientSecret": "secret-1"
+        }"#;
+
+        let parsed: KiroCredentials = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(parsed.access_token.as_deref(), Some("old-token"));
+        assert_eq!(parsed.sso_access_token, None);
     }
 
     #[test]

@@ -799,6 +799,10 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 企业版（Enterprise）IdC 账号调用 Q 端点强制要求 `profileArn`，但 IdC Token 刷新接口不会返回该字段，需要手动填写。管理面板「添加账号 / 编辑账号」对话框中已提供 **Profile ARN** 输入框，填入形如 `arn:aws:codewhisperer:<region>:<account-id>:profile/<profile-id>` 的值即可。`profileArn` 可从 Kiro IDE 本地缓存或 `ListAvailableProfiles` 获取，其所在 region 需与账号的 `apiRegion` 保持一致。Social 账号一般无需填写。
 
+**Q：填写了 profileArn 后，企业版 IdC 账号查询余额仍返回 <code>403 Forbidden: Invalid token</code>**
+
+此问题已修复：AWS SSO OIDC 刷新接口会同时返回 `accessToken`（SSO portal session token）和 `idToken`（JWT），Amazon Q 数据面接口（对话请求）只接受 idToken，而额度查询接口（`getUsageLimits`）需要的是原始 accessToken——此前代理内部只保存了一份 token 并复用于两处，导致二者只能满足其一。修复后代理会分别保存两个 token 并按接口用途选用，无需用户任何操作，账号下一次刷新 Token 后自动生效（`credentials.json` 会新增内部字段 `ssoAccessToken`，向后兼容旧配置文件，无需手动编辑）。若升级后仍报错，尝试在管理面板重置该账号或等待 Token 自动过期刷新。
+
 **Q：子 API Key 消费额度能按真实 Kiro credits 计量吗（而不是估算的美元）**
 
 能。创建/编辑子 API Key 时，额度单位可选「美元估算」或「真实 Credits」（limitUnit：usd/credits）。选择 credits 时，额度按 usage 记录中的真实 credits_used 累加计量（旧记录无 credits_used 字段时按 estimated_cost × k_ref 回退估算）。默认为 usd，向后兼容现有配置。

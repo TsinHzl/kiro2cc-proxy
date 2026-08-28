@@ -394,6 +394,8 @@
     "usdEstimate": "USD Estimate",
     "realCredits": "Real Credits",
     "quotaLimitLabel": "Quota Limit ({{unit}})",
+    "unlimitedQuotaButton": "Unlimited",
+    "unlimitedQuotaHint": "No spending limit enforced; the key stays active until manually disabled",
     "unitUsd": "USD",
     "customCredits": "Custom",
     "customUsd": "Custom $",

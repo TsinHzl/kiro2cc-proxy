@@ -394,6 +394,8 @@
     "usdEstimate": "美元估算",
     "realCredits": "真实 Credits",
     "quotaLimitLabel": "额度上限（{{unit}}）",
+    "unlimitedQuotaButton": "无限额度",
+    "unlimitedQuotaHint": "不限制消费额度，Key 将持续可用直至手动禁用",
     "unitUsd": "美元",
     "customCredits": "自定义",
     "customUsd": "自定义 $",

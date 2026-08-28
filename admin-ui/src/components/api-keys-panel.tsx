@@ -62,6 +62,8 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [newDurationUnit, setNewDurationUnit] = useState<'days' | 'hours'>('days')
   const [newSpendingLimit, setNewSpendingLimit] = useState(100)
   const [newLimitUnit, setNewLimitUnit] = useState<'usd' | 'credits'>('usd')
+  /** 是否选择"无限额度"，默认开启（不限制消费额度） */
+  const [newUnlimited, setNewUnlimited] = useState(true)
   const [newBoundCredentialIds, setNewBoundCredentialIds] = useState<number[]>([])
   const [editName, setEditName] = useState('')
   const [editMode, setEditMode] = useState<'date' | 'quota'>('date')
@@ -207,7 +209,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           ? newDuration !== null
             ? { durationDays: toDays(newDuration, newDurationUnit) }
             : {}
-          : { spendingLimit: newSpendingLimit, limitUnit: newLimitUnit }),
+          : { spendingLimit: newUnlimited ? null : newSpendingLimit, limitUnit: newLimitUnit }),
         boundCredentialIds: newBoundCredentialIds.length > 0 ? newBoundCredentialIds : null,
       },
       {
@@ -220,6 +222,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           setNewDurationUnit('days')
           setNewSpendingLimit(100)
           setNewLimitUnit('usd')
+          setNewUnlimited(true)
           setNewBoundCredentialIds([])
         },
         onError: (err) => toast.error(t('apiKeys.toastCreateFailed', { message: extractErrorMessage(err) })),
@@ -971,37 +974,49 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                   {t('apiKeys.quotaLimitLabel', { unit: newLimitUnit === 'credits' ? 'credits' : t('apiKeys.unitUsd') })}
                 </label>
                 <div className="flex flex-wrap gap-2 mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={newUnlimited ? 'default' : 'outline'}
+                    onClick={() => setNewUnlimited(true)}
+                  >
+                    {t('apiKeys.unlimitedQuotaButton')}
+                  </Button>
                   {(newLimitUnit === 'credits' ? [1000, 5000, 10000] : [100, 500, 1000]).map((amount) => (
                     <Button
                       key={amount}
                       type="button"
                       size="sm"
-                      variant={newSpendingLimit === amount ? 'default' : 'outline'}
-                      onClick={() => setNewSpendingLimit(amount)}
+                      variant={!newUnlimited && newSpendingLimit === amount ? 'default' : 'outline'}
+                      onClick={() => { setNewUnlimited(false); setNewSpendingLimit(amount) }}
                     >
                       {newLimitUnit === 'credits' ? amount : `$${amount}`}
                     </Button>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm text-muted-foreground">
-                    {newLimitUnit === 'credits' ? t('apiKeys.customCredits') : t('apiKeys.customUsd')}
-                  </span>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={newSpendingLimit || ''}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, '')
-                      setNewSpendingLimit(v === '' ? 0 : Number(v))
-                    }}
-                    onFocus={(e) => e.target.select()}
-                    className="w-32"
-                  />
-                </div>
+                {!newUnlimited && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm text-muted-foreground">
+                      {newLimitUnit === 'credits' ? t('apiKeys.customCredits') : t('apiKeys.customUsd')}
+                    </span>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={newSpendingLimit || ''}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, '')
+                        setNewSpendingLimit(v === '' ? 0 : Number(v))
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      className="w-32"
+                    />
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground mt-2">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  {t('apiKeys.quotaAutoStopHint', { amount: newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}` })}
+                  {newUnlimited
+                    ? t('apiKeys.unlimitedQuotaHint')
+                    : t('apiKeys.quotaAutoStopHint', { amount: newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}` })}
                 </div>
               </div>
             )}

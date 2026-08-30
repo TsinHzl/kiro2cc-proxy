@@ -1,0 +1,23 @@
+CLAUDE.md
+  1fa606992d2e37a2 34,37,42-43,45-46,51,54,57,61,70-75,77,79-84,88,92-128,134-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "fddbbafd19c834370eefb5d18a566b60640cc22e",
+  "prompts": {
+    "1fa606992d2e37a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53e34942-dbd5-4fa9-a3ef-b4086a491820",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 67,
+      "total_deletions": 10,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    }
+  }
+}

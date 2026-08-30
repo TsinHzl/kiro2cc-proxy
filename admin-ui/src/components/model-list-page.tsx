@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Boxes, Copy, Download, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring } from '@/components/metrics'
+import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo } from '@/components/toolbar'
 import { CELL, ICON_BTN, PANEL, PANEL_FOOT, TH_BASE } from '@/components/table-kit'
@@ -265,8 +265,7 @@ export function ModelListPage() {
 
         <Metric label={t('models.metricRateCoverageLabel')}>
           <MetricValue value={String(syncedCount)} unit={t('models.metricRateOfTotal', { total: models.length })} />
-          {/* pr 给 .m-aside 的 42px 环形图让位 */}
-          <MetricFoot className="truncate pr-[62px]">
+          <MetricFoot className="truncate">
             <span>
               {t(
                 syncedCount === 0 && models.length > 0
@@ -275,12 +274,6 @@ export function ModelListPage() {
               )}
             </span>
           </MetricFoot>
-          <MetricAside>
-            <Ring
-              percent={models.length > 0 ? (syncedCount / models.length) * 100 : null}
-              tone={syncedCount === models.length ? 'stroke-ok' : 'stroke-warn'}
-            />
-          </MetricAside>
         </Metric>
 
         <Metric label={t('models.metricRateRangeLabel')}>

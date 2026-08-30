@@ -1,0 +1,25 @@
+admin-ui/src/components/model-list-page.tsx
+  86e683a473910549 7,268
+Cargo.toml
+  86e683a473910549 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d99ac41ff0a9f68cc4ecfbe50a1f5e01d790a677",
+  "prompts": {
+    "86e683a473910549": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf57b4f5-370f-41bc-a248-67b3ce4b9e8e",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 10,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

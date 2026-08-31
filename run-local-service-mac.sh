@@ -96,15 +96,33 @@ fi
 
 # ── 读取端口并杀掉占用进程 ──────────────────────────────
 CONFIGURED_PORT=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('port',5678))" 2>/dev/null || echo "5678")
-OLD_PID=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null | head -1)
-if [ -n "$OLD_PID" ] && [[ "$OLD_PID" =~ ^[0-9]+$ ]]; then
-    echo "[*] 端口 $CONFIGURED_PORT 被 PID $OLD_PID 占用，正在终止..."
-    kill "$OLD_PID" 2>/dev/null
+
+# 杀掉所有占用该端口的进程（可能不止一个 PID，如旧进程 fork 出的子进程）
+OLD_PIDS=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null)
+if [ -n "$OLD_PIDS" ]; then
+    echo "[*] 端口 $CONFIGURED_PORT 被以下 PID 占用，正在终止: $OLD_PIDS"
+    kill $OLD_PIDS 2>/dev/null
     sleep 2
-    if kill -0 "$OLD_PID" 2>/dev/null; then
-        kill -9 "$OLD_PID" 2>/dev/null
+    STILL_ALIVE=$(lsof -ti tcp:"$CONFIGURED_PORT" 2>/dev/null)
+    if [ -n "$STILL_ALIVE" ]; then
+        echo "[*] 进程未在 2 秒内退出，发送 SIGKILL: $STILL_ALIVE"
+        kill -9 $STILL_ALIVE 2>/dev/null
     fi
 fi
+
+# 等待端口真正释放（进程退出与内核释放 socket 绑定之间存在短暂延迟，
+# 直接绑定可能仍会遇到 AddrInUse），最多等待 10 秒
+WAIT_COUNT=0
+while lsof -ti tcp:"$CONFIGURED_PORT" &>/dev/null; do
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+    if [ "$WAIT_COUNT" -ge 10 ]; then
+        echo "[!] 端口 $CONFIGURED_PORT 在 10 秒内仍未释放，可能被其他程序占用"
+        echo "[!] 请手动检查: lsof -i tcp:$CONFIGURED_PORT"
+        read -p "按回车退出..."
+        exit 1
+    fi
+    sleep 1
+done
 
 echo "[*] 启动 kiro2cc-proxy，端口: $CONFIGURED_PORT"
 echo "[*] API 端点: http://127.0.0.1:${CONFIGURED_PORT}/v1/messages"

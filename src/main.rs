@@ -287,7 +287,14 @@ async fn main() {
         tracing::info!("  GET  /user");
     }
 
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap_or_else(|e| {
+        tracing::error!(
+            "监听地址 {} 失败: {}。可能是端口被其他进程占用，或前一个进程尚未完全释放该端口，请稍后重试或更换端口。",
+            addr,
+            e
+        );
+        std::process::exit(1);
+    });
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),

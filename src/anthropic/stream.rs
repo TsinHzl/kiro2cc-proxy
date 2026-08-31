@@ -463,6 +463,16 @@ impl SseStateManager {
         let mut events = Vec::new();
 
         // 关闭所有未关闭的块
+        //
+        // 计数必须在本循环内累加：循环结束后所有块都已置 stopped，事后再统计
+        // "未闭合数"恒为 0，拿不到任何诊断信号。
+        //
+        // 只统计 tool_use 块 —— text 块没有 `handle_content_block_stop` 调用点，仅在
+        // tool_use 开始时被 `handle_content_block_start` 批量关闭，其余情况一律由本循环
+        // 终结；计入会让每个纯文本响应都被误判为异常。tool_use 块正常由 `process_tool_use`
+        // 在收到 `stop=true` 时关闭，走到这里说明上游没发收尾帧，是真实异常。
+        // 另注：上游中途断流 / deadline 截断时若有 tool_use 块未闭合，也会计入此处。
+        let mut auto_closed_tool = 0;
         for (index, block) in self.active_blocks.iter_mut() {
             if block.started && !block.stopped {
                 events.push(SseEvent::new(
@@ -473,6 +483,9 @@ impl SseStateManager {
                     }),
                 ));
                 block.stopped = true;
+                if block.block_type == "tool_use" {
+                    auto_closed_tool += 1;
+                }
             }
         }
 
@@ -480,15 +493,18 @@ impl SseStateManager {
         if !self.message_delta_sent {
             self.message_delta_sent = true;
 
-            // [TOOLUSE-DIAG] 响应收尾诊断：无条件记录每个响应的块构成，
-            // 用于定位"客户端只显示 call 不执行 / 空响应"的根因。
-            // 失败场景恰恰是 has_tool_use=false（工具调用未被识别成 tool_use 块），
-            // 因此这里不再限定 has_tool_use，记录所有块类型分布 + stop_reason。
+            // [TOOLUSE-DIAG] 响应收尾诊断：记录块构成，用于定位空响应类故障。
+            //
+            // 仅在命中结构异常时用 warn 上报，正常响应降为 debug —— 无条件 warn 会让
+            // 每个响应都产生一条，淹没 Admin UI 的"近 1 小时警告"指标并挤占 ring buffer。
+            //
+            // 注：埋点最初针对的"上游把工具调用当纯文本输出"形态（has_tool_use=false
+            // 且块构成正常）不在下方 warn 判据内，已随根因修复降为 debug —— 该根因是
+            // 上游 429 被错映射成 502，已在别处修复，不再需要常态告警。
             {
                 let mut text_n = 0;
                 let mut thinking_n = 0;
                 let mut tool_n = 0;
-                let mut unclosed = 0;
                 for b in self.active_blocks.values() {
                     match b.block_type.as_str() {
                         "text" => text_n += 1,
@@ -496,13 +512,23 @@ impl SseStateManager {
                         "tool_use" => tool_n += 1,
                         _ => {}
                     }
-                    if b.started && !b.stopped {
-                        unclosed += 1;
-                    }
                 }
-                tracing::warn!(
-                    "[TOOLUSE-DIAG] has_tool_use={} raw_stop_reason={:?} final_stop_reason={} \
-                     out_tokens={} blocks(text={},thinking={},tool={},total={}) unclosed={}",
+
+                // 无可见内容且输出极少：疑似退化空响应，会卡住客户端 agentic 循环。
+                // thinking-only 响应不会误报 —— 上层补发过空格 text_delta（见
+                // `StreamContext::generate_final_events`），执行在本诊断之前，text_n 为 1。
+                //
+                // 注：`output_tokens` 是可见输出口径（已排除 thinking），与
+                // `NEAR_EMPTY_OUTPUT_THRESHOLD` 在 `is_empty_response` 中的计费口径不同。
+                // 当前累加口径下 text_n/tool_n 双零已蕴含可见输出为 0，阈值项恒真，仅作
+                // 防御 —— 若日后可见 token 改为不依赖块存在即累加，该项才会真正参与判定。
+                let near_empty =
+                    text_n == 0 && tool_n == 0 && output_tokens < NEAR_EMPTY_OUTPUT_THRESHOLD;
+
+                let detail = format!(
+                    "has_tool_use={} raw_stop_reason={:?} final_stop_reason={} \
+                     out_tokens={} blocks(text={},thinking={},tool={},total={}) \
+                     auto_closed_tool={}",
                     self.has_tool_use,
                     self.stop_reason,
                     self.get_stop_reason(),
@@ -511,8 +537,19 @@ impl SseStateManager {
                     thinking_n,
                     tool_n,
                     self.active_blocks.len(),
-                    unclosed,
+                    auto_closed_tool,
                 );
+
+                if auto_closed_tool > 0 || near_empty {
+                    tracing::warn!(
+                        "[TOOLUSE-DIAG] 结构异常 (auto_closed_tool={} near_empty={}) {}",
+                        auto_closed_tool,
+                        near_empty,
+                        detail,
+                    );
+                } else {
+                    tracing::debug!("[TOOLUSE-DIAG] {}", detail);
+                }
             }
 
             let mut usage = serde_json::Map::new();

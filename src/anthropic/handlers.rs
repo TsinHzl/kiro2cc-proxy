@@ -1363,14 +1363,25 @@ async fn handle_non_stream_request(
     // max_tokens / model_context_window_exceeded（这些是下一轮才该报告的状态，
     // 不能盖掉本轮的 tool_use，否则客户端只渲染工具块而不执行）。
     if has_tool_use {
-        // [TOOLUSE-DIAG] 非流式工具调用收尾诊断：记录覆盖前的原始 stop_reason，
-        // 用于定位"客户端只显示 call 不执行"的根因。复现后离线分析。
-        tracing::warn!(
-            "[TOOLUSE-DIAG] non_stream has_tool_use=true raw_stop_reason={} \
-             tool_use_count={} final_stop_reason=tool_use",
-            stop_reason,
-            tool_uses.len(),
-        );
+        // [TOOLUSE-DIAG] 非流式工具调用收尾诊断：记录覆盖前的原始 stop_reason。
+        //
+        // 仅在收到过 ToolUse 事件却没拼出任何完整调用时用 warn 上报 —— 此时客户端会
+        // 收到 stop_reason=tool_use 但 content 里没有 tool_use 块，即"只显示 call
+        // 不执行"的结构特征。正常情况降为 debug，避免每个响应刷一条警告。
+        if tool_uses.is_empty() {
+            tracing::warn!(
+                "[TOOLUSE-DIAG] non_stream 结构异常: has_tool_use=true 但无完整工具调用 \
+                 raw_stop_reason={} tool_use_count=0 final_stop_reason=tool_use",
+                stop_reason,
+            );
+        } else {
+            tracing::debug!(
+                "[TOOLUSE-DIAG] non_stream has_tool_use=true raw_stop_reason={} \
+                 tool_use_count={} final_stop_reason=tool_use",
+                stop_reason,
+                tool_uses.len(),
+            );
+        }
         stop_reason = "tool_use".to_string();
     }
 

@@ -1,0 +1,25 @@
+README.en.md
+  64f3267a2c168a37 863-869
+README.md
+  64f3267a2c168a37 884-890
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d29919ab41611c68096367545d87d6c7bcf34395",
+  "prompts": {
+    "64f3267a2c168a37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "255ed5f8-800b-4b7e-9a69-36c6f63f55dd",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 8,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -549,7 +549,12 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 
 ## 🤖 接入 Claude Code
 
-### 方式一：环境变量（推荐）
+### 方式一：cc-switch 一键导入（推荐）
+
+- **管理员**：Admin 面板 → API Key 管理，在目标 Key 那一行点 🤖 图标
+- **终端用户**：用 API Key 登录用户面板（`/user`），在「一键导入 cc-switch」卡片点「导入 Claude Code」
+
+### 方式二：环境变量
 
 服务启动后，在终端中设置以下环境变量即可让 Claude Code 使用本代理：
 
@@ -566,7 +571,7 @@ echo 'export ANTHROPIC_API_KEY="在管理面板 API Key 管理页面创建的 Ke
 source ~/.zshrc
 ```
 
-### 方式二：settings.json 配置
+### 方式三：settings.json 配置
 
 在 Claude Code 的配置文件中直接写入代理地址，无需每次设置环境变量。
 
@@ -617,6 +622,13 @@ curl http://127.0.0.1:5678/v1/messages \
 除 Anthropic 协议外，代理同时提供两个 OpenAI 兼容端点，因此可以直接用 Kiro 额度驱动 Codex CLI 或任意 OpenAI SDK 客户端。两个端点都是"翻译 + 转发"：请求转成 Anthropic 格式后复用 `/v1/messages` 的完整下游链路（多账号故障转移、RPM 计数、用量统计、限流处理），响应再转回 OpenAI 格式。
 
 ### 接入 Codex CLI
+
+#### 方式一：cc-switch 一键导入（推荐）
+
+- **管理员**：Admin 面板 → API Key 管理，在目标 Key 那一行点 ⌨️ 图标
+- **终端用户**：用 API Key 登录用户面板（`/user`），在「一键导入 cc-switch」卡片点「导入 Codex」
+
+#### 方式二：手动编辑 config.toml
 
 编辑 `~/.codex/config.toml`（Codex CLI 与 ChatGPT.app 桌面客户端共用同一份文件）：
 

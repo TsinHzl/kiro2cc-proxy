@@ -1,12 +1,17 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   LogOut, RefreshCw, Activity, Zap, DollarSign, Clock,
   ArrowUpFromLine, ArrowDownToLine, FileText, Sun, Moon,
+  Download,
 } from 'lucide-react'
 import { getUsage } from '@/api/user'
 import { storage } from '@/lib/storage'
+import { copyToClipboard } from '@/lib/clipboard'
+import { importToCcSwitch, type CcSwitchApp } from '@/lib/ccswitch'
+import { ChatGptIcon, ClaudeIcon } from '@/components/brand-icons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +35,30 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const handleLogout = () => {
     storage.removeApiKey()
     onLogout()
+  }
+  /** 跳转 cc-switch 导入当前 Key；协议未注册时退化为提示 + 复制链接 */
+  const handleImportToCcSwitch = (app: CcSwitchApp) => {
+    const apiKey = storage.getApiKey()
+    if (!apiKey) {
+      toast.error('登录状态已失效，请重新登录')
+      return
+    }
+    importToCcSwitch(
+      app,
+      { apiKey, keyName: data?.name },
+      {
+        onNotInstalled: (link) => {
+          toast.error('未检测到 cc-switch，请先安装并注册 ccswitch:// 协议', {
+            action: {
+              label: '复制链接',
+              onClick: () => {
+                void copyToClipboard(link)
+              },
+            },
+          })
+        },
+      }
+    )
   }
 
   const formatTokens = (n: number) => n.toLocaleString('zh-CN')
@@ -162,6 +191,32 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </Card>
         )}
 
+        {/* 一键导入 cc-switch：由 cc-switch 桌面端接管客户端配置文件，无需手写 ~/.codex/.env */}
+        {data && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                一键导入 cc-switch
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('claude')}>
+                  <ClaudeIcon className="h-4 w-4 mr-1" />
+                  导入 Claude Code
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('codex')}>
+                  <ChatGptIcon className="h-4 w-4 mr-1 text-white" />
+                  导入 Codex
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                需先安装 cc-switch 桌面端。导入后只会新增供应商条目，不会自动切换当前供应商。
+              </p>
+            </CardContent>
+          </Card>
+        )}
         {/* 用量概览 */}
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

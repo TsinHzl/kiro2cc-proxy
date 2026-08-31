@@ -39,3 +39,5 @@ server.env
 /.playwright-mcp/
 /verify-*.png
 /sidebar-footer-*.png
+
+.history

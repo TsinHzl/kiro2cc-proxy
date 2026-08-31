@@ -1,7 +1,19 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useTranslation } from 'react-i18next'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
-import { BarChart3, Check, Copy, Globe, KeyRound, Link2, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  BarChart3,
+  Check,
+  Copy,
+  Globe,
+  KeyRound,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react'
+import { ChatGptIcon, ClaudeIcon } from '@/components/brand-icons'
 import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
 import {
   DropdownMenu,
@@ -51,6 +63,10 @@ export interface ApiKeyRowProps {
   copied: boolean
   createdTitle: string
   onCopy: () => void
+  /** 生成 ccswitch:// 深链接并跳转，把本行 Key 导入 cc-switch 的 Claude Code 供应商 */
+  onImportClaude: () => void
+  /** 同上，导入 Codex 供应商 */
+  onImportCodex: () => void
   onViewDetail: () => void
   onEdit: () => void
   onDelete: () => void
@@ -72,6 +88,8 @@ export function ApiKeyRow({
   copied,
   createdTitle,
   onCopy,
+  onImportClaude,
+  onImportCodex,
   onViewDetail,
   onEdit,
   onDelete,
@@ -245,6 +263,26 @@ export function ApiKeyRow({
           >
             <SwitchPrimitive.Thumb className="block size-3 translate-x-[2px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.28)] transition-transform data-[state=checked]:translate-x-[18px]" />
           </SwitchPrimitive.Root>
+          <span aria-hidden="true" className="mx-[5px] h-4 w-px flex-none bg-hairline" />
+          {/* cc-switch 一键导入：Claude Code 与 Codex 是两个独立供应商，各占一条深链接 */}
+          <button
+            type="button"
+            className={ICON_BTN}
+            title={t('apiKeys.importCcSwitchClaude')}
+            aria-label={t('apiKeys.importCcSwitchClaude')}
+            onClick={onImportClaude}
+          >
+            <ClaudeIcon className="size-[15px]" />
+          </button>
+          <button
+            type="button"
+            className={ICON_BTN}
+            title={t('apiKeys.importCcSwitchCodex')}
+            aria-label={t('apiKeys.importCcSwitchCodex')}
+            onClick={onImportCodex}
+          >
+            <ChatGptIcon className="size-[15px] text-white" />
+          </button>
           <span aria-hidden="true" className="mx-[5px] h-4 w-px flex-none bg-hairline" />
           <button
             type="button"

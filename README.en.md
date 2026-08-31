@@ -528,7 +528,12 @@ Override the global proxy for individual accounts:
 
 ## 🤖 Claude Code Integration
 
-### Option 1: Environment Variables (recommended)
+### Option 1: One-click import into CC Switch (recommended)
+
+- **Admins**: Admin panel → API Key Management, click the 🤖 icon on the target key's row
+- **End users**: Sign in to the user panel (`/user`) with your API key, then click "Import Claude Code" in the "One-click import into CC Switch" card
+
+### Option 2: Environment Variables
 
 Set these environment variables in your terminal to route Claude Code through this proxy:
 
@@ -545,7 +550,7 @@ echo 'export ANTHROPIC_API_KEY="API key created on the admin panel API Key Manag
 source ~/.zshrc
 ```
 
-### Option 2: settings.json
+### Option 3: settings.json
 
 Configure the proxy directly in Claude Code's settings file — no need to set environment variables each time.
 
@@ -596,6 +601,13 @@ curl http://127.0.0.1:5678/v1/messages \
 In addition to the Anthropic protocol, the proxy also exposes two OpenAI-compatible endpoints, so you can drive Codex CLI or any OpenAI SDK client with your Kiro quota. Both endpoints work by "translate + forward": the request is converted to Anthropic format and reuses the full `/v1/messages` downstream pipeline (multi-account failover, RPM counting, usage tracking, rate limiting), then the response is converted back to OpenAI format.
 
 ### Codex CLI Setup
+
+#### Option 1: One-click import into CC Switch (recommended)
+
+- **Admins**: Admin panel → API Key Management, click the ⌨️ icon on the target key's row
+- **End users**: Sign in to the user panel (`/user`) with your API key, then click "Import Codex" in the "One-click import into CC Switch" card
+
+#### Option 2: Edit config.toml manually
 
 Edit `~/.codex/config.toml` (shared by the Codex CLI and the ChatGPT.app desktop client):
 

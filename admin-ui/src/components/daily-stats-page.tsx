@@ -183,7 +183,11 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
             <span className="flex items-center gap-1">
               {t('dailyStats.metricVsPrev')}
               {/* 上一区间为 0 时百分比无意义（除零），不渲染 */}
-              {prevTotal > 0 && <Delta percent={((total - prevTotal) / prevTotal) * 100} />}
+              {prevTotal > 0 && (
+                <span title={t('dailyStats.metricVsPrevHint')}>
+                  <Delta percent={((total - prevTotal) / prevTotal) * 100} />
+                </span>
+              )}
             </span>
           </MetricFoot>
         </Metric>
@@ -193,7 +197,7 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
           <MetricFoot className="truncate">
             {peak && total > 0 ? (
               <>
-                <span>
+                <span title={t('dailyStats.metricPeakShareHint')}>
                   {t('dailyStats.metricPeakShare')}{' '}
                   <b className="font-semibold text-ink-2">{((peak.credits / total) * 100).toFixed(1)}%</b>
                 </span>
@@ -283,7 +287,14 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
             <tr>
               <th className={TH_BASE}>{t('dailyStats.colDate')}</th>
               <th className={TH_BASE}>{t('dailyStats.colWeekday')}</th>
-              <th className={TH_BASE}>{t('dailyStats.colCreditsUsage')}</th>
+              <th className={TH_BASE}>
+                <div className="flex items-baseline gap-1.5">
+                  <span>{t('dailyStats.colCreditsUsage')}</span>
+                  <span className="font-normal normal-case tracking-normal text-ink-3">
+                    {t('dailyStats.colCreditsUsageShare', { days })}
+                  </span>
+                </div>
+              </th>
               <th className={`${TH_BASE} text-right`}>{t('dailyStats.colRequests')}</th>
             </tr>
           </thead>
@@ -339,7 +350,9 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
                             <b className="font-semibold text-ink">{row.credits.toFixed(4)}</b>{' '}
                             <span className="text-ink-3">{t('dailyStats.unitCredits')}</span>
                           </span>
-                          <span className={shareTone(share)}>{share.toFixed(1)}%</span>
+                          <span className={shareTone(share)} title={t('dailyStats.colCreditsUsageShareTitle')}>
+                            {share.toFixed(1)}%
+                          </span>
                         </div>
                         <span className="block h-1 overflow-hidden rounded-[3px] bg-track">
                           <span

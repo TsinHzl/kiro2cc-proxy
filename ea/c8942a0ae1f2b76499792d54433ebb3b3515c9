@@ -1,0 +1,38 @@
+src/anthropic/stream.rs
+  40c2a5255d622481 466-475,486-488,496-503,516-531,540,542-552
+src/anthropic/handlers.rs
+  40c2a5255d622481 1366-1384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "eac8942a0ae1f2b76499792d54433ebb3b3515c9",
+  "prompts": {
+    "34a97204fe090a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3393ca77-8da3-4616-9d81-222b6def110d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 86,
+      "total_deletions": 86,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    },
+    "40c2a5255d622481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53ff83b2-511b-470e-8d9f-d0a509899d83",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 41,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}

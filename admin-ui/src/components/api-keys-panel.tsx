@@ -29,6 +29,7 @@ import {
 } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
+import { importToCcSwitch, type CcSwitchApp } from '@/lib/ccswitch'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
@@ -189,6 +190,25 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     toast.success(t('apiKeys.toastPurgeSuccess', { count: deleted }))
   }
 
+  /** 跳转 cc-switch 导入本行 Key；协议未注册时退化为提示 + 复制链接 */
+  const handleImportToCcSwitch = (app: CcSwitchApp, apiKey: ApiKeyItem) => {
+    importToCcSwitch(
+      app,
+      { apiKey: apiKey.key, keyName: apiKey.name },
+      {
+        onNotInstalled: (link) => {
+          toast.error(t('apiKeys.ccSwitchNotInstalled'), {
+            action: {
+              label: t('apiKeys.ccSwitchCopyLink'),
+              onClick: () => {
+                void writeToClipboard(link)
+              },
+            },
+          })
+        },
+      }
+    )
+  }
   const copyToClipboard = async (text: string, target: 'cc' | 'codex' | number) => {
     await writeToClipboard(text)
     if (target === 'cc' || target === 'codex') {
@@ -869,6 +889,8 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                 apiKey.id
               )
             }
+            onImportClaude={() => handleImportToCcSwitch('claude', apiKey)}
+            onImportCodex={() => handleImportToCcSwitch('codex', apiKey)}
             onViewDetail={() => onViewDetail(apiKey)}
             onEdit={() => openEdit(apiKey)}
             onDelete={() => handleDelete(apiKey)}

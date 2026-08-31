@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration as StdDuration, Instant};
 
@@ -840,6 +840,9 @@ pub struct MultiTokenManager {
     sticky_misses: AtomicU64,
     /// 持久化串行锁：串行化 credentials/stats 的序列化+写盘，避免多路径并发交错写
     persist_lock: Mutex<()>,
+    /// 历史最大账号 ID（单调递增，跨账号删除/重启持久化，防止 ID 被复用导致
+    /// 新账号继承已删除旧账号的用量/失败/限流历史记录）
+    next_id_counter: AtomicU64,
 }
 
 /// 每个账号最大 API 调用失败次数
@@ -933,8 +936,15 @@ impl MultiTokenManager {
         is_multiple_format: bool,
     ) -> anyhow::Result<Self> {
         // 计算当前最大 ID，为没有 ID 的账号分配新 ID
+        //
+        // 注意：不能只看当前 credentials 列表的最大 ID —— 账号删除后其 ID 会从列表中消失，
+        // 若后续新增账号仅按“当前列表最大值 + 1”分配，会复用已删除账号曾用过的 ID，
+        // 导致新账号继承该 ID 下遗留的历史用量/失败/限流日志（表现为“从未使用的新账号却有历史请求记录”）。
+        // 因此需要额外加载持久化的历史最大 ID 计数器，取二者较大值，确保 ID 只增不减、永不复用。
         let max_existing_id = credentials.iter().filter_map(|c| c.id).max().unwrap_or(0);
-        let mut next_id = max_existing_id + 1;
+        let persisted_max_id = Self::load_id_counter_from_path(credentials_path.as_deref());
+        let starting_max_id = max_existing_id.max(persisted_max_id);
+        let mut next_id = starting_max_id + 1;
         let mut has_new_ids = false;
         let mut has_new_machine_ids = false;
         let config_ref = &config;
@@ -1000,6 +1010,15 @@ impl MultiTokenManager {
             .map(|e| e.id)
             .unwrap_or(0);
 
+        // 历史最大 ID = 本次结束后 entries 中的最大值 与 持久化计数器 的较大值
+        // （即使当前账号列表为空，也要保留之前持久化的历史最大值，防止后续新增账号 ID 复用）
+        let final_max_id = entries
+            .iter()
+            .map(|e| e.id)
+            .max()
+            .unwrap_or(0)
+            .max(starting_max_id);
+
         let load_balancing_mode = config.load_balancing_mode.clone();
         let manager = Self {
             config,
@@ -1017,7 +1036,12 @@ impl MultiTokenManager {
             sticky_hits: AtomicU64::new(0),
             sticky_misses: AtomicU64::new(0),
             persist_lock: Mutex::new(()),
+            next_id_counter: AtomicU64::new(final_max_id),
         };
+
+        // 持久化历史最大 ID 计数器（即使本次没有新增账号，也要确保计数器文件与内存一致，
+        // 避免文件丢失/首次运行时缺失导致回退到仅按当前列表推算）
+        manager.save_id_counter();
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
         if has_new_ids || has_new_machine_ids {
@@ -1788,6 +1812,55 @@ impl MultiTokenManager {
     /// 统计数据文件路径
     fn stats_path(&self) -> Option<PathBuf> {
         self.cache_dir().map(|d| d.join("kiro_stats.json"))
+    }
+
+    /// 历史最大账号 ID 计数器文件路径
+    ///
+    /// 与 credentials.json 同目录持久化，独立于账号列表本身，确保账号被删除后
+    /// 该文件仍保留曾经分配过的最大 ID，防止下次新增账号时复用已删除账号的 ID
+    /// （复用会导致新账号在 usage/failure/throttle 日志中"继承"旧账号的历史记录）。
+    fn id_counter_path(&self) -> Option<PathBuf> {
+        self.cache_dir().map(|d| d.join("kiro_id_counter.json"))
+    }
+
+    /// 从指定 credentials 文件路径推算出的缓存目录中加载历史最大 ID 计数器（静态版本，
+    /// 供 `new()` 在实例构造前调用）
+    fn load_id_counter_from_path(credentials_path: Option<&Path>) -> u64 {
+        let Some(dir) = credentials_path.and_then(|p| p.parent()) else {
+            return 0;
+        };
+        let path = dir.join("kiro_id_counter.json");
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            return 0;
+        };
+        #[derive(Deserialize)]
+        struct IdCounterFile {
+            #[serde(rename = "maxId")]
+            max_id: u64,
+        }
+        serde_json::from_str::<IdCounterFile>(&content)
+            .map(|c| c.max_id)
+            .unwrap_or(0)
+    }
+
+    /// 将当前历史最大 ID 计数器持久化到磁盘
+    fn save_id_counter(&self) {
+        let Some(path) = self.id_counter_path() else {
+            return;
+        };
+        let max_id = self.next_id_counter.load(Ordering::Relaxed);
+        let json = serde_json::json!({ "maxId": max_id }).to_string();
+        let _guard = self.persist_lock.lock();
+        if let Err(e) = atomic_write(&path, json.as_bytes()) {
+            tracing::warn!("保存账号 ID 计数器失败: {}", e);
+        }
+    }
+
+    /// 分配一个新的、从未被使用过的账号 ID（线程安全，单调递增，持久化）
+    fn allocate_new_id(&self) -> u64 {
+        let new_id = self.next_id_counter.fetch_add(1, Ordering::SeqCst) + 1;
+        self.save_id_counter();
+        new_id
     }
 
     /// 从磁盘加载统计数据并应用到当前条目
@@ -2690,10 +2763,10 @@ impl MultiTokenManager {
             refresh_token(&new_cred, &self.config, effective_proxy.as_ref()).await?;
 
         // 4. 分配新 ID
-        let new_id = {
-            let entries = self.entries.lock();
-            entries.iter().map(|e| e.id).max().unwrap_or(0) + 1
-        };
+        //
+        // 使用持久化的单调计数器而非"当前列表最大值 + 1"，避免账号删除后 ID 被复用，
+        // 导致新账号在 usage/failure/throttle 日志中"继承"已删除旧账号的历史记录。
+        let new_id = self.allocate_new_id();
 
         // 5. 设置 ID 并保留用户输入的元数据
         validated_cred.id = Some(new_id);
@@ -3196,6 +3269,112 @@ mod tests {
         let result = manager.add_credential(duplicate).await;
         assert!(result.is_err());
         assert!(result.err().unwrap().to_string().contains("账号已存在"));
+    }
+
+    /// 回归测试：账号删除后其 ID 不得被复用，否则新账号会"继承"已删除旧账号在
+    /// usage/failure/throttle 日志中按 credential_id 存储的历史记录（表现为管理面板
+    /// 中一个从未被调用过的新账号却显示历史请求日志）。
+    ///
+    /// 场景：账号 #1、#2 存在 -> 删除 #2 -> 通过 add_credential 新增一个账号，
+    /// 新账号必须获得 #3，而不是复用刚被释放的 #2。
+    #[tokio::test]
+    async fn test_add_credential_never_reuses_deleted_id_within_same_process() {
+        let body = r#"{"access_token":"new-access-token","expires_in":3600}"#;
+        let endpoint = spawn_single_response_server(200, body).await;
+
+        let mut cred1 = KiroCredentials::default();
+        cred1.id = Some(1);
+        cred1.refresh_token = Some("a".repeat(150));
+
+        let mut cred2 = KiroCredentials::default();
+        cred2.id = Some(2);
+        cred2.refresh_token = Some("b".repeat(150));
+
+        let config = Config::default();
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        // 删除账号必须先禁用
+        manager.set_disabled(2, true).unwrap();
+        manager.delete_credential(2).unwrap();
+        assert_eq!(manager.total_count(), 1);
+
+        // 新增账号：走 external_idp 刷新路径，指向本地 mock server
+        let new_cred = KiroCredentials {
+            auth_method: Some("external_idp".to_string()),
+            refresh_token: Some("c".repeat(150)),
+            client_id: Some("client-id".to_string()),
+            token_endpoint: Some(endpoint),
+            ..Default::default()
+        };
+
+        let new_id = manager.add_credential(new_cred).await.unwrap();
+        assert_eq!(
+            new_id, 3,
+            "已删除账号 #2 的 ID 不应被复用，新账号应分配 #3，实际: {}",
+            new_id
+        );
+    }
+
+    /// 回归测试：账号删除后重启进程（重新构造 MultiTokenManager），新增账号仍不得
+    /// 复用已删除账号曾经使用过的 ID —— 覆盖"仅按当前 credentials 列表最大值 + 1"
+    /// 分配 ID 在重启场景下的复用漏洞（持久化计数器文件是本次修复的核心）。
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_add_credential_never_reuses_deleted_id_after_restart() {
+        let dir_guard = TempDirGuard::new(&format!("k2cc_id_reuse_restart_{}", std::process::id()));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut cred1 = KiroCredentials::default();
+        cred1.id = Some(1);
+        cred1.refresh_token = Some("a".repeat(150));
+
+        let mut cred2 = KiroCredentials::default();
+        cred2.id = Some(2);
+        cred2.refresh_token = Some("b".repeat(150));
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(
+            config.clone(),
+            vec![cred1, cred2],
+            None,
+            Some(cred_path.clone()),
+            true,
+        )
+        .unwrap();
+
+        // 删除账号 #2（必须先禁用），并持久化
+        manager.set_disabled(2, true).unwrap();
+        manager.delete_credential(2).unwrap();
+        manager.persist_credentials().unwrap();
+        assert_eq!(manager.total_count(), 1);
+
+        // 模拟进程重启：从磁盘重新读取 credentials.json（此时只剩 #1），
+        // 重新构造一个全新的 MultiTokenManager 实例
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert_eq!(persisted.len(), 1, "磁盘上应只剩 1 个账号");
+
+        let reloaded =
+            MultiTokenManager::new(config, persisted, None, Some(cred_path.clone()), true).unwrap();
+        assert_eq!(reloaded.total_count(), 1);
+
+        // "重启"后新增账号：若仅按当前列表 max(1) + 1 = 2 分配，将复用已删除账号 #2 的 ID
+        let body = r#"{"access_token":"new-access-token","expires_in":3600}"#;
+        let endpoint = spawn_single_response_server(200, body).await;
+        let new_cred = KiroCredentials {
+            auth_method: Some("external_idp".to_string()),
+            refresh_token: Some("d".repeat(150)),
+            client_id: Some("client-id".to_string()),
+            token_endpoint: Some(endpoint),
+            ..Default::default()
+        };
+
+        let new_id = reloaded.add_credential(new_cred).await.unwrap();
+        assert_eq!(
+            new_id, 3,
+            "重启后新增账号仍不应复用已删除账号 #2 的 ID，实际: {}",
+            new_id
+        );
     }
 
     // MultiTokenManager 测试
@@ -3747,7 +3926,10 @@ mod tests {
 
         apply_idc_refresh_response(&mut credentials, data);
 
-        assert_eq!(credentials.access_token.as_deref(), Some("only-access-token"));
+        assert_eq!(
+            credentials.access_token.as_deref(),
+            Some("only-access-token")
+        );
         assert_eq!(
             credentials.sso_access_token.as_deref(),
             Some("only-access-token")

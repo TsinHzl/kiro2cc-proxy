@@ -1010,8 +1010,11 @@ impl MultiTokenManager {
             .map(|e| e.id)
             .unwrap_or(0);
 
-        // 历史最大 ID = 本次结束后 entries 中的最大值 与 持久化计数器 的较大值
-        // （即使当前账号列表为空，也要保留之前持久化的历史最大值，防止后续新增账号 ID 复用）
+        // 历史最大 ID = 本次结束后 entries 中的最大值 与 持久化计数器 的较大值。
+        // 二者缺一不可：entries 为空时需兜底 starting_max_id；entries 非空但其账号
+        // 均携带小于 persisted_max_id 的显式 id 时（如本次重启后仅剩 #1，但磁盘计数器
+        // 已因此前存在过 #2 而记录为 2），entries.max() 本身小于 starting_max_id，
+        // 仍需与其取较大值，否则会丢失磁盘上记录的历史高位 ID，导致 ID 复用。
         let final_max_id = entries
             .iter()
             .map(|e| e.id)
@@ -1041,7 +1044,7 @@ impl MultiTokenManager {
 
         // 持久化历史最大 ID 计数器（即使本次没有新增账号，也要确保计数器文件与内存一致，
         // 避免文件丢失/首次运行时缺失导致回退到仅按当前列表推算）
-        manager.save_id_counter();
+        manager.save_id_counter_at_least(final_max_id);
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
         if has_new_ids || has_new_machine_ids {
@@ -1843,15 +1846,35 @@ impl MultiTokenManager {
             .unwrap_or(0)
     }
 
-    /// 将当前历史最大 ID 计数器持久化到磁盘
-    fn save_id_counter(&self) {
+    /// 将当前历史最大 ID 计数器持久化到磁盘（写入不小于 `min_value` 的值）
+    ///
+    /// 锁内重新读取磁盘现有值并与 `min_value`、内存计数器三者取最大值再写入，避免并发
+    /// 调用时较大值先落盘、较小值后落盘将其覆盖——否则进程在该窗口内崩溃重启，会从磁盘
+    /// 读到被覆盖的较小值，削弱计数器的单调性保证（进而可能复用已分配过的 ID）。
+    ///
+    /// 磁盘 IO（`atomic_write` 含 `fsync`）是同步阻塞调用；若当前处于 tokio 运行时上下文中
+    /// （如从 `add_credential` 等 async 方法调用），需通过 `block_in_place` 转交给阻塞线程池
+    /// 执行，避免阻塞 tokio worker 线程影响其他请求的调度。
+    fn save_id_counter_at_least(&self, min_value: u64) {
         let Some(path) = self.id_counter_path() else {
             return;
         };
-        let max_id = self.next_id_counter.load(Ordering::Relaxed);
-        let json = serde_json::json!({ "maxId": max_id }).to_string();
+        let credentials_path = self.credentials_path.clone();
+        let in_memory = self.next_id_counter.load(Ordering::Relaxed);
+        let do_write = move || {
+            let on_disk = Self::load_id_counter_from_path(credentials_path.as_deref());
+            let target = on_disk.max(min_value).max(in_memory);
+            let json = serde_json::json!({ "maxId": target }).to_string();
+            atomic_write(&path, json.as_bytes())
+        };
+
         let _guard = self.persist_lock.lock();
-        if let Err(e) = atomic_write(&path, json.as_bytes()) {
+        let result = if tokio::runtime::Handle::try_current().is_ok() {
+            tokio::task::block_in_place(do_write)
+        } else {
+            do_write()
+        };
+        if let Err(e) = result {
             tracing::warn!("保存账号 ID 计数器失败: {}", e);
         }
     }
@@ -1859,7 +1882,7 @@ impl MultiTokenManager {
     /// 分配一个新的、从未被使用过的账号 ID（线程安全，单调递增，持久化）
     fn allocate_new_id(&self) -> u64 {
         let new_id = self.next_id_counter.fetch_add(1, Ordering::SeqCst) + 1;
-        self.save_id_counter();
+        self.save_id_counter_at_least(new_id);
         new_id
     }
 
@@ -3374,6 +3397,38 @@ mod tests {
             new_id, 3,
             "重启后新增账号仍不应复用已删除账号 #2 的 ID，实际: {}",
             new_id
+        );
+    }
+
+    /// 回归测试：并发调用 `allocate_new_id` 时分配的 ID 必须两两不同。
+    ///
+    /// `allocate_new_id` 依赖 `AtomicU64::fetch_add` 保证内存中的分配互斥唯一，但落盘
+    /// 由 `save_id_counter_at_least` 负责——本测试只验证内存分配层的并发唯一性（磁盘落盘
+    /// 的单调性由 `save_id_counter_at_least` 内部锁内重新读取磁盘取 max 后写入来保证，
+    /// 已在实现中处理，不依赖此测试）。
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_allocate_new_id_concurrent_calls_never_collide() {
+        let config = Config::default();
+        let manager =
+            std::sync::Arc::new(MultiTokenManager::new(config, vec![], None, None, false).unwrap());
+
+        let mut handles = Vec::new();
+        for _ in 0..20 {
+            let m = manager.clone();
+            handles.push(tokio::spawn(async move { m.allocate_new_id() }));
+        }
+        let mut ids: Vec<u64> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|r| r.unwrap())
+            .collect();
+        ids.sort_unstable();
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(
+            unique.len(),
+            ids.len(),
+            "并发分配的 ID 不应出现重复，实际: {:?}",
+            ids
         );
     }
 

@@ -68,6 +68,35 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.0.17".to_string(),
+            date: "2026-09-01".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "凭据管理支持从 cc-switch 导入账号配置",
+                    "Credential management can now import account configurations from cc-switch",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "流式与非流式路径的 [TOOLUSE-DIAG] 诊断日志改为仅在检测到结构异常时告警，正常响应降为 debug，实时日志页的告警指标不再被每个请求刷屏",
+                    "The [TOOLUSE-DIAG] diagnostic on both streaming and non-streaming paths now warns only on detected structural anomalies and drops to debug otherwise, so the realtime log page's warning metrics are no longer flooded by every request",
+                )]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "新增账号不再复用已删除账号的 ID，避免在管理面板中继承该 ID 下的历史用量与限流记录",
+                        "New accounts no longer reuse IDs from deleted accounts, preventing them from inheriting that ID's historical usage and throttling records in the admin panel",
+                    ),
+                    Bilingual::new(
+                        "ID 计数器落盘改为在阻塞线程池执行并按最大值合并写入，消除并发分配时的覆盖竞态",
+                        "The ID counter now persists on the blocking thread pool and merges by maximum value, eliminating the overwrite race during concurrent allocation",
+                    ),
+                    Bilingual::new(
+                        "本地启动脚本改为清理全部占用端口的进程并轮询等待端口释放，修复端口占用竞态导致的启动失败",
+                        "The local startup script now clears every process holding the port and polls until it is released, fixing startup failures caused by the port-in-use race",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "3.0.1".to_string(),
             date: "2026-08-21".to_string(),
             is_latest: false,

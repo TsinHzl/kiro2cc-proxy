@@ -860,3 +860,10 @@ MIT
 ### 🙏 Acknowledgements
 
 This project is based on [kiro.rs](https://github.com/hank9999/kiro.rs). Thanks to the original author for the open-source contribution.
+
+Thanks to all the contributors of this project:
+
+- [kosuke-zhang](https://github.com/kosuke-zhang)
+- [lqzhgood](https://github.com/lqzhgood)
+
+> Thanks to everyone who has filed issues, shared feedback, and joined the discussions — you keep making this project better.

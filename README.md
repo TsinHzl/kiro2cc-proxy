@@ -881,3 +881,10 @@ MIT
 ### 🙏 致谢
 
 本项目基于 [kiro.rs](https://github.com/hank9999/kiro.rs) 二次开发，感谢原作者的开源贡献。
+
+感谢所有为本项目做出贡献的开发者：
+
+- [kosuke-zhang](https://github.com/kosuke-zhang)
+- [lqzhgood](https://github.com/lqzhgood)
+
+> 感谢每一位提交 Issue、反馈建议和参与讨论的用户，是你们让这个项目不断完善。

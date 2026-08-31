@@ -1,0 +1,25 @@
+Cargo.toml
+  40c2a5255d622481 3
+src/admin/changelog_data.rs
+  40c2a5255d622481 71-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "29e49ea13c2fd4786c7a19a8fe8cdc5b4df84182",
+  "prompts": {
+    "40c2a5255d622481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53ff83b2-511b-470e-8d9f-d0a509899d83",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 1,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -858,12 +858,13 @@ pub async fn post_messages(
             as i32
     };
 
-    // 估算输入 tokens
-    let input_tokens = token::count_all_tokens(
+    // 估算输入 tokens（复用上方已计算的 prefix_estimated_tokens，避免重复编码历史消息）
+    let input_tokens = token::count_all_tokens_with_prefix(
         payload.model.clone(),
         payload.system,
         payload.messages,
         payload.tools,
+        prefix_estimated_tokens as u64,
     ) as i32;
 
     // 检查是否启用了thinking
@@ -1779,12 +1780,13 @@ pub async fn post_messages_cc(
             as i32
     };
 
-    // 估算输入 tokens
-    let input_tokens = token::count_all_tokens(
+    // 估算输入 tokens（复用上方已计算的 prefix_estimated_tokens，避免重复编码历史消息）
+    let input_tokens = token::count_all_tokens_with_prefix(
         payload.model.clone(),
         payload.system,
         payload.messages,
         payload.tools,
+        prefix_estimated_tokens as u64,
     ) as i32;
 
     // 检查是否启用了thinking

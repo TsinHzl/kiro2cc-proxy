@@ -54,6 +54,39 @@ pub fn count_tokens(text: &str) -> u64 {
     get_bpe().encode_with_special_tokens(text).len() as u64
 }
 
+/// 尝试调用远程 count_tokens API，未配置或调用失败时返回 `None`（由调用方回退到本地计算）
+fn try_remote_count_tokens(
+    model: &str,
+    system: &Option<Vec<SystemMessage>>,
+    messages: &[Message],
+    tools: &Option<Vec<Tool>>,
+) -> Option<u64> {
+    let config = get_config()?;
+    let api_url = config.api_url.as_ref()?;
+
+    let result = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(call_remote_count_tokens(
+            api_url,
+            config,
+            model.to_string(),
+            system,
+            messages,
+            tools,
+        ))
+    });
+
+    match result {
+        Ok(tokens) => {
+            tracing::debug!("远程 count_tokens API 返回: {}", tokens);
+            Some(tokens)
+        }
+        Err(e) => {
+            tracing::warn!("远程 count_tokens API 调用失败，回退到本地计算: {}", e);
+            None
+        }
+    }
+}
+
 /// 估算请求的输入 tokens
 ///
 /// 优先调用远程 API，失败时回退到本地计算
@@ -63,30 +96,37 @@ pub(crate) fn count_all_tokens(
     messages: Vec<Message>,
     tools: Option<Vec<Tool>>,
 ) -> u64 {
-    // 检查是否配置了远程 API
-    if let Some(config) = get_config()
-        && let Some(api_url) = &config.api_url
-    {
-        // 尝试调用远程 API
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(call_remote_count_tokens(
-                api_url, config, model, &system, &messages, &tools,
-            ))
-        });
-
-        match result {
-            Ok(tokens) => {
-                tracing::debug!("远程 count_tokens API 返回: {}", tokens);
-                return tokens;
-            }
-            Err(e) => {
-                tracing::warn!("远程 count_tokens API 调用失败，回退到本地计算: {}", e);
-            }
-        }
+    if let Some(tokens) = try_remote_count_tokens(&model, &system, &messages, &tools) {
+        return tokens;
     }
 
     // 本地计算
     count_all_tokens_local(system, messages, tools)
+}
+
+/// 估算请求的输入 tokens，复用调用方已算好的前缀（system + tools + 除最后一条消息外的历史）token 数，
+/// 避免与 `count_prefix_tokens` 重复对同一段内容做 BPE 编码。
+///
+/// 远程 API 路径与 `count_all_tokens` 完全一致；仅本地回退路径改为
+/// `prefix_tokens + 最后一条消息的 token 数`，与 `count_all_tokens_local` 数学等价
+/// （二者对 system/messages/tools 的遍历口径完全相同，唯一差异是历史消息部分改为复用已算好的值）。
+/// `messages` 为空时视为 0（此时 `prefix_tokens` 本身已是 system+tools 全部 token）。
+///
+/// **契约：** `prefix_tokens` 必须由 `count_prefix_tokens(system, &messages[..len-1], tools)`
+/// 产出；传入手工构造的值将破坏与 `count_all_tokens_local` 的数学等价性。
+pub(crate) fn count_all_tokens_with_prefix(
+    model: String,
+    system: Option<Vec<SystemMessage>>,
+    messages: Vec<Message>,
+    tools: Option<Vec<Tool>>,
+    prefix_tokens: u64,
+) -> u64 {
+    if let Some(tokens) = try_remote_count_tokens(&model, &system, &messages, &tools) {
+        return tokens;
+    }
+
+    let last_message_tokens = messages.last().map(count_message_tokens).unwrap_or(0);
+    (prefix_tokens + last_message_tokens).max(1)
 }
 
 /// 调用远程 count_tokens API
@@ -183,6 +223,19 @@ fn count_content_block(item: &serde_json::Value) -> u64 {
     }
 }
 
+/// 统计单条消息的 token 数（`content` 为字符串直接计数，为数组则逐 block 计数）
+fn count_message_tokens(msg: &Message) -> u64 {
+    let mut total = 0;
+    if let serde_json::Value::String(s) = &msg.content {
+        total += count_tokens(s);
+    } else if let serde_json::Value::Array(arr) = &msg.content {
+        for item in arr {
+            total += count_content_block(item);
+        }
+    }
+    total
+}
+
 /// 本地计算请求的输入 tokens
 fn count_all_tokens_local(
     system: Option<Vec<SystemMessage>>,
@@ -200,13 +253,7 @@ fn count_all_tokens_local(
 
     // 用户消息
     for msg in &messages {
-        if let serde_json::Value::String(s) = &msg.content {
-            total += count_tokens(s);
-        } else if let serde_json::Value::Array(arr) = &msg.content {
-            for item in arr {
-                total += count_content_block(item);
-            }
-        }
+        total += count_message_tokens(msg);
     }
 
     // 工具定义
@@ -243,13 +290,7 @@ pub(crate) fn count_prefix_tokens(
     }
 
     for msg in prior_messages {
-        if let serde_json::Value::String(s) = &msg.content {
-            total += count_tokens(s);
-        } else if let serde_json::Value::Array(arr) = &msg.content {
-            for item in arr {
-                total += count_content_block(item);
-            }
-        }
+        total += count_message_tokens(msg);
     }
 
     if let Some(tools) = tools {
@@ -466,6 +507,111 @@ mod tests {
             extended,
             baseline
         );
+    }
+
+    // ---------- count_all_tokens_with_prefix 与 count_all_tokens_local 等价性 ----------
+
+    fn sample_system() -> Option<Vec<SystemMessage>> {
+        Some(vec![SystemMessage {
+            text: "you are a helpful assistant".into(),
+        }])
+    }
+
+    fn sample_tools() -> Option<Vec<Tool>> {
+        let mut input_schema = std::collections::HashMap::new();
+        input_schema.insert("type".to_string(), serde_json::json!("object"));
+        input_schema.insert(
+            "properties".to_string(),
+            serde_json::json!({"file_path": {"type": "string"}}),
+        );
+        Some(vec![Tool {
+            tool_type: None,
+            name: "Read".into(),
+            description: "读取文件内容".into(),
+            input_schema,
+            max_uses: None,
+            defer_loading: None,
+        }])
+    }
+
+    fn sample_messages() -> Vec<Message> {
+        vec![
+            Message {
+                role: "user".into(),
+                content: serde_json::json!([{"type": "text", "text": "hi"}]),
+            },
+            Message {
+                role: "assistant".into(),
+                content: serde_json::json!([{
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "Read",
+                    "input": {"file_path": "/very/long/path/to/file.txt"}
+                }]),
+            },
+            Message {
+                role: "user".into(),
+                content: serde_json::json!([{
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_1",
+                    "content": "file contents with some words and numbers 12345"
+                }]),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_count_all_tokens_with_prefix_matches_local_combination() {
+        let system = sample_system();
+        let tools = sample_tools();
+        let messages = sample_messages();
+
+        let prior = &messages[..messages.len() - 1];
+        let prefix = count_prefix_tokens(system.as_deref(), prior, tools.as_deref());
+
+        let expected = count_all_tokens_local(system.clone(), messages.clone(), tools.clone());
+        let actual = count_all_tokens_with_prefix(
+            "claude-test".into(),
+            system,
+            messages,
+            tools,
+            prefix,
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_count_all_tokens_with_prefix_empty_messages() {
+        let system = sample_system();
+        let tools = sample_tools();
+        let messages: Vec<Message> = vec![];
+
+        let prefix = count_prefix_tokens(system.as_deref(), &[], tools.as_deref());
+
+        let expected = count_all_tokens_local(system.clone(), messages.clone(), tools.clone());
+        let actual = count_all_tokens_with_prefix(
+            "claude-test".into(),
+            system,
+            messages,
+            tools,
+            prefix,
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_count_all_tokens_with_prefix_no_system_or_tools() {
+        let messages = sample_messages();
+        let prior = &messages[..messages.len() - 1];
+        let prefix = count_prefix_tokens(None, prior, None);
+
+        let expected = count_all_tokens_local(None, messages.clone(), None);
+        let actual =
+            count_all_tokens_with_prefix("claude-test".into(), None, messages, None, prefix);
+
+        assert_eq!(actual, expected);
     }
 }
 

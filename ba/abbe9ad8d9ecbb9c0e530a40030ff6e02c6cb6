@@ -1,0 +1,29 @@
+src/anthropic/handlers.rs
+  ec0f9670c5b6e9b5 861-862,867,1783-1784,1789
+src/kiro/provider.rs
+  ec0f9670c5b6e9b5 467,488-489,526,609,626,640,732,750-751,795,844,975,998,1024
+src/token.rs
+  ec0f9670c5b6e9b5 57-89,99-100,107-126,223-235,253,290,508-612
+openspec/specs/kiro-retry-concurrency/spec.md
+  ec0f9670c5b6e9b5 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "baabbe9ad8d9ecbb9c0e530a40030ff6e02c6cb6",
+  "prompts": {
+    "ec0f9670c5b6e9b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6f16083-d3d7-4a6c-9768-061761338ac9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 1,
+      "accepted_lines": 308,
+      "overriden_lines": 0
+    }
+  }
+}

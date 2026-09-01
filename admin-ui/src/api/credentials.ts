@@ -233,6 +233,12 @@ export async function getModels(): Promise<ModelsResponse> {
   return data
 }
 
+// 获取指定账号支持的模型
+export async function getCredentialModels(id: number): Promise<ModelsResponse> {
+  const { data } = await api.get<ModelsResponse>(`/credentials/${id}/models`)
+  return data
+}
+
 // ============ 更新日志 ============
 
 export async function getChangelog(): Promise<ReleaseNotesResponse> {

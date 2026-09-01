@@ -240,6 +240,21 @@ pub async fn get_admin_models(State(state): State<AdminState>) -> impl IntoRespo
     })
 }
 
+/// GET /api/admin/credentials/:id/models
+/// 获取指定账号支持的模型列表（admin 鉴权）
+///
+/// 与 /api/admin/models（取任意可用账号）不同，此接口按 id 指定账号实时查询上游
+/// ListAvailableModels，失败时直接返回错误（不回退静态表）。
+pub async fn get_credential_models(
+    State(state): State<AdminState>,
+    Path(id): Path<u64>,
+) -> impl IntoResponse {
+    match state.service.list_admin_models_for(id).await {
+        Ok(response) => Json(response).into_response(),
+        Err(e) => (e.status_code(), Json(e.into_response())).into_response(),
+    }
+}
+
 /// GET /api/admin/rpm
 /// 获取实时 RPM 数据（含 sticky cache 命中/未命中统计）
 pub async fn get_rpm(State(state): State<AdminState>) -> impl IntoResponse {

@@ -8,7 +8,7 @@ use axum::{
 
 use super::{
     api_keys::{
-        create_api_key, delete_api_key, get_admin_models, get_all_usage,
+        create_api_key, delete_api_key, get_admin_models, get_all_usage, get_credential_models,
         get_credential_today_summary, get_credential_usage_records, get_daily_usage,
         get_daily_usage_records, get_failure_logs, get_key_usage, get_key_usage_records, get_rpm,
         get_server_info, get_throttle_logs, list_api_keys, reset_key_usage, update_api_key,
@@ -40,6 +40,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/credentials/{id}/priority", post(set_credential_priority))
         .route("/credentials/{id}/reset", post(reset_failure_count))
         .route("/credentials/{id}/balance", get(get_credential_balance))
+        .route("/credentials/{id}/models", get(get_credential_models))
         .route(
             "/credentials/{id}/usage/records",
             get(get_credential_usage_records),

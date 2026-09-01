@@ -1,6 +1,6 @@
 [package]
 name = "kiro2cc-proxy"
-version = "3.0.18"
+version = "3.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["Harllan He"]

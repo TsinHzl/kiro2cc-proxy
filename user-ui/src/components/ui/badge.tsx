@@ -3,21 +3,22 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  // 设计稿 .tag：20px 高 / 6px 圆角 / 11px 字号 / 5px 间隙（pip 与文字）
+  'inline-flex h-5 items-center gap-[5px] whitespace-nowrap rounded-[6px] border border-transparent px-[7px] text-[11px] font-semibold transition-colors',
   {
     variants: {
       variant: {
-        default:
-          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground',
-        success:
-          'bg-green-100 text-green-700 border-green-300 hover:bg-green-200 dark:bg-neon-green/10 dark:text-neon-green dark:border-neon-green/30 dark:hover:bg-neon-green/20',
-        warning:
-          'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200 dark:bg-neon-yellow/10 dark:text-neon-yellow dark:border-neon-yellow/30 dark:hover:bg-neon-yellow/20',
+        /** .tag.new */
+        default: 'border-brand-line bg-brand-soft text-brand',
+        /** .tag.off */
+        secondary: 'border-hairline-2 bg-surface-3 text-ink-3',
+        /** .tag.rate */
+        destructive: 'border-danger-line bg-danger-soft text-danger',
+        outline: 'border-hairline-2 text-ink-2',
+        /** .tag.ok */
+        success: 'border-ok-line bg-ok-soft text-ok',
+        /** .tag.warn */
+        warning: 'border-warn-line bg-warn-soft text-warn',
       },
     },
     defaultVariants: {

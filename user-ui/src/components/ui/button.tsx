@@ -4,24 +4,34 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  // 设计稿 .btn 基类：31px 高 / 7px 圆角 / 12.5px 字号；阴影随变体（.btn-ghost 明确 box-shadow:none）
+  // svg 取色（.btn svg / .btn:hover svg）也属基类；反色变体自带 [&_svg]:* 覆盖（tailwind-merge 后者胜）
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] border text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[15px] [&_svg]:shrink-0 [&_svg]:text-ink-3 hover:[&_svg]:text-ink-2',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        /** .btn-primary */
+        default:
+          'border-transparent bg-brand font-semibold text-brand-fg shadow-hair [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover hover:[&_svg]:text-brand-fg',
+        /** .btn-danger */
         destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+          'border-danger-line bg-surface text-danger shadow-hair [&_svg]:text-danger hover:border-danger hover:bg-danger-soft hover:[&_svg]:text-danger',
+        /** .btn 常规态 */
         outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
+          'border-hairline-2 bg-surface text-ink-2 shadow-hair hover:border-ink-3 hover:bg-surface-2 hover:text-ink',
+        /** 次级：常规态去阴影 + surface-3 底（设计稿无对应档，按令牌体系推导） */
+        secondary: 'border-transparent bg-surface-3 text-ink-2 hover:bg-hairline hover:text-ink',
+        /** .btn-ghost */
+        ghost: 'border-transparent bg-transparent text-ink-2 hover:bg-surface-3 hover:text-ink',
+        link: 'border-transparent text-brand underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
+        default: 'h-[31px] px-[11px]',
+        /** .btn-sm */
+        sm: 'h-[26px] px-2 text-[11.5px]',
+        lg: 'h-9 rounded-lg px-5 text-[13px]',
+        /** .btn-icon */
+        icon: 'h-[31px] w-[31px] p-0',
       },
     },
     defaultVariants: {

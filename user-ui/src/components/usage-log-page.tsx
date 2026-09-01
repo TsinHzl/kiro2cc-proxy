@@ -197,10 +197,10 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                         </tr>
                       </thead>
                       <tbody className="[&_tr:last-child>td]:border-b-0">
-                        {allRecords.map((r, i) => {
+                        {allRecords.map((r) => {
                           const geo = r.clientIp ? geoMap.get(r.clientIp) : undefined
                           return (
-                            <tr key={i} className="transition-colors hover:bg-surface-2">
+                            <tr key={r.createdAt} className="transition-colors hover:bg-surface-2">
                               <td className={`${CELL} whitespace-nowrap font-mono text-[11.5px] text-ink-2`}>
                                 {formatDate(r.createdAt)}
                               </td>

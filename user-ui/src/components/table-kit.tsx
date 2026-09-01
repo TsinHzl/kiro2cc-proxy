@@ -33,8 +33,9 @@ export const PAGER_BTN =
 /** 页码窗口：最多 5 个数字钮，居中当前页并在两端收敛 */
 const PAGE_WINDOW = 5
 export function pageWindow(page: number, totalPages: number): number[] {
+  if (totalPages <= 0) return []
   const size = Math.min(PAGE_WINDOW, totalPages)
-  const start = Math.min(Math.max(1, page - Math.floor(size / 2)), totalPages - size + 1)
+  const start = Math.max(1, Math.min(page - Math.floor(size / 2), totalPages - size + 1))
   return Array.from({ length: size }, (_, i) => start + i)
 }
 

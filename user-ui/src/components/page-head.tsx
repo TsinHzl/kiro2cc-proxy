@@ -23,7 +23,7 @@ export function PageHead({ crumb, title, note, actions, onBack }: PageHeadProps)
             末级文案与标题不一致的页面必须保留导航层级可读 */}
         {crumb.length > 0 && (
           <div
-            aria-hidden={crumb[crumb.length - 1] === title || undefined}
+            aria-hidden={crumb[crumb.length - 1] === title}
             className="mb-[5px] text-[11px] tracking-[.02em] text-ink-3"
           >
             {crumb.map((seg, i) => (

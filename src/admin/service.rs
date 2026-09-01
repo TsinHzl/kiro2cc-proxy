@@ -15,9 +15,9 @@ use crate::model::throttle_log::ThrottleLogStore;
 
 use super::error::AdminServiceError;
 use super::types::{
-    AddCredentialRequest, AddCredentialResponse, BalanceResponse, CredentialStatusItem,
-    CredentialsStatusResponse, LoadBalancingModeResponse, SetLoadBalancingModeRequest,
-    UpdateCredentialRequest,
+    AddCredentialRequest, AddCredentialResponse, AdminModelItem, AdminModelsResponse,
+    BalanceResponse, CredentialStatusItem, CredentialsStatusResponse, LoadBalancingModeResponse,
+    SetLoadBalancingModeRequest, UpdateCredentialRequest,
 };
 
 /// 余额缓存过期时间（秒），5 分钟
@@ -265,6 +265,26 @@ impl AdminService {
             }
         };
         group_models_by_family(items)
+    }
+
+    /// 获取指定账号支持的模型列表（实时查询，不回退静态表）
+    ///
+    /// 与 list_admin_models（取任意可用账号 + 失败回退静态表）不同，此方法按 id 指定账号，
+    /// 上游调用失败时直接报错，由前端弹窗展示错误（语义更准确：展示该账号当前真实支持的模型）。
+    pub async fn list_admin_models_for(
+        &self,
+        id: u64,
+    ) -> Result<AdminModelsResponse, AdminServiceError> {
+        let resp = self
+            .token_manager
+            .list_available_models_for(id)
+            .await
+            .map_err(|e| self.classify_balance_error(e, id))?;
+        let items: Vec<AdminModelItem> = resp.models.iter().map(live_model_to_admin_item).collect();
+        Ok(AdminModelsResponse {
+            object: "list".to_string(),
+            data: group_models_by_family(items),
+        })
     }
 
     /// 添加新账号

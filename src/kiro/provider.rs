@@ -485,7 +485,8 @@ impl KiroProvider {
                 continue;
             }
 
-            // 获取单账号并发 permit
+            // 获取单账号并发 permit（非 sleep 的 continue/Err 分支依赖 _cred_permit 随作用域结束隐式释放；
+            // 仅进入 sleep 退避的分支需要显式 drop，以便退避等待期间归还槛位）
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
             let url = self.mcp_url_for(&ctx.credentials);
@@ -747,7 +748,8 @@ impl KiroProvider {
                 continue;
             }
 
-            // 获取单账号并发 permit
+            // 获取单账号并发 permit（非 sleep 的 continue/Err 分支依赖 _cred_permit 随作用域结束隐式释放；
+            // 仅进入 sleep 退避的分支需要显式 drop，以便退避等待期间归还槛位）
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
             // 选择下一个可用端点（单账号内轮询，跳过被封禁桶）

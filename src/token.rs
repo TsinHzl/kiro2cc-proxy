@@ -111,6 +111,9 @@ pub(crate) fn count_all_tokens(
 /// `prefix_tokens + 最后一条消息的 token 数`，与 `count_all_tokens_local` 数学等价
 /// （二者对 system/messages/tools 的遍历口径完全相同，唯一差异是历史消息部分改为复用已算好的值）。
 /// `messages` 为空时视为 0（此时 `prefix_tokens` 本身已是 system+tools 全部 token）。
+///
+/// **契约：** `prefix_tokens` 必须由 `count_prefix_tokens(system, &messages[..len-1], tools)`
+/// 产出；传入手工构造的值将破坏与 `count_all_tokens_local` 的数学等价性。
 pub(crate) fn count_all_tokens_with_prefix(
     model: String,
     system: Option<Vec<SystemMessage>>,

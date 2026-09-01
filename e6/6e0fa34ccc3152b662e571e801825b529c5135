@@ -1,0 +1,38 @@
+admin-ui/src/api/credentials.ts
+  f9d412714622bb39 236-241
+admin-ui/src/hooks/use-credentials.ts
+  f9d412714622bb39 32,308-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e66e0fa34ccc3152b662e571e801825b529c5135",
+  "prompts": {
+    "6bf11774269507ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2283658b-e08f-4554-98f7-7f46f6386eff",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 287,
+      "overriden_lines": 0
+    },
+    "f9d412714622bb39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da035739-054a-44af-8e99-f7da0a3e6686",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 0,
+      "accepted_lines": 1147,
+      "overriden_lines": 0
+    }
+  }
+}

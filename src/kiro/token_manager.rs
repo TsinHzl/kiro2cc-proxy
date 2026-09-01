@@ -2512,6 +2512,19 @@ impl MultiTokenManager {
         .await
     }
 
+    /// 获取指定账号支持的模型列表（含官方费率倍率）
+    ///
+    /// 与 list_available_models（取任意可用账号）不同，此方法按 id 指定账号查询，
+    /// 用于 Admin API 展示单账号支持的模型。上游调用失败时直接返回错误，不回退静态表。
+    pub async fn list_available_models_for(
+        &self,
+        id: u64,
+    ) -> anyhow::Result<AvailableModelsResponse> {
+        let (credentials, token) = self.acquire_token_for_id(id).await?;
+        let effective_proxy = credentials.effective_proxy(self.proxy.as_ref());
+        list_available_models(&credentials, &self.config, &token, effective_proxy.as_ref()).await
+    }
+
     // ========================================================================
     // Admin API 方法
     // ========================================================================

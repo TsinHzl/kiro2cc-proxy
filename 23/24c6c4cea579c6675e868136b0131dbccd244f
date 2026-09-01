@@ -1,0 +1,38 @@
+src/kiro/provider.rs
+  ec0f9670c5b6e9b5 488-489,751-752
+src/token.rs
+  ec0f9670c5b6e9b5 114-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2324c6c4cea579c6675e868136b0131dbccd244f",
+  "prompts": {
+    "133da35397f09ed1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "692650ff-d42e-41c1-8588-6ede387554d0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 145,
+      "total_deletions": 0,
+      "accepted_lines": 145,
+      "overriden_lines": 0
+    },
+    "ec0f9670c5b6e9b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6f16083-d3d7-4a6c-9768-061761338ac9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 2,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}

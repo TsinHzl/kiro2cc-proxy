@@ -281,7 +281,7 @@ export function ApiKeyRow({
             aria-label={t('apiKeys.importCcSwitchCodex')}
             onClick={onImportCodex}
           >
-            <ChatGptIcon className="size-[15px] text-white" />
+            <ChatGptIcon className="size-[15px]" />
           </button>
           <span aria-hidden="true" className="mx-[5px] h-4 w-px flex-none bg-hairline" />
           <button

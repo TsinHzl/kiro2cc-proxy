@@ -1,0 +1,36 @@
+src/kiro/token_manager.rs
+  f9d412714622bb39 2515-2527
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3582a3dac6caa2773c4d149cc3d90c4204f19de4",
+  "prompts": {
+    "6bf11774269507ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2283658b-e08f-4554-98f7-7f46f6386eff",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 287,
+      "overriden_lines": 0
+    },
+    "f9d412714622bb39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da035739-054a-44af-8e99-f7da0a3e6686",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 1,
+      "accepted_lines": 1143,
+      "overriden_lines": 0
+    }
+  }
+}

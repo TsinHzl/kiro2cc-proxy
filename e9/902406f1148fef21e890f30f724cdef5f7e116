@@ -1,0 +1,40 @@
+user-ui/src/components/page-head.tsx
+  0749f60c097f438f 26
+user-ui/src/components/usage-log-page.tsx
+  0749f60c097f438f 200,203
+user-ui/src/components/table-kit.tsx
+  0749f60c097f438f 36,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e9902406f1148fef21e890f30f724cdef5f7e116",
+  "prompts": {
+    "0749f60c097f438f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01faf4e4-40ed-4ba0-9811-87e96b6f8e18",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 4,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "6bf11774269507ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2283658b-e08f-4554-98f7-7f46f6386eff",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 287,
+      "total_deletions": 0,
+      "accepted_lines": 287,
+      "overriden_lines": 0
+    }
+  }
+}

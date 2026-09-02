@@ -927,7 +927,7 @@ impl MultiTokenManager {
     /// * `credentials` - 账号列表
     /// * `proxy` - 可选的代理配置
     /// * `credentials_path` - 账号文件路径（用于回写）
-    /// * `is_multiple_format` - 是否为多账号格式（数组格式才回写）
+    /// * `is_multiple_format` - 是否为多账号格式（决定回写 JSON 形状：数组 vs 单对象，不再影响是否回写）
     pub fn new(
         config: Config,
         credentials: Vec<KiroCredentials>,
@@ -1744,11 +1744,6 @@ impl MultiTokenManager {
     fn persist_credentials(&self) -> anyhow::Result<bool> {
         use anyhow::Context;
 
-        // 仅多账号格式才回写
-        if !self.is_multiple_format.load(Ordering::Relaxed) {
-            return Ok(false);
-        }
-
         let path = match &self.credentials_path {
             Some(p) => p,
             None => return Ok(false),
@@ -1771,8 +1766,14 @@ impl MultiTokenManager {
                 .collect()
         };
 
-        // 序列化为 pretty JSON
-        let json = serde_json::to_string_pretty(&credentials).context("序列化账号失败")?;
+        // 单账号格式（credentials.json 原为单对象）时保持单对象形状回写，避免把用户
+        // 原本的单对象文件强行转成数组；账号被删光清空后没有形状可保持，回退为数组
+        // （加载时仍可正确解析为空多账号格式）。
+        let json = if !self.is_multiple_format.load(Ordering::Relaxed) && credentials.len() == 1 {
+            serde_json::to_string_pretty(&credentials[0]).context("序列化账号失败")?
+        } else {
+            serde_json::to_string_pretty(&credentials).context("序列化账号失败")?
+        };
 
         // 原子写 + 串行化，确保数据落盘且不被并发写交错（容器持久化卷必须 fsync）
         let write_result = {

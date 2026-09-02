@@ -1,0 +1,33 @@
+admin-ui/src/components/account-metrics.tsx
+  f9d412714622bb39 20-21,60,76,107-117,120-126
+openspec/specs/admin/credentials/spec.md
+  f9d412714622bb39 5,16,56,58-59,61
+admin-ui/src/components/dashboard.tsx
+  f9d412714622bb39 174-178,1180
+admin-ui/src/i18n/locales/zh.json
+  f9d412714622bb39 117
+admin-ui/src/components/account-row.tsx
+  f9d412714622bb39 32-35,107-112,241,245,248,252,269-270
+admin-ui/src/i18n/locales/en.json
+  f9d412714622bb39 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "538e5cb63344e589d012f623ae9cd94672f3f630",
+  "prompts": {
+    "f9d412714622bb39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da035739-054a-44af-8e99-f7da0a3e6686",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 267,
+      "total_deletions": 67,
+      "accepted_lines": 243,
+      "overriden_lines": 0
+    }
+  }
+}

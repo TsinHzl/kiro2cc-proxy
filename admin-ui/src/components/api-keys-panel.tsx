@@ -779,6 +779,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               <Ring
                 percent={topQuota === null ? null : topQuota.percent}
                 tone={topQuota === null ? undefined : quotaTone(topQuota.percent).stroke}
+                size={42}
               />
             </MetricAside>
           </Metric>

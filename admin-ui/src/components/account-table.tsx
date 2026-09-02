@@ -16,7 +16,7 @@ const COLUMNS: { labelKey: string; num?: boolean; sortKey?: AccountSortKey }[] =
   { labelKey: 'credentials.colAccount', sortKey: 'account' },
   { labelKey: 'credentials.colState' },
   { labelKey: 'credentials.colPlan' },
-  { labelKey: 'credentials.colRemaining', sortKey: 'remaining' },
+  { labelKey: 'credentials.colConsumption', sortKey: 'remaining' },
   { labelKey: 'credentials.colCalls', num: true },
   { labelKey: 'credentials.colRpm', num: true },
   { labelKey: 'credentials.colLastUsed' },

@@ -231,7 +231,7 @@ export function DailyStatsPage({ onBack, onViewDay, showBack = true }: DailyStat
             )}
           </MetricFoot>
           <MetricAside>
-            <Ring percent={(activeRows.length / days) * 100} tone="stroke-warn" />
+            <Ring percent={(activeRows.length / days) * 100} tone="stroke-warn" size={42} />
           </MetricAside>
         </Metric>
 

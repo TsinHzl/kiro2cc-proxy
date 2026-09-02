@@ -61,6 +61,9 @@
     --shadow-md: 0 4px 14px -4px rgba(16, 18, 20, .12), 0 1px 3px rgba(16, 18, 20, .06);
     --shadow-pop: 0 12px 32px -8px rgba(16, 18, 20, .2), 0 2px 6px rgba(16, 18, 20, .08);
     --grid-dot: rgba(15, 17, 19, .045);
+    --ring-grad-from: #34d399;
+    --ring-grad-to: #059669;
+    --ring-glow: rgba(16, 185, 129, .2);
   }
 
   .dark {
@@ -114,6 +117,9 @@
     --shadow-md: 0 6px 20px -6px rgba(0, 0, 0, .6), 0 1px 3px rgba(0, 0, 0, .4);
     --shadow-pop: 0 16px 40px -10px rgba(0, 0, 0, .72), 0 2px 8px rgba(0, 0, 0, .5);
     --grid-dot: rgba(255, 255, 255, .035);
+    --ring-grad-from: #34d399;
+    --ring-grad-to: #059669;
+    --ring-glow: rgba(16, 185, 129, .35);
   }
 }
 

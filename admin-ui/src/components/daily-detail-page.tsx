@@ -121,7 +121,7 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
             <span>{cacheShare.toFixed(1)}%</span>
           </MetricFoot>
           <MetricAside>
-            <Ring percent={cacheShare} tone="stroke-ok" />
+            <Ring percent={cacheShare} tone="stroke-ok" size={42} />
           </MetricAside>
         </Metric>
       </MetricsBar>

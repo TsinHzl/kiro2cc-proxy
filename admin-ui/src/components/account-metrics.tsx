@@ -1,6 +1,18 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useTranslation } from 'react-i18next'
-import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring, Sparkline } from '@/components/metrics'
+import { Activity, Coins, CreditCard, Hash, Wallet } from 'lucide-react'
+import {
+  Delta,
+  FootSep,
+  Metric,
+  MetricBody,
+  MetricFoot,
+  MetricValue,
+  MetricsBar,
+  Ring,
+  Sparkline,
+  StatusDot,
+} from '@/components/metrics'
 
 export interface AccountMetricsProps {
   /** 账号总数 */
@@ -41,14 +53,21 @@ export interface AccountMetricsProps {
   onTodayClick: () => void
 }
 
-/** 剩余百分比按 60/30 阈值切色（环形图与脚注同源；设计稿把最低值硬编码为 warn，此处改为阈值联动） */
-function remainingTone(percent: number) {
-  if (percent >= 60) return { stroke: 'stroke-ok', text: 'text-ok' }
-  if (percent >= 30) return { stroke: 'stroke-warn', text: 'text-warn' }
-  return { stroke: 'stroke-danger', text: 'text-danger' }
+/** 剩余百分比按 60/30 阈值切色（仅用于脚注 label 映射；环形图统一走 brand/ok 渐变，不随阈值变色） */
+function remainingTone(percent: number): 'ok' | 'warn' | 'danger' {
+  if (percent >= 60) return 'ok'
+  if (percent >= 30) return 'warn'
+  return 'danger'
 }
 
-/** 指标条（设计稿 .metrics）：账号池 / 全局剩余积分 / 启用账号平均剩余 / 今日调用 / 今日消耗积分 */
+function remainingStatusLabel(t: (k: string) => string, percent: number): string {
+  const tone = remainingTone(percent)
+  if (tone === 'ok') return t('credentials.metricRemainingStatusAbundant')
+  if (tone === 'warn') return t('credentials.metricRemainingStatusTight')
+  return t('credentials.metricRemainingStatusCritical')
+}
+
+/** 指标条（方案1 unified-card-bar）：账号池 / 全局剩余积分 / 全局消费积分 / 今日调用 / 今日消耗积分 */
 export function AccountMetrics({
   total,
   enabledCount,
@@ -78,9 +97,13 @@ export function AccountMetrics({
   const savedCredits = Number.isFinite(todayCreditsSaved) ? todayCreditsSaved! : null
   return (
     <MetricsBar cols={5}>
-      <Metric label={t('credentials.metricPoolLabel')}>
-        <MetricValue value={String(total)} unit={t('credentials.metricPoolUnit')} />
+      {/* 卡 1：账号池 */}
+      <Metric label={t('credentials.metricPoolLabel')} icon={<Hash />}>
+        <MetricBody>
+          <MetricValue value={String(total)} unit={t('credentials.metricPoolUnit')} />
+        </MetricBody>
         <MetricFoot>
+          <StatusDot tone={abnormalCount > 0 ? 'muted' : 'ok'} />
           <span>
             <b className="font-medium text-ink-2">{enabledCount}</b> {t('credentials.metricEnabled')}
           </span>
@@ -97,41 +120,49 @@ export function AccountMetrics({
         </MetricFoot>
       </Metric>
 
-      <Metric label={t('credentials.metricCreditsLabel')}>
-        <MetricValue value={credits === null ? '—' : credits.toFixed(1)} />
-        <div className="mt-[3px] text-[11px] text-ink-3">
+      {/* 卡 2：全局剩余积分（环形图：avg 剩余百分比 + 充裕/紧张/告急 label） */}
+      <Metric label={t('credentials.metricCreditsLabel')} icon={<Wallet />}>
+        <MetricBody>
+          <MetricValue value={credits === null ? '—' : credits.toFixed(1)} />
+          {avg !== null && (
+            <Ring percent={avg}>
+              <span className="text-[13px] font-bold leading-none tracking-[-0.02em] tabular-nums text-ink">
+                {Math.round(avg)}%
+              </span>
+              <span className="mt-px text-[9px] text-ink-3">{remainingStatusLabel(t, avg)}</span>
+            </Ring>
+          )}
+        </MetricBody>
+        <MetricFoot>
           {credits === null
             ? t('credentials.metricCreditsHint')
             : t('credentials.metricCreditsCovered', { queried: creditsQueried, total })}
-        </div>
-        {avg !== null && (
-          <MetricAside>
-            {/* Ring 纯装饰，中心百分比由 absolute span 注入；relative 容器让文案相对环形图居中 */}
-            <div className="relative grid place-items-center">
-              <Ring percent={avg} tone={remainingTone(avg).stroke} />
-              <span className="absolute inset-0 grid place-items-center font-mono text-[10px] font-semibold tabular-nums text-ink-2">
-                {Math.round(avg)}%
-              </span>
-            </div>
-          </MetricAside>
-        )}
+        </MetricFoot>
       </Metric>
 
-      <Metric label={t('credentials.metricConsumedLabel')}>
-        <MetricValue value={consumed === null ? '—' : consumed.toFixed(1)} />
-        <div className="mt-[3px] text-[11px] text-ink-3">
+      {/* 卡 3：全局消费积分 */}
+      <Metric label={t('credentials.metricConsumedLabel')} icon={<Coins />}>
+        <MetricBody>
+          <MetricValue value={consumed === null ? '—' : consumed.toFixed(1)} />
+        </MetricBody>
+        <MetricFoot>
           {consumed === null
             ? t('credentials.metricCreditsHint')
             : t('credentials.metricCreditsCovered', { queried: creditsQueried, total })}
-        </div>
+        </MetricFoot>
       </Metric>
 
-      <Metric label={t('credentials.metricCallsLabel')} onClick={onTodayClick}>
-        <MetricValue
-          value={todayRequests === null ? '—' : todayRequests.toLocaleString()}
-          trailing={requestsDeltaPercent === null ? undefined : <Delta percent={requestsDeltaPercent} />}
-        />
-        <MetricFoot className="truncate pr-[92px]">
+      {/* 卡 4：今日调用（sparkline: brand） */}
+      <Metric label={t('credentials.metricCallsLabel')} icon={<Activity />} onClick={onTodayClick}>
+        <MetricBody>
+          <MetricValue
+            value={todayRequests === null ? '—' : todayRequests.toLocaleString()}
+            trailing={requestsDeltaPercent === null ? undefined : <Delta percent={requestsDeltaPercent} />}
+          />
+          {requestTrend.length >= 2 && <Sparkline values={requestTrend} tone="brand" />}
+        </MetricBody>
+        <MetricFoot className="truncate">
+          <StatusDot tone={cumulativeFailures > 0 ? 'muted' : 'ok'} />
           <span>
             {t('credentials.metricFailPrefix')}{' '}
             <b className={cumulativeFailures > 0 ? 'font-medium text-ink-2' : 'font-medium'}>{cumulativeFailures}</b>
@@ -148,20 +179,18 @@ export function AccountMetrics({
             </>
           )}
         </MetricFoot>
-        {requestTrend.length >= 2 && (
-          <MetricAside>
-            <Sparkline values={requestTrend} />
-          </MetricAside>
-        )}
       </Metric>
 
-      {/* 今日消耗积分：与「今日调用」同源于日用量接口，故共用同一跳转 */}
-      <Metric label={t('credentials.metricCreditsUsedLabel')} onClick={onTodayClick}>
-        <MetricValue
-          value={usedCredits === null ? '—' : usedCredits.toFixed(1)}
-          trailing={creditsDeltaPercent === null ? undefined : <Delta percent={creditsDeltaPercent} />}
-        />
-        <MetricFoot className="truncate pr-[92px]">
+      {/* 卡 5：今日消耗积分（sparkline: ok；与「今日调用」同源于日用量接口，故共用同一跳转） */}
+      <Metric label={t('credentials.metricCreditsUsedLabel')} icon={<CreditCard />} onClick={onTodayClick}>
+        <MetricBody>
+          <MetricValue
+            value={usedCredits === null ? '—' : usedCredits.toFixed(1)}
+            trailing={creditsDeltaPercent === null ? undefined : <Delta percent={creditsDeltaPercent} />}
+          />
+          {creditsTrend.length >= 2 && <Sparkline values={creditsTrend} tone="ok" />}
+        </MetricBody>
+        <MetricFoot className="truncate">
           <span>
             {t('credentials.metricCreditsSavedPrefix')}{' '}
             <b className={savedCredits !== null && savedCredits > 0 ? 'font-medium text-ink-2' : 'font-medium'}>
@@ -169,11 +198,6 @@ export function AccountMetrics({
             </b>
           </span>
         </MetricFoot>
-        {creditsTrend.length >= 2 && (
-          <MetricAside>
-            <Sparkline values={creditsTrend} />
-          </MetricAside>
-        )}
       </Metric>
     </MetricsBar>
   )

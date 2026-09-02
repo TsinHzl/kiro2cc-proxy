@@ -314,6 +314,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
             <Ring
               percent={(localLogs.length / MAX_FRONT_LOGS) * 100}
               tone={localLogs.length >= MAX_FRONT_LOGS ? 'stroke-warn' : 'stroke-brand'}
+              size={42}
             />
           </MetricAside>
         </Metric>

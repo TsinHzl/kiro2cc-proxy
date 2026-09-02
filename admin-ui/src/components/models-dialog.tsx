@@ -11,6 +11,7 @@ import { parseError } from '@/lib/utils'
 import {
   FAMILY_AUTO,
   FAMILY_OTHER,
+  formatRate,
   formatRateRange,
   groupByFamily,
   rateRange,
@@ -83,8 +84,8 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
                   {group.models.map((model) => (
                     <li key={model.id} className="flex items-center justify-between text-[12px]">
                       <span className="font-mono text-ink-2 truncate">{model.id}</span>
-                      <span className="text-ink-3 ml-2 shrink-0">
-                        {model.display_name || model.id}
+                      <span className="font-mono tabular-nums text-ink-3 ml-2 shrink-0">
+                        {model.rate_multiplier != null ? formatRate(model.rate_multiplier) : '—'}
                       </span>
                     </li>
                   ))}

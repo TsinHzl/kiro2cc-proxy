@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
-import { FileText, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
+import { Boxes, FileText, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
 import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,7 @@ export interface AccountRowProps {
   onToggleSelect: () => void
   onViewFailureLog: (id: number) => void
   onViewThrottleLog: (id: number) => void
+  onViewModels: (id: number) => void
   onViewBalance: (id: number) => void
   onViewDetail: (id: number) => void
   /** 单账号重新查询余额（dashboard 持有 balanceMap，故由其执行） */
@@ -91,6 +92,7 @@ export function AccountRow({
   onToggleSelect,
   onViewFailureLog,
   onViewThrottleLog,
+  onViewModels,
   onViewBalance,
   onViewDetail,
   onRefetchBalance,
@@ -404,6 +406,10 @@ export function AccountRow({
               <DropdownMenuItem onSelect={() => onViewThrottleLog(credential.id)}>
                 <FileText className="size-[13px]" strokeWidth={1.7} />
                 {t('credentials.viewThrottleLog')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onViewModels(credential.id)}>
+                <Boxes className="size-[13px]" strokeWidth={1.7} />
+                {t('credentials.viewModels')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {/* 与旧卡片同条件：失败计数为 0 时不可重置 */}

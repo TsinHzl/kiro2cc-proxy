@@ -29,6 +29,7 @@ import {
   getThrottleLogs,
   getFailureLogs,
   getModels,
+  getCredentialModels,
   getChangelog,
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
@@ -301,6 +302,16 @@ export function useModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: getModels,
+  })
+}
+
+// 查询单账号支持的模型（失败不重试，避免对被封禁账号重复请求）
+export function useCredentialModels(id: number | null) {
+  return useQuery({
+    queryKey: ['credential-models', id],
+    queryFn: () => getCredentialModels(id!),
+    enabled: id !== null,
+    retry: false,
   })
 }
 

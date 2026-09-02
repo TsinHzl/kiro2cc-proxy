@@ -14,6 +14,7 @@ import { AccountToolbar, type AccountStatusFilter } from '@/components/account-t
 import { AccountTable } from '@/components/account-table'
 import { AccountPanelFoot } from '@/components/account-panel-foot'
 import { BalanceDialog } from '@/components/balance-dialog'
+import { ModelsDialog } from '@/components/models-dialog'
 import { AddCredentialDialog } from '@/components/add-credential-dialog'
 import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { KamImportDialog } from '@/components/kam-import-dialog'
@@ -100,6 +101,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [failureLogCredentialId, setFailureLogCredentialId] = useState<number | null>(null)
   const [selectedCredentialId, setSelectedCredentialId] = useState<number | null>(null)
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
+  const [modelsDialogOpen, setModelsDialogOpen] = useState(false)
+  const [modelsCredentialId, setModelsCredentialId] = useState<number | null>(null)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [batchImportDialogOpen, setBatchImportDialogOpen] = useState(false)
   const [kamImportDialogOpen, setKamImportDialogOpen] = useState(false)
@@ -1318,6 +1321,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   onToggleSelect={() => toggleSelect(credential.id)}
                   onViewFailureLog={(id) => setFailureLogCredentialId(id)}
                   onViewThrottleLog={(id) => setThrottleLogCredentialId(id)}
+                  onViewModels={(id) => {
+                    setModelsCredentialId(id)
+                    setModelsDialogOpen(true)
+                  }}
                   onViewBalance={handleViewBalance}
                   onViewDetail={(id) => setDetailCredentialId(id)}
                   onRefetchBalance={handleRefetchBalance}
@@ -1335,6 +1342,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
         credentialId={selectedCredentialId}
         open={balanceDialogOpen}
         onOpenChange={setBalanceDialogOpen}
+      />
+
+      {/* 支持模型对话框 */}
+      <ModelsDialog
+        credentialId={modelsCredentialId}
+        open={modelsDialogOpen}
+        onOpenChange={setModelsDialogOpen}
       />
 
       {/* 添加凭据对话框 */}

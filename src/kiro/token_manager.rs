@@ -2512,6 +2512,19 @@ impl MultiTokenManager {
         .await
     }
 
+    /// 获取指定账号支持的模型列表（含官方费率倍率）
+    ///
+    /// 与 list_available_models（取任意可用账号）不同，此方法按 id 指定账号查询，
+    /// 用于 Admin API 展示单账号支持的模型。上游调用失败时直接返回错误，不回退静态表。
+    pub async fn list_available_models_for(
+        &self,
+        id: u64,
+    ) -> anyhow::Result<AvailableModelsResponse> {
+        let (credentials, token) = self.acquire_token_for_id(id).await?;
+        let effective_proxy = credentials.effective_proxy(self.proxy.as_ref());
+        list_available_models(&credentials, &self.config, &token, effective_proxy.as_ref()).await
+    }
+
     // ========================================================================
     // Admin API 方法
     // ========================================================================
@@ -2624,8 +2637,11 @@ impl MultiTokenManager {
         Ok(())
     }
 
-    /// 获取指定账号的使用额度（Admin API）
-    pub async fn get_usage_limits_for(&self, id: u64) -> anyhow::Result<UsageLimitsResponse> {
+    /// 按账号 id 取最新 credentials 与有效 access_token
+    ///
+    /// 封装 token 刷新逻辑（含冷却期、double-check、持久化），供 get_usage_limits_for
+    /// 与 list_available_models_for 复用，消除按 id 查询时的刷新逻辑重复。
+    async fn acquire_token_for_id(&self, id: u64) -> anyhow::Result<(KiroCredentials, String)> {
         let credentials = {
             let entries = self.entries.lock();
             entries
@@ -2697,6 +2713,7 @@ impl MultiTokenManager {
                 .ok_or_else(|| anyhow::anyhow!("账号无 access_token"))?
         };
 
+        // 返回最新 credentials（刷新后从 entries 重新取，保证 subscription_title 等字段最新）
         let credentials = {
             let entries = self.entries.lock();
             entries
@@ -2705,6 +2722,13 @@ impl MultiTokenManager {
                 .map(|e| e.credentials.clone())
                 .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?
         };
+
+        Ok((credentials, token))
+    }
+
+    /// 获取指定账号的使用额度（Admin API）
+    pub async fn get_usage_limits_for(&self, id: u64) -> anyhow::Result<UsageLimitsResponse> {
+        let (credentials, token) = self.acquire_token_for_id(id).await?;
 
         let effective_proxy = credentials.effective_proxy(self.proxy.as_ref());
         let usage_limits =

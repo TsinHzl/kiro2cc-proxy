@@ -106,7 +106,7 @@
   "credentials": {
     "metricPoolLabel": "账号池",
     "metricPoolUnit": "个账号",
-    "metricEnabled": "未禁用",
+    "metricEnabled": "启用",
     "metricDisabled": "禁用",
     "metricAbnormal": "{{count}} 项异常",
     "metricCreditsLabel": "全局剩余积分",

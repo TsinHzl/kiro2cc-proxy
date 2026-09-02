@@ -106,7 +106,7 @@
   "credentials": {
     "metricPoolLabel": "Account pool",
     "metricPoolUnit": "accounts",
-    "metricEnabled": "not disabled",
+    "metricEnabled": "enabled",
     "metricDisabled": "disabled",
     "metricAbnormal": "{{count}} abnormal",
     "metricCreditsLabel": "Total credits left",

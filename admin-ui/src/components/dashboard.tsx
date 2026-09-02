@@ -171,8 +171,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const avgRemainingPercent = enabledRemaining.length > 0
     ? enabledRemaining.reduce((sum, item) => sum + item.percent, 0) / enabledRemaining.length
     : null
-  const lowestAccount = enabledRemaining.length > 0
-    ? enabledRemaining.reduce((min, item) => (item.percent < min.percent ? item : min))
+  // 已消费积分合计：Σ(usageLimit − remaining)，仅对 usageLimit > 0 的账号累加（与 enabledRemaining 同源）
+  // 注意此处不限定「启用」——消费口径关注全局累计消耗，禁用账号的历史消耗仍计入合计
+  const consumable = [...balanceMap.values()].filter(b => b.usageLimit > 0)
+  const consumedCreditsTotal = consumable.length > 0
+    ? consumable.reduce((sum, b) => sum + Math.max(0, b.usageLimit - b.remaining), 0)
     : null
   // 日用量未加载时为 null（区别于「今天确实 0 次调用」）
   const todayRequests = dailyUsageData ? todayStats?.totalRequests ?? 0 : null
@@ -1174,7 +1177,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             creditsTotal={liveCreditsTotal}
             creditsQueried={liveCreditsQueried}
             avgRemainingPercent={avgRemainingPercent}
-            lowestAccount={lowestAccount}
+            consumedCreditsTotal={consumedCreditsTotal}
             todayRequests={todayRequests}
             requestsDeltaPercent={requestsDeltaPercent}
             requestTrend={requestTrend}

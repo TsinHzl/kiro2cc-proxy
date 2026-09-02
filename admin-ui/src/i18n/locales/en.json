@@ -114,6 +114,7 @@
     "metricCreditsHint": "Not queried yet —",
     "metricAvgLabel": "Avg. remaining (enabled)",
     "metricAvgLowest": "Lowest enabled",
+    "metricConsumedLabel": "Global credits consumed",
     "metricCallsLabel": "Calls today",
     "metricFailPrefix": "Cumulative failures",
     "metricFailRatePrefix": "Cumulative failure rate",

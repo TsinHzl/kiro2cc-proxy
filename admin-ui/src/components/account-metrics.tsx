@@ -17,8 +17,8 @@ export interface AccountMetricsProps {
   creditsQueried: number
   /** 启用且已查询余额账号的平均剩余百分比；null = 无数据 */
   avgRemainingPercent: number | null
-  /** 剩余百分比最低的启用账号；null = 无数据 */
-  lowestAccount: { name: string; percent: number } | null
+  /** 已消费积分合计 Σ(usageLimit − remaining)（仅 usageLimit > 0 账号）；null = 无已查询账号 */
+  consumedCreditsTotal: number | null
   /** 今日调用次数；null = 日用量数据未加载 */
   todayRequests: number | null
   /** 今日相对昨日的环比百分比；null = 无昨日基线 */
@@ -57,7 +57,7 @@ export function AccountMetrics({
   creditsTotal,
   creditsQueried,
   avgRemainingPercent,
-  lowestAccount,
+  consumedCreditsTotal,
   todayRequests,
   requestsDeltaPercent,
   requestTrend,
@@ -73,6 +73,7 @@ export function AccountMetrics({
   // 展示层兜底：上游若给出 NaN / Infinity，一律降级为「无数据」，绝不把 "NaN" 吐给用户
   const credits = Number.isFinite(creditsTotal) ? creditsTotal! : null
   const avg = Number.isFinite(avgRemainingPercent) ? avgRemainingPercent! : null
+  const consumed = Number.isFinite(consumedCreditsTotal) ? consumedCreditsTotal! : null
   const usedCredits = Number.isFinite(todayCredits) ? todayCredits! : null
   const savedCredits = Number.isFinite(todayCreditsSaved) ? todayCreditsSaved! : null
   return (
@@ -103,22 +104,26 @@ export function AccountMetrics({
             ? t('credentials.metricCreditsHint')
             : t('credentials.metricCreditsCovered', { queried: creditsQueried, total })}
         </div>
+        {avg !== null && (
+          <MetricAside>
+            {/* Ring 纯装饰，中心百分比由 absolute span 注入；relative 容器让文案相对环形图居中 */}
+            <div className="relative grid place-items-center">
+              <Ring percent={avg} tone={remainingTone(avg).stroke} />
+              <span className="absolute inset-0 grid place-items-center font-mono text-[10px] font-semibold tabular-nums text-ink-2">
+                {Math.round(avg)}%
+              </span>
+            </div>
+          </MetricAside>
+        )}
       </Metric>
 
-      <Metric label={t('credentials.metricAvgLabel')}>
-        <MetricValue value={avg === null ? '—' : String(Math.round(avg))} unit={avg === null ? undefined : '%'} />
-        {lowestAccount && (
-          <div className="mt-[3px] truncate pr-14 text-[11px] text-ink-3">
-            {t('credentials.metricAvgLowest')} <b className="font-medium text-ink-2">{lowestAccount.name}</b>
-            {' · '}
-            <span className={`font-semibold ${remainingTone(lowestAccount.percent).text}`}>
-              {Math.round(lowestAccount.percent)}%
-            </span>
-          </div>
-        )}
-        <MetricAside>
-          <Ring percent={avg} tone={avg === null ? undefined : remainingTone(avg).stroke} />
-        </MetricAside>
+      <Metric label={t('credentials.metricConsumedLabel')}>
+        <MetricValue value={consumed === null ? '—' : consumed.toFixed(1)} />
+        <div className="mt-[3px] text-[11px] text-ink-3">
+          {consumed === null
+            ? t('credentials.metricCreditsHint')
+            : t('credentials.metricCreditsCovered', { queried: creditsQueried, total })}
+        </div>
       </Metric>
 
       <Metric label={t('credentials.metricCallsLabel')} onClick={onTodayClick}>

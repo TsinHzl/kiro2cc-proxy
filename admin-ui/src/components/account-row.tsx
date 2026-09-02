@@ -29,10 +29,10 @@ import { localeTag } from '@/lib/locale'
 import { getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
 
-/** 剩余额度阈值配色（design.md 决策：60/30 分界，比旧卡片的 50/20 更早预警） */
-function quotaTone(remainingPct: number): { text: string; bar: string } {
-  if (remainingPct >= 60) return { text: 'text-ok', bar: 'bg-ok' }
-  if (remainingPct >= 30) return { text: 'text-warn', bar: 'bg-warn' }
+/** 消费额度阈值配色：与旧剩余阈值 60/30 等价（usedPct = 100 − remainingPct），已用越高越警示 */
+function usageTone(usedPct: number): { text: string; bar: string } {
+  if (usedPct <= 40) return { text: 'text-ok', bar: 'bg-ok' }
+  if (usedPct <= 70) return { text: 'text-warn', bar: 'bg-warn' }
   return { text: 'text-danger', bar: 'bg-danger' }
 }
 
@@ -104,9 +104,12 @@ export function AccountRow({
   const displayName = credential.nickname || t('credentials.accountFallbackName', { id: credential.id })
   // 首字符按码点取，避免 emoji / 代理对昵称被截半
   const initial = [...label][0] ?? '#'
-  // 剩余百分比：后端给的是已用百分比，钳到 0–100 防脏数据把进度条撑出轨道
-  const remainingPct = balance ? Math.max(0, Math.min(100, 100 - balance.usagePercentage)) : null
-  const tone = remainingPct === null ? null : quotaTone(remainingPct)
+  // 消费百分比：后端直接给已用百分比，钳到 0–100 防脏数据把进度条撑出轨道
+  const usedPct = balance ? Math.max(0, Math.min(100, balance.usagePercentage)) : null
+  // 已用额度绝对值：usageLimit ≤ 0 时降级（不展示该单元格的数字段）
+  const usedValue =
+    balance && balance.usageLimit > 0 ? Math.max(0, balance.usageLimit - balance.remaining) : null
+  const tone = usedPct === null ? null : usageTone(usedPct)
   const numFmt = localeTag()
   // 设计稿对「已禁用」与「从未调用」行的 RPM 显示 —（原型行 968/1007/1046），数字对这两类行无意义
   const rpmIdle = credential.disabled || credential.lastUsedAt === null
@@ -235,18 +238,18 @@ export function AccountRow({
           <span className="text-[11.5px] text-ink-3">—</span>
         )}
       </td>
-      {/* 剩余额度（设计稿 .quota）：已查询 = 绝对值 + 百分比 + 4px 进度条；未查询 = 文案 + — + 空轨 */}
+      {/* 消费额度（设计稿 .quota）：已查询 = 已用值/总额 + 已用% + 4px 进度条；未查询 = 文案 + — + 空轨 */}
       <td className={CELL}>
         <div className="flex min-w-[132px] flex-col gap-[5px]">
           <div className="flex items-baseline justify-between gap-2">
-            {balance && remainingPct !== null && tone ? (
+            {balance && usedPct !== null && tone ? (
               <>
                 <span className="font-mono text-[11.5px] tabular-nums text-ink-2">
-                  <b className="font-semibold text-ink">{balance.remaining.toFixed(1)}</b> /{' '}
+                  <b className="font-semibold text-ink">{usedValue !== null ? usedValue.toFixed(1) : '—'}</b> /{' '}
                   {balance.usageLimit.toFixed(0)}
                 </span>
                 <span className={`font-mono text-[11px] font-semibold tabular-nums ${tone.text}`}>
-                  {remainingPct.toFixed(0)}%
+                  {usedPct.toFixed(0)}%
                 </span>
               </>
             ) : (
@@ -263,8 +266,8 @@ export function AccountRow({
               !balance && loadingBalance ? 'animate-pulse' : ''
             }`}
           >
-            {remainingPct !== null && tone && (
-              <span className={`block h-full rounded-[3px] ${tone.bar}`} style={{ width: `${remainingPct}%` }} />
+            {usedPct !== null && tone && (
+              <span className={`block h-full rounded-[3px] ${tone.bar}`} style={{ width: `${usedPct}%` }} />
             )}
           </div>
         </div>

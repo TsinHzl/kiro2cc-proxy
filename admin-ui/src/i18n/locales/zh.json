@@ -114,6 +114,7 @@
     "metricCreditsHint": "尚未查询 —",
     "metricAvgLabel": "启用账号平均剩余",
     "metricAvgLowest": "启用中最低",
+    "metricConsumedLabel": "全局消费积分",
     "metricCallsLabel": "今日调用",
     "metricFailPrefix": "累计失败",
     "metricFailRatePrefix": "累计失败率",

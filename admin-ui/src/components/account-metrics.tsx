@@ -5,6 +5,7 @@ import {
   Delta,
   FootSep,
   Metric,
+  MetricAside,
   MetricBody,
   MetricFoot,
   MetricValue,
@@ -120,24 +121,26 @@ export function AccountMetrics({
         </MetricFoot>
       </Metric>
 
-      {/* 卡 2：全局剩余积分（环形图：avg 剩余百分比 + 充裕/紧张/告急 label） */}
+      {/* 卡 2：全局剩余积分（环形图：avg 剩余百分比 + 充裕/紧张/告急 label；Ring 走 MetricAside 悬浮，不参与高度撑高） */}
       <Metric label={t('credentials.metricCreditsLabel')} icon={<Wallet />}>
         <MetricBody>
           <MetricValue value={credits === null ? '—' : credits.toFixed(1)} />
-          {avg !== null && (
-            <Ring percent={avg}>
-              <span className="text-[13px] font-bold leading-none tracking-[-0.02em] tabular-nums text-ink">
-                {Math.round(avg)}%
-              </span>
-              <span className="mt-px text-[9px] text-ink-3">{remainingStatusLabel(t, avg)}</span>
-            </Ring>
-          )}
         </MetricBody>
-        <MetricFoot>
+        <MetricFoot className="truncate pr-[80px]">
           {credits === null
             ? t('credentials.metricCreditsHint')
             : t('credentials.metricCreditsCovered', { queried: creditsQueried, total })}
         </MetricFoot>
+        {avg !== null && (
+          <MetricAside>
+            <Ring percent={avg}>
+              <span className="text-[14px] font-bold leading-none tracking-[-0.02em] tabular-nums text-ink">
+                {Math.round(avg)}%
+              </span>
+              <span className="mt-0.5 text-[9px] leading-none text-ink-3">{remainingStatusLabel(t, avg)}</span>
+            </Ring>
+          </MetricAside>
+        )}
       </Metric>
 
       {/* 卡 3：全局消费积分 */}

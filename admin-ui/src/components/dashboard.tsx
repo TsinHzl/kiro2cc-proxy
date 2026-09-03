@@ -26,7 +26,7 @@ import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
-import { useCredentials, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo, CREDENTIALS_REFETCH_INTERVAL_MS } from '@/hooks/use-credentials'
+import { useCredentials, useApiKeys, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo, CREDENTIALS_REFETCH_INTERVAL_MS } from '@/hooks/use-credentials'
 import { useTheme } from '@/hooks/use-theme'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
@@ -138,6 +138,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch, dataUpdatedAt } = useCredentials()
   const { data: serverInfo, isError: serverInfoError } = useServerInfo()
+  const { data: apiKeys } = useApiKeys()
   const credentialsRef = useRef(data?.credentials)
   const { data: rpmData } = useRpm()
   const { mutate: deleteCredential } = useDeleteCredential()
@@ -921,8 +922,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
     {
       title: t('dashboard.navMain'),
       items: [
-        { key: 'credentials', label: t('dashboard.navCredentials'), icon: Server, count: data?.credentials.length, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
-        { key: 'apikeys', label: 'API Keys', icon: Key, count: undefined, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'credentials', label: t('dashboard.navCredentials'), icon: Server, count: data && data.credentials.length > 0 ? data.credentials.length : undefined, active: activeTab === 'credentials' && dailyView === null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'apikeys', label: 'API Keys', icon: Key, count: apiKeys && apiKeys.length > 0 ? apiKeys.length : undefined, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
         { key: 'daily', label: t('dashboard.navDailyStats'), icon: BarChart2, count: undefined, active: dailyView !== null, onClick: () => { setActiveTab('credentials'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView('list'); setDailyFromSidebar(true) } },
         { key: 'models', label: t('dashboard.navModels'), icon: Boxes, count: undefined, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
       ],

@@ -1,0 +1,25 @@
+admin-ui/src/components/ui/progress.tsx
+  57df3695afe64533 34
+user-ui/src/components/ui/progress.tsx
+  57df3695afe64533 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "97cfcab99b09d6d4b4175943466f4c267f72c572",
+  "prompts": {
+    "57df3695afe64533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1244f7ed-8919-4b78-80c4-f9d60c0eaba9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

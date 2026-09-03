@@ -1,0 +1,23 @@
+Cargo.toml
+  57df3695afe64533 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "31f0ccfb472b571293cc66726c74d0e4f9f315c7",
+  "prompts": {
+    "57df3695afe64533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1244f7ed-8919-4b78-80c4-f9d60c0eaba9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

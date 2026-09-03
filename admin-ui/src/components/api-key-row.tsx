@@ -22,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { quotaTone as quotaGradTone } from '@/components/ui/progress'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
@@ -102,6 +103,7 @@ export function ApiKeyRow({
   const requests = usage?.totalRequests ?? 0
   const used = apiKey.limitUnit === 'credits' ? usage?.totalCredits ?? 0 : usage?.totalCost ?? 0
   const percent = apiKey.spendingLimit && apiKey.spendingLimit > 0 ? (used / apiKey.spendingLimit) * 100 : 0
+  const remainingPct = Math.min(100, Math.max(0, 100 - percent))
   const tone = quotaTone(percent)
   const activated = new Date(apiKey.activatedAt ?? apiKey.createdAt)
   // 后端返回畸形日期时 getFullYear 等会给出 NaN，静默渲染成 NaN-NaN-NaN
@@ -211,8 +213,8 @@ export function ApiKeyRow({
             </div>
             <span className="flex h-1 justify-end overflow-hidden rounded-[3px] bg-track">
               <span
-                className={`block h-full rounded-[3px] ${tone.bar}`}
-                style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+                className="block h-full rounded-[3px] transition-all"
+                style={{ width: `${remainingPct}%`, backgroundImage: quotaGradTone(remainingPct).grad }}
               />
             </span>
           </div>

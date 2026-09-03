@@ -255,7 +255,7 @@ export function AccountRow({
             )}
           </div>
           <div
-            className={`h-1 overflow-hidden rounded-[3px] bg-track ${
+            className={`flex h-1 justify-end overflow-hidden rounded-[3px] bg-track ${
               !balance && loadingBalance ? 'animate-pulse' : ''
             }`}
           >

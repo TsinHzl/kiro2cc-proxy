@@ -15,7 +15,7 @@ import { ChatGptIcon, ClaudeIcon } from '@/components/brand-icons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { Progress, QuotaPercentBadge } from '@/components/ui/progress'
 import { UsageLogPage } from '@/components/usage-log-page'
 import { PageHead } from '@/components/page-head'
 import { useTheme } from '@/hooks/use-theme'
@@ -182,7 +182,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       <span className="text-ink-3">
                         额度使用{isCredits ? '（credits）' : ''}
                       </span>
-                      <span>{formatLimitAmount(usedAmount)} / {formatLimitAmount(data.spendingLimit)}</span>
+                      <span className="flex items-center gap-2">
+                        {formatLimitAmount(usedAmount)} / {formatLimitAmount(data.spendingLimit)}
+                        <QuotaPercentBadge percent={spendingPercent} />
+                      </span>
                     </div>
                     <Progress value={spendingPercent} />
                   </div>

@@ -14,6 +14,7 @@ import {
   Sparkline,
   StatusDot,
 } from '@/components/metrics'
+import { QUOTA_TIER_THRESHOLDS } from '@/components/ui/progress'
 
 export interface AccountMetricsProps {
   /** 账号总数 */
@@ -54,10 +55,10 @@ export interface AccountMetricsProps {
   onTodayClick: () => void
 }
 
-/** 剩余百分比按 60/30 阈值切色（仅用于脚注 label 映射；环形图统一走 brand/ok 渐变，不随阈值变色） */
+/** 剩余百分比切色（仅用于脚注 label 映射；环形图统一走 brand/ok 渐变，不随阈值变色）；阈值与消费额度进度条共用同一常量源 */
 function remainingTone(percent: number): 'ok' | 'warn' | 'danger' {
-  if (percent >= 60) return 'ok'
-  if (percent >= 30) return 'warn'
+  if (percent >= QUOTA_TIER_THRESHOLDS.safe) return 'ok'
+  if (percent >= QUOTA_TIER_THRESHOLDS.mod) return 'warn'
   return 'danger'
 }
 

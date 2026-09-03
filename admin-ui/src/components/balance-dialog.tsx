@@ -6,7 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Progress } from '@/components/ui/progress'
+import { Progress, QuotaPercentBadge } from '@/components/ui/progress'
 import { useCredentialBalance } from '@/hooks/use-credentials'
 import { parseError, getSubscriptionColor } from '@/lib/utils'
 import { localeTag } from '@/lib/locale'
@@ -80,8 +80,9 @@ export function BalanceDialog({ credentialId, open, onOpenChange }: BalanceDialo
                 <span>{t('credentials.limitLabel', { amount: formatNumber(balance.usageLimit) })}</span>
               </div>
               <Progress value={balance.usagePercentage} />
-              <div className="text-center text-[11.5px] text-ink-3">
-                {t('credentials.usagePercentUsed', { percent: balance.usagePercentage.toFixed(1) })}
+              <div className="flex items-center justify-center gap-2 text-[11.5px] text-ink-3">
+                <span>{t('credentials.usagePercentUsed', { percent: balance.usagePercentage.toFixed(1) })}</span>
+                <QuotaPercentBadge percent={balance.usagePercentage} />
               </div>
             </div>
 

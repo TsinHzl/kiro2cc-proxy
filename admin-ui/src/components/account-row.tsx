@@ -8,6 +8,7 @@ import { Boxes, FileText, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } fr
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
 import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
 import { Button } from '@/components/ui/button'
+import { QuotaPercentBadge, quotaTone } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -28,13 +29,6 @@ import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState, maskEmail } fro
 import { localeTag } from '@/lib/locale'
 import { getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
-
-/** 消费额度阈值配色：与旧剩余阈值 60/30 等价（usedPct = 100 − remainingPct），已用越高越警示 */
-function usageTone(usedPct: number): { text: string; bar: string } {
-  if (usedPct <= 40) return { text: 'text-ok', bar: 'bg-ok' }
-  if (usedPct <= 70) return { text: 'text-warn', bar: 'bg-warn' }
-  return { text: 'text-danger', bar: 'bg-danger' }
-}
 
 /** RPM 高压阈值：设计稿把 12 染成 danger、1–3 用 accent，取 10 作分界 */
 const RPM_DANGER = 10
@@ -109,7 +103,8 @@ export function AccountRow({
   // 已用额度绝对值：usageLimit ≤ 0 时降级（不展示该单元格的数字段）
   const usedValue =
     balance && balance.usageLimit > 0 ? Math.max(0, balance.usageLimit - balance.remaining) : null
-  const tone = usedPct === null ? null : usageTone(usedPct)
+  // 剩余百分比：进度条按”剩余”语义渲染（越消费越短），文字仍展示已用值/已用%
+  const remainingPct = usedPct === null ? null : 100 - usedPct
   const numFmt = localeTag()
   // 设计稿对「已禁用」与「从未调用」行的 RPM 显示 —（原型行 968/1007/1046），数字对这两类行无意义
   const rpmIdle = credential.disabled || credential.lastUsedAt === null
@@ -242,15 +237,13 @@ export function AccountRow({
       <td className={CELL}>
         <div className="flex min-w-[132px] flex-col gap-[5px]">
           <div className="flex items-baseline justify-between gap-2">
-            {balance && usedPct !== null && tone ? (
+            {balance && usedPct !== null ? (
               <>
                 <span className="font-mono text-[11.5px] tabular-nums text-ink-2">
                   <b className="font-semibold text-ink">{usedValue !== null ? usedValue.toFixed(1) : '—'}</b> /{' '}
                   {balance.usageLimit.toFixed(0)}
                 </span>
-                <span className={`font-mono text-[11px] font-semibold tabular-nums ${tone.text}`}>
-                  {usedPct.toFixed(0)}%
-                </span>
+                <QuotaPercentBadge percent={usedPct} />
               </>
             ) : (
               <>
@@ -266,8 +259,11 @@ export function AccountRow({
               !balance && loadingBalance ? 'animate-pulse' : ''
             }`}
           >
-            {usedPct !== null && tone && (
-              <span className={`block h-full rounded-[3px] ${tone.bar}`} style={{ width: `${usedPct}%` }} />
+            {remainingPct !== null && (
+              <span
+                className="block h-full rounded-[3px] transition-all duration-300"
+                style={{ width: `${remainingPct}%`, backgroundImage: quotaTone(remainingPct).grad }}
+              />
             )}
           </div>
         </div>

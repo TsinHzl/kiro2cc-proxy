@@ -1,0 +1,36 @@
+src/anthropic/converter.rs
+  120035cc39b1ee25 343,348-358,360-375,377-379,747,1462,1505-1517,1560-1561,1586,1588,1590-1591,1595-1603,1607-1608,1611,1615-1616,1619,1621-1627,3406-3532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3996ba8356df1a57b345924bdc2dd268a8095674",
+  "prompts": {
+    "120035cc39b1ee25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "077fa97a-1396-41c2-9f3e-b44e06ef6886",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 330,
+      "total_deletions": 245,
+      "accepted_lines": 219,
+      "overriden_lines": 0
+    },
+    "b72505c73544f672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67c15b87-3cf6-4ad9-981f-5c6fab87be93",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 7,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

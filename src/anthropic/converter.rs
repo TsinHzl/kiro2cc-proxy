@@ -340,46 +340,43 @@ fn strip_system_reminders(text: &str) -> String {
     result
 }
 
-/// 从所有 user 消息中提取 `<system-reminder>` 标签内的内容，拼接返回。
+/// 从最后一条 user 消息中提取 `<system-reminder>` 标签内的内容，拼接返回。
 fn extract_system_reminders(messages: &[super::types::Message]) -> String {
     const OPEN_TAG: &str = "<system-reminder>";
     const CLOSE_TAG: &str = "</system-reminder>";
 
-    let mut reminders = Vec::new();
-
-    for msg in messages {
-        if msg.role != "user" {
-            continue;
-        }
-        let texts: Vec<String> = match &msg.content {
-            serde_json::Value::String(s) => vec![s.clone()],
-            serde_json::Value::Array(arr) => arr
-                .iter()
-                .filter_map(|item| {
-                    let t = item.get("type")?.as_str()?;
-                    if t == "text" {
-                        item.get("text")?.as_str().map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            _ => vec![],
-        };
-
-        for text in &texts {
-            let mut search_from = 0;
-            while let Some(start) = text[search_from..].find(OPEN_TAG) {
-                let after_open = search_from + start + OPEN_TAG.len();
-                if let Some(end) = text[after_open..].find(CLOSE_TAG) {
-                    let content = text[after_open..after_open + end].trim();
-                    if !content.is_empty() {
-                        reminders.push(content.to_string());
-                    }
-                    search_from = after_open + end + CLOSE_TAG.len();
+    let Some(msg) = messages.iter().rev().find(|msg| msg.role == "user") else {
+        return String::new();
+    };
+    let texts: Vec<String> = match &msg.content {
+        serde_json::Value::String(s) => vec![s.clone()],
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|item| {
+                let t = item.get("type")?.as_str()?;
+                if t == "text" {
+                    item.get("text")?.as_str().map(|s| s.to_string())
                 } else {
-                    break;
+                    None
                 }
+            })
+            .collect(),
+        _ => vec![],
+    };
+
+    let mut reminders = Vec::new();
+    for text in &texts {
+        let mut search_from = 0;
+        while let Some(start) = text[search_from..].find(OPEN_TAG) {
+            let after_open = search_from + start + OPEN_TAG.len();
+            if let Some(end) = text[after_open..].find(CLOSE_TAG) {
+                let content = text[after_open..after_open + end].trim();
+                if !content.is_empty() {
+                    reminders.push(content.to_string());
+                }
+                search_from = after_open + end + CLOSE_TAG.len();
+            } else {
+                break;
             }
         }
     }
@@ -747,8 +744,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         return Err(ConversionError::EmptyMessages);
     }
 
-    // 2.5. 预处理 prefill：如果末尾是 assistant，静默丢弃并截断到最后一条 user
-    // Claude 4.x 已弃用 assistant prefill，Kiro API 也不支持
+    // 2.5. 预处理 prefill：Kiro 不支持末尾 assistant prefill
     let messages: &[_] = if req.messages.last().is_some_and(|m| m.role != "user") {
         tracing::info!("检测到末尾 assistant 消息（prefill），静默丢弃");
         let last_user_idx = req
@@ -1463,7 +1459,7 @@ fn build_additional_model_request_fields(
     req: &MessagesRequest,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    if model_id.ends_with("4.5") || model_id.starts_with("gpt-") {
+    if is_gpt_model(model_id) {
         return None;
     }
 
@@ -1506,8 +1502,19 @@ fn build_additional_model_request_fields(
     }
 }
 
-/// 生成thinking标签前缀
-fn generate_thinking_prefix(req: &MessagesRequest) -> Option<String> {
+fn is_gpt_model(model_id: &str) -> bool {
+    model_id.to_ascii_lowercase().starts_with("gpt-")
+}
+
+/// 生成 thinking 标签前缀。
+///
+/// GPT 变体的 Kiro schema 不支持 Claude/Kiro thinking 控制协议，
+/// 因此不能把这些控制标签写入 GPT 的历史提示词。
+fn generate_thinking_prefix(req: &MessagesRequest, model_id: &str) -> Option<String> {
+    if is_gpt_model(model_id) {
+        return None;
+    }
+
     if let Some(t) = &req.thinking {
         if t.thinking_type == "enabled" {
             return Some(format!(
@@ -1550,8 +1557,8 @@ fn build_history(
 ) -> Result<Vec<Message>, ConversionError> {
     let mut history = Vec::new();
 
-    // 生成thinking前缀（如果需要）
-    let thinking_prefix = generate_thinking_prefix(req);
+    // 生成 thinking 前缀（GPT 后端不使用 Claude/Kiro 文本控制标签）
+    let thinking_prefix = generate_thinking_prefix(req, model_id);
 
     // 1. 处理系统消息
     if let Some(ref system) = req.system {
@@ -1576,73 +1583,48 @@ fn build_history(
             };
 
             // 将 cch= 固定为 0，使 history[0] 跨请求稳定，命中 Kiro prompt cache。
-            let final_content = normalize_billing_header(final_content);
+            let cache_content = normalize_billing_header(final_content);
 
-            // 从 messages 中提取 <system-reminder> 内容追加到 h[0]，一并冻结
-            let final_content = {
-                let reminders = extract_system_reminders(messages);
-                if reminders.is_empty() {
-                    final_content
-                } else {
-                    format!("{}\n{}", final_content, reminders)
-                }
-            };
+            let reminders = extract_system_reminders(messages);
 
-            // 同一会话复用首轮 history[0]，冻结 cc_version/gitStatus/currentDate 等易变字段，
-            // 确保 Kiro 服务端跨轮次缓存命中。首轮写入，后续轮次直接返回首轮内容。
-            //
-            // key 不能只用 session_id：Claude Code 会在同一 session 下并发发送「标题生成」
-            // 等辅助请求（system 提示词与主对话完全不同），若共用一个冻结槽，先到的辅助
-            // 请求会把 history[0] 冻结成标题生成提示词，导致主对话被当作标题任务处理、
-            // 直接返回 {"title":...} 并提前 end_turn。故追加系统提示词稳定前缀指纹加以区分
-            // （前缀在同会话同类请求中逐轮稳定，照常命中缓存）。
+            // 只冻结稳定系统内容；动态 reminder 每轮重新追加，避免 compact 后继续
+            // 发送上一轮冻结的过期提醒。完整内容参与 key，避免前缀相同的辅助请求串槽。
             let final_content = {
                 let cache = PREV_H0.get_or_init(|| Mutex::new(HashMap::new()));
                 let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
-                let h0_key = {
-                    // 用已归一化(cch=0)的 final_content 取前缀：cch 计费哈希每轮都变，
-                    // 若混入指纹会导致同类请求 key 逐轮抖动、冻结永不命中。final_content
-                    // 前 512 字符落在稳定的 agent 提示词前言，gitStatus/currentDate 在尾部
-                    // reminders、cc_version 同会话内恒定，均不影响前缀稳定性。
-                    let prefix: String = final_content.chars().take(512).collect();
-                    let mut hasher = Sha256::new();
-                    hasher.update(prefix.as_bytes());
-                    format!(
-                        "{}#{}",
-                        session_id,
-                        &format!("{:x}", hasher.finalize())[..8]
-                    )
-                };
-                if let Some(entry) = map.get_mut(&h0_key) {
+                let mut hasher = Sha256::new();
+                hasher.update(cache_content.as_bytes());
+                let h0_key = format!(
+                    "{}#{}",
+                    session_id,
+                    &format!("{:x}", hasher.finalize())[..16]
+                );
+
+                let stable_content = if let Some(entry) = map.get_mut(&h0_key) {
                     entry.last_used = Instant::now();
-                    let frozen = entry.value.clone();
-                    let h0_hash = {
-                        let mut hasher = Sha256::new();
-                        hasher.update(frozen.as_bytes());
-                        format!("{:x}", hasher.finalize())[..8].to_string()
-                    };
                     tracing::info!(
                         "[exp2] history[0] frozen hash={} len={} session={}",
-                        h0_hash,
-                        frozen.len(),
+                        &h0_key[h0_key.len().saturating_sub(16)..],
+                        entry.value.len(),
                         session_id
                     );
-                    frozen
+                    entry.value.clone()
                 } else {
-                    let h0_hash = {
-                        let mut hasher = Sha256::new();
-                        hasher.update(final_content.as_bytes());
-                        format!("{:x}", hasher.finalize())[..8].to_string()
-                    };
                     tracing::info!(
                         "[exp2] history[0] first hash={} len={} session={}",
-                        h0_hash,
-                        final_content.len(),
+                        &h0_key[h0_key.len().saturating_sub(16)..],
+                        cache_content.len(),
                         session_id
                     );
-                    map.insert(h0_key.clone(), CacheEntry::new(final_content.clone()));
+                    map.insert(h0_key, CacheEntry::new(cache_content.clone()));
                     evict_oldest_if_full(&mut map);
-                    final_content
+                    cache_content
+                };
+
+                if reminders.is_empty() {
+                    stable_content
+                } else {
+                    format!("{}\n{}", stable_content, reminders)
                 }
             };
 
@@ -3418,6 +3400,134 @@ mod tests {
             result.additional_model_request_fields.is_none(),
             "gpt-5.6 系列必须整体省略 additionalModelRequestFields 字段"
         );
+    }
+
+    #[test]
+    fn test_gpt_thinking_is_not_injected_into_history() {
+        use super::super::types::{Message as AnthropicMessage, Metadata, SystemMessage, Thinking};
+
+        let req = MessagesRequest {
+            model: "gpt-5.6-luna".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: "Follow the user request.".to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "adaptive".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: None,
+            metadata: Some(Metadata {
+                user_id: Some(
+                    "user_account__session_3a1f8d1e-6b0c-4a3e-8c1f-2b4d5e6f7a80".to_string(),
+                ),
+            }),
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("系统提示应转换为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(!content.contains("<thinking_mode>"));
+        assert!(!content.contains("<thinking_effort>"));
+        assert!(result.additional_model_request_fields.is_none());
+    }
+
+    #[test]
+    fn test_system_history_refreshes_when_content_changes() {
+        use super::super::types::{Message as AnthropicMessage, Metadata, SystemMessage};
+
+        let session = Some(Metadata {
+            user_id: Some("user_account__session_7b2e9c4d-1a6f-4b8e-9d3c-5f0a2e7b6c11".to_string()),
+        });
+        let make_req = |system_text: &str| MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: system_text.to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: session.clone(),
+        };
+
+        let first = convert_request(&make_req("original system prompt")).unwrap();
+        let second = convert_request(&make_req("compacted system prompt")).unwrap();
+
+        let history_content = |result: &ConversionResult| -> String {
+            let Message::User(history_user) = &result.conversation_state.history[0] else {
+                panic!("系统提示应转换为 history user 消息");
+            };
+            history_user.user_input_message.content.clone()
+        };
+
+        assert!(history_content(&first).contains("original system prompt"));
+        assert!(history_content(&second).contains("compacted system prompt"));
+        assert!(!history_content(&second).contains("original system prompt"));
+    }
+
+    #[test]
+    fn test_system_history_uses_only_current_reminder() {
+        use super::super::types::{Message as AnthropicMessage, Metadata, SystemMessage};
+
+        let req = MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![
+                AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("<system-reminder>old reminder</system-reminder>"),
+                },
+                AnthropicMessage {
+                    role: "assistant".to_string(),
+                    content: serde_json::json!("Acknowledged."),
+                },
+                AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!(
+                        "<system-reminder>current reminder</system-reminder>Continue."
+                    ),
+                },
+            ],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: "Follow the user request.".to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: Some(Metadata {
+                user_id: Some(
+                    "user_account__session_5c8e1d2a-7f4b-4a9c-8e6d-1b3f0a2c9d44".to_string(),
+                ),
+            }),
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("系统提示应转换为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(content.contains("current reminder"));
+        assert!(!content.contains("old reminder"));
     }
 
     #[test]

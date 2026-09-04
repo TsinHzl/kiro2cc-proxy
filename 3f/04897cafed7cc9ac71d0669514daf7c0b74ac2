@@ -1,0 +1,23 @@
+Cargo.toml
+  120035cc39b1ee25 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3f04897cafed7cc9ac71d0669514daf7c0b74ac2",
+  "prompts": {
+    "120035cc39b1ee25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "077fa97a-1396-41c2-9f3e-b44e06ef6886",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

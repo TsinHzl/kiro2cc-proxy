@@ -23,7 +23,7 @@ use std::time::Duration;
 use tokio::time::{Instant, interval_at};
 use uuid::Uuid;
 
-use super::converter::{ConversionError, convert_request};
+use super::converter::{ConversionError, convert_request, is_luna_model};
 use super::middleware::{ApiKeyContext, AppState};
 use super::stream::{CLIENT_ASSUMED_CONTEXT_WINDOW, SseEvent, StreamContext, scale_for_client};
 use super::types::{
@@ -859,6 +859,8 @@ pub async fn post_messages(
     };
 
     // 估算输入 tokens（复用上方已计算的 prefix_estimated_tokens，避免重复编码历史消息）
+    // 先取出 thinking_enabled 判断所需字段，避免 payload.tools 等被移动后无法整体借用
+    let thinking_enabled = resolve_thinking_enabled(&payload.model, &payload.thinking);
     let input_tokens = token::count_all_tokens_with_prefix(
         payload.model.clone(),
         payload.system,
@@ -866,13 +868,6 @@ pub async fn post_messages(
         payload.tools,
         prefix_estimated_tokens as u64,
     ) as i32;
-
-    // 检查是否启用了thinking
-    let thinking_enabled = payload
-        .thinking
-        .as_ref()
-        .map(|t| t.is_enabled())
-        .unwrap_or(false);
 
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
@@ -1618,6 +1613,30 @@ fn override_thinking_from_model_name(payload: &mut MessagesRequest) {
     }
 }
 
+/// 判断本次请求是否应启用流式 thinking 处理路径（`<thinking>` 标签的提取与转换）。
+///
+/// **范围仅限 `gpt-5.6-luna`**，不包括 terra/sol。原因：
+/// - `converter::generate_thinking_prefix` / `build_additional_model_request_fields`
+///   对全部 GPT 系模型跳过 thinking 注入（有 400 REQUEST_BODY_INVALID 实测依据，
+///   范围覆盖整个 gpt-5.6 系列），这一点本函数无需重复处理。
+/// - 但"上游是否会真的输出 `<thinking>...</thinking>` 标签、是否具备可用的推理
+///   能力"是另一件事，代码库里只有 luna 的实测记录（"上游恒返回 `thinking=0`"，
+///   见 README/`openai::model_map` 已知限制）。terra/sol 没有类似证据，不应假定
+///   它们也不产出 thinking——若在此处也对它们强制关闭，会误伤其本该具备的、可能
+///   仍受客户端 thinking 请求影响的推理能力。
+///
+/// 因此仅对 luna 强制关闭 `thinking_enabled`：若仍按客户端请求启用，流式状态机会
+/// 持续寻找永不出现的 `<thinking>` 标签，而 luna 在缺乏协议约束时有概率自行选择用
+/// `<analysis>`/`<summary>` 等自造伪标签组织输出，被当作普通可见文本原样转发给
+/// 客户端（配合 `converter::gpt_anti_pseudo_tag_hint` 的提示词引导兜底）。
+/// terra/sol 恢复原有行为：`thinking_enabled` 仅取决于客户端是否请求。
+fn resolve_thinking_enabled(model: &str, thinking: &Option<Thinking>) -> bool {
+    if is_luna_model(model) {
+        return false;
+    }
+    thinking.as_ref().map(|t| t.is_enabled()).unwrap_or(false)
+}
+
 /// POST /v1/messages/count_tokens
 ///
 /// 计算消息的 token 数量
@@ -1781,6 +1800,8 @@ pub async fn post_messages_cc(
     };
 
     // 估算输入 tokens（复用上方已计算的 prefix_estimated_tokens，避免重复编码历史消息）
+    // 先取出 thinking_enabled 判断所需字段，避免 payload.tools 等被移动后无法整体借用
+    let thinking_enabled = resolve_thinking_enabled(&payload.model, &payload.thinking);
     let input_tokens = token::count_all_tokens_with_prefix(
         payload.model.clone(),
         payload.system,
@@ -1788,13 +1809,6 @@ pub async fn post_messages_cc(
         payload.tools,
         prefix_estimated_tokens as u64,
     ) as i32;
-
-    // 检查是否启用了thinking
-    let thinking_enabled = payload
-        .thinking
-        .as_ref()
-        .map(|t| t.is_enabled())
-        .unwrap_or(false);
 
     // 提取用量追踪信息
     let api_key_id = identity.map(|ext| ext.0.id);
@@ -2248,5 +2262,58 @@ mod tests {
         assert_eq!(content.len(), 2);
         assert_eq!(content[0]["type"], "thinking");
         assert_eq!(content[1]["type"], "tool_use");
+    }
+
+    #[test]
+    fn test_resolve_thinking_enabled_luna_forced_off_even_when_requested() {
+        // 收窄后的核心断言：只有 gpt-5.6-luna 即使客户端显式请求了 thinking，也必须
+        // 强制返回 false —— 该模型上游恒返回 thinking=0（已知限制），若仍按请求启用，
+        // 流式状态机会持续寻找永不出现的 `<thinking>` 标签，导致模型自造的伪标签
+        // （<analysis>/<summary>）原样泄漏。
+        let thinking = Some(Thinking {
+            thinking_type: "adaptive".to_string(),
+            budget_tokens: 20000,
+        });
+        assert!(!resolve_thinking_enabled("gpt-5.6-luna", &thinking));
+
+        let thinking = Some(Thinking {
+            thinking_type: "enabled".to_string(),
+            budget_tokens: 20000,
+        });
+        assert!(!resolve_thinking_enabled("gpt-5.6-luna", &thinking));
+    }
+
+    #[test]
+    fn test_resolve_thinking_enabled_terra_and_sol_respect_client_request() {
+        // 范围收窄：terra/sol 没有 luna 那样的 thinking=0 实测依据，不应被一并强制
+        // 关闭，恢复原有行为——thinking_enabled 仅取决于客户端是否请求。
+        let thinking = Some(Thinking {
+            thinking_type: "enabled".to_string(),
+            budget_tokens: 20000,
+        });
+        assert!(resolve_thinking_enabled("gpt-5.6-terra", &thinking));
+        assert!(resolve_thinking_enabled("gpt-5.6-sol", &thinking));
+
+        assert!(!resolve_thinking_enabled("gpt-5.6-terra", &None));
+        assert!(!resolve_thinking_enabled("gpt-5.6-sol", &None));
+    }
+
+    #[test]
+    fn test_resolve_thinking_enabled_non_gpt_model_respects_request() {
+        // 非 GPT 模型（Claude 系）走既有 Kiro thinking 协议，行为不变：
+        // 请求了就启用，没请求就不启用。
+        let thinking = Some(Thinking {
+            thinking_type: "enabled".to_string(),
+            budget_tokens: 20000,
+        });
+        assert!(resolve_thinking_enabled("claude-sonnet-4", &thinking));
+
+        assert!(!resolve_thinking_enabled("claude-sonnet-4", &None));
+    }
+
+    #[test]
+    fn test_resolve_thinking_enabled_luna_without_thinking_request() {
+        // luna 且客户端未请求 thinking：本就应为 false，确认无 panic 且结果正确。
+        assert!(!resolve_thinking_enabled("gpt-5.6-luna", &None));
     }
 }

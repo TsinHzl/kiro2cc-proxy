@@ -1502,8 +1502,64 @@ fn build_additional_model_request_fields(
     }
 }
 
-fn is_gpt_model(model_id: &str) -> bool {
+pub(crate) fn is_gpt_model(model_id: &str) -> bool {
     model_id.to_ascii_lowercase().starts_with("gpt-")
+}
+
+/// 判断是否为 `gpt-5.6-luna`。
+///
+/// **注意范围**：与 `is_gpt_model`（匹配全部 gpt-* 系列）不同，这里专指 luna 一个
+/// 型号。代码库里有实测依据（400 REQUEST_BODY_INVALID）支持整个 gpt-5.6 系列都不接受
+/// `additionalModelRequestFields` 结构化字段（见 `build_additional_model_request_fields`
+/// 文档），但"上游恒返回 `thinking=0`"这一具体观察目前只在 luna 上验证过
+/// （见 `openai::model_map` 已知限制注释与 README）。terra/sol 是否同样如此并无
+/// 实测证据，因此涉及"是否应完全放弃 thinking 处理"的判断只能收窄到 luna，
+/// 不能套用到全部 GPT 系模型，否则会误伤 terra/sol 本该具备的推理能力。
+pub(crate) fn is_luna_model(model_id: &str) -> bool {
+    model_id.to_ascii_lowercase().starts_with("gpt-5.6-luna")
+}
+
+/// `gpt-5.6-luna` 上游恒返回 `thinking=0`（已知限制，见 README/openai::model_map），
+/// 且不支持 Claude/Kiro 的结构化 thinking 协议（`additionalModelRequestFields.thinking`
+/// 与 `<thinking_mode>` 文本标签均被 `generate_thinking_prefix`/
+/// `build_additional_model_request_fields` 对全部 GPT 系模型跳过，luna 自然包含在内）。
+///
+/// 当客户端请求里仍然携带 `thinking` 配置（如 Claude Code 默认开启 extended
+/// thinking）时，luna 在缺少思考协议约束、且自身不产出推理内容的情况下，有概率
+/// 自行选择用类似 `<analysis>...</analysis><summary>...</summary>` 的自造伪标签来
+/// 组织输出，而不是符合 Anthropic 协议的纯文本。这类标签不会被
+/// `find_real_thinking_start_tag` 等仅识别 `<thinking>` 的逻辑捕获，会作为可见文本
+/// 原样转发给客户端。
+///
+/// 因此仅对 luna 在系统提示里显式告知模型不要使用这类自造包裹标签，直接输出最终
+/// 答案。terra/sol 未有类似实测问题，不注入此提示，避免不必要地扰动其系统提示与
+/// prompt cache key。
+const GPT_ANTI_PSEUDO_TAG_HINT: &str = "\
+Do not wrap your response in custom pseudo-XML tags such as <analysis>, <summary>, \
+<thinking>, <plan>, or similar self-invented section markers. Respond with plain, \
+direct prose or standard Markdown only. If you want to reason before answering, do \
+the reasoning silently and only output the final answer.";
+
+/// 判断是否需要为 `gpt-5.6-luna` 注入反伪标签引导语。
+///
+/// 仅在客户端显式请求了 thinking 时注入，因为这是诱发 luna 使用自造分析/总结标签的
+/// 主要场景；避免对所有请求都追加提示词，以免不必要地扰动 prompt cache 前缀与
+/// token 消耗。仅针对 luna，不影响 terra/sol（见 `is_luna_model` 文档）。
+fn gpt_anti_pseudo_tag_hint(req: &MessagesRequest, model_id: &str) -> Option<&'static str> {
+    if !is_luna_model(model_id) {
+        return None;
+    }
+    // 与 handlers::resolve_thinking_enabled 保持同一判断口径：必须用 is_enabled()
+    // 而非 is_some()。客户端可能显式传 `{"type": "disabled"}` 来关闭 thinking（
+    // Anthropic 协议允许，见 build_additional_model_request_fields 对该取值的处理），
+    // 此时 thinking.is_some() 为真但并未真正启用，若仍注入提示语，会与
+    // resolve_thinking_enabled（已判定不启用、走正常文本路径）的状态不一致，
+    // 并无谓污染 prompt cache key。
+    if req.thinking.as_ref().map(|t| t.is_enabled()).unwrap_or(false) {
+        Some(GPT_ANTI_PSEUDO_TAG_HINT)
+    } else {
+        None
+    }
 }
 
 /// 生成 thinking 标签前缀。
@@ -1559,6 +1615,8 @@ fn build_history(
 
     // 生成 thinking 前缀（GPT 后端不使用 Claude/Kiro 文本控制标签）
     let thinking_prefix = generate_thinking_prefix(req, model_id);
+    // GPT 系模型在客户端请求 thinking 时，额外注入反伪标签引导语（见函数文档）
+    let anti_pseudo_tag_hint = gpt_anti_pseudo_tag_hint(req, model_id);
 
     // 1. 处理系统消息
     if let Some(ref system) = req.system {
@@ -1572,12 +1630,19 @@ fn build_history(
             let static_content = format!("{}\n{}", system_content, SYSTEM_CHUNKED_POLICY);
 
             // 注入thinking标签到系统消息最前面（如果需要且不存在）
-            let final_content = if let Some(ref prefix) = thinking_prefix {
+            let static_content = if let Some(ref prefix) = thinking_prefix {
                 if !has_thinking_tags(&static_content) {
                     format!("{}\n{}", prefix, static_content)
                 } else {
                     static_content
                 }
+            } else {
+                static_content
+            };
+
+            // 追加 GPT 反伪标签引导语（仅当请求携带 thinking 配置时）
+            let final_content = if let Some(hint) = anti_pseudo_tag_hint {
+                format!("{}\n{}", static_content, hint)
             } else {
                 static_content
             };
@@ -1634,10 +1699,25 @@ fn build_history(
 
             let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
             history.push(Message::Assistant(assistant_msg));
+        } else if let Some(hint) = anti_pseudo_tag_hint {
+            // 无系统消息内容，但仍需为 GPT 系模型注入反伪标签引导语
+            let user_msg = HistoryUserMessage::new(hint.to_string(), model_id);
+            history.push(Message::User(user_msg));
+
+            let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+            history.push(Message::Assistant(assistant_msg));
         }
     } else if let Some(ref prefix) = thinking_prefix {
         // 没有系统消息但有thinking配置，插入新的系统消息
         let user_msg = HistoryUserMessage::new(prefix.clone(), model_id);
+        history.push(Message::User(user_msg));
+
+        let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+        history.push(Message::Assistant(assistant_msg));
+    } else if let Some(hint) = anti_pseudo_tag_hint {
+        // 没有系统消息、非 Claude thinking 协议模型（GPT 系），但客户端仍请求了
+        // thinking：插入反伪标签引导语，避免模型自造 <analysis>/<summary> 等标签
+        let user_msg = HistoryUserMessage::new(hint.to_string(), model_id);
         history.push(Message::User(user_msg));
 
         let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
@@ -3440,6 +3520,200 @@ mod tests {
         assert!(!content.contains("<thinking_mode>"));
         assert!(!content.contains("<thinking_effort>"));
         assert!(result.additional_model_request_fields.is_none());
+        // 收窄修复：luna 在客户端请求 thinking 时，应注入反伪标签引导语，
+        // 防止模型在缺乏结构化 thinking 协议约束且自身不产出推理内容时，
+        // 自造 <analysis>/<summary> 等标签（该提示仅对 luna 生效，不含 terra/sol）。
+        assert!(
+            content.contains("pseudo-XML"),
+            "GPT 模型 + thinking 请求应注入反伪标签引导语，实际内容: {content}"
+        );
+    }
+
+    #[test]
+    fn test_gpt_anti_pseudo_tag_hint_not_injected_without_thinking_request() {
+        // 客户端未请求 thinking 时，不应注入反伪标签引导语（避免污染日常请求的
+        // 系统提示与 prompt cache key）。
+        use super::super::types::{Message as AnthropicMessage, SystemMessage};
+
+        let req = MessagesRequest {
+            model: "gpt-5.6-luna".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: "Follow the user request.".to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("系统提示应转换为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(!content.contains("pseudo-XML"));
+    }
+
+    #[test]
+    fn test_gpt_anti_pseudo_tag_hint_not_injected_when_thinking_explicitly_disabled() {
+        // CR 修复回归测试：客户端可能显式传 `{"type": "disabled"}` 来关闭 thinking
+        // （而非完全省略 thinking 字段）。此时 req.thinking.is_some() 为真但
+        // is_enabled() 为假，必须与 resolve_thinking_enabled 判断口径一致，
+        // 不应注入反伪标签引导语，否则会污染 prompt cache key 且语义矛盾
+        // （一个明确要求不思考的请求却被当作"请求了思考"处理）。
+        use super::super::types::{Message as AnthropicMessage, SystemMessage, Thinking};
+
+        let req = MessagesRequest {
+            model: "gpt-5.6-luna".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: "Follow the user request.".to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "disabled".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("系统提示应转换为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(
+            !content.contains("pseudo-XML"),
+            "thinking.type=disabled 时不应注入反伪标签引导语，实际内容: {content}"
+        );
+    }
+
+    #[test]
+    fn test_gpt_anti_pseudo_tag_hint_injected_for_luna_without_system_message() {
+        // luna 没有传 system，但请求了 thinking：仍需插入反伪标签引导语，
+        // 否则该场景下模型完全没有任何行为约束。
+        use super::super::types::{Message as AnthropicMessage, Thinking};
+
+        let req = MessagesRequest {
+            model: "gpt-5.6-luna".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("无 system 时仍应插入反伪标签引导语作为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(content.contains("pseudo-XML"));
+    }
+
+    #[test]
+    fn test_gpt_anti_pseudo_tag_hint_not_injected_for_terra_or_sol() {
+        // 范围收窄：terra/sol 没有 luna 那样的实测问题依据，即使客户端请求了
+        // thinking，也不应注入反伪标签引导语（该提示仅为 luna 场景设计）。
+        use super::super::types::{Message as AnthropicMessage, SystemMessage, Thinking};
+
+        for model in ["gpt-5.6-terra", "gpt-5.6-sol"] {
+            let req = MessagesRequest {
+                model: model.to_string(),
+                max_tokens: 1024,
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: Some(vec![SystemMessage {
+                    text: "Follow the user request.".to_string(),
+                }]),
+                tools: None,
+                tool_choice: None,
+                thinking: Some(Thinking {
+                    thinking_type: "enabled".to_string(),
+                    budget_tokens: 20000,
+                }),
+                output_config: None,
+                metadata: None,
+            };
+
+            let result = convert_request(&req).unwrap();
+            let Message::User(history_user) = &result.conversation_state.history[0] else {
+                panic!("系统提示应转换为 history user 消息（model={model}）");
+            };
+            let content = &history_user.user_input_message.content;
+
+            assert!(
+                !content.contains("pseudo-XML"),
+                "model={model} 不应注入反伪标签引导语，实际内容: {content}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_non_gpt_model_thinking_request_no_anti_pseudo_tag_hint() {
+        // 非 GPT 模型走 Claude/Kiro 结构化 thinking 协议，不应注入 GPT 专用的
+        // 反伪标签引导语（该模型已有 <thinking_mode> 标签约束）。
+        use super::super::types::{Message as AnthropicMessage, SystemMessage, Thinking};
+
+        let req = MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: Some(vec![SystemMessage {
+                text: "Follow the user request.".to_string(),
+            }]),
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+        let Message::User(history_user) = &result.conversation_state.history[0] else {
+            panic!("系统提示应转换为 history user 消息");
+        };
+        let content = &history_user.user_input_message.content;
+
+        assert!(content.contains("<thinking_mode>"));
+        assert!(!content.contains("pseudo-XML"));
     }
 
     #[test]

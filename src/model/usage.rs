@@ -404,6 +404,20 @@ impl UsageTracker {
         key_ids.iter().map(|&id| self.get_summary(id)).collect()
     }
 
+    /// 历史用量记录中出现过的最大 API Key ID
+    ///
+    /// 用于 API Key ID 计数器的种子：计数器文件首次不存在时（所有存量部署），
+    /// `ApiKeyManager::load` 只能按当前 key 列表推算，会漏掉已删除 key 曾用过的
+    /// 高位 id，导致新 key 复用后继承其用量与累计消费额。
+    pub fn max_api_key_id(&self) -> u32 {
+        self.records
+            .read()
+            .iter()
+            .map(|r| r.api_key_id)
+            .max()
+            .unwrap_or(0)
+    }
+
     /// 重置指定 API Key 的用量记录
     pub fn reset(&self, api_key_id: u32) -> anyhow::Result<()> {
         let mut records = self.records.write();

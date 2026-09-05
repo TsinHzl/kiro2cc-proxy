@@ -170,6 +170,12 @@ async fn main() {
         });
         let tracker = Arc::new(tracker);
 
+        // 用历史用量记录中出现过的最大 api_key_id 补齐 ID 计数器种子。
+        // 计数器文件首次不存在时（所有存量部署），仅凭当前 key 列表推算会漏掉已删除
+        // key 曾用过的高位 id，新 key 复用后会继承其用量与累计消费额。
+        // 此刻尚未开始服务请求，无并发风险。
+        manager.seed_id_counter_at_least(tracker.max_api_key_id());
+
         tracing::info!("API Key 多用户管理已启用");
         (Some(manager), Some(tracker))
     } else {

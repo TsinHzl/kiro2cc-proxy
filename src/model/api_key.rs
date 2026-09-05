@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
+use crate::common::fs::atomic_write;
 use chrono::{DateTime, Utc};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// 单个 API Key
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,13 +147,22 @@ pub enum ApiKeyAuthResult {
 pub struct ApiKeyManager {
     keys: RwLock<Vec<ApiKey>>,
     file_path: PathBuf,
+    /// 历史最大 API Key ID（单调递增，跨删除/重启持久化）
+    ///
+    /// key 删除后其 id 会从 `api_keys.json` 中消失，但 `api_key_usage.json` 中按
+    /// `api_key_id` 存储的用量记录并不清理。若新 key 仍按"当前列表最大值 + 1"分配，
+    /// 会复用已删除 key 的 id，从而继承其历史用量与累计消费额——后者是消费上限的
+    /// 判定依据，新 key 可能一次请求都没发就被判超额。
+    next_id_counter: AtomicU32,
+    /// 计数器落盘串行锁：串行化"重读磁盘 → 取 max → 写盘"
+    counter_lock: Mutex<()>,
 }
 
 impl ApiKeyManager {
     /// 从文件加载，文件不存在则创建空列表
     pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let path = path.as_ref().to_path_buf();
-        let keys = if path.exists() {
+        let keys: Vec<ApiKey> = if path.exists() {
             let content = fs::read_to_string(&path)?;
             if content.trim().is_empty() {
                 Vec::new()
@@ -161,10 +172,104 @@ impl ApiKeyManager {
         } else {
             Vec::new()
         };
-        Ok(Self {
+
+        // ID 计数器种子 = 当前列表最大 id 与 持久化计数器 的较大值。
+        // 二者缺一不可：列表为空时靠计数器兜底；列表非空但 id 均小于计数器时
+        // （如重启后只剩 #1，而计数器已因此前存在过 #5 记为 5），仍需取计数器，
+        // 否则会丢失磁盘上的历史高位 ID，导致新 key 复用已删除 key 的 id。
+        let max_existing = keys.iter().map(|k| k.id).max().unwrap_or(0);
+        let persisted = Self::load_id_counter_from_path(&path);
+        let seed = max_existing.max(persisted);
+
+        let manager = Self {
             keys: RwLock::new(keys),
             file_path: path,
-        })
+            next_id_counter: AtomicU32::new(seed),
+            counter_lock: Mutex::new(()),
+        };
+
+        // 无条件落盘，自愈缺失/损坏的计数器文件（存量部署首次运行即走此路径）
+        manager.save_id_counter_at_least(seed);
+
+        Ok(manager)
+    }
+
+    /// ID 计数器文件路径（与 `api_keys.json` 同目录）
+    ///
+    /// 独立于 key 列表本身持久化，确保 key 被删除后该文件仍保留曾分配过的最大 id。
+    fn id_counter_path_for(api_keys_path: &Path) -> Option<PathBuf> {
+        api_keys_path
+            .parent()
+            .map(|d| d.join("api_key_id_counter.json"))
+    }
+
+    /// 读取历史最大 ID 计数器（静态版本，供 `load()` 在实例构造前调用）；
+    /// 文件缺失或解析失败均返回 0
+    fn load_id_counter_from_path(api_keys_path: &Path) -> u32 {
+        let Some(path) = Self::id_counter_path_for(api_keys_path) else {
+            return 0;
+        };
+        let Ok(content) = fs::read_to_string(&path) else {
+            return 0;
+        };
+        #[derive(Deserialize)]
+        struct IdCounterFile {
+            #[serde(rename = "maxId")]
+            max_id: u32,
+        }
+        serde_json::from_str::<IdCounterFile>(&content)
+            .map(|c| c.max_id)
+            .unwrap_or(0)
+    }
+
+    /// 将 ID 计数器持久化到磁盘（写入不小于 `min_value` 的值）
+    ///
+    /// 锁内重新读取磁盘现有值，与 `min_value`、内存计数器三者取最大值再写入：否则
+    /// 并发调用时可能较大值先落盘、较小值后落盘将其覆盖，进程若在该窗口崩溃重启，
+    /// 会从磁盘读到被覆盖的较小值，削弱单调性保证（进而复用已分配过的 id）。
+    ///
+    /// 写失败仅告警不阻断——内存计数器仍然单调，本进程内不会分配出重复 id。
+    fn save_id_counter_at_least(&self, min_value: u32) {
+        let Some(path) = Self::id_counter_path_for(&self.file_path) else {
+            return;
+        };
+        let _guard = self.counter_lock.lock();
+        let in_memory = self.next_id_counter.load(Ordering::Relaxed);
+        let on_disk = Self::load_id_counter_from_path(&self.file_path);
+        let target = on_disk.max(min_value).max(in_memory);
+        let json = serde_json::json!({ "maxId": target }).to_string();
+
+        // 相对路径且无目录部分时 parent() 返回空路径，create_dir_all("") 会报错
+        let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent
+            && let Err(e) = fs::create_dir_all(parent)
+        {
+            tracing::warn!("创建 API Key ID 计数器目录失败: {}", e);
+            return;
+        }
+        if let Err(e) = atomic_write(&path, json.as_bytes()) {
+            tracing::warn!("保存 API Key ID 计数器失败: {}", e);
+        }
+    }
+
+    /// 分配一个从未被使用过的 API Key ID（线程安全，单调递增，持久化）
+    ///
+    /// 计数器从 0 起，首次 `fetch_add` 返回 0、分配出 1 —— id 0 是保留给主密钥的
+    /// （见 `UsageRecord::api_key_id` 注释），分配路径不能吐出 0。
+    fn allocate_new_id(&self) -> u32 {
+        let new_id = self.next_id_counter.fetch_add(1, Ordering::SeqCst) + 1;
+        self.save_id_counter_at_least(new_id);
+        new_id
+    }
+
+    /// 用外部已知的历史最大 id 补齐计数器种子（只增不减）
+    ///
+    /// 计数器文件首次不存在时（所有存量部署），`load()` 只能按当前 key 列表推算，
+    /// 会漏掉已删除 key 曾用过的高位 id。启动时由 `main` 传入 `api_key_usage.json`
+    /// 中出现过的最大 `api_key_id` 兜住这个窗口。
+    pub fn seed_id_counter_at_least(&self, min_id: u32) {
+        self.next_id_counter.fetch_max(min_id, Ordering::SeqCst);
+        self.save_id_counter_at_least(min_id);
     }
 
     /// 持久化到文件
@@ -232,8 +337,8 @@ impl ApiKeyManager {
         duration_days: Option<f64>,
         bound_credential_ids: Option<Vec<u64>>,
     ) -> anyhow::Result<ApiKey> {
-        let mut keys = self.keys.write();
-        let next_id = keys.iter().map(|k| k.id).max().unwrap_or(0) + 1;
+        // 先分配 id 再取写锁：allocate_new_id 内含 fsync 磁盘写，不应持写锁跨越
+        let next_id = self.allocate_new_id();
         let api_key = ApiKey::new(
             next_id,
             name,
@@ -243,8 +348,7 @@ impl ApiKeyManager {
             duration_days,
             bound_credential_ids,
         );
-        keys.push(api_key.clone());
-        drop(keys);
+        self.keys.write().push(api_key.clone());
         self.save()?;
         Ok(api_key)
     }
@@ -350,4 +454,114 @@ impl ApiKeyManager {
         Ok(())
     }
     // APPEND_MARKER2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试专用临时目录：Drop 时清理，即使中途 assert! panic 也不残留
+    /// （标准库 unwind 会执行 Drop），避免 CI 机器上堆积垂悬目录。
+    struct TempDirGuard(PathBuf);
+
+    impl TempDirGuard {
+        fn new() -> Self {
+            let dir = std::env::temp_dir().join(format!("k2cc_apikey_{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+
+        fn keys_path(&self) -> PathBuf {
+            self.0.join("api_keys.json")
+        }
+
+        fn counter_path(&self) -> PathBuf {
+            self.0.join("api_key_id_counter.json")
+        }
+    }
+
+    impl Drop for TempDirGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn create_key(mgr: &ApiKeyManager, name: &str) -> ApiKey {
+        mgr.create(name.to_string(), None, None, None, None, None)
+            .unwrap()
+    }
+
+    /// 回归测试：同进程内删除 key 后，新建的 key 不得复用被删除的 id。
+    /// 复用会让新 key 继承 api_key_usage.json 中该 id 的用量与累计消费额，
+    /// 后者是消费上限的判定依据。
+    #[test]
+    fn test_create_never_reuses_deleted_id_within_same_process() {
+        let dir = TempDirGuard::new();
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+
+        assert_eq!(create_key(&mgr, "k1").id, 1);
+        assert_eq!(create_key(&mgr, "k2").id, 2);
+        assert!(mgr.delete(2).unwrap());
+
+        // 旧逻辑 max(id) + 1 会在此再次分配出 2
+        assert_eq!(create_key(&mgr, "k3").id, 3);
+    }
+
+    /// 回归测试：进程重启（从磁盘重新 load）后，新建的 key 仍不得复用已删除的 id
+    #[test]
+    fn test_create_never_reuses_deleted_id_after_restart() {
+        let dir = TempDirGuard::new();
+        {
+            let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+            create_key(&mgr, "k1");
+            create_key(&mgr, "k2");
+            assert!(mgr.delete(2).unwrap());
+        }
+
+        // 模拟重启：api_keys.json 中只剩 #1，高位 id 只存在于计数器文件里
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        assert_eq!(mgr.list().len(), 1);
+        assert_eq!(create_key(&mgr, "k3").id, 3);
+    }
+
+    /// 回归测试：计数器文件尚不存在的存量部署，靠 usage 历史补种子避免首次复用。
+    /// 这是仅凭 api_keys.json 无法覆盖的窗口——已删除 key 的高位 id 只在
+    /// api_key_usage.json 中留有痕迹。
+    #[test]
+    fn test_seed_from_usage_history_prevents_first_run_reuse() {
+        let dir = TempDirGuard::new();
+
+        // 构造存量现场：api_keys.json 中只有 #1，且没有计数器文件
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        create_key(&mgr, "k1");
+        drop(mgr);
+        std::fs::remove_file(dir.counter_path()).unwrap();
+
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        // usage 历史中出现过 #5（其用量记录仍留在 api_key_usage.json 中）
+        mgr.seed_id_counter_at_least(5);
+
+        assert_eq!(create_key(&mgr, "k2").id, 6);
+    }
+
+    /// 回归测试：并发分配的 id 必须两两不同，且不得吐出保留给主密钥的 0
+    #[test]
+    fn test_allocate_new_id_concurrent_calls_never_collide() {
+        let dir = TempDirGuard::new();
+        let mgr = std::sync::Arc::new(ApiKeyManager::load(dir.keys_path()).unwrap());
+
+        let handles: Vec<_> = (0..20)
+            .map(|_| {
+                let m = mgr.clone();
+                std::thread::spawn(move || m.allocate_new_id())
+            })
+            .collect();
+
+        let mut ids: Vec<u32> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        let total = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), total, "并发分配出现重复 id");
+        assert!(ids.iter().all(|&id| id > 0), "id 0 保留给主密钥");
+    }
 }

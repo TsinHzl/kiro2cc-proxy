@@ -1,0 +1,40 @@
+admin-ui/src/components/dashboard.tsx
+  3446866ae10afdfa 1182-1184
+admin-ui/src/components/account-metrics.tsx
+  3446866ae10afdfa 36-37,84,150,153-161
+admin-ui/src/components/metrics.tsx
+  3446866ae10afdfa 85,91,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "717032ee7b6e459306bd66b936e4af0585c7e9e6",
+  "prompts": {
+    "3446866ae10afdfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ede733d-ba72-46bf-98e2-678c93391866",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 4,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    },
+    "43395b3a37445107": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52209e65-75ad-4a5c-9cfc-200c7de4525b",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 0,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    }
+  }
+}

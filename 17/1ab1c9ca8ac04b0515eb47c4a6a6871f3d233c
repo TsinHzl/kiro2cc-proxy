@@ -1,0 +1,34 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "171ab1c9ca8ac04b0515eb47c4a6a6871f3d233c",
+  "prompts": {
+    "6f957338545c1eb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30a29b21-269a-4894-aa75-95579fac9a3f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 37,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "d85257b2bf7f7945": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2f1b1e8-e2a5-4c75-9f55-b96f41cd2c0a",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 0,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}

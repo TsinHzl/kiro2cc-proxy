@@ -811,6 +811,9 @@ pub async fn post_messages(
         }
     };
 
+    // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
+    let is_compact_request = conversion_result.is_compact_request;
+
     // 构建 Kiro 请求
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
@@ -903,6 +906,7 @@ pub async fn post_messages(
             bound_ids,
             client_ip,
             None, // /v1 无全局 deadline（保持现有行为）
+            is_compact_request,
         )
         .await
     } else {
@@ -921,6 +925,7 @@ pub async fn post_messages(
             json_schema_requested,
             fp_tracker,
             fp_profile,
+            is_compact_request,
         )
         .await
     }
@@ -942,9 +947,14 @@ async fn handle_stream_request(
     client_ip: Option<String>,
     // 上游流的全局超时；None 表示不限时（/v1 的现有行为）
     stream_deadline: Option<Duration>,
+    // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
+    is_compact_request: bool,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
-    let (response, credential_id) = match provider.call_api_stream(request_body, &bound_ids).await {
+    let (response, credential_id) = match provider
+        .call_api_stream(request_body, is_compact_request, &bound_ids)
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
@@ -1241,9 +1251,14 @@ async fn handle_non_stream_request(
     json_schema_requested: bool,
     fp_tracker: Option<std::sync::Arc<crate::cache::fingerprint::FingerprintTracker>>,
     fp_profile: Option<Vec<crate::cache::fingerprint::ContentSegment>>,
+    // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
+    is_compact_request: bool,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
-    let (response, credential_id) = match provider.call_api(request_body, &bound_ids).await {
+    let (response, credential_id) = match provider
+        .call_api(request_body, is_compact_request, &bound_ids)
+        .await
+    {
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
@@ -1753,6 +1768,9 @@ pub async fn post_messages_cc(
         }
     };
 
+    // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
+    let is_compact_request = conversion_result.is_compact_request;
+
     // 构建 Kiro 请求
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
@@ -1845,6 +1863,7 @@ pub async fn post_messages_cc(
             bound_ids,
             client_ip,
             Some(Duration::from_secs(300)),
+            is_compact_request,
         )
         .await
     } else {
@@ -1863,6 +1882,7 @@ pub async fn post_messages_cc(
             json_schema_requested,
             fp_tracker,
             fp_profile,
+            is_compact_request,
         )
         .await
     }

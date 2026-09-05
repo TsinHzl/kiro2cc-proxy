@@ -508,6 +508,11 @@ pub struct ConversionResult {
     pub conversation_state: ConversationState,
     /// 模型专属请求参数（thinking、output_config、max_tokens）
     pub additional_model_request_fields: Option<serde_json::Value>,
+    /// 是否为 Claude Code 的 `/compact`（手动或 auto-compact）压缩请求
+    ///
+    /// 用于 provider 层选择更长的上游超时（压缩请求通常处理超长历史，
+    /// 耗时明显高于普通请求）。检测逻辑见 `is_compact_request`。
+    pub is_compact_request: bool,
 }
 
 /// 转换错误
@@ -631,6 +636,38 @@ fn collect_text_for_hash(content: &serde_json::Value, max_chars: usize) -> Strin
         _ => {}
     }
     out
+}
+
+/// 检测当前请求是否为 Claude Code 的 `/compact`（手动触发或 auto-compact）压缩请求。
+///
+/// 命中任意一个信号即判定为压缩请求：
+///   1. 最后一条用户消息文本以 `/compact` 开头（手动触发）。
+///   2. 最后一条用户消息包含 Claude Code v2.1+ 的 reactive-compact 摘要提示词
+///      特征（`"critical: respond with text only"` + `"create a detailed
+///      summary of this/the conversation"`），手动 `/compact` 与 auto-compact
+///      均会发送这段提示词。
+///
+/// 参考 agy-cc-proxy 项目 `isCompactRequest` 的生产验证信号（2026-08 生产日志
+/// 证实这两个字符串稳定存在）。误判为压缩（实际不是）最坏情况只是多等一会儿，
+/// 不影响正确性；误判为非压缩（实际是压缩）会让真正的压缩请求用回普通超时，
+/// 因此判断阈值倾向"宁可多判命中"。
+///
+/// 只检查最后一条用户消息：压缩请求是当前这一轮的意图，不应该被更早的历史
+/// 消息误判影响。
+pub(crate) fn is_compact_request(messages: &[crate::anthropic::types::Message]) -> bool {
+    let Some(last_user) = messages.iter().rev().find(|m| m.role == "user") else {
+        return false;
+    };
+    let text = collect_text_for_hash(&last_user.content, 8192);
+    if text.trim_start().starts_with("/compact") {
+        return true;
+    }
+    let lower = text.to_ascii_lowercase();
+    let has_critical = lower.contains("critical: respond with text only");
+    let has_detailed = lower.contains("create a detailed summary of this conversation")
+        || lower.contains("create a detailed summary of the conversation")
+        || (lower.contains("create a detailed summary") && lower.contains("conversation"));
+    has_critical && has_detailed
 }
 
 /// 为无 metadata 的第三方客户端派生稳定的 conversation UUID。
@@ -875,10 +912,15 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         .with_history(history);
 
     let additional_model_request_fields = build_additional_model_request_fields(req, &model_id);
+    let is_compact = is_compact_request(messages);
+    if is_compact {
+        tracing::info!("[COMPACT] 检测到 /compact 压缩请求，将使用压缩超时（见 provider::COMPACT_TIMEOUT_SECS）");
+    }
 
     Ok(ConversionResult {
         conversation_state,
         additional_model_request_fields,
+        is_compact_request: is_compact,
     })
 }
 
@@ -1488,10 +1530,11 @@ fn build_additional_model_request_fields(
     if req.max_tokens > 0 {
         let cap = model_max_output_tokens(&req.model);
         let mut capped = req.max_tokens.min(cap);
-        if cap == 128000 {
-            // Kiro 侧 schema 对 opus-4.7/4.8/5 代际强制 max_tokens minimum = 1024
-            capped = capped.max(1024);
-        }
+        // Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对所有 Claude 代际生效
+        // （实测：claude-sonnet-4-6 在 max_tokens=200 时同样报 400
+        // "Invalid additionalModelRequestFields: must have a minimum value of 1024.0"，
+        // 并非只有 opus-4.7/4.8/5 的 128000 上限档才有此限制）。
+        capped = capped.max(1024);
         fields.insert("max_tokens".into(), serde_json::json!(capped));
     }
 
@@ -3816,5 +3859,169 @@ mod tests {
         assert_eq!(model_max_output_tokens("claude-opus-4.5"), 64000);
         assert_eq!(model_max_output_tokens("claude-sonnet-5"), 64000);
         assert_eq!(model_max_output_tokens("claude-haiku-4.5"), 64000);
+    }
+
+    #[test]
+    fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude_models() {
+        // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对全部
+        // Claude 代际生效（实测 claude-sonnet-4-6 在 max_tokens=200 时同样报 400
+        // "must have a minimum value of 1024.0"），不能只对 cap==128000
+        // （opus-4.7/4.8/5）的模型生效，否则 64000 档模型（sonnet 全系列、
+        // opus-4.5/4.6、haiku）传入小 max_tokens 时会被上游拒绝。
+        use super::super::types::Message as AnthropicMessage;
+
+        for model in [
+            "claude-sonnet-4-6",
+            "claude-sonnet-5",
+            "claude-opus-4-6",
+            "claude-opus-5",
+            "claude-haiku-4-5",
+        ] {
+            let req = MessagesRequest {
+                model: model.to_string(),
+                max_tokens: 200, // 低于 1024 的边界输入
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: None,
+                tools: None,
+                tool_choice: None,
+                thinking: None,
+                output_config: None,
+                metadata: None,
+            };
+
+            let result = convert_request(&req).unwrap();
+            let fields = result
+                .additional_model_request_fields
+                .expect("非 GPT 模型应构建 additionalModelRequestFields");
+            let max_tokens = fields["max_tokens"].as_i64().unwrap_or(0);
+
+            assert!(
+                max_tokens >= 1024,
+                "model={model} max_tokens 应被下限收敛到至少 1024，实际={max_tokens}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_compact_request_manual_slash_compact() {
+        use super::super::types::Message as AnthropicMessage;
+
+        let messages = vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!("/compact"),
+        }];
+        assert!(is_compact_request(&messages));
+
+        // 带额外参数的 /compact 调用也应命中
+        let messages = vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!("/compact focus on the last decision"),
+        }];
+        assert!(is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_reactive_compact_prompt() {
+        use super::super::types::Message as AnthropicMessage;
+
+        // Claude Code v2.1+ auto-compact / 手动 /compact 均会发送这段合成摘要提示词
+        let messages = vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!(
+                "CRITICAL: Respond with TEXT ONLY. Do not call any tools. \
+                 Create a detailed summary of this conversation, focusing on \
+                 information that would be helpful for continuing the conversation."
+            ),
+        }];
+        assert!(is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_reactive_prompt_case_insensitive() {
+        use super::super::types::Message as AnthropicMessage;
+
+        // Claude Code 不同版本大小写不一致（"Do NOT" vs "do not"），检测应忽略大小写
+        let messages = vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!(
+                "Critical: Respond With Text Only. Create A Detailed Summary \
+                 Of The Conversation so far."
+            ),
+        }];
+        assert!(is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_content_block_array() {
+        use super::super::types::Message as AnthropicMessage;
+
+        // content 为 content block 数组（而非纯字符串）时也应正确检测
+        let messages = vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!([
+                {"type": "text", "text": "/compact"}
+            ]),
+        }];
+        assert!(is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_normal_request_not_flagged() {
+        use super::super::types::Message as AnthropicMessage;
+
+        // 普通请求，包括恰好提到"总结"、"conversation"但不满足完整特征组合的场景
+        let messages = vec![
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("帮我总结一下这段代码的逻辑"),
+            },
+            AnthropicMessage {
+                role: "assistant".to_string(),
+                content: serde_json::json!("这段代码做了……"),
+            },
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!(
+                    "Can you create a detailed summary of the new feature design?"
+                ),
+            },
+        ];
+        assert!(!is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_only_checks_last_user_turn() {
+        use super::super::types::Message as AnthropicMessage;
+
+        // 更早的历史消息包含压缩提示词特征，但已被一条 assistant 回复终结，
+        // 当前这一轮是普通请求，不应被历史误判为压缩。
+        let messages = vec![
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!(
+                    "CRITICAL: Respond with TEXT ONLY. Create a detailed summary \
+                     of this conversation."
+                ),
+            },
+            AnthropicMessage {
+                role: "assistant".to_string(),
+                content: serde_json::json!("Here is the summary..."),
+            },
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("继续帮我写一下这个功能的测试用例"),
+            },
+        ];
+        assert!(!is_compact_request(&messages));
+    }
+
+    #[test]
+    fn test_is_compact_request_empty_messages() {
+        let messages: Vec<super::super::types::Message> = vec![];
+        assert!(!is_compact_request(&messages));
     }
 }

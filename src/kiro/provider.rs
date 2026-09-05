@@ -39,6 +39,20 @@ const MAX_CONCURRENT_REQUESTS: usize = 50;
 /// 单账号最大并发请求数
 const MAX_CONCURRENT_PER_CREDENTIAL: usize = 20;
 
+/// 普通请求的上游 HTTP 超时（秒）
+///
+/// 历史上曾统一使用 1000s（见 `COMPACT_TIMEOUT_SECS` 注释），但普通请求绝大多数
+/// 在数秒到数十秒内返回，1000s 上限对它们而言只会拖长网络异常时的报错等待时间。
+/// 收窄回 180s，压缩请求单独使用更长超时（见 `is_compact_request`）。
+const NORMAL_TIMEOUT_SECS: u64 = 180;
+
+/// 压缩请求（Claude Code `/compact` 手动触发或 auto-compact）的上游 HTTP 超时（秒）。
+///
+/// 压缩请求要对超长历史做一次性摘要，实测耗时明显高于普通请求，且原 180s 超时
+/// 会导致大上下文非流式请求 502（历史修复 commit 9338888）。保留 1000s 上限，
+/// 但仅对识别为压缩请求的调用生效，避免普通请求被这个长上限拖累报错时机。
+const COMPACT_TIMEOUT_SECS: u64 = 1000;
+
 /// Kiro API Provider
 ///
 /// 核心组件，负责与 Kiro API 通信
@@ -47,9 +61,11 @@ pub struct KiroProvider {
     token_manager: Arc<MultiTokenManager>,
     /// 全局代理配置（用于账号无自定义代理时的回退）
     global_proxy: Option<ProxyConfig>,
-    /// Client 缓存：key = effective proxy config, value = reqwest::Client
-    /// 不同代理配置的账号使用不同的 Client，共享相同代理的账号复用 Client
-    client_cache: Mutex<HashMap<Option<ProxyConfig>, Client>>,
+    /// Client 缓存：key = (effective proxy config, is_compact)，value = reqwest::Client
+    /// 不同代理配置的账号使用不同的 Client，共享相同代理的账号复用 Client。
+    /// 同一代理配置下按请求类型（是否为 /compact 压缩请求）分别缓存两套 Client，
+    /// 分别使用 NORMAL_TIMEOUT_SECS / COMPACT_TIMEOUT_SECS 超时（见常量定义）。
+    client_cache: Mutex<HashMap<(Option<ProxyConfig>, bool), Client>>,
     /// TLS 后端配置
     tls_backend: TlsBackend,
     /// 并发控制信号量，限制同时发往上游的请求数
@@ -76,11 +92,11 @@ impl KiroProvider {
     /// 创建带代理配置的 KiroProvider 实例
     pub fn with_proxy(token_manager: Arc<MultiTokenManager>, proxy: Option<ProxyConfig>) -> Self {
         let tls_backend = token_manager.config().tls_backend;
-        // 预热：构建全局代理对应的 Client
-        let initial_client =
-            build_client(proxy.as_ref(), 1000, tls_backend).expect("创建 HTTP 客户端失败");
+        // 预热：为全局代理配置构建普通超时 Client（压缩超时 Client 按需懒创建）
+        let initial_client = build_client(proxy.as_ref(), NORMAL_TIMEOUT_SECS, tls_backend)
+            .expect("创建 HTTP 客户端失败");
         let mut cache = HashMap::new();
-        cache.insert(proxy.clone(), initial_client);
+        cache.insert((proxy.clone(), false), initial_client);
 
         Self {
             token_manager,
@@ -120,15 +136,30 @@ impl KiroProvider {
         self
     }
 
-    /// 根据账号的代理配置获取（或创建并缓存）对应的 reqwest::Client
-    fn client_for(&self, credentials: &KiroCredentials) -> anyhow::Result<Client> {
+    /// 根据账号的代理配置和请求类型获取（或创建并缓存）对应的 reqwest::Client
+    ///
+    /// `is_compact` 为 true 时使用 `COMPACT_TIMEOUT_SECS`（压缩请求，超长历史摘要），
+    /// 否则使用 `NORMAL_TIMEOUT_SECS`（普通请求）。同一代理配置下两种超时的 Client
+    /// 分别缓存，互不影响。
+    fn client_for(&self, credentials: &KiroCredentials, is_compact: bool) -> anyhow::Result<Client> {
         let effective = credentials.effective_proxy(self.global_proxy.as_ref());
+        let key = (effective.clone(), is_compact);
         let mut cache = self.client_cache.lock();
-        if let Some(client) = cache.get(&effective) {
+        if let Some(client) = cache.get(&key) {
             return Ok(client.clone());
         }
-        let client = build_client(effective.as_ref(), 1000, self.tls_backend)?;
-        cache.insert(effective, client.clone());
+        let timeout_secs = if is_compact {
+            COMPACT_TIMEOUT_SECS
+        } else {
+            NORMAL_TIMEOUT_SECS
+        };
+        tracing::debug!(
+            "[CLIENT] 创建新 Client：is_compact={} timeout_secs={}",
+            is_compact,
+            timeout_secs
+        );
+        let client = build_client(effective.as_ref(), timeout_secs, self.tls_backend)?;
+        cache.insert(key, client.clone());
         Ok(client)
     }
 
@@ -374,15 +405,17 @@ impl KiroProvider {
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
+    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求（决定使用的上游超时）
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
     pub async fn call_api(
         &self,
         request_body: &str,
+        is_compact: bool,
         bound_ids: &[u64],
     ) -> anyhow::Result<(reqwest::Response, u64)> {
-        self.call_api_with_retry(request_body, false, bound_ids)
+        self.call_api_with_retry(request_body, false, is_compact, bound_ids)
             .await
     }
 
@@ -396,21 +429,24 @@ impl KiroProvider {
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
+    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求（决定使用的上游超时）
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
     pub async fn call_api_stream(
         &self,
         request_body: &str,
+        is_compact: bool,
         bound_ids: &[u64],
     ) -> anyhow::Result<(reqwest::Response, u64)> {
-        self.call_api_with_retry(request_body, true, bound_ids)
+        self.call_api_with_retry(request_body, true, is_compact, bound_ids)
             .await
     }
 
     /// 发送 MCP API 请求
     ///
-    /// 用于 WebSearch 等工具调用
+    /// 用于 WebSearch 等工具调用。MCP 调用不涉及 `/compact` 压缩语义，
+    /// 始终使用普通超时（`NORMAL_TIMEOUT_SECS`）。
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的 MCP 请求体字符串
@@ -498,8 +534,8 @@ impl KiroProvider {
                 }
             };
 
-            // 发送请求
-            let client = match self.client_for(&ctx.credentials) {
+            // 发送请求（MCP 调用不涉及 /compact 压缩语义，固定使用普通超时）
+            let client = match self.client_for(&ctx.credentials, false) {
                 Ok(c) => c,
                 Err(e) => {
                     last_error = Some(e);
@@ -692,6 +728,7 @@ impl KiroProvider {
         &self,
         request_body: &str,
         is_stream: bool,
+        is_compact: bool,
         bound_ids: &[u64],
     ) -> anyhow::Result<(reqwest::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
@@ -819,7 +856,7 @@ impl KiroProvider {
             };
 
             // 发送请求
-            let client = match self.client_for(&ctx.credentials) {
+            let client = match self.client_for(&ctx.credentials, is_compact) {
                 Ok(c) => c,
                 Err(e) => {
                     last_error = Some(e);

@@ -1179,6 +1179,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
             creditsQueried={liveCreditsQueried}
             avgRemainingPercent={avgRemainingPercent}
             consumedCreditsTotal={consumedCreditsTotal}
+            consumptionLimitTotal={
+              consumable.length > 0 ? consumable.reduce((sum, b) => sum + b.usageLimit, 0) : null
+            }
             todayRequests={todayRequests}
             requestsDeltaPercent={requestsDeltaPercent}
             requestTrend={requestTrend}

@@ -33,6 +33,8 @@ export interface AccountMetricsProps {
   avgRemainingPercent: number | null
   /** 已消费积分合计 Σ(usageLimit − remaining)（仅 usageLimit > 0 账号）；null = 无已查询账号 */
   consumedCreditsTotal: number | null
+  /** 总积分上限合计 Σ(usageLimit)（同消费口径，仅 usageLimit > 0 账号）；null = 无已查询账号 */
+  consumptionLimitTotal: number | null
   /** 今日调用次数；null = 日用量数据未加载 */
   todayRequests: number | null
   /** 今日相对昨日的环比百分比；null = 无昨日基线 */
@@ -79,6 +81,7 @@ export function AccountMetrics({
   creditsQueried,
   avgRemainingPercent,
   consumedCreditsTotal,
+  consumptionLimitTotal,
   todayRequests,
   requestsDeltaPercent,
   requestTrend,
@@ -144,10 +147,18 @@ export function AccountMetrics({
         )}
       </Metric>
 
-      {/* 卡 3：全局消费积分 */}
+      {/* 卡 3：全局消费积分（主值 = 已消费；unit = 总积分额度，字号/字重均小于主值） */}
       <Metric label={t('credentials.metricConsumedLabel')} icon={<Coins />}>
         <MetricBody>
-          <MetricValue value={consumed === null ? '—' : consumed.toFixed(1)} />
+          <MetricValue
+            value={consumed === null ? '—' : consumed.toFixed(1)}
+            unit={
+              consumed === null || consumptionLimitTotal === null
+                ? undefined
+                : `/ ${consumptionLimitTotal.toFixed(0)}`
+            }
+            unitClass="text-[17px] font-normal text-ink-2 tabular-nums"
+          />
         </MetricBody>
         <MetricFoot>
           {consumed === null

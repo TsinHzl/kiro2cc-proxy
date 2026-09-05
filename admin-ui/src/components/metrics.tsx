@@ -82,11 +82,13 @@ export function MetricValue({
   unit,
   trailing,
   valueClass = '',
+  unitClass = 'text-[13px] font-medium text-ink-3',
 }: {
   value: string
   unit?: string
   trailing?: ReactNode
   valueClass?: string
+  unitClass?: string
 }) {
   return (
     <div className="flex items-baseline gap-1.5">
@@ -95,7 +97,7 @@ export function MetricValue({
       >
         {value}
       </span>
-      {unit && <span className="text-[13px] font-medium text-ink-3">{unit}</span>}
+      {unit && <span className={unitClass}>{unit}</span>}
       {trailing}
     </div>
   )

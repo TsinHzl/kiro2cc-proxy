@@ -10,9 +10,11 @@ kiro2cc-proxy 是一个 Rust 代理服务，将 Anthropic Claude API 请求转�
 
 ```bash
 # 完整构建（admin-ui + user-ui 前端 + cargo release），首次约 5~15 分钟
-./build-mac.sh
+./build-mac.sh           # macOS
+.\build-windows.ps1      # Windows
 
 # 仅 Rust
+cargo check            # 快速类型检查
 cargo build            # dev；debug 模式 rust-embed 从磁盘读 dist
 cargo build --release  # release 模式将 admin-ui/dist、user-ui/dist 编译期内嵌
 
@@ -27,6 +29,7 @@ cargo clippy
 
 # 运行（本地 macOS）
 ./run-local-service-mac.sh   # 首次运行有配置向导，配置落在 app/config/
+RUST_LOG=debug cargo run     # 调试日志直跑（默认读工作目录 config.json）
 ```
 
 前端改动需先 `cd admin-ui && pnpm install && pnpm build`（admin-ui 用 pnpm）或 `cd user-ui && npm install && npm run build`，dist 产物不存在时 release 构建会失败。
@@ -47,9 +50,9 @@ src/anthropic/converter.rs    ← Anthropic → Kiro 协议转换（模型映射
   │                              additionalModelRequestFields 构建、history/prompt cache 派生）
   │
 src/kiro/provider.rs          ← HTTP 发送 + 多账号故障转移（每凭据最多 3 次重试，单请求总共 9 次，
-  │                              Semaphore 并发上限）+ 超时分档（普通 180s / compact 1000s）
+  │                              全局并发 50 / 单账号并发 20，Semaphore）+ 超时分档（普通 180s / compact 1000s）
   │
-src/kiro/token_manager.rs     ← MultiTokenManager：OAuth token 刷新、priority/balanced 负载均衡
+src/kiro/token_manager.rs     ← MultiTokenManager：OAuth token 刷新、priority（默认）/ balanced 轮询负载均衡
   │
   ▼  (AWS Event Stream 二进制帧协议)
 src/kiro/parser/              ← 二进制帧解码（frame/decoder/header/crc，CRC32C 校验）

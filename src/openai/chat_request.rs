@@ -832,6 +832,23 @@ mod tests {
                 "user={user:?} 不应产生 metadata"
             );
         }
+
+        // 超长 user（> 256 字符）→ 截断到 256 字符（防止异常客户端传入超大字符串）
+        let long_user = "a".repeat(300);
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "user": long_user,
+            "messages": [{"role": "user", "content": "hi"}],
+        }));
+        assert_eq!(
+            r.anthropic_body["metadata"]["user_id"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count(),
+            256,
+            "超长 user 应截断到 256 字符"
+        );
     }
 
     #[test]

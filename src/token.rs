@@ -570,13 +570,8 @@ mod tests {
         let prefix = count_prefix_tokens(system.as_deref(), prior, tools.as_deref());
 
         let expected = count_all_tokens_local(system.clone(), messages.clone(), tools.clone());
-        let actual = count_all_tokens_with_prefix(
-            "claude-test".into(),
-            system,
-            messages,
-            tools,
-            prefix,
-        );
+        let actual =
+            count_all_tokens_with_prefix("claude-test".into(), system, messages, tools, prefix);
 
         assert_eq!(actual, expected);
     }
@@ -590,13 +585,8 @@ mod tests {
         let prefix = count_prefix_tokens(system.as_deref(), &[], tools.as_deref());
 
         let expected = count_all_tokens_local(system.clone(), messages.clone(), tools.clone());
-        let actual = count_all_tokens_with_prefix(
-            "claude-test".into(),
-            system,
-            messages,
-            tools,
-            prefix,
-        );
+        let actual =
+            count_all_tokens_with_prefix("claude-test".into(), system, messages, tools, prefix);
 
         assert_eq!(actual, expected);
     }

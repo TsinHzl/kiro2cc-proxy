@@ -271,7 +271,10 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
 
     // is_latest 后处理：与 CURRENT_VERSION 匹配的条目标为最新，
     // 列表里找不到时全部置 false（避免历史版本继续被高亮）
-    let matched = notes.iter().filter(|n| n.version == CURRENT_VERSION).count();
+    let matched = notes
+        .iter()
+        .filter(|n| n.version == CURRENT_VERSION)
+        .count();
     if matched == 1 {
         for n in notes.iter_mut() {
             n.is_latest = n.version == CURRENT_VERSION;
@@ -300,7 +303,9 @@ mod tests {
         // 当前版本在 changelog 里时必须被标 latest
         if notes.iter().any(|n| n.version == CURRENT_VERSION) {
             assert!(
-                notes.iter().any(|n| n.version == CURRENT_VERSION && n.is_latest),
+                notes
+                    .iter()
+                    .any(|n| n.version == CURRENT_VERSION && n.is_latest),
                 "当前版本 {} 在 changelog 中时必须 is_latest=true",
                 CURRENT_VERSION
             );

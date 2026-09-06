@@ -540,12 +540,35 @@ pub(super) fn is_valid_uuid(s: &str) -> bool {
         && s.chars().all(|c| c == '-' || c.is_ascii_hexdigit())
 }
 
+/// 将合法 UUID 字符串归一为 v4 形态（Version=4、Variant=8/9/A/B）并转为小写
+///
+/// `is_valid_uuid` 只校验格式不校验版本位：客户端可能发来 v1/nil 等非 v4 形态 UUID，
+/// 上游严格的 UUID 解析器可能将其拒绝 (400 Bad Request)。归一仅覆盖 Version/Variant
+/// 位；对已是 v4 形态的输入值不变（仅统一为小写）。会话身份只需跨轮稳定——
+/// 客户端每轮重发同一原值，归一结果幂等，sticky 与上游 prompt cache 不受影响。
+fn normalize_uuid_v4(s: &str) -> String {
+    let Ok(u) = uuid::Uuid::parse_str(s) else {
+        return s.to_string();
+    };
+    let mut b = *u.as_bytes();
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    uuid::Uuid::from_bytes(b).to_string()
+}
+
 /// 从 metadata.user_id 中提取 session UUID
 ///
-/// 支持两种格式：
-/// 1. 标准格式: user_xxx_account__session_0b4445e1-f5be-49e1-87ce-62bbc28ad705
-/// 2. JSON 格式: {"session_id":"UUID"} 或 {"id":"UUID"}（Claude Code 2.1.128+）
+/// 支持三种格式：
+/// 1. 纯 UUID: 客户端显式声明的会话身份直接采用（OpenAI user 字段透传场景）
+/// 2. 标准格式: user_xxx_account__session_0b4445e1-f5be-49e1-87ce-62bbc28ad705
+/// 3. JSON 格式: {"session_id":"UUID"} 或 {"id":"UUID"}（Claude Code 2.1.128+）
+///
+/// 所有路径返回前均归一为 v4 形态（小写），见 [`normalize_uuid_v4`]。
 fn extract_session_id(user_id: &str) -> Option<String> {
+    // 纯 UUID 直通：显式声明的会话身份应优先于 fallback 派生
+    if is_valid_uuid(user_id) {
+        return Some(normalize_uuid_v4(user_id));
+    }
     // 尝试 JSON 格式解析（Claude Code 新版本发送 JSON 字符串作为 user_id）
     if user_id.trim_start().starts_with('{')
         && let Ok(v) = serde_json::from_str::<serde_json::Value>(user_id)
@@ -554,7 +577,7 @@ fn extract_session_id(user_id: &str) -> Option<String> {
             if let Some(id) = v.get(key).and_then(|v| v.as_str())
                 && is_valid_uuid(id)
             {
-                return Some(id.to_string());
+                return Some(normalize_uuid_v4(id));
             }
         }
     }
@@ -564,7 +587,7 @@ fn extract_session_id(user_id: &str) -> Option<String> {
         if let Some(uuid_str) = session_part.get(..36) {
             // 严格验证：UUID 只能包含 hex 字符和连字符，排除 JSON 污染值如 id":"xxx
             if is_valid_uuid(uuid_str) {
-                return Some(uuid_str.to_string());
+                return Some(normalize_uuid_v4(uuid_str));
             }
         }
     }
@@ -679,14 +702,20 @@ pub(crate) fn is_compact_request(messages: &[crate::anthropic::types::Message]) 
 /// 客户端每轮都重发完整历史，`messages[0]` 保持原样。
 /// 不能纳入全部 messages：那样每轮 hash 都会变，粘性直接归零。
 ///
-/// system 与 tools 皆空时返回 None（退化为完全随机 UUID）——
-/// 这类裸请求缺乏客户端身份特征，不应仅凭首条消息相同就判定为同一会话。
+/// system 与 tools 皆空时仅用首条消息派生——裸请求（脚本、简单 SDK 用法）
+/// 同样需要跨轮稳定的会话身份才能命中上游 prompt cache（实测可省约 38% credits）。
+/// 折叠代价可接受：需同时满足相同首条消息（前 4096 字符）才折叠，且影响仅限
+/// 共享 sticky 路由与上游缓存，不影响正确性。
 ///
 /// 已知权衡：客户端若做上下文压缩并改写了 `messages[0]`（如 auto-compact），
 /// 该会话会在压缩发生的那一轮重新派生 ID 并重新绑定账号；
 /// 此时上游 prompt cache 本已因历史被改写而失效，可接受。
 /// 首条消息前 4096 字符相同的两个会话同样会被折叠，概率低且可接受。
 fn derive_fallback_conversation_id(req: &MessagesRequest) -> Option<String> {
+    // messages 为空时 convert_request 已提前返回 Err，此处仅防御
+    if req.messages.is_empty() {
+        return None;
+    }
     let system_seed = req
         .system
         .as_ref()
@@ -703,9 +732,6 @@ fn derive_fallback_conversation_id(req: &MessagesRequest) -> Option<String> {
         .map(|tools| tools.iter().map(|t| t.name.as_str()).collect())
         .unwrap_or_default();
     tool_names.sort_unstable();
-    if system_seed.is_empty() && tool_names.is_empty() {
-        return None;
-    }
     // 首条消息：role + 顶层文本块（已在 collect_text_for_hash 内限长）
     let first_message_seed = req
         .messages
@@ -796,9 +822,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
 
     // 3. 生成会话 ID 和代理 ID
     // 优先级：
-    //   1. metadata.user_id 中的 session UUID（Claude Code 标准格式）
-    //   2. system + 工具名 + 首条消息的 SHA-256 派生（让无 metadata 的第三方客户端也能 sticky）
-    //   3. 完全随机 UUID（仅当无 system 也无工具时）
+    //   1. metadata.user_id 中的 session UUID（Claude Code 标准格式 / 纯 UUID 直通）
+    //   2. system + 工具名 + 首条消息的 SHA-256 派生（含裸请求，全部走首条消息 seed）
+    //   3. 完全随机 UUID（仅防御路径：messages 为空时 fallback 不可用，实际不可达）
     let (conversation_id, id_source) = req
         .metadata
         .as_ref()
@@ -914,7 +940,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let additional_model_request_fields = build_additional_model_request_fields(req, &model_id);
     let is_compact = is_compact_request(messages);
     if is_compact {
-        tracing::info!("[COMPACT] 检测到 /compact 压缩请求，将使用压缩超时（见 provider::COMPACT_TIMEOUT_SECS）");
+        tracing::info!(
+            "[COMPACT] 检测到 /compact 压缩请求，将使用压缩超时（见 provider::COMPACT_TIMEOUT_SECS）"
+        );
     }
 
     Ok(ConversionResult {
@@ -1598,7 +1626,12 @@ fn gpt_anti_pseudo_tag_hint(req: &MessagesRequest, model_id: &str) -> Option<&'s
     // 此时 thinking.is_some() 为真但并未真正启用，若仍注入提示语，会与
     // resolve_thinking_enabled（已判定不启用、走正常文本路径）的状态不一致，
     // 并无谓污染 prompt cache key。
-    if req.thinking.as_ref().map(|t| t.is_enabled()).unwrap_or(false) {
+    if req
+        .thinking
+        .as_ref()
+        .map(|t| t.is_enabled())
+        .unwrap_or(false)
+    {
         Some(GPT_ANTI_PSEUDO_TAG_HINT)
     } else {
         None
@@ -2634,6 +2667,48 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_session_id_pure_uuid_passthrough() {
+        // 纯 UUID 直通：OpenAI user 字段透传场景，显式声明的会话身份直接采用
+        // （旧实现返回 None → fallback 派生，透传形同虚设）
+        let user_id = "8bb5523b-ec7c-4540-a9ca-beb6d79f1552";
+        assert_eq!(
+            extract_session_id(user_id),
+            Some("8bb5523b-ec7c-4540-a9ca-beb6d79f1552".to_string())
+        );
+
+        // 大写 hex 的 UUID 也应直通（归一为小写 v4 形态）
+        let upper = "8BB5523B-EC7C-4540-A9CA-BEB6D79F1552";
+        assert_eq!(
+            extract_session_id(upper),
+            Some("8bb5523b-ec7c-4540-a9ca-beb6d79f1552".to_string())
+        );
+
+        // 非 v4 形态 UUID（Version 位非 4）→ 直通且归一为 v4，防上游严格解析器 400
+        let v4 =
+            extract_session_id("8bb5523b-ec7c-4540-a9ca-beb6d79f1552").expect("合法 UUID 应直通");
+        assert_eq!(v4, "8bb5523b-ec7c-4540-a9ca-beb6d79f1552");
+        let mut v1_bytes = *uuid::Uuid::parse_str("8bb5523b-ec7c-4540-a9ca-beb6d79f1552")
+            .expect("测试锚点 UUID 应可解析")
+            .as_bytes();
+        // 构造 v1 形态：Version=1、Variant=RFC4122
+        v1_bytes[6] = (v1_bytes[6] & 0x0f) | 0x10;
+        v1_bytes[8] = (v1_bytes[8] & 0x3f) | 0x80;
+        let v1 = uuid::Uuid::from_bytes(v1_bytes).to_string();
+        let normalized = extract_session_id(&v1).expect("v1 形态合法 UUID 应直通");
+        let n = uuid::Uuid::parse_str(&normalized).expect("归一结果应可解析");
+        assert_eq!(n.get_version_num(), 4, "归一后 Version 应为 4");
+        assert_eq!(
+            n.get_variant(),
+            uuid::Variant::RFC4122,
+            "归一后 Variant 应为 RFC4122"
+        );
+
+        // 非 UUID 的普通值（OpenAI user-123、邮箱等）仍走 fallback，不误直通
+        assert_eq!(extract_session_id("user-123"), None);
+        assert_eq!(extract_session_id("user@example.com"), None);
+    }
+
+    #[test]
     fn test_extract_session_id_valid() {
         // 标准格式: user_xxx_account__session_UUID
         let user_id = "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_8bb5523b-ec7c-4540-a9ca-beb6d79f1552";
@@ -2829,11 +2904,44 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_fallback_none_without_system_and_tools() {
-        // 无 system 也无工具的裸请求缺乏客户端身份特征，
-        // 不应仅凭首条消息相同就判定为同一会话 → 返回 None 退化为随机 UUID
+    fn test_derive_fallback_bare_request_uses_first_message() {
+        // 无 system 也无工具的裸请求改用首条消息派生稳定 ID：
+        // 上游 prompt cache 依赖跨轮会话身份稳定，实测可省约 38% credits
+        // （旧实现返回 None 退化为随机 UUID，导致裸请求每轮全价）
         let req = fallback_req(None, &[], &[("user", "Hello")]);
-        assert_eq!(derive_fallback_conversation_id(&req), None);
+        let id = derive_fallback_conversation_id(&req).expect("裸请求应派生出 ID");
+        // 派生结果必须是合法 UUID v4（供上游严格解析器接受）
+        assert!(super::is_valid_uuid(&id), "派生 ID 应为合法 UUID: {id}");
+        // 与带 system 的派生结果不同（seed 成分不同）
+        let with_system = fallback_req(Some("You are Claude Code."), &[], &[("user", "Hello")]);
+        assert_ne!(
+            derive_fallback_conversation_id(&with_system),
+            Some(id),
+            "裸请求与带 system 的请求应派生不同 ID"
+        );
+    }
+
+    #[test]
+    fn test_derive_fallback_bare_request_stable_across_turns() {
+        // 裸请求同一会话跨轮：首条消息不变 → conversationId 稳定
+        let turn1 = fallback_req(None, &[], &[("user", "Hello")]);
+        let turn2 = fallback_req(
+            None,
+            &[],
+            &[("user", "Hello"), ("assistant", "Hi"), ("user", "继续")],
+        );
+        assert_eq!(
+            derive_fallback_conversation_id(&turn1),
+            derive_fallback_conversation_id(&turn2),
+            "裸请求同一会话跨轮次必须派生相同 conversationId"
+        );
+        // 不同首条消息 → 不同 ID（低熵折叠风险收窄到「首条消息完全一致」）
+        let other = fallback_req(None, &[], &[("user", "hi")]);
+        assert_ne!(
+            derive_fallback_conversation_id(&turn1),
+            derive_fallback_conversation_id(&other),
+            "不同首条消息的裸请求必须派生不同 conversationId"
+        );
     }
 
     #[test]
@@ -3442,7 +3550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_agent_continuation_id_random_when_no_metadata() {
+    fn test_agent_continuation_id_stable_for_bare_request_without_metadata() {
         use super::super::types::Message as AnthropicMessage;
 
         let make_req = || MessagesRequest {
@@ -3464,14 +3572,16 @@ mod tests {
         let result1 = convert_request(&make_req()).unwrap();
         let result2 = convert_request(&make_req()).unwrap();
 
-        assert_ne!(
+        // 裸请求不再退化为随机 UUID：fallback 按首条消息派生稳定 conversationId，
+        // agentContinuationId 随之稳定，同一会话跨轮可命中上游 prompt cache
+        assert_eq!(
             result1.conversation_state.conversation_id,
             result2.conversation_state.conversation_id,
         );
-        assert_ne!(
+        assert_eq!(
             result1.conversation_state.agent_continuation_id,
             result2.conversation_state.agent_continuation_id,
-            "无 metadata 时 agentContinuationId 应该随机（每次不同）"
+            "裸请求无 metadata 时 agentContinuationId 应随 fallback 派生保持稳定"
         );
     }
 

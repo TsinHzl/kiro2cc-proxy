@@ -23,7 +23,7 @@
 //! axum::serve(listener, app).await?;
 //! ```
 
-mod converter;
+pub(crate) mod converter;
 pub(crate) mod handlers;
 pub mod middleware;
 mod router;
@@ -32,3 +32,6 @@ pub mod types;
 mod websearch;
 
 pub use router::create_router_with_provider_and_state;
+
+#[cfg(test)]
+pub(crate) use converter::convert_request;

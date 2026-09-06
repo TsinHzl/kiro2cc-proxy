@@ -141,7 +141,11 @@ impl KiroProvider {
     /// `is_compact` 为 true 时使用 `COMPACT_TIMEOUT_SECS`（压缩请求，超长历史摘要），
     /// 否则使用 `NORMAL_TIMEOUT_SECS`（普通请求）。同一代理配置下两种超时的 Client
     /// 分别缓存，互不影响。
-    fn client_for(&self, credentials: &KiroCredentials, is_compact: bool) -> anyhow::Result<Client> {
+    fn client_for(
+        &self,
+        credentials: &KiroCredentials,
+        is_compact: bool,
+    ) -> anyhow::Result<Client> {
         let effective = credentials.effective_proxy(self.global_proxy.as_ref());
         let key = (effective.clone(), is_compact);
         let mut cache = self.client_cache.lock();

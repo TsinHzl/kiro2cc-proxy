@@ -229,6 +229,8 @@ pub(crate) fn convert(body: &Value) -> Result<ConvertedResponsesRequest, String>
         anthropic["tools"] = Value::Array(std::mem::take(&mut tools.tools));
     }
 
+    super::pass_through_user(body, &mut anthropic);
+
     warn_if_tool_choice_unsupported(body.get("tool_choice"));
 
     if let Some(thinking) = convert_reasoning_effort(
@@ -373,10 +375,13 @@ fn tool_use_block(item: &Value, form: ToolInputForm) -> Option<Value> {
         ToolInputForm::Json => parse_tool_arguments(item.get("arguments"), name),
         // 自由文本入参装进降级 schema 约定的 input 字段
         ToolInputForm::FreeText => {
-            let text = item.get("input").and_then(Value::as_str).unwrap_or_else(|| {
-                tracing::warn!("custom_tool_call 缺少 input 字段，已降级为空文本");
-                ""
-            });
+            let text = item
+                .get("input")
+                .and_then(Value::as_str)
+                .unwrap_or_else(|| {
+                    tracing::warn!("custom_tool_call 缺少 input 字段，已降级为空文本");
+                    ""
+                });
             json!({"input": text})
         }
     };
@@ -920,6 +925,64 @@ mod tests {
         let r = convert_ok(json!({"model": "gpt-5-codex", "input": "hi", "stream": true}));
         assert!(r.stream);
         assert_eq!(r.anthropic_body["stream"], true);
+    }
+
+    #[test]
+    fn user_field_maps_to_metadata_user_id() {
+        // user 非空 → 写入 metadata.user_id（下游 converter 据此派生稳定 conversationId）
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "user": "8bb5523b-ec7c-4540-a9ca-beb6d79f1552",
+            "input": "hi",
+        }));
+        assert_eq!(
+            r.anthropic_body["metadata"]["user_id"],
+            "8bb5523b-ec7c-4540-a9ca-beb6d79f1552"
+        );
+
+        // user 缺失 / 空串 / 纯空白 → 不产生 metadata
+        for user in [None, Some(""), Some("   ")] {
+            let mut body = json!({
+                "model": "gpt-5-codex",
+                "input": "hi",
+            });
+            if let Some(u) = user {
+                body["user"] = json!(u);
+            }
+            let r = convert_ok(body);
+            assert!(
+                r.anthropic_body.get("metadata").is_none(),
+                "user={user:?} 不应产生 metadata"
+            );
+        }
+    }
+
+    #[test]
+    fn non_uuid_user_keeps_stable_conversation_id_across_calls() {
+        // 非 UUID user（如 user-123）无法走 metadata 解析路径，落到 fallback 派生；
+        // fallback 依赖首条消息，同一请求体连续两次转换必须得到相同 conversationId
+        let body = json!({
+            "model": "gpt-5-codex",
+            "user": "user-123",
+            "input": "hi",
+        });
+        let r1 = convert_ok(body.clone());
+        let r2 = convert_ok(body);
+        assert_eq!(
+            r1.anthropic_body["metadata"]["user_id"],
+            json!("user-123"),
+            "非 UUID user 也应原样透传为 metadata.user_id"
+        );
+        let anthropic1: crate::anthropic::types::MessagesRequest =
+            serde_json::from_value(r1.anthropic_body.clone()).expect("anthropic body 应可反序列化");
+        let anthropic2: crate::anthropic::types::MessagesRequest =
+            serde_json::from_value(r2.anthropic_body).expect("anthropic body 应可反序列化");
+        let kiro1 = crate::anthropic::convert_request(&anthropic1).expect("转换 Kiro 请求应成功");
+        let kiro2 = crate::anthropic::convert_request(&anthropic2).expect("转换 Kiro 请求应成功");
+        assert_eq!(
+            kiro1.conversation_state.conversation_id, kiro2.conversation_state.conversation_id,
+            "非 UUID user 同一请求体连续两次转换必须派生相同 conversationId"
+        );
     }
 
     #[test]

@@ -1,0 +1,23 @@
+docs/源码全景解析.md
+  a41e88edbcf5a581 1928-1947
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "00e3dd72893bf3afa7f55205495646f4dbdf96cd",
+  "prompts": {
+    "a41e88edbcf5a581": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e28a2915-eccf-4a4f-ba8e-fad7588b9b22",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}

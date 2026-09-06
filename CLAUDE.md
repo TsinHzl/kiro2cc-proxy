@@ -2,141 +2,90 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## 项目概述
+
+kiro2cc-proxy 是一个 Rust 代理服务，将 Anthropic Claude API 请求转换为 Kiro（AWS Q Developer）API 请求，使 Claude Code / Codex CLI / 任意 OpenAI SDK 客户端能够使用 Kiro 账号上的模型。技术栈：Rust 2024 edition + axum 0.8 + tokio + reqwest，前端（admin-ui / user-ui，React + Vite）构建产物经 rust-embed 嵌入二进制。
+
+## 常用命令
 
 ```bash
-# 构建（admin-ui + user-ui 前端 + Rust 二进制）
-./build-mac.sh            # macOS
-.\build-windows.ps1       # Windows
+# 完整构建（admin-ui + user-ui 前端 + cargo release），首次约 5~15 分钟
+./build-mac.sh
 
-# 仅编译 Rust
-cargo build --release
+# 仅 Rust
+cargo build            # dev；debug 模式 rust-embed 从磁盘读 dist
+cargo build --release  # release 模式将 admin-ui/dist、user-ui/dist 编译期内嵌
 
-# 本地运行（读取 app/config/config.json）
-./run-local-service-mac.sh
+# 测试（600 个，全部为各模块内联 #[cfg(test)] mod tests）
+cargo test                        # 全部
+cargo test <name-substring>       # 单个/一组，如 cargo test additional_model_request_fields
+cargo llvm-cov --lcov --output-path lcov.info   # CI 用的覆盖率跑法
 
-# 直接运行（指定配置）
-cargo run -- --config app/config/config.json
-
-# 检查 / 测试
-cargo check
-cargo test
-cargo test <test_name>       # 运行单个测试
-RUST_LOG=debug cargo run     # 调试日志
-
-# 格式化 + Lint
+# 代码检查（提交前必须 clean）
 cargo fmt
 cargo clippy
+
+# 运行（本地 macOS）
+./run-local-service-mac.sh   # 首次运行有配置向导，配置落在 app/config/
 ```
 
-## Architecture
+前端改动需先 `cd admin-ui && pnpm install && pnpm build`（admin-ui 用 pnpm）或 `cd user-ui && npm install && npm run build`，dist 产物不存在时 release 构建会失败。
 
-请求从 Anthropic API 格式入，经转换后发往 Kiro API，响应再转回 Anthropic SSE 格式输出。OpenAI 协议（`/v1/chat/completions`、`/v1/responses`）作为外挂适配器，复用同一下游链路。
+## 架构
+
+### 请求链路（Anthropic 协议层）
 
 ```
-Client (Anthropic / OpenAI format)
+Client (Anthropic format)
   │
   ▼
-src/anthropic/middleware.rs   ← 认证（API Key / Bearer）、RPM 计数、用量追踪
+src/anthropic/middleware.rs   ← API Key / 子 Key 认证（额度检查）、RPM 计数、用量追踪
   │
-src/anthropic/handlers.rs     ← /v1/messages、/cc/v1/messages（带 300s deadline）路由入口
-  │                            ← /v1/chat/completions、/v1/responses 也复用 post_messages 下游
+src/anthropic/handlers.rs     ← /v1/messages 直通流式；/cc/v1/messages 额外带 300s 全局 deadline
   │
-src/openai/                   ← OpenAI 协议外挂适配层（不改动 anthropic 核心）
-  │   chat_request/response、responses_request/response、sse、model_map、handlers
+src/anthropic/converter.rs    ← Anthropic → Kiro 协议转换（模型映射 map_model、JSON Schema 规范化、
+  │                              additionalModelRequestFields 构建、history/prompt cache 派生）
   │
-src/anthropic/converter.rs    ← Anthropic → Kiro 协议转换（工具 schema 规范化、消息结构重组）
+src/kiro/provider.rs          ← HTTP 发送 + 多账号故障转移（每凭据最多 3 次重试，单请求总共 9 次，
+  │                              Semaphore 并发上限）+ 超时分档（普通 180s / compact 1000s）
   │
-src/kiro/provider.rs          ← 多账号故障转移；MAX 3 retries/account，MAX 9 total
-  │                            ← 全局并发上限 50，单账号并发上限 20（Semaphore）
+src/kiro/token_manager.rs     ← MultiTokenManager：OAuth token 刷新、priority/balanced 负载均衡
   │
-src/kiro/token_manager.rs     ← MultiTokenManager：OAuth token 刷新、账号优先级/负载均衡
-  │                            ← load_balancing_mode: priority（默认）/ balanced（轮询）
+  ▼  (AWS Event Stream 二进制帧协议)
+src/kiro/parser/              ← 二进制帧解码（frame/decoder/header/crc，CRC32C 校验）
   │
-  ▼  (Kiro binary frame protocol)
-src/kiro/parser/              ← 二进制帧解码（frame.rs + decoder.rs + header.rs + crc.rs CRC32C）
-  │
-src/anthropic/stream.rs       ← Kiro 事件 → Anthropic SSE 事件转换
+src/anthropic/stream.rs       ← Kiro 事件 → Anthropic SSE 状态机（thinking 标签重建、usage 校准）
   ▼
-Client (Anthropic SSE / OpenAI SSE format)
+Client (Anthropic SSE format)
 ```
 
-### 关键模块
+### 关键设计点
 
-| 路径 | 职责 |
-|------|------|
-| `src/anthropic/converter.rs` | Anthropic→Kiro 格式转换，含 JSON Schema 规范化（Kiro 对 `null` 字段/复杂 schema 拒绝） |
-| `src/anthropic/stream.rs` | 流式状态机：Kiro events → Anthropic SSE，处理 thinking 标签、tool_use 块拼装 |
-| `src/anthropic/websearch.rs` | web_search 工具的 MCP 协议封装（条件：tools 仅含单个 web_search） |
-| `src/openai/` | OpenAI 协议外挂适配层：chat/completions + responses 双协议，复用 anthropic 下游链路 |
-| `src/kiro/parser/` | Kiro 私有二进制帧协议解码（frame + decoder + header + crc CRC32C） |
-| `src/kiro/provider.rs` | 多账号故障转移；全局并发 50 / 单账号并发 20 Semaphore 限流 |
-| `src/kiro/token_manager.rs` | 多账号 token 池，social/IDC 双认证，priority/balanced 负载均衡，刷新回写 credentials.json |
-| `src/kiro/model/` | Kiro 数据模型：requests/（conversation、kiro、tool）、events/（assistant、tool_use、metering…）、credentials、usage_limits、token_refresh |
-| `src/model/config.rs` | 全局配置结构，`apply_env_overrides()` 支持容器环境变量覆盖 |
-| `src/model/api_key.rs` | API Key 管理（含无限额度选项） |
-| `src/cache/` | Prompt cache 模块：`simulation.rs` 比例模拟、`fingerprint.rs` 账号级指纹追踪、`mod.rs` 统一导出 |
-| `src/http_client.rs` | reqwest Client 构建器，支持账号级独立代理配置（ProxyConfig + 鉴权） |
-| `src/token.rs` | tiktoken-rs BPE token 计数（cl100k_base），用于 count_tokens 估算 |
-| `src/admin/` | Admin REST API（凭据/API Key/用量/限流日志/配置/Geo/日志流），挂载于 `/api/admin` |
-| `src/admin_ui/` + `src/user_ui/` | rust-embed 嵌入前端静态资源路由（`/admin`、`/user`） |
-| `src/user/` | User REST API（用户登录/用量查询），挂载于 `/api/user` |
-| `src/common/auth.rs` | 公共认证工具：extract_api_key（x-api-key / Bearer）、constant_time_eq 常量时间比较 |
+- **OpenAI 兼容层（`src/openai/`）是外挂适配器**：把 `/v1/chat/completions`、`/v1/responses` 的 OpenAI 请求翻译成 Anthropic Messages 请求后，复用 `anthropic::handlers::post_messages` 走完整下游链路，再把响应转回 OpenAI 格式。不改动 anthropic 模块任何实现（有意取舍，代价是 SSE 多一次解析/再编码）。
+- **Kiro 上游 4 个端点对应 4 个独立限流桶**（`src/kiro/endpoint.rs`）：ide / runtime / codewhisperer / amazonq；桶级 429 状态按 `(credential_id, endpoint)` 二元组隔离在 `EndpointBucketRegistry`，单次 429 封禁 30s。
+- **模型映射按关键词**（`converter.rs::map_model`）：请求模型名含 `sonnet`/`opus`/`haiku`/`gpt` 等关键词即路由到对应 Kiro 模型，版本号（4.5/4.6/4.7/4.8/5）决定具体代际；未明确指定版本时 opus 兜底 4.6。含 `thinking` 后缀自动启用 extended thinking。
+- **additionalModelRequestFields 有"模型代际 × 字段"约束矩阵**：max_tokens 下限 1024 对全部 Claude 代际生效，上限按代际分 128K/64K 档；GPT 系整体跳过该字段。详见 `converter.rs::build_additional_model_request_fields` 注释与 `docs/源码全景解析.md` 难点 8。
+- **Prompt cache 用量四层降级链**（`src/cache/mod.rs`）：metering 真值 → `token::count_prefix_tokens` 前缀估算 → fingerprint 前缀指纹追踪（账号级）→ 比例模拟兜底。
+- **Token 计数用 tiktoken cl100k_base BPE**（`src/token.rs`，全局单例）。`stream.rs` 的 `CLIENT_TOKEN_DISPLAY_SCALE`（0.6657）是配合旧公式校准的显示缩放系数，控制客户端 auto-compact 触发时机——改动 token 口径时需评估是否需重新校准。
+- **history[0] 冻结是 prompt cache 的命脉**：系统提示中的 `cch=` 计费哈希规范化（`normalize_billing_header`）、`agentContinuationId` 由 conversationId 派生、标题生成请求隔离等机制都为让 history[0] 跨请求逐字节稳定。改动 converter 中系统提示/历史消息构建时必须保持这些不变量，否则 Kiro 侧缓存全量失效。
 
-### 运行时配置
+### 配置与运行时
 
-- `app/config/config.json` — 主配置（host/port/adminPsw/proxyUrl/loadBalancingMode/cacheSimulation 等），已在 `.gitignore` 中
-- `app/config/credentials.json` — Kiro 账号 token，支持单对象或数组格式
-- Docker 部署时以上两文件在 `data/` 目录下
+- `config.json` + `credentials.json`（默认工作目录，可 `--config`/`--credentials` 覆盖）；环境变量可覆盖配置（`Config::apply_env_overrides`，容器化部署用）。
+- `admin_psw` 非空才启用 Admin API/UI（`/api/admin`、`/admin`）与 User API/UI（`/api/user`、`/user`）。
+- 运行时敏感/状态文件在 `app/config/`（已 gitignore）。
 
-### 环境变量覆盖（`apply_env_overrides()`）
+## 开发约定（来自 openspec/project.md）
 
-容器/Docker 部署时，以下环境变量覆盖 `config.json` 同名字段（优先级最高）：
+- `cargo fmt` + `cargo clippy` clean 后才可提交
+- 不引入新外部 crate（能用已有依赖解决的不新增）
+- 改动局限于最小必要范围，不做无关重构
+- 所有公开行为变更需同步更新单元测试（内联 `#[cfg(test)]` 模块）
+- Commit 遵循 Conventional Commits（feat/fix/refactor/chore），提交信息用中文
 
-| 环境变量 | 覆盖字段 | 说明 |
-|---|---|---|
-| `HOST` / `PORT` | host / port | 监听地址 |
-| `REGION` / `AUTH_REGION` / `API_REGION` | region / auth_region / api_region | Kiro 区域 |
-| `ADMIN_PSW` 或 `ADMIN_API_KEY` | admin_psw | Admin 鉴权密钥（二者等价） |
-| `PROXY_URL` / `PROXY_USERNAME` / `PROXY_PASSWORD` | proxy_url 等 | 出站代理 |
-| `LOAD_BALANCING_MODE` | load_balancing_mode | `priority`（默认）/ `balanced` |
-| `MODEL_CACHE_TTL_SECS` | model_cache_ttl_secs | 模型列表缓存 TTL |
-| `CACHE_SIMULATION_*` | cache_simulation 嵌套字段 | 指纹/比例模拟开关与 TTL |
+## 深入文档
 
-### 端点路由总览
-
-| 路径 | 方法 | 说明 |
-|---|---|---|
-| `/v1/models`、`/v1/models/{id}` | GET | 模型列表/详情 |
-| `/v1/messages` | POST | Anthropic Messages（实时流式） |
-| `/v1/messages/count_tokens` | POST | token 计数估算 |
-| `/v1/chat/completions` | POST | OpenAI Chat Completions 兼容 |
-| `/v1/responses` | POST | OpenAI Responses 兼容（Codex CLI） |
-| `/cc/v1/messages` | POST | Claude Code 专用，带 300s 全局 deadline |
-| `/api/admin/*` | 多 | Admin REST API（需 admin_psw） |
-| `/admin` | GET | Admin UI 静态资源 |
-| `/api/user/*` | 多 | User REST API（API Key 登录） |
-| `/user` | GET | User UI 静态资源 |
-
-Admin/User API 仅在 `admin_psw` 配置非空时挂载。
-
-### 负载均衡与故障转移
-
-- `priority` 模式（默认）：选优先级最高（`priority` 值最小）的可用账号，同优先级内 round-robin
-- `balanced` 模式：在所有可用账号间轮询
-- 故障转移：单账号最多重试 3 次（`MAX_RETRIES_PER_CREDENTIAL`），全局最多 9 次（`MAX_TOTAL_RETRIES`，受可用账号数约束）
-- 并发限流：全局 50（`MAX_CONCURRENT_REQUESTS`）、单账号 20（`MAX_CONCURRENT_PER_CREDENTIAL`）
-
-### /cc/v1 vs /v1
-
-`/cc/v1/messages` 是 Claude Code 专用端点，与 `/v1/messages` 同为实时流式转发，唯一差异是带 300s 全局 deadline（上游挂起保护），超时发 `overloaded_error` 后终止。两者均每 25s 发送 SSE ping 保活，`input_tokens` 均为 `message_start` 给估算值、末尾 `message_delta` 校准为终值。
-
-### OpenAI 兼容层设计取舍
-
-`src/openai/` 是**外挂适配器**，不改动 `anthropic` 核心模块：把 OpenAI 请求转成 Anthropic Messages，复用 `post_messages` 下游链路（多账号故障转移、RPM、用量、prompt cache），再把 Anthropic SSE 重新编码为 OpenAI SSE。代价是多一次序列化往返，换得对 900 行核心逻辑的零侵入——这是有意取舍，详见 `openspec/changes/add-openai-compatible-endpoints/design.md`。
-
-## 代码索引
-
-详细的功能 → 代码位置速查表：`docs/代码速查表.md`
-
-在需要定位特定功能（如账号选择、格式转换、认证、限流等）时，**优先读取此文件**再作答。
+- `docs/源码全景解析.md` — 全链路深度解析 + 8 个难点攻坚记录（二进制帧协议、thinking 标签检测、prompt caching、tiktoken 等）
+- `docs/代码速查表.md` — 功能 → 代码位置速查表
+- `openspec/project.md` — 项目上下文与开发约定
+- `.claude/skills/cache-credits-analyzer/` — 分析访问日志计算 prompt cache 节省 credits 的 skill

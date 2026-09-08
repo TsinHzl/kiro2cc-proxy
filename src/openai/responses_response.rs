@@ -257,7 +257,14 @@ fn convert_non_stream_inner(
         // 压缩模式：忽略 reasoning/tool_calls，只保留文本摘要，包装为 compaction item
         // Codex 要求恰好一个 compaction output item
         let summary = extracted.text.trim();
-        tracing::info!("生成 compaction output item（摘要 {} 字节）", summary.len());
+        if summary.is_empty() {
+            tracing::warn!(
+                "compaction 模式下模型未返回文本内容（可能为纯 reasoning 或 tool call），\
+                 将产出空摘要 item，Codex 可能无法正确恢复上下文"
+            );
+        } else {
+            tracing::info!("生成 compaction output item（摘要 {} 字节）", summary.len());
+        }
         output.push(compaction_item(summary));
     } else {
         if !extracted.reasoning.is_empty() {
@@ -383,35 +390,14 @@ impl ResponsesStreamConverter {
 
     /// 处理一个上游事件，返回待下发的 SSE 帧
     pub(crate) fn on_event(&mut self, name: &str, data: &Value) -> Vec<String> {
+        // 压缩模式：content_block_* 事件内部仍需执行（以累积文本），但不向客户端转发
+        let is_compaction = self.is_compaction;
+        let pass = |f: Vec<String>| if is_compaction { Vec::new() } else { f };
         match name {
             "message_start" => self.ensure_created(),
-            "content_block_start" => {
-                let frames = self.on_block_start(data);
-                // 压缩模式：不向客户端发送中间 output item 的流式事件
-                if self.is_compaction {
-                    Vec::new()
-                } else {
-                    frames
-                }
-            }
-            "content_block_delta" => {
-                let frames = self.on_block_delta(data);
-                if self.is_compaction {
-                    Vec::new()
-                } else {
-                    frames
-                }
-            }
-            "content_block_stop" => {
-                let index = block_index(data);
-                let frames = self.close_item(index);
-                // 压缩模式：close_item 仍需执行以累积 completed_items，但不发送事件
-                if self.is_compaction {
-                    Vec::new()
-                } else {
-                    frames
-                }
-            }
+            "content_block_start" => pass(self.on_block_start(data)),
+            "content_block_delta" => pass(self.on_block_delta(data)),
+            "content_block_stop" => pass(self.close_item(block_index(data))),
             "message_delta" => {
                 if let Some(reason) = data
                     .get("delta")
@@ -446,66 +432,7 @@ impl ResponsesStreamConverter {
         self.finished = true;
 
         if self.is_compaction {
-            // 压缩模式：把所有已收集的文本内容合并为一个 compaction output item
-            // 丢弃 completed_items 里的普通 message/reasoning/tool_call，改为单个 compaction
-            let summary = self
-                .completed_items
-                .iter()
-                .filter_map(|item| {
-                    // 从 message item 的 content 里提取文本
-                    if item.get("type").and_then(Value::as_str) == Some("message") {
-                        item.get("content")
-                            .and_then(Value::as_array)
-                            .and_then(|arr| {
-                                let texts: Vec<&str> = arr
-                                    .iter()
-                                    .filter_map(|c| c.get("text").and_then(Value::as_str))
-                                    .collect();
-                                if texts.is_empty() {
-                                    None
-                                } else {
-                                    Some(texts.join(""))
-                                }
-                            })
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let summary = summary.trim();
-            tracing::info!(
-                "流式模式生成 compaction output item（摘要 {} 字节）",
-                summary.len()
-            );
-
-            let cmp_item = compaction_item(summary);
-            let cmp_output_index = 0i64; // 从头开始，之前的普通 item 事件被丢弃
-
-            // 清空 completed_items，重置为只有 compaction item
-            self.completed_items.clear();
-            self.completed_items.push(cmp_item.clone());
-
-            // 下发 compaction output item 的 added/done 事件对
-            frames.push(self.event(
-                "response.output_item.added",
-                json!({
-                    "output_index": cmp_output_index,
-                    "item": cmp_item.clone(),
-                }),
-            ));
-            frames.push(self.event(
-                "response.output_item.done",
-                json!({
-                    "output_index": cmp_output_index,
-                    "item": cmp_item,
-                }),
-            ));
-
-            let snapshot = self.snapshot("completed");
-            frames.push(self.event("response.completed", json!({"response": snapshot})));
-            return frames;
+            return self.finish_compaction(frames);
         }
 
         let status = if self.truncated {
@@ -520,6 +447,68 @@ impl ResponsesStreamConverter {
         };
         let snapshot = self.snapshot(status);
         frames.push(self.event(event_name, json!({"response": snapshot})));
+        frames
+    }
+
+    /// 压缩模式收尾：从已累积的 completed_items 中提取文本摘要，
+    /// 构造单个 `type: "compaction"` output item 的 added/done 事件对并下发。
+    fn finish_compaction(&mut self, mut frames: Vec<String>) -> Vec<String> {
+        let summary = self
+            .completed_items
+            .iter()
+            .filter_map(|item| {
+                if item.get("type").and_then(Value::as_str) == Some("message") {
+                    item.get("content")
+                        .and_then(Value::as_array)
+                        .and_then(|arr| {
+                            let texts: Vec<&str> = arr
+                                .iter()
+                                .filter_map(|c| c.get("text").and_then(Value::as_str))
+                                .collect();
+                            if texts.is_empty() {
+                                None
+                            } else {
+                                Some(texts.join(""))
+                            }
+                        })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let summary = summary.trim();
+        if summary.is_empty() {
+            tracing::warn!(
+                "compaction 模式下模型未返回文本内容（可能为纯 reasoning 或 tool call），\
+                 将产出空摘要 item，Codex 可能无法正确恢复上下文"
+            );
+        } else {
+            tracing::info!(
+                "流式模式生成 compaction output item（摘要 {} 字节）",
+                summary.len()
+            );
+        }
+
+        let cmp_item = compaction_item(summary);
+        // 之前的普通 item 事件已被抑制，output_index 从 0 重新计数
+        let cmp_output_index = 0i64;
+
+        self.completed_items.clear();
+        self.completed_items.push(cmp_item.clone());
+
+        frames.push(self.event(
+            "response.output_item.added",
+            json!({"output_index": cmp_output_index, "item": cmp_item.clone()}),
+        ));
+        frames.push(self.event(
+            "response.output_item.done",
+            json!({"output_index": cmp_output_index, "item": cmp_item}),
+        ));
+
+        let snapshot = self.snapshot("completed");
+        frames.push(self.event("response.completed", json!({"response": snapshot})));
         frames
     }
 

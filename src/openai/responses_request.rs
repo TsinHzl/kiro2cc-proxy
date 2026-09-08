@@ -240,65 +240,32 @@ pub(crate) fn convert(body: &Value) -> Result<ConvertedResponsesRequest, String>
     }
 
     let mut acc = MessageAccumulator::default();
-    match body.get("input") {
+    // is_compaction 仅作标志，不做 early-return，两条路径共用一次 body 构建
+    let is_compaction = match body.get("input") {
         // 最简形态：整段 prompt 就是一条 user 文本
         Some(Value::String(s)) => {
             if !s.is_empty() {
                 acc.push("user", vec![json!({"type": "text", "text": s})]);
             }
+            false
         }
         Some(Value::Array(items)) => {
             let is_comp = convert_input_items(items, &mut system, &mut acc, &mut tools);
             if is_comp {
-                // 注入压缩摘要指令作为第一个 system 块
-                system.insert(
-                    0,
-                    json!({
-                        "type": "text",
-                        "text": COMPACTION_SYSTEM_PROMPT
-                    }),
-                );
-                let messages = acc.into_messages();
-                if messages.is_empty() {
-                    return Err("字段 'input' 未包含任何可转换的内容".to_string());
-                }
-                let mut anthropic = json!({
-                    "model": map_model(&client_model),
-                    "max_tokens": max_tokens,
-                    "messages": messages,
-                    "stream": stream,
-                });
-                if !system.is_empty() {
-                    anthropic["system"] = Value::Array(system);
-                }
-                if !tools.tools.is_empty() {
-                    anthropic["tools"] = Value::Array(std::mem::take(&mut tools.tools));
-                }
-                super::pass_through_user(body, &mut anthropic);
-                warn_if_tool_choice_unsupported(body.get("tool_choice"));
-                if let Some(thinking) = convert_reasoning_effort(
-                    body.get("reasoning").and_then(|r| r.get("effort")),
-                    max_tokens,
-                ) {
-                    anthropic["thinking"] = thinking;
-                }
-                return Ok(ConvertedResponsesRequest {
-                    client_model,
-                    stream,
-                    anthropic_body: anthropic,
-                    custom_tools: tools.custom,
-                    is_compaction: true,
-                });
+                // 仅注入压缩摘要指令，不提前返回
+                system.insert(0, json!({"type": "text", "text": COMPACTION_SYSTEM_PROMPT}));
             }
+            is_comp
         }
         _ => return Err("字段 'input' 缺失或类型不支持（应为字符串或数组）".to_string()),
-    }
+    };
 
     let messages = acc.into_messages();
     if messages.is_empty() {
         return Err("字段 'input' 未包含任何可转换的内容".to_string());
     }
 
+    // 统一的 Anthropic body 构建逻辑，压缩与正常路径共用
     let mut anthropic = json!({
         "model": map_model(&client_model),
         "max_tokens": max_tokens,
@@ -330,7 +297,7 @@ pub(crate) fn convert(body: &Value) -> Result<ConvertedResponsesRequest, String>
         stream,
         anthropic_body: anthropic,
         custom_tools: tools.custom,
-        is_compaction: false,
+        is_compaction,
     })
 }
 

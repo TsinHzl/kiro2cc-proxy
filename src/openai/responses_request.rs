@@ -36,6 +36,42 @@ use super::model_map::map_model;
 /// `namespace` 容器的嵌套深度上限；超出即跳过，避免畸形请求把栈递归穿了
 const MAX_NAMESPACE_DEPTH: usize = 4;
 
+/// Codex remote compaction v2 系统提示
+///
+/// 当检测到 `compaction_trigger` input item 时，注入该提示替代原始压缩指令。
+/// 要求模型以"对话摘要"形式生成一段文字，作为后续轮次的上下文压缩内容。
+const COMPACTION_SYSTEM_PROMPT: &str = "\
+You are performing a CONTEXT COMPACTION operation. \
+Your task is to produce a concise but comprehensive summary of the current conversation that \
+will allow seamlessly continuing the work in a future context window.\n\
+\n\
+Include:\n\
+- The current task/goal and its status\n\
+- Key decisions and conclusions reached\n\
+- Important context, file paths, or technical details\n\
+- Work completed so far\n\
+- Pending actions or next steps\n\
+\n\
+Write this as a first-person internal note to yourself (as if you are writing notes to a \
+successor instance of yourself who will continue this exact task). Be concise yet complete. \
+Do not include any preamble or explanation — just the summary content.";
+
+/// 将代理自制的 compaction `encrypted_content` 解码为原始摘要文本
+///
+/// 本代理不产出真正的 Fernet 加密内容，而是用标准 base64 编码摘要文字。
+/// 解码成功时返回摘要文本；格式不匹配或解码失败时返回 `None`（由调用方决定降级行为）。
+fn base64_decode_compaction(encoded: &str) -> Option<String> {
+    use base64::Engine as _;
+    // 尝试标准 base64 解码（含 padding 变种）
+    let decoded_bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(encoded))
+        .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(encoded))
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(encoded))
+        .ok()?;
+    String::from_utf8(decoded_bytes).ok()
+}
+
 /// `custom` 工具的入参在 Responses 协议里是自由文本，Anthropic 只接受 JSON schema。
 /// 降级为单字段对象，配合 [`ToolInputForm::FreeText`] 把原始文本塞进 `input` 字段。
 fn custom_tool_schema() -> Value {
@@ -81,6 +117,12 @@ pub(crate) struct ConvertedResponsesRequest {
     /// 声明为 `custom` 的工具名。响应侧必须把这些工具的调用还原成
     /// `custom_tool_call` item（自由文本入参），否则客户端认不出来
     pub(crate) custom_tools: HashSet<String>,
+    /// 是否为 Codex remote compaction v2 压缩请求
+    ///
+    /// 当 `input` 末尾包含 `{"type":"compaction_trigger"}` 时置为 `true`。
+    /// 响应侧需要将模型的文字摘要包装为 `type: "compaction"` output item，
+    /// 否则 Codex 会报 "expected exactly one compaction output item, got 0"。
+    pub(crate) is_compaction: bool,
 }
 
 /// 汇总各来源的工具声明
@@ -205,7 +247,50 @@ pub(crate) fn convert(body: &Value) -> Result<ConvertedResponsesRequest, String>
                 acc.push("user", vec![json!({"type": "text", "text": s})]);
             }
         }
-        Some(Value::Array(items)) => convert_input_items(items, &mut system, &mut acc, &mut tools),
+        Some(Value::Array(items)) => {
+            let is_comp = convert_input_items(items, &mut system, &mut acc, &mut tools);
+            if is_comp {
+                // 注入压缩摘要指令作为第一个 system 块
+                system.insert(
+                    0,
+                    json!({
+                        "type": "text",
+                        "text": COMPACTION_SYSTEM_PROMPT
+                    }),
+                );
+                let messages = acc.into_messages();
+                if messages.is_empty() {
+                    return Err("字段 'input' 未包含任何可转换的内容".to_string());
+                }
+                let mut anthropic = json!({
+                    "model": map_model(&client_model),
+                    "max_tokens": max_tokens,
+                    "messages": messages,
+                    "stream": stream,
+                });
+                if !system.is_empty() {
+                    anthropic["system"] = Value::Array(system);
+                }
+                if !tools.tools.is_empty() {
+                    anthropic["tools"] = Value::Array(std::mem::take(&mut tools.tools));
+                }
+                super::pass_through_user(body, &mut anthropic);
+                warn_if_tool_choice_unsupported(body.get("tool_choice"));
+                if let Some(thinking) = convert_reasoning_effort(
+                    body.get("reasoning").and_then(|r| r.get("effort")),
+                    max_tokens,
+                ) {
+                    anthropic["thinking"] = thinking;
+                }
+                return Ok(ConvertedResponsesRequest {
+                    client_model,
+                    stream,
+                    anthropic_body: anthropic,
+                    custom_tools: tools.custom,
+                    is_compaction: true,
+                });
+            }
+        }
         _ => return Err("字段 'input' 缺失或类型不支持（应为字符串或数组）".to_string()),
     }
 
@@ -245,16 +330,20 @@ pub(crate) fn convert(body: &Value) -> Result<ConvertedResponsesRequest, String>
         stream,
         anthropic_body: anthropic,
         custom_tools: tools.custom,
+        is_compaction: false,
     })
 }
 
 /// 遍历 `input` 数组，把各类 item 分派到 system 块、消息累加器或工具收集器
+///
+/// 返回值表示是否检测到 `compaction_trigger` item（即 Codex remote compaction v2 请求）。
 fn convert_input_items(
     items: &[Value],
     system: &mut Vec<Value>,
     acc: &mut MessageAccumulator,
     tools: &mut ToolCollector,
-) {
+) -> bool {
+    let mut is_compaction = false;
     for item in items {
         // 少数客户端省略 type，只给 role + content
         let item_type = match item.get("type").and_then(Value::as_str) {
@@ -295,11 +384,42 @@ fn convert_input_items(
             // 签名，伪造签名回传只会增加被上游拒的风险；丢弃它不影响后续对话，故静默跳过
             // （每轮都出现，WARN 会成噪声）。
             "reasoning" => {}
+            // Codex remote compaction v2：客户端在 input 末尾追加该 item 触发服务端压缩。
+            // 上游（Kiro/Anthropic 协议）不支持此机制；由代理层拦截并在响应侧模拟。
+            // 把标志位置为 true；来自上游的真实请求内容（其余 input items）已正常转换。
+            "compaction_trigger" => {
+                tracing::info!("检测到 compaction_trigger，启用 remote compaction v2 模拟模式");
+                is_compaction = true;
+            }
+            // Codex 在后续轮次会把之前收到的 compaction item 原样回传（放入 input 数组）。
+            // encrypted_content 是代理自己 base64 编码的摘要文本，解码后注入为 assistant 消息，
+            // 让上游模型在后续对话中能感知到历史摘要内容。
+            "compaction" | "compaction_summary" => {
+                if let Some(encoded) = item.get("encrypted_content").and_then(Value::as_str) {
+                    match base64_decode_compaction(encoded) {
+                        Some(summary) if !summary.is_empty() => {
+                            tracing::info!(
+                                "解码 compaction item，注入历史摘要（{} 字节）",
+                                summary.len()
+                            );
+                            acc.push("assistant", vec![json!({"type": "text", "text": summary})]);
+                        }
+                        _ => {
+                            tracing::warn!(
+                                "compaction item 的 encrypted_content 解码失败或为空，已跳过"
+                            );
+                        }
+                    }
+                } else {
+                    tracing::warn!("compaction item 缺少 encrypted_content 字段，已跳过");
+                }
+            }
             other => {
                 tracing::warn!(item_type = %other, "未识别的 input item 类型，已跳过");
             }
         }
     }
+    is_compaction
 }
 
 /// `type: "message"` item → system 文本块或一条 Anthropic 消息

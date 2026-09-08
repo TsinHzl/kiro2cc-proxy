@@ -142,6 +142,7 @@ pub(crate) async fn post_responses(
     // custom 工具名要同时供流式与非流式转换使用，各持一份（集合很小，克隆成本可忽略）
     let custom_tools = converted.custom_tools;
     let stream_custom_tools = custom_tools.clone();
+    let is_compaction = converted.is_compaction;
     forward_and_wrap(
         state,
         identity,
@@ -151,13 +152,24 @@ pub(crate) async fn post_responses(
         converted.stream,
         client_model,
         move || {
-            Box::new(ResponsesStreamConverter::new(
-                &converter_model,
-                stream_custom_tools,
-            ))
+            if is_compaction {
+                Box::new(ResponsesStreamConverter::new_compaction(
+                    &converter_model,
+                    stream_custom_tools,
+                ))
+            } else {
+                Box::new(ResponsesStreamConverter::new(
+                    &converter_model,
+                    stream_custom_tools,
+                ))
+            }
         },
         move |anthropic, model| {
-            responses_response::convert_non_stream(anthropic, model, &custom_tools)
+            if is_compaction {
+                responses_response::convert_non_stream_compaction(anthropic, model, &custom_tools)
+            } else {
+                responses_response::convert_non_stream(anthropic, model, &custom_tools)
+            }
         },
     )
     .await

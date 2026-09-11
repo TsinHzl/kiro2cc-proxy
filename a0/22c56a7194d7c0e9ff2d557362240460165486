@@ -1,0 +1,51 @@
+src/anthropic/handlers.rs
+  e3876ad2a5183f0c 1392-1405,1456-1484,1488-1492,1499,1506,1533,1549,1555-1556,1561-1620,1625-1642,1669-1672,1677,1679-1680,1685-1689,1696-1753,1791,1818,1821-1833,1836,1842-1889,1892-1912,1935,1943,1945-1947,1950-1965,2335-2341,2354-2356,2359-2361,2364-2365,2368-2373,4113,4115-4117,4127-4130,4146-4243
+src/anthropic/converter.rs
+  e3876ad2a5183f0c 793-799,913-914,916-920,2751-2779
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a022c56a7194d7c0e9ff2d557362240460165486",
+  "prompts": {
+    "7d6e291c91f001b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "577afdb7-e119-4fec-bea7-6da7f9b294f9",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 245,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    },
+    "e3876ad2a5183f0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbc9f21c-aaf7-42b4-8496-13fbb8491392",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 786,
+      "total_deletions": 418,
+      "accepted_lines": 552,
+      "overriden_lines": 0
+    },
+    "eb1cb8a8e9ab06ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b2f7b81-3ed4-43ad-8c1f-9a643d91121e",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 265,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}

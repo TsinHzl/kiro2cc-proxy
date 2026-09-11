@@ -1061,14 +1061,13 @@ impl BridgeState {
 
 /// 解析截获聚合的 input JSON 中的 `query` 字段（解析失败返回空串，由 MCP 侧报错）
 fn parse_bridge_query(input_json: &str) -> String {
-    serde_json::from_str::<serde_json::Value>(input_json)
-        .ok()
-        .and_then(|v| {
-            v.get("query")
-                .and_then(|q| q.as_str())
-                .map(|s| s.to_string())
-        })
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(input_json) else {
+        return String::new();
+    };
+    v.get("query")
+        .and_then(|q| q.as_str())
         .unwrap_or_default()
+        .to_string()
 }
 
 /// 桥接状态机对单个 Kiro 事件的处理（D4/D8）
@@ -1224,23 +1223,7 @@ fn build_web_search_result_events(
 ) -> Vec<SseEvent> {
     let mut events = Vec::new();
 
-    let search_content = if let Some(results) = search_results {
-        results
-            .results
-            .iter()
-            .map(|r| {
-                json!({
-                    "type": "web_search_result",
-                    "title": r.title,
-                    "url": r.url,
-                    "encrypted_content": r.snippet.clone().unwrap_or_default(),
-                    "page_age": null
-                })
-            })
-            .collect::<Vec<_>>()
-    } else {
-        vec![]
-    };
+    let search_content = search_results_to_json_array(search_results);
 
     let result_idx = ctx.state_manager.next_block_index();
     events.extend(ctx.state_manager.handle_content_block_start(
@@ -1890,25 +1873,25 @@ fn create_sse_stream(
                                     state,
                                     pending,
                                 ));
-                                    return Some((
-                                        stream::iter(Vec::<Result<Bytes, Infallible>>::new()),
-                                        (
-                                            // 耗尽的 body_stream 不再回填：in-flight
-                                            // 期间换入永不就绪占位流，防止 body 分支
-                                            // 以 None 就绪被 select 抢选（flatten 重入
-                                            // 会误走收尾路径丢桥接结果，CRITICAL 修复）
-                                            stream::pending().boxed(),
-                                            ctx,
-                                            decoder,
-                                            false,
-                                            ping_interval,
-                                            deadline,
-                                            bridge,
-                                            Some(round_bridge_ctx),
-                                            provider,
-                                            Some((handle, result_tool_use_id)),
-                                        ),
-                                    ));
+                                return Some((
+                                    stream::iter(Vec::<Result<Bytes, Infallible>>::new()),
+                                    (
+                                        // 耗尽的 body_stream 不再回填：in-flight
+                                        // 期间换入永不就绪占位流，防止 body 分支
+                                        // 以 None 就绪被 select 抢选（flatten 重入
+                                        // 会误走收尾路径丢桥接结果，CRITICAL 修复）
+                                        stream::pending().boxed(),
+                                        ctx,
+                                        decoder,
+                                        false,
+                                        ping_interval,
+                                        deadline,
+                                        bridge,
+                                        Some(round_bridge_ctx),
+                                        provider,
+                                        Some((handle, result_tool_use_id)),
+                                    ),
+                                ));
                                 }
 
                             // 非桥接态（或桥接无待执行搜索）→ 现有收尾路径（零行为变化）
@@ -2069,17 +2052,15 @@ fn non_stream_bridge_step(
     (false, None)
 }
 
-/// 构造非流式 `web_search_tool_result` 可见性块（D5 非流式段，直接组 JSON）
+/// 将 MCP 搜索结果转换为 `web_search_tool_result` 块的 content 数组
 ///
-/// 条目格式与流式 `build_web_search_result_events` 一致：
-/// `{type, title, url, encrypted_content(snippet), page_age}`。
-/// `search_results` 为 None（MCP 失败/解析失败）时 content 为空数组。
-fn build_web_search_result_block(
-    tool_use_id: &str,
+/// 流式 `build_web_search_result_events` 与非流式 `build_web_search_result_block`
+/// 共用的条目构建逻辑：`search_results` 为 None 时返回空数组。
+fn search_results_to_json_array(
     search_results: &Option<websearch::WebSearchResults>,
-) -> serde_json::Value {
-    let content = if let Some(results) = search_results {
-        results
+) -> Vec<serde_json::Value> {
+    match search_results {
+        Some(results) => results
             .results
             .iter()
             .map(|r| {
@@ -2091,10 +2072,21 @@ fn build_web_search_result_block(
                     "page_age": null
                 })
             })
-            .collect::<Vec<_>>()
-    } else {
-        vec![]
-    };
+            .collect(),
+        None => vec![],
+    }
+}
+
+/// 构造非流式 `web_search_tool_result` 可见性块（D5 非流式段，直接组 JSON）
+///
+/// 条目格式与流式 `build_web_search_result_events` 一致：
+/// `{type, title, url, encrypted_content(snippet), page_age}`。
+/// `search_results` 为 None（MCP 失败/解析失败）时 content 为空数组。
+fn build_web_search_result_block(
+    tool_use_id: &str,
+    search_results: &Option<websearch::WebSearchResults>,
+) -> serde_json::Value {
+    let content = search_results_to_json_array(search_results);
 
     json!({
         "type": "web_search_tool_result",

@@ -4,7 +4,9 @@
 use std::convert::Infallible;
 
 use crate::kiro::model::events::Event;
+use crate::kiro::model::requests::conversation::ConversationState;
 use crate::kiro::model::requests::kiro::KiroRequest;
+use crate::kiro::model::requests::tool::ToolResult;
 use crate::kiro::parser::decoder::EventStreamDecoder;
 use crate::kiro::token_manager::QUOTA_EXHAUSTED_ALL_MARKER;
 use crate::token;
@@ -19,6 +21,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{Stream, StreamExt, stream};
 use serde_json::json;
+use std::collections::VecDeque;
 use std::time::Duration;
 use tokio::time::{Instant, interval_at};
 use uuid::Uuid;
@@ -814,6 +817,14 @@ pub async fn post_messages(
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     let is_compact_request = conversion_result.is_compact_request;
 
+    // web_search server tool 桥接上下文（D5/D7：未携带时为 None，零行为变化）
+    // 必须在 KiroRequest 构建（conversation_state 被 move）前构造
+    let bridge_ctx = build_bridge_context(
+        &conversion_result,
+        state.profile_arn.clone(),
+        bound_ids.clone(),
+    );
+
     // 构建 Kiro 请求
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
@@ -907,6 +918,7 @@ pub async fn post_messages(
             client_ip,
             None, // /v1 无全局 deadline（保持现有行为）
             is_compact_request,
+            bridge_ctx,
         )
         .await
     } else {
@@ -926,9 +938,329 @@ pub async fn post_messages(
             fp_tracker,
             fp_profile,
             is_compact_request,
+            bridge_ctx,
         )
         .await
     }
+}
+
+/// web_search server tool 桥接上下文（D5）
+///
+/// 请求命中 web_search server tool（`split_web_search_tool` 返回 Some）时，
+/// `post_messages` / `post_messages_cc` 在构建 KiroRequest 前（conversation_state
+/// 被 move 前）构造本结构，随调用链传入流式/非流式处理函数，供桥接层：
+/// - 基于首次转换的 `conversation_state` clone 演进续请求（D3，conversationId/
+///   agentContinuationId/history 逐字节不变，保 prompt cache）
+/// - 以同参序列化续请求（profile_arn / additional_model_request_fields）
+/// - 计算多轮搜索上限 `min(max_uses, 5)` 并获取 call_api_stream / call_mcp_api
+///   所需的 bound_ids 与上游超时分档（is_compact_request）
+///
+/// `None` 表示请求未携带 web_search server tool，走现有路径，零行为变化。
+#[derive(Debug, Clone)]
+pub(crate) struct BridgeContext {
+    /// 首次转换的 ConversationState clone（多轮桥接的演进基底，D3）
+    pub conversation_state: ConversationState,
+    /// 续请求需要同参序列化
+    pub profile_arn: Option<String>,
+    /// 模型专属请求参数（thinking、output_config、max_tokens）
+    pub additional_model_request_fields: Option<serde_json::Value>,
+    /// server tool 声明的次数上限（未声明时为 None，桥接层兜底 5）
+    pub max_uses: Option<i32>,
+    /// call_api_stream / call_mcp_api 均需要；unfold 闭包作用域内不可得，必须随 BridgeContext 携带
+    pub bound_ids: Vec<u64>,
+    /// 决定续请求的上游超时分档（普通 180s / compact 1000s）
+    pub is_compact_request: bool,
+}
+
+/// 构造桥接上下文（D5/D7）
+///
+/// `split_web_search_tool` 命中（请求携带 web_search server tool）时返回
+/// `Some(BridgeContext)`，未命中返回 `None`。流式/非流式共用同一判定（D7）。
+///
+/// 必须在 KiroRequest 构建（conversation_state 被 move）之前调用。
+fn build_bridge_context(
+    conversion_result: &super::converter::ConversionResult,
+    profile_arn: Option<String>,
+    bound_ids: Vec<u64>,
+) -> Option<BridgeContext> {
+    // 外层 None = 请求未携带 web_search server tool → 不构造桥接上下文
+    let max_uses = conversion_result.web_search_max_uses?;
+    Some(BridgeContext {
+        conversation_state: conversion_result.conversation_state.clone(),
+        profile_arn,
+        additional_model_request_fields: conversion_result.additional_model_request_fields.clone(),
+        max_uses,
+        bound_ids,
+        is_compact_request: conversion_result.is_compact_request,
+    })
+}
+
+/// web_search server tool 桥接状态机（D4 流式段，嵌入 create_sse_stream 的 unfold 状态）
+///
+/// `None`（bridge 整体不存在）= 非桥接请求，全部分支短路，零行为变化。
+#[derive(Debug)]
+struct BridgeState {
+    /// 当前所处阶段
+    phase: BridgePhase,
+    /// 已完成的截获轮数
+    rounds_used: usize,
+    /// 多轮搜索硬上限 `min(max_uses, 5)`（D8）
+    max_rounds: usize,
+    /// 已截获完成、待在流结束后执行的搜索队列（D8：Kiro 流读到自然结束才发起 MCP；
+    /// 队列化支持 Collecting 期间上游连发多次 web_search 的场景，按截获顺序执行）
+    pending: VecDeque<PendingSearch>,
+    /// 多轮桥接的演进基底（D3）：初始为 BridgeContext.conversation_state 的 clone；
+    /// 每轮续请求基于上一轮续请求所用的状态演进，保证 conversationId/
+    /// agentContinuationId/history 跨轮次逐字节不变
+    evolution_base: Option<ConversationState>,
+}
+
+/// 一轮已截获完成、待执行的搜索
+#[derive(Debug)]
+struct PendingSearch {
+    /// Kiro 流中截获的 toolUse id（续请求回填 ToolResult 必须用它，
+    /// 而非 create_mcp_request 返回的 srvtoolu_ id）
+    tool_use_id: String,
+    /// 聚合出的搜索词
+    query: String,
+}
+
+/// 桥接阶段
+#[derive(Debug)]
+enum BridgePhase {
+    /// 正常透传：非 web_search 事件全部走现有 process_kiro_event 路径
+    PassThrough,
+    /// 聚合中：input 分片累积到 `input_buffer`，`stop == true` 时截获完成；
+    /// 不透传为普通 tool_use SSE（客户端看不到裸 tool_use 块）
+    Collecting {
+        tool_use_id: String,
+        input_buffer: String,
+    },
+}
+
+impl BridgeState {
+    /// 创建桥接状态（初始为 PassThrough）
+    ///
+    /// `max_uses` 为 server tool 声明的次数上限（None 时兜底 5），
+    /// 实际上限取 `min(max_uses, 5)`（D8：多轮硬上限 5）。
+    fn new(max_uses: Option<i32>) -> Self {
+        Self {
+            phase: BridgePhase::PassThrough,
+            rounds_used: 0,
+            max_rounds: max_uses.unwrap_or(5).clamp(0, 5) as usize,
+            pending: VecDeque::new(),
+            evolution_base: None,
+        }
+    }
+
+    /// 是否还有剩余截获轮次
+    fn has_remaining_rounds(&self) -> bool {
+        self.rounds_used < self.max_rounds
+    }
+}
+
+/// 解析截获聚合的 input JSON 中的 `query` 字段（解析失败返回空串，由 MCP 侧报错）
+fn parse_bridge_query(input_json: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(input_json)
+        .ok()
+        .and_then(|v| {
+            v.get("query")
+                .and_then(|q| q.as_str())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_default()
+}
+
+/// 桥接状态机对单个 Kiro 事件的处理（D4/D8）
+///
+/// 返回 `(consumed, events)`：
+/// - `consumed == true`：事件被桥接截获，**不**透传给 `process_kiro_event`
+///   （即不产生普通 tool_use SSE）；`events` 为需发给客户端的可见性块
+/// - `consumed == false`：事件按现有路径透传（含 Collecting 期间的
+///   AssistantResponse 说明文字与非目标工具调用）
+///
+/// 计费口径（对齐 `process_tool_use`）：截获的 input 分片同样无条件计入
+/// `output_chars_other`——上游已生成这段内容即已计费；可见性块把 query 回传给了
+/// 客户端，故 `visible_chars_other` 同步累加。
+fn bridge_handle_event(
+    ctx: &mut StreamContext,
+    bridge: &mut Option<BridgeState>,
+    event: &Event,
+) -> (bool, Vec<SseEvent>) {
+    let Some(state) = bridge else {
+        return (false, Vec::new());
+    };
+
+    match &mut state.phase {
+        BridgePhase::Collecting {
+            tool_use_id,
+            input_buffer,
+        } => {
+            if let Event::ToolUse(tu) = event
+                && tu.tool_use_id == *tool_use_id
+            {
+                input_buffer.push_str(&tu.input);
+                if tu.stop {
+                    // 截获完成：解析 query → 发可见性块 → 记录待执行搜索 → 回 PassThrough
+                    let chars = input_buffer.len() as i64;
+                    ctx.output_chars_other += chars;
+                    ctx.visible_chars_other += chars;
+
+                    let query = parse_bridge_query(input_buffer);
+                    let events = build_web_search_visibility_events(ctx, tool_use_id, &query);
+                    state.pending.push_back(PendingSearch {
+                        tool_use_id: tool_use_id.clone(),
+                        query,
+                    });
+
+                    state.phase = BridgePhase::PassThrough;
+                    state.rounds_used += 1;
+                    return (true, events);
+                }
+                return (true, Vec::new());
+            }
+            // Collecting 期间的其他事件（AssistantResponse 说明文字、非目标
+            // ToolUse）正常透传（D8）
+            (false, Vec::new())
+        }
+        BridgePhase::PassThrough => {
+            if let Event::ToolUse(tu) = event
+                && tu.name == "web_search"
+                && state.has_remaining_rounds()
+            {
+                // 轮次未达上限 → 截获，转 Collecting 聚合
+                let id = tu.tool_use_id.clone();
+                state.phase = BridgePhase::Collecting {
+                    tool_use_id: id.clone(),
+                    input_buffer: tu.input.clone(),
+                };
+                // 首个分片即带 stop=true（单事件完整调用）→ 立即完成截获
+                if tu.stop {
+                    let chars = tu.input.len() as i64;
+                    ctx.output_chars_other += chars;
+                    ctx.visible_chars_other += chars;
+
+                    let query = parse_bridge_query(&tu.input);
+                    let events = build_web_search_visibility_events(ctx, &id, &query);
+                    state.pending.push_back(PendingSearch {
+                        tool_use_id: id.clone(),
+                        query,
+                    });
+                    state.phase = BridgePhase::PassThrough;
+                    state.rounds_used += 1;
+                    return (true, events);
+                }
+                return (true, Vec::new());
+            }
+            // 非 web_search，或轮次已耗尽 → 按现有普通 tool_use 逻辑透传（D8）
+            (false, Vec::new())
+        }
+    }
+}
+
+/// 构造截获可见性块：`server_tool_use`（D4 客户端可见性，截获完成时立即发送）
+///
+/// 复用 websearch.rs 拦截式 `generate_websearch_events` 的块格式（②-④ 步），差异：
+/// - 不重发 message_start（主响应的 message_start 已在 initial_events 发出）
+/// - 不发 text 摘要块与 message_delta/message_stop——模型解读与流收尾由
+///   续流轮次与 `generate_final_events` 统一处理
+/// - 块索引经 `state_manager.next_block_index()` 分配（单调延续，不与已有块冲突）
+///
+/// `web_search_tool_result` 块由 `build_web_search_result_events` 在 MCP 调用
+/// 完成后（流自然结束、续请求发起前）携带真实结果发出。
+fn build_web_search_visibility_events(
+    ctx: &mut StreamContext,
+    tool_use_id: &str,
+    query: &str,
+) -> Vec<SseEvent> {
+    let mut events = Vec::new();
+
+    // server_tool_use 块：start + input_json_delta + stop
+    let idx = ctx.state_manager.next_block_index();
+    events.extend(ctx.state_manager.handle_content_block_start(
+        idx,
+        "server_tool_use",
+        json!({
+            "type": "content_block_start",
+            "index": idx,
+            "content_block": {
+                "id": tool_use_id,
+                "type": "server_tool_use",
+                "name": "web_search",
+                "input": {}
+            }
+        }),
+    ));
+    let input_json = json!({ "query": query });
+    if let Some(delta) = ctx.state_manager.handle_content_block_delta(
+        idx,
+        json!({
+            "type": "content_block_delta",
+            "index": idx,
+            "delta": {
+                "type": "input_json_delta",
+                "partial_json": serde_json::to_string(&input_json).unwrap_or_default()
+            }
+        }),
+    ) {
+        events.push(delta);
+    }
+    if let Some(stop) = ctx.state_manager.handle_content_block_stop(idx) {
+        events.push(stop);
+    }
+
+    events
+}
+
+/// 构造 `web_search_tool_result` 可见性块（D4，携带真实 MCP 搜索结果）
+///
+/// 复用 websearch.rs 拦截式 `generate_websearch_events` 的条目格式（⑤-⑥ 步）：
+/// 每条结果为 `{type, title, url, encrypted_content(snippet), page_age}`。
+/// `search_results` 为 None（MCP 失败/解析失败）时 content 为空数组。
+fn build_web_search_result_events(
+    ctx: &mut StreamContext,
+    tool_use_id: &str,
+    search_results: &Option<websearch::WebSearchResults>,
+) -> Vec<SseEvent> {
+    let mut events = Vec::new();
+
+    let search_content = if let Some(results) = search_results {
+        results
+            .results
+            .iter()
+            .map(|r| {
+                json!({
+                    "type": "web_search_result",
+                    "title": r.title,
+                    "url": r.url,
+                    "encrypted_content": r.snippet.clone().unwrap_or_default(),
+                    "page_age": null
+                })
+            })
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
+
+    let result_idx = ctx.state_manager.next_block_index();
+    events.extend(ctx.state_manager.handle_content_block_start(
+        result_idx,
+        "web_search_tool_result",
+        json!({
+            "type": "content_block_start",
+            "index": result_idx,
+            "content_block": {
+                "type": "web_search_tool_result",
+                "tool_use_id": tool_use_id,
+                "content": search_content
+            }
+        }),
+    ));
+    if let Some(stop) = ctx.state_manager.handle_content_block_stop(result_idx) {
+        events.push(stop);
+    }
+
+    events
 }
 
 /// 处理流式请求
@@ -949,6 +1281,8 @@ async fn handle_stream_request(
     stream_deadline: Option<Duration>,
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     is_compact_request: bool,
+    // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
+    bridge_ctx: Option<BridgeContext>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -974,6 +1308,8 @@ async fn handle_stream_request(
         ctx,
         initial_events,
         stream_deadline.map(|d| Instant::now() + d),
+        bridge_ctx,
+        std::sync::Arc::clone(&provider),
     );
 
     // 返回 SSE 响应
@@ -1053,12 +1389,145 @@ fn stream_interrupted_error_event() -> SseEvent {
     )
 }
 
+/// 构建续请求体（D3：手工构建，绕过 validate_tool_pairing）
+///
+/// 基于演进基底 clone（多轮时为上一轮续请求所用状态，首轮为
+/// `BridgeContext.conversation_state`），仅替换 `current_message` 的
+/// `tool_results` 为本轮结果；`conversation_id` / `agent_continuation_id` /
+/// `history` / `agent_task_type` / `chat_trigger_type` 逐字节不变。
+///
+/// MCP 失败（`search_results == None`）→ `ToolResult::error` 降级，
+/// 仍发续请求让模型自行告知用户搜索失败，流不中断。
+///
+/// 每轮续请求回填恰好 1 条 PendingSearch 的结果；多条截获搜索按队列顺序
+/// 在各自续流结束后逐轮 drain（每条一次 MCP 调用 + 一次续请求）。
+fn build_continuation_request(
+    bridge_ctx: &BridgeContext,
+    evolution_base: Option<ConversationState>,
+    tool_results: Vec<ToolResult>,
+) -> KiroRequest {
+    let mut conversation_state =
+        evolution_base.unwrap_or_else(|| bridge_ctx.conversation_state.clone());
+    conversation_state
+        .current_message
+        .user_input_message
+        .user_input_message_context
+        .tool_results = tool_results;
+
+    KiroRequest {
+        conversation_state,
+        profile_arn: bridge_ctx.profile_arn.clone(),
+        additional_model_request_fields: bridge_ctx.additional_model_request_fields.clone(),
+    }
+}
+
+/// 按单条待执行搜索构建其 ToolResult（MCP 成功 → success 摘要；失败 → error 降级）
+fn build_search_tool_result(
+    tool_use_id: &str,
+    query: &str,
+    search_results: &Option<websearch::WebSearchResults>,
+) -> ToolResult {
+    match search_results {
+        Some(_) => ToolResult::success(
+            tool_use_id,
+            websearch::generate_search_summary(query, search_results),
+        ),
+        None => ToolResult::error(
+            tool_use_id,
+            format!("Web search failed for query: {}", query),
+        ),
+    }
+}
+
+/// 执行一轮桥接：MCP 真实搜索 → 构建续请求 → 发起续流（D3/D4/D8）
+///
+/// 在 unfold 的上游 None 分支内调用（Kiro 流已自然结束）。成功时返回
+/// `Some((新响应流, 新解码器, 本轮搜索结果))`——unfold 状态元组的
+/// `body_stream`/`decoder` 被替换为续请求的响应，`ctx`/`bridge` 原样携带，
+/// 对 unfold 而言续流只是"换了一个上游 body 继续 unfold"；搜索结果供调用方
+/// 构建 `web_search_tool_result` 可见性块；`None` 表示续请求发起失败（主流需
+/// 补发 error 事件收尾）。
+///
+/// 流程：
+/// 1. `call_mcp_api` 真实搜索；失败 → `ToolResult::error` 降级，流不中断
+/// 2. 基于演进基底 clone 构建 KiroRequest（仅替换 current_message 的
+///    tool_results，conversationId/agentContinuationId/history 逐字节不变，
+///    绕过 validate_tool_pairing）
+/// 3. `call_api_stream` 续流；失败 → None（调用方 error 事件兜底）
+#[allow(clippy::type_complexity)]
+async fn bridge_execute_round(
+    provider: &crate::kiro::provider::KiroProvider,
+    bridge_ctx: &BridgeContext,
+    bridge: &mut BridgeState,
+    pending: PendingSearch,
+) -> Option<(
+    reqwest::Response,
+    EventStreamDecoder,
+    Option<websearch::WebSearchResults>,
+)> {
+    // 1. MCP 真实搜索（失败降级为 error ToolResult，仍发续请求让模型解读）
+    let (_mcp_tool_use_id, mcp_request) = websearch::create_mcp_request(&pending.query);
+    let search_results =
+        match websearch::call_mcp_api(provider, &mcp_request, &bridge_ctx.bound_ids).await {
+            Ok(response) => websearch::parse_search_results(&response),
+            Err(e) => {
+                tracing::warn!(
+                    tool_use_id = %pending.tool_use_id,
+                    "web_search MCP 调用失败，降级为 error ToolResult: {}",
+                    e
+                );
+                None
+            }
+        };
+
+    // 2. 基于演进基底构建续请求（D3 多轮语义：第 N+1 轮 clone 第 N 轮所用状态）
+    let tool_result =
+        build_search_tool_result(&pending.tool_use_id, &pending.query, &search_results);
+    let kiro_request =
+        build_continuation_request(bridge_ctx, bridge.evolution_base.take(), vec![tool_result]);
+    let request_body = match serde_json::to_string(&kiro_request) {
+        Ok(body) => body,
+        Err(e) => {
+            tracing::error!("web_search 续请求序列化失败: {}", e);
+            // 与 call_api_stream Err 分支对齐：写回取出的演进基底
+            bridge.evolution_base = Some(kiro_request.conversation_state);
+            return None;
+        }
+    };
+
+    // 3. 续流：call_api_stream（换上游 body 继续 unfold，ctx/bridge 原样携带）
+    match provider
+        .call_api_stream(
+            &request_body,
+            bridge_ctx.is_compact_request,
+            &bridge_ctx.bound_ids,
+        )
+        .await
+    {
+        Ok((response, _credential_id)) => {
+            // 演进基底更新为本轮续请求所用的状态（下一轮 clone 它）
+            bridge.evolution_base = Some(kiro_request.conversation_state);
+            Some((response, EventStreamDecoder::new(), search_results))
+        }
+        Err(e) => {
+            tracing::error!("web_search 续请求发起失败: {}", e);
+            // 演进基底保持取出的状态，避免下一轮基于未知状态演进
+            bridge.evolution_base = Some(kiro_request.conversation_state);
+            None
+        }
+    }
+}
+
 /// 创建 SSE 事件流
 fn create_sse_stream(
     response: reqwest::Response,
     ctx: StreamContext,
     initial_events: Vec<SseEvent>,
     deadline: Option<Instant>,
+    // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化；
+    // max_uses 提取为 BridgeState，其余字段由续流逻辑消费）
+    bridge_ctx: Option<BridgeContext>,
+    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     // 先发送初始事件
     let initial_stream = stream::iter(
@@ -1067,12 +1536,22 @@ fn create_sse_stream(
             .map(|e| Ok(Bytes::from(e.to_sse_string()))),
     );
 
+    // 桥接状态（None = 非桥接请求，unfold 内全部分支短路）
+    // 演进基底初始化为 BridgeContext.conversation_state 的 clone（D3）
+    let bridge = bridge_ctx.as_ref().map(|b| BridgeState {
+        evolution_base: Some(b.conversation_state.clone()),
+        ..BridgeState::new(b.max_uses)
+    });
+
     // 然后处理 Kiro 响应流，同时每25秒发送 ping 保活
     let body_stream = response.bytes_stream();
 
+    // bridge_ctx 与 provider Arc 一并放入 unfold 状态元组：闭包为 FnMut + async move，
+    // 环境捕获的 Owned 值无法逐次 move 进 future（E0507/E0373），
+    // 改为状态元组内逐轮移入移出。
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline)| async move {
+        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline, bridge, bridge_ctx, provider),
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline, mut bridge, bridge_ctx, provider)| async move {
             if finished {
                 return None;
             }
@@ -1098,8 +1577,15 @@ fn create_sse_stream(
                                 match result {
                                     Ok(frame) => {
                                         if let Ok(event) = Event::from_frame(frame) {
-                                            let sse_events = ctx.process_kiro_event(&event);
-                                            events.extend(sse_events);
+                                            // 桥接截获优先：web_search toolUse 不透传为
+                                            // 普通 tool_use SSE，改为客户端可见性块（D4/D8）
+                                            let (consumed, mut bridge_events) =
+                                                bridge_handle_event(&mut ctx, &mut bridge, &event);
+                                            if !consumed {
+                                                let sse_events = ctx.process_kiro_event(&event);
+                                                bridge_events.extend(sse_events);
+                                            }
+                                            events.extend(bridge_events);
                                         }
                                     }
                                     Err(e) => {
@@ -1114,7 +1600,7 @@ fn create_sse_stream(
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
 
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider)))
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
@@ -1141,9 +1627,87 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
                         }
                         None => {
+                            // 桥接态（存在待执行搜索）→ 收集本轮可见性事件后按截获
+                            // 顺序逐个执行 MCP 搜索并构建续请求，续流接入同一 unfold
+                            // （body_stream/decoder 替换，ctx/bridge 原样携带，D8）；
+                            // 剩余 pending 在续流自然结束后经本分支继续 drain 执行。
+                            // 最终收尾（generate_final_events 含 message_stop）由
+                            // 桥接在全部轮次结束后统一执行一次。D4：上游错误/空响应
+                            // 兜底不触发续请求（bridge.pending 为空）。
+                            if let Some(state) = bridge.as_mut().filter(|b| !b.pending.is_empty())
+                            {
+                                let pending = state.pending.pop_front().unwrap();
+                                let bridge_ctx = bridge_ctx
+                                    .as_ref()
+                                    .expect("桥接态下 bridge_ctx 必然存在")
+                                    .clone();
+                                let mut out_events = Vec::new();
+                                let result_tool_use_id = pending.tool_use_id.clone();
+
+                                // 续请求续流（MCP 失败已降级为 error ToolResult）
+                                return match bridge_execute_round(
+                                    &provider,
+                                    &bridge_ctx,
+                                    state,
+                                    pending,
+                                )
+                                .await
+                                {
+                                    Some((new_response, new_decoder, search_results)) => {
+                                        // 已截获搜索的结果块：携带真实 MCP 结果发出
+                                        out_events.extend(build_web_search_result_events(
+                                            &mut ctx,
+                                            &result_tool_use_id,
+                                            &search_results,
+                                        ));
+                                        let bytes: Vec<Result<Bytes, Infallible>> = out_events
+                                            .into_iter()
+                                            .map(|e| Ok(Bytes::from(e.to_sse_string())))
+                                            .collect();
+                                        Some((
+                                            stream::iter(bytes),
+                                            (
+                                                new_response.bytes_stream(),
+                                                ctx,
+                                                new_decoder,
+                                                false,
+                                                ping_interval,
+                                                deadline,
+                                                bridge,
+                                                Some(bridge_ctx),
+                                                provider,
+                                            ),
+                                        ))
+                                    }
+                                    None => {
+                                        // Kiro 拒绝续请求 → 主流补发 error 事件后正常收尾
+                                        out_events.push(stream_interrupted_error_event());
+                                        let bytes: Vec<Result<Bytes, Infallible>> = out_events
+                                            .into_iter()
+                                            .map(|e| Ok(Bytes::from(e.to_sse_string())))
+                                            .collect();
+                                        Some((
+                                            stream::iter(bytes),
+                                            (
+                                                body_stream,
+                                                ctx,
+                                                decoder,
+                                                true,
+                                                ping_interval,
+                                                deadline,
+                                                bridge,
+                                                Some(bridge_ctx),
+                                                provider,
+                                            ),
+                                        ))
+                                    }
+                                };
+                            }
+
+                            // 非桥接态（或桥接无待执行搜索）→ 现有收尾路径（零行为变化）
                             let mut out_events = Vec::new();
                             if ctx.is_empty_response() {
                                 let oversized = ctx.empty_response_is_oversized_context();
@@ -1164,7 +1728,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
                         }
                     }
                 }
@@ -1172,7 +1736,7 @@ fn create_sse_stream(
                 _ = ping_interval.tick() => {
                     tracing::trace!("发送 ping 保活事件");
                     let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline)))
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider)))
                 }
                 // 全局 deadline：防止上游挂起导致请求永不结束（deadline 为 None 时永不就绪）
                 _ = wait_deadline(deadline) => {
@@ -1185,7 +1749,7 @@ fn create_sse_stream(
                         }
                     }));
                     let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline)))
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
                 }
             }
         },
@@ -1235,6 +1799,97 @@ fn build_non_stream_content(
     (content, thinking_only)
 }
 
+/// 非流式桥接的单步状态转移（D4 非流式段）
+///
+/// 与流式 `bridge_handle_event` 的语义对齐，返回 `(intercepted, completed)`：
+/// - `intercepted = true`：该 toolUse 被桥接截获，调用方不得再按普通 tool_use 处理
+///   （不置 has_tool_use、不 push tool_uses，避免 stop_reason 误覆盖）
+/// - `completed = Some(PendingSearch)`：本次 toolUse.stop 使截获完成，query 已解析，
+///   调用方在事件循环读取完毕后统一执行 MCP → 续请求
+///
+/// `rounds_used >= max_rounds`（轮次耗尽）或 `max_rounds == 0`（非桥接请求）时
+/// 不截获，web_search toolUse 按普通路径透传（D8）。
+fn non_stream_bridge_step(
+    collecting: &mut Option<(String, String)>,
+    rounds_used: usize,
+    max_rounds: usize,
+    tu: &crate::kiro::model::events::ToolUseEvent,
+) -> (bool, Option<PendingSearch>) {
+    // 已在聚合中：继续累积（无论是否 web_search 名称，按 tool_use_id 归属判定）
+    if let Some((id, buffer)) = collecting.as_mut() {
+        if tu.tool_use_id == *id {
+            buffer.push_str(&tu.input);
+            if tu.stop {
+                let (id, buf) = collecting.take().expect("collecting 已判定存在");
+                let query = parse_bridge_query(&buf);
+                return (
+                    true,
+                    Some(PendingSearch {
+                        tool_use_id: id,
+                        query,
+                    }),
+                );
+            }
+            return (true, None);
+        }
+        // 其他工具的事件不干扰当前聚合
+        return (false, None);
+    }
+
+    // 新的 web_search toolUse 且轮次未达上限 → 开始截获
+    if tu.name == "web_search" && rounds_used < max_rounds {
+        if tu.stop {
+            // 单事件完整调用，直接完成截获
+            let query = parse_bridge_query(&tu.input);
+            return (
+                true,
+                Some(PendingSearch {
+                    tool_use_id: tu.tool_use_id.clone(),
+                    query,
+                }),
+            );
+        }
+        *collecting = Some((tu.tool_use_id.clone(), tu.input.clone()));
+        return (true, None);
+    }
+
+    (false, None)
+}
+
+/// 构造非流式 `web_search_tool_result` 可见性块（D5 非流式段，直接组 JSON）
+///
+/// 条目格式与流式 `build_web_search_result_events` 一致：
+/// `{type, title, url, encrypted_content(snippet), page_age}`。
+/// `search_results` 为 None（MCP 失败/解析失败）时 content 为空数组。
+fn build_web_search_result_block(
+    tool_use_id: &str,
+    search_results: &Option<websearch::WebSearchResults>,
+) -> serde_json::Value {
+    let content = if let Some(results) = search_results {
+        results
+            .results
+            .iter()
+            .map(|r| {
+                json!({
+                    "type": "web_search_result",
+                    "title": r.title,
+                    "url": r.url,
+                    "encrypted_content": r.snippet.clone().unwrap_or_default(),
+                    "page_age": null
+                })
+            })
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
+
+    json!({
+        "type": "web_search_tool_result",
+        "tool_use_id": tool_use_id,
+        "content": content
+    })
+}
+
 /// 处理非流式请求
 #[allow(clippy::too_many_arguments)]
 async fn handle_non_stream_request(
@@ -1253,6 +1908,8 @@ async fn handle_non_stream_request(
     fp_profile: Option<Vec<crate::cache::fingerprint::ContentSegment>>,
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     is_compact_request: bool,
+    // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
+    bridge_ctx: Option<BridgeContext>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -1279,12 +1936,7 @@ async fn handle_non_stream_request(
         }
     };
 
-    // 解析事件流
-    let mut decoder = EventStreamDecoder::new();
-    if let Err(e) = decoder.feed(&body_bytes) {
-        tracing::warn!("缓冲区溢出: {}", e);
-    }
-
+    // ---- 事件收集状态（首次请求与每轮续请求共用）----
     let mut text_content = String::new();
     let mut tool_uses: Vec<serde_json::Value> = Vec::new();
     let mut has_tool_use = false;
@@ -1299,73 +1951,207 @@ async fn handle_non_stream_request(
     let mut tool_json_buffers: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
 
-    for result in decoder.decode_iter() {
-        match result {
-            Ok(frame) => {
-                if let Ok(event) = Event::from_frame(frame) {
-                    match event {
-                        Event::AssistantResponse(resp) => {
-                            text_content.push_str(&resp.content);
-                        }
-                        Event::ToolUse(tool_use) => {
-                            has_tool_use = true;
+    // ---- web_search 非流式桥接状态（D4 非流式段 / D5）----
+    // 多轮上限 min(max_uses, 5)（D8）；bridge_ctx 为 None 时 max_rounds = 0，
+    // 截获分支短路，非桥接请求零行为变化
+    let max_rounds = bridge_ctx
+        .as_ref()
+        .map(|ctx| ctx.max_uses.unwrap_or(5).clamp(0, 5) as usize)
+        .unwrap_or(0);
+    let mut rounds_used: usize = 0;
+    // 已截获完成、待执行的搜索队列（每轮事件读取完毕后按截获顺序逐个执行
+    // MCP → 续请求；Collecting 期间上游连发多次 web_search 时不丢失）
+    let mut pending_search: VecDeque<PendingSearch> = VecDeque::new();
+    // 正在聚合 input 分片的 web_search toolUse（(tool_use_id, buffer)）
+    let mut collecting: Option<(String, String)> = None;
+    // 多轮桥接的演进基底（D3：每轮续请求基于上一轮续请求所用状态演进）
+    let mut evolution_base: Option<ConversationState> = None;
+    // 客户端可见性块（D5 非流式顺序：server_tool_use → web_search_tool_result
+    // 逐轮交错，前置于 thinking/text/tool_use，无裸 tool_use 块）
+    let mut visibility_blocks: Vec<serde_json::Value> = Vec::new();
+    // 截获的 web_search input 字符累计（S2 计费口径对齐流式 bridge_handle_event：
+    // 上游已生成分片即已计费；每轮所有 intercepted 事件的 input 均属截获调用）
+    let mut intercepted_input_chars: i64 = 0;
 
-                            // 累积工具的 JSON 输入
-                            let buffer = tool_json_buffers
-                                .entry(tool_use.tool_use_id.clone())
-                                .or_default();
-                            buffer.push_str(&tool_use.input);
+    let mut body_bytes = body_bytes;
+    'rounds: loop {
+        // 解析事件流（首次请求与每轮续请求共用同一套收集逻辑）
+        let mut decoder = EventStreamDecoder::new();
+        if let Err(e) = decoder.feed(&body_bytes) {
+            tracing::warn!("缓冲区溢出: {}", e);
+        }
 
-                            // 如果是完整的工具调用，添加到列表
-                            if tool_use.stop {
-                                let input: serde_json::Value = if buffer.is_empty() {
-                                    serde_json::json!({})
-                                } else {
-                                    serde_json::from_str(buffer).unwrap_or_else(|e| {
-                                        tracing::warn!(
-                                            "工具输入 JSON 解析失败: {}, tool_use_id: {}",
-                                            e,
-                                            tool_use.tool_use_id
-                                        );
+        for result in decoder.decode_iter() {
+            match result {
+                Ok(frame) => {
+                    if let Ok(event) = Event::from_frame(frame) {
+                        match event {
+                            Event::AssistantResponse(resp) => {
+                                text_content.push_str(&resp.content);
+                            }
+                            Event::ToolUse(tool_use) => {
+                                // 桥接截获（D4 非流式段）：轮次未达上限的
+                                // web_search toolUse 聚合分片，不解析为普通
+                                // tool_use 块（不置 has_tool_use，避免
+                                // stop_reason 误覆盖）；轮次耗尽按普通路径透传
+                                let (intercepted, completed) = non_stream_bridge_step(
+                                    &mut collecting,
+                                    rounds_used,
+                                    max_rounds,
+                                    &tool_use,
+                                );
+                                if intercepted {
+                                    // 计费口径（S2，对齐流式 bridge_handle_event 与
+                                    // process_tool_use）：截获调用的全部分片 input
+                                    // 无条件计入——上游已生成即已计费
+                                    intercepted_input_chars += tool_use.input.len() as i64;
+                                    if let Some(pending) = completed {
+                                        visibility_blocks.push(json!({
+                                            "type": "server_tool_use",
+                                            "id": pending.tool_use_id.clone(),
+                                            "name": "web_search",
+                                            "input": { "query": pending.query.clone() }
+                                        }));
+                                        pending_search.push_back(pending);
+                                        rounds_used += 1;
+                                    }
+                                    continue;
+                                }
+
+                                has_tool_use = true;
+
+                                // 累积工具的 JSON 输入
+                                let buffer = tool_json_buffers
+                                    .entry(tool_use.tool_use_id.clone())
+                                    .or_default();
+                                buffer.push_str(&tool_use.input);
+
+                                // 如果是完整的工具调用，添加到列表
+                                if tool_use.stop {
+                                    let input: serde_json::Value = if buffer.is_empty() {
                                         serde_json::json!({})
-                                    })
-                                };
+                                    } else {
+                                        serde_json::from_str(buffer).unwrap_or_else(|e| {
+                                            tracing::warn!(
+                                                "工具输入 JSON 解析失败: {}, tool_use_id: {}",
+                                                e,
+                                                tool_use.tool_use_id
+                                            );
+                                            serde_json::json!({})
+                                        })
+                                    };
 
-                                tool_uses.push(json!({
-                                    "type": "tool_use",
-                                    "id": tool_use.tool_use_id,
-                                    "name": tool_use.name,
-                                    "input": input
-                                }));
+                                    tool_uses.push(json!({
+                                        "type": "tool_use",
+                                        "id": tool_use.tool_use_id,
+                                        "name": tool_use.name,
+                                        "input": input
+                                    }));
+                                }
                             }
-                        }
-                        Event::ContextUsage(context_usage) => {
-                            // contextUsage 本地化：弃用 percentage × window 反算，
-                            // 仅保留 100% 触发 stop_reason 兜底
-                            if context_usage.context_usage_percentage >= 100.0 {
-                                stop_reason = "model_context_window_exceeded".to_string();
+                            Event::ContextUsage(context_usage) => {
+                                // contextUsage 本地化：弃用 percentage × window 反算，
+                                // 仅保留 100% 触发 stop_reason 兜底
+                                if context_usage.context_usage_percentage >= 100.0 {
+                                    stop_reason = "model_context_window_exceeded".to_string();
+                                }
+                                tracing::debug!(
+                                    "[deprecated] contextUsageEvent: {:.2}% (仅记录, 不参与 input_tokens 反算)",
+                                    context_usage.context_usage_percentage,
+                                );
                             }
-                            tracing::debug!(
-                                "[deprecated] contextUsageEvent: {:.2}% (仅记录, 不参与 input_tokens 反算)",
-                                context_usage.context_usage_percentage,
-                            );
+                            Event::Metering(metering) => {
+                                metering_cache_read_tokens = metering.cache_read_input_tokens;
+                                metering_cache_creation_tokens =
+                                    metering.cache_creation_input_tokens;
+                                metering_usage = Some(metering.usage);
+                            }
+                            Event::Exception { exception_type, .. }
+                                if exception_type == "ContentLengthExceededException" =>
+                            {
+                                stop_reason = "max_tokens".to_string();
+                            }
+                            _ => {}
                         }
-                        Event::Metering(metering) => {
-                            metering_cache_read_tokens = metering.cache_read_input_tokens;
-                            metering_cache_creation_tokens = metering.cache_creation_input_tokens;
-                            metering_usage = Some(metering.usage);
-                        }
-                        Event::Exception { exception_type, .. }
-                            if exception_type == "ContentLengthExceededException" =>
-                        {
-                            stop_reason = "max_tokens".to_string();
-                        }
-                        _ => {}
                     }
                 }
+                Err(e) => {
+                    tracing::warn!("解码事件失败: {}", e);
+                }
+            }
+        }
+
+        // 事件读取完毕：无待执行搜索 → 全部轮次结束，退出收集循环
+        // （thinking 剥离与 JSON 组装在循环后统一进行，见下方）
+        let Some(pending) = pending_search.pop_front() else {
+            break 'rounds;
+        };
+        let Some(ctx) = bridge_ctx.as_ref() else {
+            break 'rounds;
+        };
+
+        // 1. MCP 真实搜索（失败降级 error ToolResult，仍发续请求让模型解读）
+        let (_mcp_tool_use_id, mcp_request) = websearch::create_mcp_request(&pending.query);
+        let search_results =
+            match websearch::call_mcp_api(&provider, &mcp_request, &ctx.bound_ids).await {
+                Ok(resp) => websearch::parse_search_results(&resp),
+                Err(e) => {
+                    tracing::warn!(
+                        tool_use_id = %pending.tool_use_id,
+                        "web_search MCP 调用失败，降级为 error ToolResult: {}",
+                        e
+                    );
+                    None
+                }
+            };
+        // web_search_tool_result 可见性块（MCP 完成后携带真实结果；失败为空数组）
+        visibility_blocks.push(build_web_search_result_block(
+            &pending.tool_use_id,
+            &search_results,
+        ));
+
+        // 2. 构建续请求（D3：仅替换 current_message.tool_results，
+        //    conversationId/agentContinuationId/history 逐字节不变）
+        let tool_result =
+            build_search_tool_result(&pending.tool_use_id, &pending.query, &search_results);
+        let kiro_request =
+            build_continuation_request(ctx, evolution_base.take(), vec![tool_result]);
+        let request_body = match serde_json::to_string(&kiro_request) {
+            Ok(body) => body,
+            Err(e) => {
+                tracing::error!("web_search 续请求序列化失败: {}", e);
+                return map_provider_error_with_context(
+                    anyhow::anyhow!("web_search 续请求序列化失败: {}", e),
+                    model,
+                    input_tokens,
+                );
+            }
+        };
+
+        // 3. 续请求：响应体继续进入同一收集循环（多轮在同一 loop 内演进）
+        match provider
+            .call_api(&request_body, ctx.is_compact_request, &ctx.bound_ids)
+            .await
+        {
+            Ok((resp, _credential_id)) => {
+                // 演进基底更新为本轮续请求所用状态（下一轮基于它演进）
+                evolution_base = Some(kiro_request.conversation_state);
+                body_bytes = match resp.bytes().await {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
+                        tracing::error!("读取 web_search 续请求响应体失败: {}", e);
+                        return map_provider_error_with_context(
+                            anyhow::anyhow!("读取续请求响应失败: {}", e),
+                            model,
+                            input_tokens,
+                        );
+                    }
+                };
             }
             Err(e) => {
-                tracing::warn!("解码事件失败: {}", e);
+                tracing::error!("web_search 续请求发起失败: {}", e);
+                // 直接按错误路径收尾，无需写回演进基底（后续无再轮）
+                return map_provider_error_with_context(e, model, input_tokens);
             }
         }
     }
@@ -1409,17 +2195,32 @@ async fn handle_non_stream_request(
     }
 
     // 构建响应内容
-    let (content, thinking_only) =
+    let (mut content, thinking_only) =
         build_non_stream_content(&thinking_content, &text_content, tool_uses);
+
+    // 估算输出 tokens——必须先于可见性块拼接（H2）：server_tool_use /
+    // web_search_tool_result 是桥接可见性元数据，不代表模型真实输出量。
+    // 截获的 web_search input 单独叠加（S2，对齐流式 output_chars_other 口径）：
+    // 上游已生成这段内容即已计费，但可见性元数据本身不计入
+    let mut output_tokens = token::estimate_output_tokens(&content);
+    if intercepted_input_chars > 0 {
+        // 与流式同口径（非中文桶 `(chars+3)/4`，见 tokens_from_chars）
+        output_tokens += ((intercepted_input_chars + 3) / 4) as i32;
+    }
+
+    // web_search 桥接可见性块前置于 thinking/text/tool_use（D5 非流式顺序：
+    // server_tool_use → web_search_tool_result 逐轮交错在前，无裸 tool_use 块）
+    if !visibility_blocks.is_empty() {
+        let mut with_visibility = visibility_blocks;
+        with_visibility.append(&mut content);
+        content = with_visibility;
+    }
 
     // 退化响应（只有 thinking）与流式路径对齐报 max_tokens；但绝不覆盖 tool_use ——
     // 那会让客户端只渲染工具块而不执行（见上方 [TOOLUSE-DIAG] 注释）。
     if thinking_only && !has_tool_use {
         stop_reason = "max_tokens".to_string();
     }
-
-    // 估算输出 tokens
-    let output_tokens = token::estimate_output_tokens(&content);
 
     // contextUsage 本地化后 input_tokens 来源优先级：metering 真值 → 本地 count_all_tokens 估算
     // `context_input_tokens` 已弃用（始终为 None），保留参数仅供 cap_input_tokens 签名兼容
@@ -1771,6 +2572,14 @@ pub async fn post_messages_cc(
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     let is_compact_request = conversion_result.is_compact_request;
 
+    // web_search server tool 桥接上下文（D5/D7：未携带时为 None，零行为变化）
+    // 必须在 KiroRequest 构建（conversation_state 被 move）前构造
+    let bridge_ctx = build_bridge_context(
+        &conversion_result,
+        state.profile_arn.clone(),
+        bound_ids.clone(),
+    );
+
     // 构建 Kiro 请求
     let kiro_request = KiroRequest {
         conversation_state: conversion_result.conversation_state,
@@ -1864,6 +2673,7 @@ pub async fn post_messages_cc(
             client_ip,
             Some(Duration::from_secs(300)),
             is_compact_request,
+            bridge_ctx,
         )
         .await
     } else {
@@ -1883,6 +2693,7 @@ pub async fn post_messages_cc(
             fp_tracker,
             fp_profile,
             is_compact_request,
+            bridge_ctx,
         )
         .await
     }
@@ -2335,5 +3146,778 @@ mod tests {
     fn test_resolve_thinking_enabled_luna_without_thinking_request() {
         // luna 且客户端未请求 thinking：本就应为 false，确认无 panic 且结果正确。
         assert!(!resolve_thinking_enabled("gpt-5.6-luna", &None));
+    }
+
+    // ---- build_bridge_context 构造条件（任务 2 单测，D5/D7）----
+
+    use crate::anthropic::converter as converter_mod;
+
+    /// 构造只携带一条 user 消息的最小 MessagesRequest（tools 可选）
+    fn bridge_test_request(
+        tools: Option<Vec<super::super::types::Tool>>,
+    ) -> super::super::types::MessagesRequest {
+        super::super::types::MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![super::super::types::Message {
+                role: "user".to_string(),
+                content: serde_json::json!("搜索一下今天的新闻"),
+            }],
+            stream: false,
+            system: None,
+            tools,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        }
+    }
+
+    fn ws_tool_for_bridge(
+        tool_type: Option<&str>,
+        name: &str,
+        max_uses: Option<i32>,
+    ) -> super::super::types::Tool {
+        super::super::types::Tool {
+            tool_type: tool_type.map(|s| s.to_string()),
+            name: name.to_string(),
+            description: String::new(),
+            input_schema: Default::default(),
+            max_uses,
+            defer_loading: None,
+        }
+    }
+
+    #[test]
+    fn test_build_bridge_context_hit_constructs() {
+        // 携带 web_search server tool → Some(BridgeContext)，字段取自 conversion_result
+        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(
+            Some("web_search_20250305"),
+            "web_search",
+            Some(3),
+        )]));
+        let conversion = converter_mod::convert_request(&req).unwrap();
+
+        let ctx = build_bridge_context(&conversion, Some("arn:test".to_string()), vec![1, 2]);
+        let ctx = ctx.expect("命中 server tool 应构造 BridgeContext");
+        assert_eq!(ctx.max_uses, Some(3));
+        assert_eq!(ctx.profile_arn, Some("arn:test".to_string()));
+        assert_eq!(ctx.bound_ids, vec![1, 2]);
+        assert_eq!(ctx.is_compact_request, conversion.is_compact_request);
+        // conversation_state 是首次转换结果的 clone（D3 演进基底）
+        assert_eq!(
+            serde_json::to_string(&ctx.conversation_state).unwrap(),
+            serde_json::to_string(&conversion.conversation_state).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_build_bridge_context_no_hit_returns_none() {
+        // 未携带 web_search server tool → None（零行为变化路径）
+        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(None, "Read", None)]));
+        let conversion = converter_mod::convert_request(&req).unwrap();
+
+        assert!(build_bridge_context(&conversion, None, Vec::new()).is_none());
+    }
+
+    #[test]
+    fn test_build_bridge_context_hit_without_max_uses_still_constructs() {
+        // 命中但未声明 max_uses（内层 None）→ 仍构造，max_uses 为 None（上限由桥接层兜底 5）
+        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(
+            Some("web_search_20250305"),
+            "web_search",
+            None,
+        )]));
+        let conversion = converter_mod::convert_request(&req).unwrap();
+
+        let ctx = build_bridge_context(&conversion, None, Vec::new())
+            .expect("命中但未声明 max_uses 仍应构造");
+        assert_eq!(ctx.max_uses, None);
+    }
+
+    #[test]
+    fn test_build_bridge_context_mixed_list_hit() {
+        // 混合工具列表（普通工具 + web_search server tool）→ 命中构造；
+        // 且构造条件与 stream 无关（D7：流式/非流式共用同一判定，构造函数不接收 stream 字段）
+        let req = bridge_test_request(Some(vec![
+            ws_tool_for_bridge(None, "Bash", None),
+            ws_tool_for_bridge(Some("web_search_20250305"), "web_search", Some(5)),
+        ]));
+        let conversion = converter_mod::convert_request(&req).unwrap();
+
+        let ctx = build_bridge_context(&conversion, None, Vec::new())
+            .expect("混合列表命中 server tool 应构造");
+        assert_eq!(ctx.max_uses, Some(5));
+
+        // 对照：同一请求 stream=true 的转换结果构造条件一致
+        let mut req_stream = req;
+        req_stream.stream = true;
+        let conversion_stream = converter_mod::convert_request(&req_stream).unwrap();
+        assert!(build_bridge_context(&conversion_stream, None, Vec::new()).is_some());
+    }
+
+    // ---- 桥接状态机截获与聚合（任务 3 单测，D4/D8）----
+
+    use crate::kiro::model::events::Event;
+    use crate::kiro::model::events::ToolUseEvent;
+    use crate::kiro::model::requests::conversation::Message;
+
+    /// 构造最小 StreamContext（thinking 关闭；字段无外部依赖）
+    fn bridge_stream_context() -> StreamContext {
+        StreamContext::new_with_thinking("claude-sonnet-4", 1000, false)
+    }
+
+    /// 构造 Kiro ToolUse 事件
+    fn tool_use_event(name: &str, id: &str, input: &str, stop: bool) -> Event {
+        Event::ToolUse(ToolUseEvent {
+            name: name.to_string(),
+            tool_use_id: id.to_string(),
+            input: input.to_string(),
+            stop,
+        })
+    }
+
+    #[test]
+    fn test_bridge_input_fragments_aggregated() {
+        // 分片到达（stop=false）→ Collecting 聚合，不透传也不发块；
+        // stop=true → 截获完成，发 server_tool_use + web_search_tool_result 可见性块
+        let mut ctx = bridge_stream_context();
+        let mut bridge = Some(BridgeState::new(Some(3)));
+
+        // 分片 1：不透传、无可见性块
+        let (consumed, events) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"que"#, false),
+        );
+        assert!(consumed, "web_search toolUse 分片应被截获");
+        assert!(events.is_empty(), "聚合期间不应发任何 SSE 块");
+        assert!(matches!(
+            bridge.as_ref().unwrap().phase,
+            BridgePhase::Collecting { .. }
+        ));
+
+        // 分片 2 + stop：截获完成，发出可见性块
+        let (consumed, events) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"ry":"rust programming"}"#, true),
+        );
+        assert!(consumed, "stop 分片仍属于同一 toolUse，应被截获");
+        // 截获完成只发 server_tool_use(start/delta/stop) 共 3 个事件；
+        // web_search_tool_result 结果块由续流阶段（unfold None 分支）携带真实 MCP 结果发出
+        assert_eq!(
+            events.len(),
+            3,
+            "应发出 server_tool_use(start/delta/stop) 共 3 个事件"
+        );
+        let types: Vec<&str> = events.iter().map(|e| e.event.as_str()).collect();
+        assert!(
+            types.contains(&"content_block_start"),
+            "应含 content_block_start"
+        );
+        assert!(
+            types.contains(&"content_block_stop"),
+            "应含 content_block_stop"
+        );
+        // 回到 PassThrough 且轮次计数 +1
+        assert!(matches!(
+            bridge.as_ref().unwrap().phase,
+            BridgePhase::PassThrough
+        ));
+        assert_eq!(bridge.as_ref().unwrap().rounds_used, 1);
+    }
+
+    #[test]
+    fn test_bridge_non_target_tool_passthrough() {
+        // 非目标工具（Read）与 Collecting 期间的 AssistantResponse 均正常透传（D8）
+        let mut ctx = bridge_stream_context();
+        let mut bridge = Some(BridgeState::new(Some(3)));
+
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("Read", "tu0", r#"{"file_path":"a.rs"}"#, true),
+        );
+        assert!(!consumed, "非 web_search 工具应走现有透传路径");
+        // 透传 SSE 由 unfold 调用方调用 process_kiro_event 产生（bridge_handle_event 返回空 Vec）
+        let sse = ctx.process_kiro_event(&tool_use_event(
+            "Read",
+            "tu0",
+            r#"{"file_path":"a.rs"}"#,
+            true,
+        ));
+        assert!(
+            !sse.is_empty(),
+            "透传时 process_kiro_event 应产生 tool_use SSE"
+        );
+        assert!(matches!(
+            bridge.as_ref().unwrap().phase,
+            BridgePhase::PassThrough
+        ));
+        // 透传路径应分配 tool_use 块
+        assert!(
+            !ctx.tool_block_indices.is_empty(),
+            "透传应分配 tool_use 块索引"
+        );
+
+        // 进入 Collecting 后，AssistantResponse 说明文字仍透传
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"q"#, false),
+        );
+        assert!(consumed);
+        // extra 字段私有，走 serde 反序列化构造
+        let resp: crate::kiro::model::events::AssistantResponseEvent =
+            serde_json::from_str(r#"{"content":"让我搜索一下"}"#).unwrap();
+        let resp_event = Event::AssistantResponse(resp);
+        let (consumed, _) = bridge_handle_event(&mut ctx, &mut bridge, &resp_event);
+        assert!(!consumed, "Collecting 期间 AssistantResponse 应透传");
+        let sse = ctx.process_kiro_event(&resp_event);
+        assert!(!sse.is_empty(), "AssistantResponse 透传应产生 text SSE");
+    }
+
+    #[test]
+    fn test_bridge_no_tool_use_sse_leak() {
+        // 截获的 web_search 不产生普通 tool_use 块：state_manager 未分配 tool_use 块，
+        // 客户端可见的是 server_tool_use 块（索引由 next_block_index 单调分配）
+        let mut ctx = bridge_stream_context();
+        let mut bridge = Some(BridgeState::new(None));
+
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"query":"rust"}"#, true),
+        );
+        assert!(consumed);
+        assert!(
+            ctx.tool_block_indices.is_empty(),
+            "截获路径不得分配普通 tool_use 块索引"
+        );
+        // 截获完成时 server_tool_use 块消耗了 1 个块索引；
+        // web_search_tool_result 结果块由续流阶段发出（届时再消耗 1 个）
+        let next = ctx.state_manager.next_block_index();
+        assert!(
+            next >= 1,
+            "server_tool_use 块应已占用至少 1 个块索引，实际 next={next}"
+        );
+        // max_uses 未声明（内层 None）时兜底上限 5
+        assert_eq!(bridge.as_ref().unwrap().max_rounds, 5);
+    }
+
+    #[test]
+    fn test_bridge_rounds_exhausted_passthrough() {
+        // 轮次耗尽后 web_search 不再截获，按普通 tool_use 透传（D8 上限语义）
+        let mut ctx = bridge_stream_context();
+        // 上限 0（max_uses=0 时 clamp 到 0）
+        let mut bridge = Some(BridgeState::new(Some(0)));
+
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"query":"x"}"#, true),
+        );
+        assert!(!consumed, "轮次耗尽后应透传为普通 tool_use");
+        // 透传 SSE 由 unfold 调用方调用 process_kiro_event 产生
+        ctx.process_kiro_event(&tool_use_event(
+            "web_search",
+            "tu1",
+            r#"{"query":"x"}"#,
+            true,
+        ));
+        assert!(
+            !ctx.tool_block_indices.is_empty(),
+            "透传路径应分配普通 tool_use 块"
+        );
+    }
+
+    // ---- 续请求体构建（任务 4 单测，D3）----
+
+    /// 构造测试用 BridgeContext（conversation_state 带完整字段供不变量断言）
+    fn bridge_ctx_for_continuation() -> BridgeContext {
+        let mut state = ConversationState::new("conv-123");
+        state.agent_continuation_id = Some("cont-456".to_string());
+        state.agent_task_type = Some("vibe".to_string());
+        state.chat_trigger_type = Some("MANUAL".to_string());
+        state.current_message.user_input_message.content = "搜索一下今天的新闻".to_string();
+        state.history = vec![
+            Message::user("历史用户消息", "claude-sonnet-4"),
+            Message::assistant("历史助手回复"),
+        ];
+        BridgeContext {
+            conversation_state: state,
+            profile_arn: Some("arn:test".to_string()),
+            additional_model_request_fields: Some(serde_json::json!({"max_tokens": 1024})),
+            max_uses: Some(3),
+            bound_ids: vec![1],
+            is_compact_request: false,
+        }
+    }
+
+    fn sample_search_results() -> websearch::WebSearchResults {
+        websearch::WebSearchResults {
+            results: vec![websearch::WebSearchResult {
+                title: "Rust 官方文档".to_string(),
+                url: "https://doc.rust-lang.org".to_string(),
+                snippet: Some("The Rust programming language".to_string()),
+                published_date: None,
+                id: None,
+                domain: None,
+                max_verbatim_word_limit: None,
+                public_domain: None,
+            }],
+            total_results: Some(1),
+            query: Some("rust".to_string()),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn test_continuation_request_invariants() {
+        // 续请求体不变量（D3）：conversationId/agentContinuationId/agentTaskType/
+        // chatTriggerType/history 逐字节不变；仅 current_message.tool_results 回填，
+        // toolUseId 用 Kiro 流截获的 tu.tool_use_id（非 create_mcp_request 的 srvtoolu_ id）
+        let ctx = bridge_ctx_for_continuation();
+        let baseline = serde_json::to_string(&ctx.conversation_state).unwrap();
+        let results = sample_search_results();
+
+        let tool_result = build_search_tool_result("tu-kiro-new-1", "rust", &Some(results));
+        let kiro_request = build_continuation_request(
+            &ctx,
+            Some(ctx.conversation_state.clone()),
+            vec![tool_result],
+        );
+        let body = serde_json::to_string(&kiro_request.conversation_state).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&body).unwrap();
+
+        // 不变量字段逐字节一致
+        assert!(
+            value["conversationId"]
+                .as_str()
+                .unwrap()
+                .contains("conv-123")
+        );
+        assert_eq!(value["agentContinuationId"], serde_json::json!("cont-456"));
+        assert_eq!(value["agentTaskType"], serde_json::json!("vibe"));
+        assert_eq!(value["chatTriggerType"], serde_json::json!("MANUAL"));
+        assert_eq!(
+            value["history"],
+            serde_json::to_value(&ctx.conversation_state.history).unwrap(),
+            "history 必须逐字节不变"
+        );
+        // current_message 的 content 不变，tool_results 回填为 1 条
+        assert_eq!(
+            value["currentMessage"]["userInputMessage"]["content"],
+            serde_json::json!("搜索一下今天的新闻")
+        );
+        let tool_results =
+            &value["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
+        assert_eq!(tool_results.as_array().unwrap().len(), 1);
+        assert_eq!(
+            tool_results[0]["toolUseId"],
+            serde_json::json!("tu-kiro-new-1")
+        );
+        assert_eq!(tool_results[0]["status"], serde_json::json!("success"));
+        // is_error=false 时被 is_false 跳过序列化，出现即为缺陷
+        assert!(
+            tool_results[0].get("isError").is_none(),
+            "success 路径不应序列化 isError"
+        );
+        // 回填只改 tool_results，其余部分与基底完全一致
+        assert_ne!(body, baseline, "tool_results 回填后应与基底不同");
+        // profile_arn / additional_model_request_fields 同参序列化
+        assert_eq!(
+            serde_json::to_string(&kiro_request.profile_arn).unwrap(),
+            serde_json::to_string(&Some("arn:test".to_string())).unwrap()
+        );
+        assert!(kiro_request.additional_model_request_fields.is_some());
+    }
+
+    #[test]
+    fn test_continuation_request_multiround_evolution() {
+        // 多轮演进语义（D3）：第 2 轮续请求基于第 1 轮所用状态演进（bridge_execute_round
+        // 把本轮 kiro_request.conversation_state 写回 evolution_base），history 仍逐字节不变
+        let ctx = bridge_ctx_for_continuation();
+        let results = sample_search_results();
+
+        // 第 1 轮：evolution_base = BridgeContext.conversation_state（create_sse_stream 初始化语义）
+        let round1 = build_continuation_request(
+            &ctx,
+            Some(ctx.conversation_state.clone()),
+            vec![build_search_tool_result(
+                "tu-round-1",
+                "rust",
+                &Some(sample_search_results()),
+            )],
+        );
+        // 第 2 轮：bridge_execute_round 将 round1 的状态写回 evolution_base（此处模拟）
+        let round2 = build_continuation_request(
+            &ctx,
+            Some(round1.conversation_state.clone()),
+            vec![build_search_tool_result(
+                "tu-round-2",
+                "tokio",
+                &Some(results),
+            )],
+        );
+
+        let v1: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&round1.conversation_state).unwrap())
+                .unwrap();
+        let v2: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&round2.conversation_state).unwrap())
+                .unwrap();
+
+        // 第 2 轮 history 与第 1 轮一致（中间轮 toolResults 不追加进 history）
+        assert_eq!(v2["history"], v1["history"], "多轮 history 必须逐字节不变");
+        assert_eq!(v2["conversationId"], v1["conversationId"]);
+        assert_eq!(v2["agentContinuationId"], v1["agentContinuationId"]);
+        // 第 2 轮 tool_results 替换为本轮结果（承载最新 toolUseId）
+        let tr2 =
+            &v2["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
+        assert_eq!(tr2[0]["toolUseId"], serde_json::json!("tu-round-2"));
+        // 第 2 轮的其余字段与第 1 轮状态一致（基于第 1 轮演进，非从原始 clone 重新出发）
+        assert_eq!(
+            v2["currentMessage"]["userInputMessage"]["content"],
+            v1["currentMessage"]["userInputMessage"]["content"]
+        );
+    }
+
+    #[test]
+    fn test_continuation_request_mcp_failure_error_tool_result() {
+        // MCP 失败（search_results=None）→ ToolResult::error 降级，仍发续请求（流不中断）
+        let ctx = bridge_ctx_for_continuation();
+
+        let tool_result = build_search_tool_result("tu-fail-1", "rust", &None);
+        let kiro_request = build_continuation_request(
+            &ctx,
+            Some(ctx.conversation_state.clone()),
+            vec![tool_result],
+        );
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&kiro_request.conversation_state).unwrap())
+                .unwrap();
+        let tool_results =
+            &value["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
+        assert_eq!(tool_results.as_array().unwrap().len(), 1);
+        assert_eq!(tool_results[0]["toolUseId"], serde_json::json!("tu-fail-1"));
+        assert_eq!(tool_results[0]["status"], serde_json::json!("error"));
+        assert_eq!(tool_results[0]["isError"], serde_json::json!(true));
+        let text = tool_results[0]["content"][0]["text"].as_str().unwrap();
+        assert!(
+            text.contains("Web search failed for query: rust"),
+            "error 文案应说明搜索失败，实际: {text}"
+        );
+        // 降级路径不变量保持：history/会话标识仍逐字节不变
+        assert_eq!(
+            value["history"],
+            serde_json::to_value(&ctx.conversation_state.history).unwrap()
+        );
+        assert_eq!(
+            value["conversationId"],
+            serde_json::to_value("conv-123").unwrap()
+        );
+        assert_eq!(value["agentContinuationId"], serde_json::json!("cont-456"));
+    }
+
+    #[test]
+    fn test_continuation_request_fallback_to_bridge_ctx_state() {
+        // evolution_base 为 None（防御路径）→ 回退到 BridgeContext.conversation_state clone
+        let ctx = bridge_ctx_for_continuation();
+        let results = sample_search_results();
+
+        let tool_result = build_search_tool_result("tu-fb-1", "rust", &Some(results));
+        let kiro_request = build_continuation_request(&ctx, None, vec![tool_result]);
+        let value: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&kiro_request.conversation_state).unwrap())
+                .unwrap();
+        assert_eq!(
+            value["conversationId"],
+            serde_json::to_value("conv-123").unwrap()
+        );
+        let tool_results =
+            &value["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
+        assert_eq!(tool_results[0]["toolUseId"], serde_json::json!("tu-fb-1"));
+        assert_eq!(tool_results[0]["status"], serde_json::json!("success"));
+    }
+
+    // ---- 多轮上限与收尾（任务 5 单测，D8）----
+
+    #[test]
+    fn test_bridge_round_counting_up_to_limit() {
+        // 上限计数：每完成一轮截获 rounds_used +1；达到上限后 has_remaining_rounds 为 false
+        let mut ctx = bridge_stream_context();
+        let mut bridge = Some(BridgeState::new(Some(2)));
+
+        // 第 1 轮截获完成
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"query":"a"}"#, true),
+        );
+        assert!(consumed);
+        assert_eq!(bridge.as_ref().unwrap().rounds_used, 1);
+        assert!(bridge.as_ref().unwrap().has_remaining_rounds());
+
+        // 第 2 轮截获完成 → 达到上限
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu2", r#"{"query":"b"}"#, true),
+        );
+        assert!(consumed);
+        assert_eq!(bridge.as_ref().unwrap().rounds_used, 2);
+        assert!(
+            !bridge.as_ref().unwrap().has_remaining_rounds(),
+            "达到 min(max_uses,5) 后不应再有剩余轮次"
+        );
+
+        // 上限为 None 时兜底 5，5 轮内均有剩余
+        let bridge5 = BridgeState::new(None);
+        assert_eq!(bridge5.max_rounds, 5);
+        assert!(bridge5.has_remaining_rounds());
+
+        // max_uses 超过 5 时 clamp 到 5（D8 硬上限）
+        let bridge_clamped = BridgeState::new(Some(99));
+        assert_eq!(bridge_clamped.max_rounds, 5);
+    }
+
+    #[test]
+    fn test_bridge_exhausted_web_search_passthrough_non_target_still_intercepts() {
+        // 上限后透传：轮次耗尽后新 web_search toolUse 不再截获，按普通 tool_use 走
+        // process_kiro_event 产生 tool_use SSE 块；随后继续正常透传（状态不被污染）
+        let mut ctx = bridge_stream_context();
+        let mut bridge = Some(BridgeState::new(Some(1)));
+
+        // 唯一轮次用掉
+        let (consumed, _) = bridge_handle_event(
+            &mut ctx,
+            &mut bridge,
+            &tool_use_event("web_search", "tu1", r#"{"query":"a"}"#, true),
+        );
+        assert!(consumed);
+
+        // 轮次耗尽后的 web_search：不截获 → process_kiro_event 分配普通 tool_use 块
+        let exhausted = tool_use_event("web_search", "tu2", r#"{"query":"b"}"#, true);
+        let (consumed, events) = bridge_handle_event(&mut ctx, &mut bridge, &exhausted);
+        assert!(!consumed, "轮次耗尽后 web_search 应透传");
+        assert!(events.is_empty());
+        let sse = ctx.process_kiro_event(&exhausted);
+        assert!(!sse.is_empty(), "透传应产生 tool_use SSE");
+        assert_eq!(
+            ctx.tool_block_indices.len(),
+            1,
+            "透传路径应恰好分配 1 个普通 tool_use 块"
+        );
+
+        // 透传后状态仍为 PassThrough、轮次不再增长；pending 保持第 1 轮的待执行搜索
+        let state = bridge.as_ref().unwrap();
+        assert!(matches!(state.phase, BridgePhase::PassThrough));
+        assert_eq!(state.rounds_used, 1);
+        assert_eq!(state.pending.len(), 1, "应恰好保留 1 条待执行搜索");
+        assert_eq!(state.pending.front().unwrap().tool_use_id, "tu1");
+        assert_eq!(state.pending.front().unwrap().query, "a");
+
+        // 之后又截获到新轮次窗口的情形不存在（rounds_used 不回退），上限语义稳定
+        assert!(!state.has_remaining_rounds());
+    }
+
+    #[test]
+    fn test_generate_final_events_message_stop_exactly_once() {
+        // 桥接收尾恰好一次：generate_final_events 的 message_stop 由 message_ended
+        // 门控——首次调用补发 message_stop，重复调用不再产生（防客户端双 message_stop）
+        let mut ctx = bridge_stream_context();
+        ctx.process_kiro_event(&Event::AssistantResponse(
+            serde_json::from_str(r#"{"content":"回答正文"}"#).unwrap(),
+        ));
+        // 模拟流结束：置位 message_ended 前的最终事件序列
+        let final_events = ctx.generate_final_events();
+        let stops: Vec<_> = final_events
+            .iter()
+            .filter(|e| e.event == "message_stop")
+            .collect();
+        assert_eq!(stops.len(), 1, "首次收尾应恰好发出 1 个 message_stop");
+        // 桥接失败兜底路径可能再次调用收尾——message_ended 门控保证不重发
+        let repeated = ctx.generate_final_events();
+        assert!(
+            !repeated.iter().any(|e| e.event == "message_stop"),
+            "重复收尾不得再次发出 message_stop"
+        );
+    }
+
+    // ---- 非流式桥接（任务 5.5 单测，D4 非流式段 / D5 非流式段）----
+
+    fn non_stream_tool_use_event(
+        name: &str,
+        id: &str,
+        input: &str,
+        stop: bool,
+    ) -> crate::kiro::model::events::ToolUseEvent {
+        // input 与上游流一致，是原始 JSON 字符串（未解析），可传分片
+        crate::kiro::model::events::ToolUseEvent {
+            name: name.to_string(),
+            tool_use_id: id.to_string(),
+            input: input.to_string(),
+            stop,
+        }
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_intercept_and_aggregate() {
+        // 截获聚合：轮次未达上限的 web_search 分片被截获，stop 时完成并解析 query；
+        // 期间不产生普通 tool_use 语义（调用方据此不置 has_tool_use）
+        let mut collecting: Option<(String, String)> = None;
+
+        // 分片 1（非 stop）→ 截获、未完成
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu1", r#"{"query":"rus"#, false),
+        );
+        assert!(intercepted);
+        assert!(completed.is_none());
+        assert!(collecting.is_some());
+
+        // 分片 2（stop）→ 完成截获，query 聚合完整
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu1", r#"t"}"#, true),
+        );
+        assert!(intercepted);
+        let pending = completed.expect("stop 分片应完成截获");
+        assert_eq!(pending.tool_use_id, "tu1");
+        assert_eq!(pending.query, "rust");
+        assert!(collecting.is_none());
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_query_parse_failure_yields_empty() {
+        // input 非 JSON（query 解析失败）→ parse_bridge_query 兜底空串，仍完成截获
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut None,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu-bad", "not-json", true),
+        );
+        assert!(intercepted);
+        assert_eq!(completed.unwrap().query, "");
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_limit_passthrough() {
+        // 轮次耗尽（rounds_used >= max_rounds）→ 不截获，按普通 tool_use 透传；
+        // 非桥接请求（max_rounds=0）同样不截获
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut None,
+            3,
+            3,
+            &non_stream_tool_use_event("web_search", "tu1", r#"{"query":"a"}"#, true),
+        );
+        assert!(!intercepted, "轮次耗尽后应按普通 tool_use 透传");
+        assert!(completed.is_none());
+
+        let (intercepted, _) = non_stream_bridge_step(
+            &mut None,
+            0,
+            0,
+            &non_stream_tool_use_event("web_search", "tu2", r#"{"query":"b"}"#, true),
+        );
+        assert!(!intercepted, "非桥接请求（max_rounds=0）不应截获");
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_other_tool_passthrough() {
+        // 非目标工具不截获、不污染聚合状态
+        let mut collecting: Option<(String, String)> = None;
+        let (intercepted, _) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("Read", "tu-file", r#"{"path":"a.rs"}"#, true),
+        );
+        assert!(!intercepted);
+        assert!(collecting.is_none(), "非 web_search 不得进入聚合状态");
+    }
+
+    #[test]
+    fn test_web_search_result_block_shape() {
+        // web_search_tool_result 块格式（D5 非流式段）：与流式条目格式一致；
+        // MCP 失败（None）时 content 为空数组
+        let block = build_web_search_result_block("tu-ok-1", &Some(sample_search_results()));
+        assert_eq!(block["type"], "web_search_tool_result");
+        assert_eq!(block["tool_use_id"], "tu-ok-1");
+        let items = block["content"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["type"], "web_search_result");
+        assert_eq!(items[0]["title"], "Rust 官方文档");
+        assert_eq!(items[0]["url"], "https://doc.rust-lang.org");
+        assert_eq!(
+            items[0]["encrypted_content"],
+            "The Rust programming language"
+        );
+        assert!(items[0]["page_age"].is_null());
+
+        let empty = build_web_search_result_block("tu-fail-1", &None);
+        assert_eq!(
+            empty["content"].as_array().unwrap().len(),
+            0,
+            "MCP 失败时 content 应为空数组"
+        );
+    }
+
+    // ---- H3：续请求失败 → error 事件收尾（任务 4 单测，unfold None 分支语义）----
+
+    use crate::kiro::model::credentials::KiroCredentials;
+    use crate::kiro::token_manager::MultiTokenManager;
+    use crate::model::config::Config;
+    use chrono::Utc;
+
+    /// 构造"必然刷新失败"的测试 Provider：凭据已过期且无 refreshToken，
+    /// validate_refresh_token 阶段立即失败（无需真实网络请求），
+    /// MCP 调用与续请求 call_api_stream 均快速返回 Err
+    fn bridge_test_provider() -> crate::kiro::provider::KiroProvider {
+        let mut cred = KiroCredentials::default();
+        cred.access_token = Some("test-invalid-token".to_string());
+        cred.expires_at = Some((Utc::now() - chrono::Duration::hours(1)).to_rfc3339());
+        let manager = std::sync::Arc::new(
+            MultiTokenManager::new(Config::default(), vec![cred], None, None, false)
+                .expect("构造 MultiTokenManager 失败"),
+        );
+        crate::kiro::provider::KiroProvider::new(manager)
+    }
+
+    #[tokio::test]
+    async fn test_bridge_execute_round_returns_none_on_continuation_failure() {
+        // unfold None 分支语义（H3）：bridge_execute_round 在续请求发起失败时
+        // 返回 None，调用方据此向主流补发 stream_interrupted_error_event 并置
+        // finished=true 正常收尾（不再发 message_stop），防止客户端流悬挂
+        let provider = bridge_test_provider();
+        let bridge_ctx = bridge_ctx_for_continuation();
+        let mut bridge = BridgeState::new(Some(1));
+        let pending = PendingSearch {
+            tool_use_id: "tu-fail-net".to_string(),
+            query: "rust".to_string(),
+        };
+
+        let result = bridge_execute_round(&provider, &bridge_ctx, &mut bridge, pending).await;
+        assert!(result.is_none(), "续请求发起失败时应返回 None");
+        // Err 分支：演进基底写回取出的状态，避免下一轮基于未知状态演进
+        assert!(bridge.evolution_base.is_some());
+
+        // None → unfold 补发的 error 事件结构（与既有
+        // test_stream_interrupted_error_event_signals_failure_not_success 同口径）
+        let event = stream_interrupted_error_event();
+        assert_eq!(event.event, "error");
+        assert_eq!(event.data["error"]["type"], "overloaded_error");
+        assert!(
+            event.data["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("interrupted")
+        );
     }
 }

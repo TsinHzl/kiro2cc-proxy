@@ -1596,7 +1596,8 @@ fn build_additional_model_request_fields(
     req: &MessagesRequest,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    if is_gpt_model(model_id) {
+    // "4.5" 代际（sonnet/opus/haiku）与 GPT 系均需整体跳过，见上方实测说明
+    if model_id.ends_with("4.5") || is_gpt_model(model_id) {
         return None;
     }
 
@@ -4233,11 +4234,12 @@ mod tests {
 
     #[test]
     fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude_models() {
-        // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对全部
-        // Claude 代际生效（实测 claude-sonnet-4-6 在 max_tokens=200 时同样报 400
-        // "must have a minimum value of 1024.0"），不能只对 cap==128000
-        // （opus-4.7/4.8/5）的模型生效，否则 64000 档模型（sonnet 全系列、
-        // opus-4.5/4.6、haiku）传入小 max_tokens 时会被上游拒绝。
+        // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对支持
+        // additionalModelRequestFields 的 Claude 代际生效（实测 claude-sonnet-4-6
+        // 在 max_tokens=200 时同样报 400 "must have a minimum value of 1024.0"），
+        // 不能只对 cap==128000（opus-4.7/4.8/5）的模型生效。
+        // 注意："4.5" 代际（sonnet/opus/haiku）整体跳过该字段（400 实测，
+        // 见 build_additional_model_request_fields 文档），故不在本测试范围。
         use super::super::types::Message as AnthropicMessage;
 
         for model in [
@@ -4245,7 +4247,6 @@ mod tests {
             "claude-sonnet-5",
             "claude-opus-4-6",
             "claude-opus-5",
-            "claude-haiku-4-5",
         ] {
             let req = MessagesRequest {
                 model: model.to_string(),
@@ -4272,6 +4273,43 @@ mod tests {
             assert!(
                 max_tokens >= 1024,
                 "model={model} max_tokens 应被下限收敛到至少 1024，实际={max_tokens}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_claude_4_5_generation_additional_model_request_fields_is_none() {
+        // 回归测试（haiku-4.5 全部请求 400 修复）：实测 claude-sonnet-4.5 /
+        // claude-opus-4.5 / claude-haiku-4.5 的 Kiro schema 均不接受
+        // additionalModelRequestFields（thinking/output_config/max_tokens 均报
+        // 400 REQUEST_BODY_INVALID），需整体省略该字段。历史上该跳过逻辑曾被
+        // 重构为仅判断 GPT 系而丢失，导致 haiku-4.5 全量 502。
+        use super::super::types::{Message as AnthropicMessage, Thinking};
+
+        for model in ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"] {
+            let req = MessagesRequest {
+                model: model.to_string(),
+                max_tokens: 32000,
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: None,
+                tools: None,
+                tool_choice: None,
+                thinking: Some(Thinking {
+                    thinking_type: "enabled".to_string(),
+                    budget_tokens: 24576,
+                }),
+                output_config: None,
+                metadata: None,
+            };
+
+            let result = convert_request(&req).unwrap();
+            assert!(
+                result.additional_model_request_fields.is_none(),
+                "model={model} 4.5 代际必须整体省略 additionalModelRequestFields 字段"
             );
         }
     }

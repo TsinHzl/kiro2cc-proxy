@@ -1389,6 +1389,20 @@ fn stream_interrupted_error_event() -> SseEvent {
     )
 }
 
+/// /cc 全局 deadline 触发时返回给客户端的 error 事件（两处 deadline 收尾路径共用）
+fn deadline_error_event() -> SseEvent {
+    SseEvent::new(
+        "error",
+        serde_json::json!({
+            "type": "error",
+            "error": {
+                "type": "overloaded_error",
+                "message": "Upstream response timed out (streaming mode deadline)"
+            }
+        }),
+    )
+}
+
 /// 构建续请求体（D3：手工构建，绕过 validate_tool_pairing）
 ///
 /// 基于演进基底 clone（多轮时为上一轮续请求所用状态，首轮为
@@ -1439,32 +1453,57 @@ fn build_search_tool_result(
     }
 }
 
+/// 一轮桥接的执行结果
+///
+/// `Continued`：MCP 搜索与续流建连均成功，携带新响应流与搜索结果；
+/// `Failed(search_results)`：续请求发起/序列化失败，但 MCP 搜索结果可能
+/// 已产出——调用方必须先把 `web_search_tool_result` 结果块发给客户端
+/// （与已发出的 `server_tool_use` 块配对），再补发 error 事件收尾。
+#[allow(clippy::large_enum_variant)] // 变体大小差异是桥接语义所需（Failed 不携带流）
+enum BridgeRoundOutcome {
+    Continued(
+        reqwest::Response,
+        EventStreamDecoder,
+        Option<websearch::WebSearchResults>,
+    ),
+    Failed(Option<websearch::WebSearchResults>),
+}
+
+/// in-flight 桥接轮（修复③ v2：select! 条件分支保活）
+///
+/// 一轮桥接（MCP 搜索 + 续流建连）spawn 到后台任务执行，`JoinHandle` 连同
+/// 本轮 tool_use_id 存入 unfold 状态元组第 10 元。收割通过 select! 的条件
+/// 分支完成（`if round_in_flight.is_some()`）：轮次执行期间该分支挂起等待，
+/// ping/deadline 分支照常就绪触发——桥接轮执行期间下游心跳不再中断，
+/// 且耗尽的 body_stream 借条件前置不再被 poll（避免 flatten 重入误收尾）。
+type InFlightRound = (
+    tokio::task::JoinHandle<(BridgeState, BridgeRoundOutcome)>,
+    // 本轮对应的 web_search tool_use_id（轮次完成后构建配对结果块用）
+    String,
+);
+
 /// 执行一轮桥接：MCP 真实搜索 → 构建续请求 → 发起续流（D3/D4/D8）
 ///
 /// 在 unfold 的上游 None 分支内调用（Kiro 流已自然结束）。成功时返回
-/// `Some((新响应流, 新解码器, 本轮搜索结果))`——unfold 状态元组的
-/// `body_stream`/`decoder` 被替换为续请求的响应，`ctx`/`bridge` 原样携带，
-/// 对 unfold 而言续流只是"换了一个上游 body 继续 unfold"；搜索结果供调用方
-/// 构建 `web_search_tool_result` 可见性块；`None` 表示续请求发起失败（主流需
-/// 补发 error 事件收尾）。
+/// `BridgeRoundOutcome::Continued((新响应流, 新解码器, 本轮搜索结果))`——
+/// unfold 状态元组的 `body_stream`/`decoder` 被替换为续请求的响应，
+/// `ctx`/`bridge` 原样携带，对 unfold 而言续流只是"换了一个上游 body 继续
+/// unfold"；搜索结果供调用方构建 `web_search_tool_result` 可见性块；
+/// `Failed` 表示续请求发起失败（调用方须先发结果块再发 error 事件收尾）。
 ///
 /// 流程：
 /// 1. `call_mcp_api` 真实搜索；失败 → `ToolResult::error` 降级，流不中断
 /// 2. 基于演进基底 clone 构建 KiroRequest（仅替换 current_message 的
 ///    tool_results，conversationId/agentContinuationId/history 逐字节不变，
 ///    绕过 validate_tool_pairing）
-/// 3. `call_api_stream` 续流；失败 → None（调用方 error 事件兜底）
+/// 3. `call_api_stream` 续流；失败 → `Failed(search_results)`（调用方收尾）
 #[allow(clippy::type_complexity)]
 async fn bridge_execute_round(
     provider: &crate::kiro::provider::KiroProvider,
     bridge_ctx: &BridgeContext,
     bridge: &mut BridgeState,
     pending: PendingSearch,
-) -> Option<(
-    reqwest::Response,
-    EventStreamDecoder,
-    Option<websearch::WebSearchResults>,
-)> {
+) -> BridgeRoundOutcome {
     // 1. MCP 真实搜索（失败降级为 error ToolResult，仍发续请求让模型解读）
     let (_mcp_tool_use_id, mcp_request) = websearch::create_mcp_request(&pending.query);
     let search_results =
@@ -1491,7 +1530,7 @@ async fn bridge_execute_round(
             tracing::error!("web_search 续请求序列化失败: {}", e);
             // 与 call_api_stream Err 分支对齐：写回取出的演进基底
             bridge.evolution_base = Some(kiro_request.conversation_state);
-            return None;
+            return BridgeRoundOutcome::Failed(search_results);
         }
     };
 
@@ -1507,14 +1546,97 @@ async fn bridge_execute_round(
         Ok((response, _credential_id)) => {
             // 演进基底更新为本轮续请求所用的状态（下一轮 clone 它）
             bridge.evolution_base = Some(kiro_request.conversation_state);
-            Some((response, EventStreamDecoder::new(), search_results))
+            BridgeRoundOutcome::Continued(response, EventStreamDecoder::new(), search_results)
         }
         Err(e) => {
             tracing::error!("web_search 续请求发起失败: {}", e);
             // 演进基底保持取出的状态，避免下一轮基于未知状态演进
             bridge.evolution_base = Some(kiro_request.conversation_state);
-            None
+            // 搜索结果必须带回：客户端已收到 server_tool_use 块，缺结果块会破坏配对
+            BridgeRoundOutcome::Failed(search_results)
         }
+    }
+}
+
+/// 执行一轮桥接的 owned 变体（修复③ v2：供 `tokio::spawn` 后台任务调用）
+///
+/// 与 `bridge_execute_round` 逻辑一致，差别仅在所有权形态：`BridgeState`
+/// 按值进出（后台任务无法持有 unfold 状态元组的借用）。`InFlightRound`
+/// 持有的 JoinHandle 完成时把更新后的 `BridgeState` 一并带回。
+async fn bridge_execute_round_owned(
+    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
+    bridge_ctx: BridgeContext,
+    mut bridge: BridgeState,
+    pending: PendingSearch,
+) -> (BridgeState, BridgeRoundOutcome) {
+    let outcome = bridge_execute_round(&provider, &bridge_ctx, &mut bridge, pending).await;
+    (bridge, outcome)
+}
+
+/// 收割已完成的桥接轮（修复③）：按 outcome 补发配对结果块与收尾事件，
+/// 返回本轮应下发的 SSE 字节流与 `body_stream`/`decoder` 换流结果及 finished
+/// 标志（状态元组其余元素由调用方原样回填）。
+///
+/// `Continued` → 先补发 `web_search_tool_result` 结果块（与已下发的
+/// `server_tool_use` 配对），再换入续流（finished = false，unfold 对续流的
+/// 处理与普通上游流完全一致）；
+/// `Failed` → 补发结果块（携带已产出的搜索结果，MCP 失败为空数组）后补发
+/// error 事件收尾（finished = true）；后台任务 panic 兜底复用 `Failed(None)`。
+struct BridgeRoundHarvest {
+    events: Vec<SseEvent>,
+    new_body_stream: reqwest::Response,
+    new_decoder: EventStreamDecoder,
+    finished: bool,
+}
+
+fn harvest_bridge_round(
+    outcome: BridgeRoundOutcome,
+    result_tool_use_id: &str,
+    ctx: &mut StreamContext,
+) -> BridgeRoundHarvest {
+    match outcome {
+        BridgeRoundOutcome::Continued(response, new_decoder, search_results) => {
+            let events = build_web_search_result_events(ctx, result_tool_use_id, &search_results);
+            // 续流的首个事件前先补发本轮配对结果块，保持块序：
+            // server_tool_use → web_search_tool_result → 续流内容
+            BridgeRoundHarvest {
+                events,
+                new_body_stream: response,
+                new_decoder,
+                finished: false,
+            }
+        }
+        BridgeRoundOutcome::Failed(search_results) => {
+            let mut events =
+                build_web_search_result_events(ctx, result_tool_use_id, &search_results);
+            events.push(stream_interrupted_error_event());
+            // Failed 无续流，调用方以 finished = true 收尾，body_stream/decoder
+            // 原值不再被消费（decoder 原样带回占位）
+            BridgeRoundHarvest {
+                events,
+                new_body_stream: reqwest::Response::from(http::Response::new(body_dummy_bytes())),
+                new_decoder: EventStreamDecoder::new(),
+                finished: true,
+            }
+        }
+    }
+}
+
+fn body_dummy_bytes() -> reqwest::Body {
+    reqwest::Body::from(Bytes::new())
+}
+
+/// 非流式降级收尾前，为 pending_search 队列中尚未执行的搜索补发空结果块
+///
+/// 三个 `break 'rounds` 降级路径（序列化失败/响应读取失败/续请求发起失败）共
+/// 用：队列中每条 pending 的 `server_tool_use` 块均已进入 visibility_blocks，
+/// 缺对应结果块会破坏 server_tool_use / web_search_tool_result 成对不变量。
+fn flush_unpaired_search_blocks(
+    pending_search: &mut VecDeque<PendingSearch>,
+    visibility_blocks: &mut Vec<serde_json::Value>,
+) {
+    for leftover in pending_search.drain(..) {
+        visibility_blocks.push(build_web_search_result_block(&leftover.tool_use_id, &None));
     }
 }
 
@@ -1544,25 +1666,91 @@ fn create_sse_stream(
     });
 
     // 然后处理 Kiro 响应流，同时每25秒发送 ping 保活
-    let body_stream = response.bytes_stream();
+    // boxed() 统一 body_stream 类型：in-flight 期间回填的占位流是
+    // stream::pending()（具体类型），与 reqwest bytes_stream 的 opaque type
+    // 无法直接统一，借 Box<dyn Stream> 擦除为同一类型。
+    let body_stream = response.bytes_stream().boxed();
 
     // bridge_ctx 与 provider Arc 一并放入 unfold 状态元组：闭包为 FnMut + async move，
     // 环境捕获的 Owned 值无法逐次 move 进 future（E0507/E0373），
     // 改为状态元组内逐轮移入移出。
+    // 状态元组第 10 元：进行中的桥接轮（修复③保活用，None = 无轮次执行中）。
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline, bridge, bridge_ctx, provider),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline, mut bridge, bridge_ctx, provider)| async move {
+        (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline, bridge, bridge_ctx, provider, None::<InFlightRound>),
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline, mut bridge, bridge_ctx, provider, mut round_in_flight)| async move {
             if finished {
                 return None;
             }
 
-            // 使用 select! 同时等待数据、ping 定时器与全局 deadline
+            // 使用 select! 同时等待数据、桥接轮收割、ping 定时器与全局 deadline。
+            // 桥接轮分支以 precondition 条件启用：仅在存在 in-flight 轮时参与竞争。
+            // 注意（tokio select! 语义）：precondition 为 false 时 async expression
+            // 仍会被求值，但返回的 future 永不被 poll —— expect() 必须放在 async
+            // block 体内延迟到 poll 才执行，此处借 round_in_flight.is_some() 守卫。
             // 有意不加 biased：不加时 select! 对同时就绪的分支做随机选择，任一分支被
             // 连续跳过的概率指数衰减，ping 与 deadline 都不会被密集 chunk 饿死。
             // （已删除的 create_buffered_sse_stream 需要 biased，是因为它在单次 poll
             //  内用显式 loop 反复 select 且 chunk 分支不返回 —— 那才是确定性饿死源。）
             // 加 biased 会改变 /v1 现有的分支优先级。
             tokio::select! {
+                // 桥接轮收割（修复③ v2）：后台任务完成时在此分支同步收割，先发
+                // 配对结果块（+失败收尾事件），再把续流换入状态元组。轮次执行期间
+                // 此分支的 JoinHandle.await 挂起，ping/deadline 分支照常触发——
+                // 桥接轮执行期间下游心跳不中断。注意：阻断 flatten 重入误收尾的
+                // 是 spawn 分支换入的 stream::pending() 占位流——已耗尽的流会立即
+                // 以 None 就绪被 body 分支抢选，恰恰是必须防住的重入路径，不能删。
+                joined = async {
+                    // JoinHandle 实现 Future + Unpin，借 Pin::new 按 &mut 轮询：
+                    // `.await` 会走 IntoFuture::into_future 按值取 receiver，
+                    // 而 async block 每次重入 poll 都会重新求值表达式，
+                    // &mut 形态避免 E0507 move（precondition 守卫保证 Some）。
+                    std::pin::Pin::new(
+                        &mut round_in_flight
+                            .as_mut()
+                            .expect("precondition 守卫保证 in-flight 轮存在")
+                            .0,
+                    )
+                    .await
+                }, if round_in_flight.is_some() => {
+                    let (_handle, result_tool_use_id) = round_in_flight.take().expect("precondition 守卫保证存在");
+                    let (new_bridge, outcome) = match joined {
+                        Ok(pair) => pair,
+                        Err(e) => {
+                            // 后台任务 panic：按 Failed 收尾（结果块为空数组）
+                            tracing::error!("web_search 桥接轮后台任务异常: {}", e);
+                            (
+                                bridge
+                                    .take()
+                                    .unwrap_or_else(|| BridgeState::new(Some(0))),
+                                BridgeRoundOutcome::Failed(None),
+                            )
+                        }
+                    };
+                    bridge = Some(new_bridge);
+                    let harvest = harvest_bridge_round(outcome, &result_tool_use_id, &mut ctx);
+                    let bytes: Vec<Result<Bytes, Infallible>> = harvest
+                        .events
+                        .into_iter()
+                        .map(|e| Ok(Bytes::from(e.to_sse_string())))
+                        .collect();
+                    // 显式 return：分支体内提前返回流产物，与下方各分支同构
+                    #[allow(clippy::needless_return)]
+                    return Some((
+                        stream::iter(bytes),
+                        (
+                            harvest.new_body_stream.bytes_stream().boxed(),
+                            ctx,
+                            harvest.new_decoder,
+                            harvest.finished,
+                            ping_interval,
+                            deadline,
+                            bridge,
+                            bridge_ctx,
+                            provider,
+                            None,
+                        ),
+                    ));
+                }
                 // 处理数据流
                 chunk_result = body_stream.next() => {
                     match chunk_result {
@@ -1600,7 +1788,7 @@ fn create_sse_stream(
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
 
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider, round_in_flight)))
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
@@ -1627,85 +1815,101 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider, round_in_flight)))
                         }
                         None => {
-                            // 桥接态（存在待执行搜索）→ 收集本轮可见性事件后按截获
-                            // 顺序逐个执行 MCP 搜索并构建续请求，续流接入同一 unfold
-                            // （body_stream/decoder 替换，ctx/bridge 原样携带，D8）；
-                            // 剩余 pending 在续流自然结束后经本分支继续 drain 执行。
-                            // 最终收尾（generate_final_events 含 message_stop）由
-                            // 桥接在全部轮次结束后统一执行一次。D4：上游错误/空响应
-                            // 兜底不触发续请求（bridge.pending 为空）。
-                            if let Some(state) = bridge.as_mut().filter(|b| !b.pending.is_empty())
+                            // 桥接态（存在待执行搜索且无 in-flight 轮）→ spawn 后台
+                            // 桥接轮（修复③ v2），JoinHandle 存入状态元组第 10 元，
+                            // 由 select! 的条件分支收割；剩余 pending 在续流自然结束
+                            // 后经本分支继续 drain 执行。最终收尾
+                            // （generate_final_events 含 message_stop）由桥接在全部
+                            // 轮次结束后统一执行一次。D4：上游错误/空响应兜底不触发
+                            // 续请求（bridge.pending 为空）。
+                            // in-flight 守卫：已有轮次执行中时本分支不可再 spawn
+                            // （一个 unfold 状态同一时刻至多一轮桥接；耗尽的
+                            // body_stream 在 in-flight 期间也不会再以 None 就绪
+                            // 进入本分支——它已被替换为永不就绪的占位流）。
+                            if let Some(mut state) =
+                                bridge.take().filter(|b| !b.pending.is_empty()).filter(|_| round_in_flight.is_none())
                             {
                                 let pending = state.pending.pop_front().unwrap();
-                                let bridge_ctx = bridge_ctx
+                                let round_bridge_ctx = bridge_ctx
                                     .as_ref()
                                     .expect("桥接态下 bridge_ctx 必然存在")
                                     .clone();
-                                let mut out_events = Vec::new();
                                 let result_tool_use_id = pending.tool_use_id.clone();
 
-                                // 续请求续流（MCP 失败已降级为 error ToolResult）
-                                return match bridge_execute_round(
-                                    &provider,
-                                    &bridge_ctx,
+                                // /cc 全局 deadline 兜底：deadline 本只在 select! 分支
+                                // 中检查，桥接轮（MCP + 续流建连 + 续流本身）不感知会
+                                // 使总耗时远超 300s。每轮执行前校验剩余预算，超限放弃
+                                // 续请求——先补发结果块（与 server_tool_use 配对），
+                                // 再按 deadline 分支同款 error 收尾
+                                if deadline.is_some_and(|d| Instant::now() >= d) {
+                                    tracing::warn!(
+                                        "web_search 桥接轮撞上 /cc 全局 deadline，放弃续请求"
+                                    );
+                                    let mut out_events = build_web_search_result_events(
+                                        &mut ctx,
+                                        &result_tool_use_id,
+                                        &None,
+                                    );
+                                    out_events.push(deadline_error_event());
+                                    let bytes: Vec<Result<Bytes, Infallible>> = out_events
+                                        .into_iter()
+                                        .map(|e| Ok(Bytes::from(e.to_sse_string())))
+                                        .collect();
+                                    return Some((
+                                        stream::iter(bytes),
+                                        (
+                                            body_stream,
+                                            ctx,
+                                            decoder,
+                                            true,
+                                            ping_interval,
+                                            deadline,
+                                            bridge,
+                                            Some(round_bridge_ctx),
+                                            provider,
+                                            round_in_flight,
+                                        ),
+                                    ));
+                                }
+
+                                // 修复③ v2：桥接轮 spawn 后台执行，handle 连同本轮
+                                // tool_use_id 存入状态元组第 10 元，由 select! 条件
+                                // 分支收割（执行期间 ping/deadline 分支照常触发）。
+                                // bridge 按值移入任务（owned 变体带回更新后的状态）。
+                                // 耗尽的 body_stream 同步换为永不就绪占位流：in-flight
+                                // 期间 body 分支不得以 None 就绪被 select 抢选——
+                                // 否则 flatten 重入 unfold 会误走收尾路径、丢桥接结果
+                                // （CRITICAL 修复点）。
+                                let provider_for_round = provider.clone();
+                                let handle = tokio::spawn(bridge_execute_round_owned(
+                                    provider_for_round,
+                                    round_bridge_ctx.clone(),
                                     state,
                                     pending,
-                                )
-                                .await
-                                {
-                                    Some((new_response, new_decoder, search_results)) => {
-                                        // 已截获搜索的结果块：携带真实 MCP 结果发出
-                                        out_events.extend(build_web_search_result_events(
-                                            &mut ctx,
-                                            &result_tool_use_id,
-                                            &search_results,
-                                        ));
-                                        let bytes: Vec<Result<Bytes, Infallible>> = out_events
-                                            .into_iter()
-                                            .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                            .collect();
-                                        Some((
-                                            stream::iter(bytes),
-                                            (
-                                                new_response.bytes_stream(),
-                                                ctx,
-                                                new_decoder,
-                                                false,
-                                                ping_interval,
-                                                deadline,
-                                                bridge,
-                                                Some(bridge_ctx),
-                                                provider,
-                                            ),
-                                        ))
-                                    }
-                                    None => {
-                                        // Kiro 拒绝续请求 → 主流补发 error 事件后正常收尾
-                                        out_events.push(stream_interrupted_error_event());
-                                        let bytes: Vec<Result<Bytes, Infallible>> = out_events
-                                            .into_iter()
-                                            .map(|e| Ok(Bytes::from(e.to_sse_string())))
-                                            .collect();
-                                        Some((
-                                            stream::iter(bytes),
-                                            (
-                                                body_stream,
-                                                ctx,
-                                                decoder,
-                                                true,
-                                                ping_interval,
-                                                deadline,
-                                                bridge,
-                                                Some(bridge_ctx),
-                                                provider,
-                                            ),
-                                        ))
-                                    }
-                                };
-                            }
+                                ));
+                                    return Some((
+                                        stream::iter(Vec::<Result<Bytes, Infallible>>::new()),
+                                        (
+                                            // 耗尽的 body_stream 不再回填：in-flight
+                                            // 期间换入永不就绪占位流，防止 body 分支
+                                            // 以 None 就绪被 select 抢选（flatten 重入
+                                            // 会误走收尾路径丢桥接结果，CRITICAL 修复）
+                                            stream::pending().boxed(),
+                                            ctx,
+                                            decoder,
+                                            false,
+                                            ping_interval,
+                                            deadline,
+                                            bridge,
+                                            Some(round_bridge_ctx),
+                                            provider,
+                                            Some((handle, result_tool_use_id)),
+                                        ),
+                                    ));
+                                }
 
                             // 非桥接态（或桥接无待执行搜索）→ 现有收尾路径（零行为变化）
                             let mut out_events = Vec::new();
@@ -1728,7 +1932,7 @@ fn create_sse_stream(
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
+                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider, round_in_flight)))
                         }
                     }
                 }
@@ -1736,20 +1940,29 @@ fn create_sse_stream(
                 _ = ping_interval.tick() => {
                     tracing::trace!("发送 ping 保活事件");
                     let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider)))
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval, deadline, bridge, bridge_ctx, provider, round_in_flight)))
                 }
-                // 全局 deadline：防止上游挂起导致请求永不结束（deadline 为 None 时永不就绪）
+                // 全局 deadline：防止上游挂起导致请求永不结束（deadline 为 None 时永不就绪）。
+                // in-flight 桥接轮存在时 deadline 触发同样会终止流——先补发本轮配对
+                // 结果块再发 error（server_tool_use / web_search_tool_result 必须成对）
                 _ = wait_deadline(deadline) => {
                     tracing::error!("流式转发全局超时，强制终止");
-                    let err_event = SseEvent::new("error", serde_json::json!({
-                        "type": "error",
-                        "error": {
-                            "type": "overloaded_error",
-                            "message": "Upstream response timed out (streaming mode deadline)"
-                        }
-                    }));
-                    let bytes = vec![Ok(Bytes::from(err_event.to_sse_string()))];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider)))
+                    let mut events = if let Some((handle, result_tool_use_id)) =
+                        round_in_flight.take()
+                    {
+                        // 后台任务可能仍在执行，abort 即可（配对块按 Failed(None) 空数组兜底）
+                        handle.abort();
+                        bridge = Some(bridge.take().unwrap_or_else(|| BridgeState::new(Some(0))));
+                        build_web_search_result_events(&mut ctx, &result_tool_use_id, &None)
+                    } else {
+                        Vec::new()
+                    };
+                    events.push(deadline_error_event());
+                    let bytes = events
+                        .into_iter()
+                        .map(|e| Ok(Bytes::from(e.to_sse_string())))
+                        .collect::<Vec<_>>();
+                    Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval, deadline, bridge, bridge_ctx, provider, round_in_flight)))
                 }
             }
         },
@@ -2119,12 +2332,13 @@ async fn handle_non_stream_request(
         let request_body = match serde_json::to_string(&kiro_request) {
             Ok(body) => body,
             Err(e) => {
-                tracing::error!("web_search 续请求序列化失败: {}", e);
-                return map_provider_error_with_context(
-                    anyhow::anyhow!("web_search 续请求序列化失败: {}", e),
-                    model,
-                    input_tokens,
-                );
+                // 降级：放弃续请求，保留首轮已收集内容走正常组装路径
+                // （与流式 Failed 分支语义对齐——结果块已入 visibility_blocks）
+                tracing::error!("web_search 续请求序列化失败，降级返回已收集内容: {}", e);
+                // 不写回 evolution_base：break 后直接退出 'rounds 循环，
+                // 该变量不再被读取，写回无实际效果
+                flush_unpaired_search_blocks(&mut pending_search, &mut visibility_blocks);
+                break 'rounds;
             }
         };
 
@@ -2134,24 +2348,29 @@ async fn handle_non_stream_request(
             .await
         {
             Ok((resp, _credential_id)) => {
-                // 演进基底更新为本轮续请求所用状态（下一轮基于它演进）
-                evolution_base = Some(kiro_request.conversation_state);
                 body_bytes = match resp.bytes().await {
                     Ok(bytes) => bytes,
                     Err(e) => {
-                        tracing::error!("读取 web_search 续请求响应体失败: {}", e);
-                        return map_provider_error_with_context(
-                            anyhow::anyhow!("读取续请求响应失败: {}", e),
-                            model,
-                            input_tokens,
+                        // 降级：续请求响应读取失败，保留已收集内容正常收尾
+                        tracing::error!(
+                            "读取 web_search 续请求响应体失败，降级返回已收集内容: {}",
+                            e
                         );
+                        // 不写回 evolution_base：break 后直接退出 'rounds 循环
+                        flush_unpaired_search_blocks(&mut pending_search, &mut visibility_blocks);
+                        break 'rounds;
                     }
                 };
+                // 演进基底更新为本轮续请求所用状态（下一轮基于它演进）
+                evolution_base = Some(kiro_request.conversation_state);
             }
             Err(e) => {
-                tracing::error!("web_search 续请求发起失败: {}", e);
-                // 直接按错误路径收尾，无需写回演进基底（后续无再轮）
-                return map_provider_error_with_context(e, model, input_tokens);
+                // 降级：续请求发起失败，保留首轮已收集内容走正常组装路径
+                // （与流式 Failed 分支语义对齐，不再丢弃已有响应）
+                tracing::error!("web_search 续请求发起失败，降级返回已收集内容: {}", e);
+                // 不写回 evolution_base：break 后直接退出 'rounds 循环
+                flush_unpaired_search_blocks(&mut pending_search, &mut visibility_blocks);
+                break 'rounds;
             }
         }
     }
@@ -3891,10 +4110,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_bridge_execute_round_returns_none_on_continuation_failure() {
+    async fn test_bridge_execute_round_returns_failed_on_continuation_failure() {
         // unfold None 分支语义（H3）：bridge_execute_round 在续请求发起失败时
-        // 返回 None，调用方据此向主流补发 stream_interrupted_error_event 并置
-        // finished=true 正常收尾（不再发 message_stop），防止客户端流悬挂
+        // 返回 Failed（携带 MCP 搜索结果供调用方补发结果块配对），调用方据此
+        // 先发 web_search_tool_result 结果块、再补发 stream_interrupted_error_event
+        // 并置 finished=true 正常收尾（不再发 message_stop），防止客户端流悬挂
         let provider = bridge_test_provider();
         let bridge_ctx = bridge_ctx_for_continuation();
         let mut bridge = BridgeState::new(Some(1));
@@ -3904,7 +4124,10 @@ mod tests {
         };
 
         let result = bridge_execute_round(&provider, &bridge_ctx, &mut bridge, pending).await;
-        assert!(result.is_none(), "续请求发起失败时应返回 None");
+        assert!(
+            matches!(result, BridgeRoundOutcome::Failed(_)),
+            "续请求发起失败时应返回 Failed"
+        );
         // Err 分支：演进基底写回取出的状态，避免下一轮基于未知状态演进
         assert!(bridge.evolution_base.is_some());
 
@@ -3919,5 +4142,103 @@ mod tests {
                 .unwrap()
                 .contains("interrupted")
         );
+    }
+
+    // ---- ⚠️#2（第 2 轮增量 CR）：harvest_bridge_round 三条收尾不变量 ----
+
+    #[test]
+    fn test_harvest_bridge_round_continued_pairs_result_block() {
+        // Continued → 先发配对结果块（finished=false），结果块与 server_tool_use
+        // 成对，且不含 error/message_stop 收尾事件
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let response = reqwest::Response::from(http::Response::new(body_dummy_bytes()));
+        let outcome = BridgeRoundOutcome::Continued(
+            response,
+            EventStreamDecoder::new(),
+            Some(sample_search_results()),
+        );
+
+        let harvest = harvest_bridge_round(outcome, "tu-cont-1", &mut ctx);
+        assert!(!harvest.finished, "Continued 应换入续流，finished=false");
+        assert_eq!(
+            harvest.events.len(),
+            2,
+            "Continued 补发 web_search_tool_result 结果块（start + stop 两事件）"
+        );
+        assert_eq!(
+            harvest.events[0].data["content_block"]["type"],
+            "web_search_tool_result"
+        );
+        assert_eq!(
+            harvest.events[1].event, "content_block_stop",
+            "配对结果块以 stop 事件收尾"
+        );
+    }
+
+    #[test]
+    fn test_harvest_bridge_round_failed_emits_result_then_error() {
+        // Failed → 结果块（携带已产出搜索结果）+ error 收尾事件，finished=true
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let outcome = BridgeRoundOutcome::Failed(Some(sample_search_results()));
+
+        let harvest = harvest_bridge_round(outcome, "tu-fail-1", &mut ctx);
+        assert!(harvest.finished, "Failed 应立即收尾，finished=true");
+        assert_eq!(
+            harvest.events.len(),
+            3,
+            "Failed = 结果块(start + stop) + error 事件"
+        );
+        assert_eq!(
+            harvest.events[0].data["content_block"]["type"],
+            "web_search_tool_result"
+        );
+        assert_eq!(harvest.events[2].event, "error");
+    }
+
+    #[test]
+    fn test_harvest_bridge_round_panic_fallback_empty_results() {
+        // 后台任务 panic 兜底 = Failed(None) → 空数组结果块 + error 收尾，
+        // 与 MCP 失败同口径（保证 server_tool_use / web_search_tool_result 成对）
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let outcome = BridgeRoundOutcome::Failed(None);
+
+        let harvest = harvest_bridge_round(outcome, "tu-panic-1", &mut ctx);
+        assert!(harvest.finished);
+        assert_eq!(harvest.events.len(), 3, "panic 兜底同 Failed 收尾结构");
+        assert_eq!(
+            harvest.events[0].data["content_block"]["content"],
+            serde_json::json!([]),
+            "panic 兜底结果块 content 应为空数组"
+        );
+        assert_eq!(harvest.events[2].event, "error");
+    }
+
+    #[test]
+    fn test_flush_unpaired_search_blocks_drains_queue() {
+        // 非流式降级收尾：队列剩余 pending 全部补发空结果块，且队列被清空
+        let mut pending = VecDeque::new();
+        pending.push_back(PendingSearch {
+            tool_use_id: "tu-left-1".to_string(),
+            query: "a".to_string(),
+        });
+        pending.push_back(PendingSearch {
+            tool_use_id: "tu-left-2".to_string(),
+            query: "b".to_string(),
+        });
+        let mut blocks = Vec::new();
+
+        flush_unpaired_search_blocks(&mut pending, &mut blocks);
+
+        assert!(pending.is_empty(), "队列应被 drain 清空");
+        assert_eq!(blocks.len(), 2, "每条遗留 pending 补发一个结果块");
+        for (i, block) in blocks.iter().enumerate() {
+            assert_eq!(block["type"], "web_search_tool_result");
+            assert_eq!(
+                block["content"],
+                serde_json::json!([]),
+                "降级路径搜索未执行，结果块应为空数组"
+            );
+            let _ = i;
+        }
     }
 }

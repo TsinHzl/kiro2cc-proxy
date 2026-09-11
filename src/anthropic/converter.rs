@@ -790,7 +790,13 @@ pub(crate) fn split_web_search_tool(
     for t in tools {
         if is_web_search_server_tool(t) {
             hit = true;
-            max_uses = t.max_uses;
+            // 首个非 None 声明的 max_uses 生效（协议约定一份请求仅一个 web_search
+            // server tool；多声明属于客户端异常，取首个避免"最后声明覆盖"的
+            // 未定义行为。注意首个命中项可能未声明 max_uses——此时继续向后
+            // 找首个显式声明，均未声明则保持 None 走默认值 5）
+            if max_uses.is_none() {
+                max_uses = t.max_uses;
+            }
         } else {
             ordinary.push(t.clone());
         }
@@ -904,11 +910,16 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     // 6. 转换工具定义
     // web_search server tool 不发给 Kiro（Kiro 不识别该格式），由 handlers 层桥接到
     // Kiro MCP 执行；未命中时 split_web_search_tool 返回 None，与直接转换逐字节一致。
+    // 借用实现：未命中路径直接引用 req.tools，避免每个请求深拷贝全部工具定义
+    let split_owned;
     let (web_search_max_uses, split_tools) = match split_web_search_tool(req) {
-        Some((max_uses, ordinary)) => (Some(max_uses), Some(ordinary)),
-        None => (None, req.tools.clone()),
+        Some((max_uses, ordinary)) => {
+            split_owned = Some(ordinary);
+            (Some(max_uses), &split_owned)
+        }
+        None => (None, &req.tools),
     };
-    let mut tools = convert_tools(&split_tools);
+    let mut tools = convert_tools(split_tools);
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）
     let mut history = build_history(req, messages, &model_id, &conversation_id)?;
@@ -2734,6 +2745,36 @@ mod tests {
         assert_eq!(max_uses, None);
         assert_eq!(ordinary.len(), 1);
         assert_eq!(ordinary[0].name, "Read");
+    }
+
+    #[test]
+    fn test_split_web_search_tool_multiple_declarations_first_wins() {
+        // 异常场景：同一请求声明多个 web_search server tool——首个声明的
+        // max_uses 生效，不被后续声明覆盖
+        let mut req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        let tools = req.tools.as_mut().unwrap();
+        tools.push(ws_tool(Some("web_search_20250305"), "web_search", Some(3)));
+        tools.push(ws_tool(Some("web_search_20260101"), "web_search", Some(7)));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, Some(3));
+        // 所有命中项均从普通工具列表剔除
+        assert_eq!(ordinary.len(), 1);
+        assert_eq!(ordinary[0].name, "Read");
+    }
+
+    #[test]
+    fn test_split_web_search_tool_first_declared_none_then_some() {
+        // 首个声明未带 max_uses、后续声明带：首个 None 不锁定上限，向后取首个
+        // 有效值（守卫语义为"首个有效声明生效"，避免有效上限被静默丢失）
+        let mut req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        let tools = req.tools.as_mut().unwrap();
+        tools.push(ws_tool(Some("web_search_20250305"), "web_search", None));
+        tools.push(ws_tool(Some("web_search_20260101"), "web_search", Some(7)));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, Some(7));
+        assert_eq!(ordinary.len(), 1);
     }
 
     #[test]

@@ -1,0 +1,40 @@
+src/anthropic/handlers.rs
+  e3876ad2a5183f0c 7,9,24,820-824,826-827,921,941,947-1265,1284-1285,1311-1312,1392-1502,1504-1520,1527-1530,1539-1545,1549-1551,1553-1554,1580-1588,1603,1630,1633-1710,1731,1739,1752,1802-1892,1911-1912,1939,1954-1982,1984-1990,1992-2031,2033-2050,2052-2061,2063-2074,2078-2080,2082-2104,2106-2120,2122-2149,2152-2154,2198,2201-2217,2575-2579,2581-2582,2676,2696,3150-3198,3200-3217,3219-3230,3232-3245,3247-3254,3256-3290,3293-3303,3306-3339,3341-3347,3349-3367,3370-3390,3392-3418,3420-3426,3428-3488,3490-3550,3552-3560,3562-3595,3597-3922
+src/anthropic/websearch.rs
+  e3876ad2a5183f0c 417,493
+src/anthropic/converter.rs
+  e3876ad2a5183f0c 516-519,766-804,806-808,817-819,905-911,1007,2660-2662,2664-2822
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a8deffee9deeb9bacdb5584a71e25a9a8aa1dc95",
+  "prompts": {
+    "e3876ad2a5183f0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbc9f21c-aaf7-42b4-8496-13fbb8491392",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2744,
+      "total_deletions": 607,
+      "accepted_lines": 2306,
+      "overriden_lines": 21
+    },
+    "fe90ce92dad6d42b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "940cdb27-1805-4fc0-aa62-9a881c886d04",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 163,
+      "overriden_lines": 0
+    }
+  }
+}

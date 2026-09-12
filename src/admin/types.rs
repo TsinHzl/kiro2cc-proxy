@@ -452,7 +452,6 @@ pub struct AdminReleaseNoteGroup {
 #[cfg_attr(test, derive(Deserialize))]
 pub struct AdminReleaseNote {
     pub version: String,
-    pub date: String,
     pub is_latest: bool,
     pub groups: Vec<AdminReleaseNoteGroup>,
 }

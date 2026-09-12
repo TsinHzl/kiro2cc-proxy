@@ -513,6 +513,10 @@ pub struct ConversionResult {
     /// 用于 provider 层选择更长的上游超时（压缩请求通常处理超长历史，
     /// 耗时明显高于普通请求）。检测逻辑见 `is_compact_request`。
     pub is_compact_request: bool,
+    /// web_search server tool 声明的次数上限（请求未携带该 server tool 时为 None）
+    ///
+    /// 供 handlers 桥接层计算多轮搜索上限 `min(max_uses, 5)`。
+    pub web_search_max_uses: Option<Option<i32>>,
 }
 
 /// 转换错误
@@ -759,7 +763,55 @@ fn derive_fallback_conversation_id(req: &MessagesRequest) -> Option<String> {
     Some(uuid::Uuid::from_bytes(bytes).to_string())
 }
 
+/// 判断工具是否为 Anthropic server tool 格式的 web_search
+///
+/// 识别依据（双条件，兼容 CC 版本差异）：
+/// - `tool_type` 含 `web_search`（如 `web_search_20250305`）
+/// - 或 `name == "web_search"`（部分 CC 版本只发 name + max_uses）
+pub(crate) fn is_web_search_server_tool(t: &super::types::Tool) -> bool {
+    t.tool_type
+        .as_deref()
+        .is_some_and(|ty| ty.contains("web_search"))
+        || t.name == "web_search"
+}
+
+/// 从请求工具列表中拆分出 web_search server tool 与普通工具
+///
+/// 命中时返回 `Some((max_uses, 剔除后的普通工具列表))`；未命中返回 `None`（调用方
+/// 按现状透传，零行为变化）。max_uses 取 server tool 声明的次数上限，供桥接层
+/// 计算多轮搜索上限 `min(max_uses, 5)`。
+pub(crate) fn split_web_search_tool(
+    req: &MessagesRequest,
+) -> Option<(Option<i32>, Vec<super::types::Tool>)> {
+    let tools = req.tools.as_ref()?;
+    let mut max_uses = None;
+    let mut hit = false;
+    let mut ordinary: Vec<super::types::Tool> = Vec::with_capacity(tools.len());
+    for t in tools {
+        if is_web_search_server_tool(t) {
+            hit = true;
+            // 首个非 None 声明的 max_uses 生效（协议约定一份请求仅一个 web_search
+            // server tool；多声明属于客户端异常，取首个避免"最后声明覆盖"的
+            // 未定义行为。注意首个命中项可能未声明 max_uses——此时继续向后
+            // 找首个显式声明，均未声明则保持 None 走默认值 5）
+            if max_uses.is_none() {
+                max_uses = t.max_uses;
+            }
+        } else {
+            ordinary.push(t.clone());
+        }
+    }
+    if hit {
+        Some((max_uses, ordinary))
+    } else {
+        None
+    }
+}
+
 /// 收集历史消息中使用的所有工具名称
+///
+/// 桥接产生的 web_search toolUse 不参与占位符生成——Kiro 不识别该 server tool，
+/// 且避免污染 context.tools。
 fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
     let mut tool_names = Vec::new();
 
@@ -768,6 +820,9 @@ fn collect_history_tool_names(history: &[Message]) -> Vec<String> {
             && let Some(ref tool_uses) = assistant_msg.assistant_response_message.tool_uses
         {
             for tool_use in tool_uses {
+                if tool_use.name == "web_search" {
+                    continue;
+                }
                 if !tool_names.contains(&tool_use.name) {
                     tool_names.push(tool_use.name.clone());
                 }
@@ -853,7 +908,18 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     let text_content = append_output_format_instruction(text_content, &req.output_config);
 
     // 6. 转换工具定义
-    let mut tools = convert_tools(&req.tools);
+    // web_search server tool 不发给 Kiro（Kiro 不识别该格式），由 handlers 层桥接到
+    // Kiro MCP 执行；未命中时 split_web_search_tool 返回 None，与直接转换逐字节一致。
+    // 借用实现：未命中路径直接引用 req.tools，避免每个请求深拷贝全部工具定义
+    let split_owned;
+    let (web_search_max_uses, split_tools) = match split_web_search_tool(req) {
+        Some((max_uses, ordinary)) => {
+            split_owned = Some(ordinary);
+            (Some(max_uses), &split_owned)
+        }
+        None => (None, &req.tools),
+    };
+    let mut tools = convert_tools(split_tools);
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）
     let mut history = build_history(req, messages, &model_id, &conversation_id)?;
@@ -949,6 +1015,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         conversation_state,
         additional_model_request_fields,
         is_compact_request: is_compact,
+        web_search_max_uses,
     })
 }
 
@@ -1529,7 +1596,8 @@ fn build_additional_model_request_fields(
     req: &MessagesRequest,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    if is_gpt_model(model_id) {
+    // "4.5" 代际（sonnet/opus/haiku）与 GPT 系均需整体跳过，见上方实测说明
+    if model_id.ends_with("4.5") || is_gpt_model(model_id) {
         return None;
     }
 
@@ -2599,6 +2667,199 @@ mod tests {
         assert_eq!(tool_names.len(), 2);
         assert!(tool_names.contains(&"read".to_string()));
         assert!(tool_names.contains(&"write".to_string()));
+    }
+
+    fn ws_tool(
+        tool_type: Option<&str>,
+        name: &str,
+        max_uses: Option<i32>,
+    ) -> super::super::types::Tool {
+        super::super::types::Tool {
+            tool_type: tool_type.map(|s| s.to_string()),
+            name: name.to_string(),
+            description: String::new(),
+            input_schema: Default::default(),
+            max_uses,
+            defer_loading: None,
+        }
+    }
+
+    #[test]
+    fn test_is_web_search_server_tool() {
+        // tool_type 含 web_search 即命中（官方 server tool 格式）
+        assert!(is_web_search_server_tool(&ws_tool(
+            Some("web_search_20250305"),
+            "web_search",
+            None
+        )));
+        // 部分客户端只发 name == "web_search" 也命中
+        assert!(is_web_search_server_tool(&ws_tool(
+            None,
+            "web_search",
+            None
+        )));
+        // 普通工具不命中
+        assert!(!is_web_search_server_tool(&ws_tool(None, "Bash", None)));
+        assert!(!is_web_search_server_tool(&ws_tool(
+            Some("custom_bash_20240101"),
+            "Bash",
+            None
+        )));
+    }
+
+    #[test]
+    fn test_split_web_search_tool_mixed_list() {
+        // 混合列表：剔除 server tool、提取 max_uses、保留普通工具
+        let mut req = fallback_req(None, &["Read", "Write"], &[("user", "hi")]);
+        let tools = req.tools.as_mut().unwrap();
+        tools.push(ws_tool(Some("web_search_20250305"), "web_search", Some(3)));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, Some(3));
+        assert_eq!(ordinary.len(), 2);
+        assert!(ordinary.iter().all(|t| t.name != "web_search"));
+        assert!(ordinary.iter().any(|t| t.name == "Read"));
+        assert!(ordinary.iter().any(|t| t.name == "Write"));
+    }
+
+    #[test]
+    fn test_split_web_search_tool_no_hit() {
+        // 无 server tool：返回 None，普通工具列表原样
+        let req = fallback_req(None, &["Read", "Bash"], &[("user", "hi")]);
+        assert!(split_web_search_tool(&req).is_none());
+
+        // 无 tools 字段同样返回 None
+        let req = fallback_req(None, &[], &[("user", "hi")]);
+        assert!(split_web_search_tool(&req).is_none());
+    }
+
+    #[test]
+    fn test_split_web_search_tool_no_max_uses() {
+        // 携带 server tool 但未声明 max_uses：内层 None
+        let mut req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        req.tools
+            .as_mut()
+            .unwrap()
+            .push(ws_tool(Some("web_search_20250305"), "web_search", None));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, None);
+        assert_eq!(ordinary.len(), 1);
+        assert_eq!(ordinary[0].name, "Read");
+    }
+
+    #[test]
+    fn test_split_web_search_tool_multiple_declarations_first_wins() {
+        // 异常场景：同一请求声明多个 web_search server tool——首个声明的
+        // max_uses 生效，不被后续声明覆盖
+        let mut req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        let tools = req.tools.as_mut().unwrap();
+        tools.push(ws_tool(Some("web_search_20250305"), "web_search", Some(3)));
+        tools.push(ws_tool(Some("web_search_20260101"), "web_search", Some(7)));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, Some(3));
+        // 所有命中项均从普通工具列表剔除
+        assert_eq!(ordinary.len(), 1);
+        assert_eq!(ordinary[0].name, "Read");
+    }
+
+    #[test]
+    fn test_split_web_search_tool_first_declared_none_then_some() {
+        // 首个声明未带 max_uses、后续声明带：首个 None 不锁定上限，向后取首个
+        // 有效值（守卫语义为"首个有效声明生效"，避免有效上限被静默丢失）
+        let mut req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        let tools = req.tools.as_mut().unwrap();
+        tools.push(ws_tool(Some("web_search_20250305"), "web_search", None));
+        tools.push(ws_tool(Some("web_search_20260101"), "web_search", Some(7)));
+
+        let (max_uses, ordinary) = split_web_search_tool(&req).expect("应命中 server tool");
+        assert_eq!(max_uses, Some(7));
+        assert_eq!(ordinary.len(), 1);
+    }
+
+    #[test]
+    fn test_convert_request_removes_web_search_from_context_tools() {
+        use super::super::types::Message as AnthropicMessage;
+
+        let req = MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("搜索一下今天的新闻"),
+            }],
+            stream: false,
+            system: None,
+            tools: Some(vec![
+                ws_tool(None, "Read", None),
+                ws_tool(Some("web_search_20250305"), "web_search", Some(3)),
+            ]),
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        };
+
+        let result = convert_request(&req).unwrap();
+
+        // web_search max_uses 透传给桥接层
+        assert_eq!(result.web_search_max_uses, Some(Some(3)));
+
+        // Kiro context.tools 仅含普通工具，web_search 被剔除
+        let tools = &result
+            .conversation_state
+            .current_message
+            .user_input_message
+            .user_input_message_context
+            .tools;
+        assert!(
+            tools
+                .iter()
+                .all(|t| t.tool_specification.name != "web_search"),
+            "context.tools 不应包含 web_search"
+        );
+        assert!(
+            tools.iter().any(|t| t.tool_specification.name == "Read"),
+            "context.tools 应保留普通工具"
+        );
+    }
+
+    #[test]
+    fn test_convert_request_no_web_search_passes_through() {
+        // 无 server tool：web_search_max_uses 为外层 None，工具列表与直接转换一致
+        let req = fallback_req(None, &["Read"], &[("user", "hi")]);
+        let result = convert_request(&req).unwrap();
+        assert_eq!(result.web_search_max_uses, None);
+        let tools = &result
+            .conversation_state
+            .current_message
+            .user_input_message
+            .user_input_message_context
+            .tools;
+        assert!(tools.iter().any(|t| t.tool_specification.name == "Read"));
+    }
+
+    #[test]
+    fn test_collect_history_tool_names_excludes_web_search() {
+        use crate::kiro::model::requests::tool::ToolUseEntry;
+
+        // 桥接产生的 web_search toolUse 不应生成占位符定义
+        let mut assistant_msg = AssistantMessage::new("Let me search.");
+        assistant_msg = assistant_msg.with_tool_uses(vec![
+            ToolUseEntry::new("ws-1", "web_search")
+                .with_input(serde_json::json!({"query": "rust news"})),
+            ToolUseEntry::new("tool-1", "read")
+                .with_input(serde_json::json!({"path": "/test.txt"})),
+        ]);
+
+        let history = vec![Message::Assistant(HistoryAssistantMessage {
+            assistant_response_message: assistant_msg,
+        })];
+
+        let tool_names = collect_history_tool_names(&history);
+        assert!(!tool_names.contains(&"web_search".to_string()));
+        assert!(tool_names.contains(&"read".to_string()));
     }
 
     #[test]
@@ -3973,11 +4234,12 @@ mod tests {
 
     #[test]
     fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude_models() {
-        // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对全部
-        // Claude 代际生效（实测 claude-sonnet-4-6 在 max_tokens=200 时同样报 400
-        // "must have a minimum value of 1024.0"），不能只对 cap==128000
-        // （opus-4.7/4.8/5）的模型生效，否则 64000 档模型（sonnet 全系列、
-        // opus-4.5/4.6、haiku）传入小 max_tokens 时会被上游拒绝。
+        // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对支持
+        // additionalModelRequestFields 的 Claude 代际生效（实测 claude-sonnet-4-6
+        // 在 max_tokens=200 时同样报 400 "must have a minimum value of 1024.0"），
+        // 不能只对 cap==128000（opus-4.7/4.8/5）的模型生效。
+        // 注意："4.5" 代际（sonnet/opus/haiku）整体跳过该字段（400 实测，
+        // 见 build_additional_model_request_fields 文档），故不在本测试范围。
         use super::super::types::Message as AnthropicMessage;
 
         for model in [
@@ -3985,7 +4247,6 @@ mod tests {
             "claude-sonnet-5",
             "claude-opus-4-6",
             "claude-opus-5",
-            "claude-haiku-4-5",
         ] {
             let req = MessagesRequest {
                 model: model.to_string(),
@@ -4012,6 +4273,52 @@ mod tests {
             assert!(
                 max_tokens >= 1024,
                 "model={model} max_tokens 应被下限收敛到至少 1024，实际={max_tokens}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_claude_4_5_generation_additional_model_request_fields_is_none() {
+        // 回归测试（haiku-4.5 全部请求 400 修复）：实测 claude-sonnet-4.5 /
+        // claude-opus-4.5 / claude-haiku-4.5 的 Kiro schema 均不接受
+        // additionalModelRequestFields（thinking/output_config/max_tokens 均报
+        // 400 REQUEST_BODY_INVALID），需整体省略该字段。历史上该跳过逻辑曾被
+        // 重构为仅判断 GPT 系而丢失，导致 haiku-4.5 全量 502。
+        use super::super::types::{Message as AnthropicMessage, Thinking};
+
+        // 覆盖 /v1/models 暴露的带日期变体（含 -thinking）及简写形式
+        for model in [
+            "claude-haiku-4-5",
+            "claude-sonnet-4-5",
+            "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4-5-20250929-thinking",
+            "claude-opus-4-5",
+            "claude-opus-4-5-20251101",
+            "claude-opus-4-5-20251101-thinking",
+        ] {
+            let req = MessagesRequest {
+                model: model.to_string(),
+                max_tokens: 32000,
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: None,
+                tools: None,
+                tool_choice: None,
+                thinking: Some(Thinking {
+                    thinking_type: "enabled".to_string(),
+                    budget_tokens: 24576,
+                }),
+                output_config: None,
+                metadata: None,
+            };
+
+            let result = convert_request(&req).unwrap();
+            assert!(
+                result.additional_model_request_fields.is_none(),
+                "model={model} 4.5 代际必须整体省略 additionalModelRequestFields 字段"
             );
         }
     }

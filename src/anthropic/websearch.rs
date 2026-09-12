@@ -414,7 +414,7 @@ fn generate_websearch_events(
 }
 
 /// 生成搜索结果摘要
-fn generate_search_summary(query: &str, results: &Option<WebSearchResults>) -> String {
+pub(crate) fn generate_search_summary(query: &str, results: &Option<WebSearchResults>) -> String {
     let mut summary = format!("Here are the search results for \"{}\":\n\n", query);
 
     if let Some(results) = results {
@@ -490,7 +490,7 @@ pub async fn handle_websearch_request(
 }
 
 /// 调用 Kiro MCP API
-async fn call_mcp_api(
+pub(crate) async fn call_mcp_api(
     provider: &crate::kiro::provider::KiroProvider,
     request: &McpRequest,
     bound_ids: &[u64],

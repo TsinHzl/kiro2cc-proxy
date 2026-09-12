@@ -203,7 +203,6 @@ export interface ReleaseNoteGroup {
 
 export interface ReleaseNote {
   version: string
-  date: string
   is_latest: boolean
   groups: ReleaseNoteGroup[]
 }

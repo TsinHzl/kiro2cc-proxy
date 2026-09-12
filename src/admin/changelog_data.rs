@@ -32,7 +32,6 @@ pub struct ReleaseNoteGroup {
 #[derive(Debug, Clone)]
 pub struct ReleaseNote {
     pub version: String,
-    pub date: String,
     pub is_latest: bool,
     pub groups: Vec<ReleaseNoteGroup>,
 }
@@ -68,8 +67,25 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.2.0".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "WebSearch 工具桥接升级为 Kiro MCP 真实搜索闭环：客户端 web_search 工具声明被转换为 Kiro 侧执行，多轮工具调用自动衔接，支持 max_uses 上限控制",
+                    "WebSearch tool bridging upgraded to a real Kiro MCP search loop: client web_search tool declarations are executed on the Kiro side with automatic multi-round tool-call handoff and max_uses capping",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "桥接轮次保活机制重构：后台搜索轮次经 select! 条件分支收割，避免流式循环提前退出导致搜索结果丢失",
+                    "Bridge keep-alive reworked: background search rounds are harvested via a select! conditional branch, preventing search results from being lost when the streaming loop exits early",
+                )]),
+                fix_group(vec![Bilingual::new(
+                    "恢复 4.5 代际模型（haiku-4-5 / sonnet-4-5 / opus-4-5 及其带日期变体）跳过 additionalModelRequestFields，修复该代际全量请求 400 REQUEST_BODY_INVALID / 502",
+                    "Restore the 4.5 generation models (haiku-4-5 / sonnet-4-5 / opus-4-5 and their dated variants) skipping additionalModelRequestFields, fixing widespread 400 REQUEST_BODY_INVALID / 502 failures for that generation",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.0.17".to_string(),
-            date: "2026-09-01".to_string(),
             is_latest: false,
             groups: vec![
                 feat_group(vec![Bilingual::new(
@@ -98,7 +114,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "3.0.1".to_string(),
-            date: "2026-08-21".to_string(),
             is_latest: false,
             groups: vec![
                 feat_group(vec![Bilingual::new(
@@ -113,7 +128,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.10.2".to_string(),
-            date: "2026-08-20".to_string(),
             is_latest: false,
             groups: vec![
                 improve_group(vec![
@@ -144,7 +158,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.10.0".to_string(),
-            date: "2026-08-19".to_string(),
             is_latest: false,
             groups: vec![
                 improve_group(vec![
@@ -175,7 +188,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.9.5".to_string(),
-            date: "2026-08-13".to_string(),
             is_latest: false,
             groups: vec![feat_group(vec![Bilingual::new(
                 "Admin 后台侧边栏支持折叠/展开",
@@ -184,7 +196,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.9.0".to_string(),
-            date: "2026-08-07".to_string(),
             is_latest: false,
             groups: vec![
                 feat_group(vec![Bilingual::new(
@@ -199,7 +210,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.25".to_string(),
-            date: "2026-08-07".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(
                 "支持模型列表按模型家族分组排列",
@@ -208,7 +218,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.24".to_string(),
-            date: "2026-08-06".to_string(),
             is_latest: false,
             groups: vec![improve_group(vec![
                 Bilingual::new(
@@ -223,7 +232,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.23".to_string(),
-            date: "2026-08-06".to_string(),
             is_latest: false,
             groups: vec![improve_group(vec![Bilingual::new(
                 "移除主 API Key 全局兜底认证机制，收窄鉴权入口",
@@ -232,7 +240,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.22".to_string(),
-            date: "2026-08-05".to_string(),
             is_latest: false,
             groups: vec![feat_group(vec![
                 Bilingual::new(
@@ -251,7 +258,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.21".to_string(),
-            date: "2026-08-05".to_string(),
             is_latest: false,
             groups: vec![feat_group(vec![Bilingual::new(
                 "每日统计页新增最近 14 天 credits 使用趋势曲线图",
@@ -260,7 +266,6 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         },
         ReleaseNote {
             version: "2.8.20".to_string(),
-            date: "2026-08-05".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(
                 "修复 Dockerfile 缺少 COPY assets 导致容器内 ip2region xdb 缺失、构建失败的问题",

@@ -1,0 +1,27 @@
+src/admin/changelog_data.rs
+  e3876ad2a5183f0c 70-83,85-86
+admin-ui/src/components/changelog-page.tsx
+  e3876ad2a5183f0c 88-89,116,135,193,264
+src/anthropic/converter.rs
+  e3876ad2a5183f0c 4289-4298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "36c5e808dfc2ccdc909c037b6afad268a07f47d1",
+  "prompts": {
+    "e3876ad2a5183f0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbc9f21c-aaf7-42b4-8496-13fbb8491392",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 18,
+      "accepted_lines": 91,
+      "overriden_lines": 1
+    }
+  }
+}

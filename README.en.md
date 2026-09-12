@@ -29,13 +29,13 @@ This project is for research purposes only. Use at your own risk. Any consequenc
 | **🔌 Anthropic API Compatible** | Full support for the Anthropic Claude API format |
 | **🧬 OpenAI Compatible / Codex CLI** | Exposes `/v1/chat/completions` and `/v1/responses` endpoints for direct Codex CLI and OpenAI SDK client integration |
 | **📡 Streaming Responses** | SSE (Server-Sent Events) streaming support |
+| **🔍 WebSearch** | Built-in WebSearch tool conversion logic, i.e. supports web search in Claude Code |
 | **🔄 Auto Token Refresh** | Automatically manages and refreshes OAuth tokens |
 | **👥 Multi-Account Support** | Configure multiple accounts with automatic priority-based failover |
 | **⚖️ Load Balancing** | `priority` (by priority) and `balanced` (round-robin) modes |
 | **🔁 Smart Retry** | Up to 3 retries per account, up to 9 retries per request |
 | **🧠 Thinking Mode** | Supports Claude's extended thinking feature |
 | **🛠️ Tool Use** | Full support for function calling / tool use |
-| **🔍 WebSearch** | Built-in WebSearch tool conversion logic |
 | **🛡️ Admin Panel** | Optional web management UI for account management, balance queries, etc. |
 | **🌐 Per-Account Proxy** | Configure HTTP/SOCKS5 proxy per account |
 

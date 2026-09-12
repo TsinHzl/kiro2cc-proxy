@@ -29,13 +29,13 @@
 | **🔌 Anthropic API 兼容** | 完整支持 Anthropic Claude API 格式 |
 | **🧬 OpenAI 兼容 / Codex CLI** | 提供 `/v1/chat/completions` 与 `/v1/responses` 端点，可直接接入 Codex CLI 及任意 OpenAI SDK 客户端 |
 | **📡 流式响应** | 支持 SSE (Server-Sent Events) 流式输出 |
+| **🔍 WebSearch** | 内置 WebSearch 工具转换逻辑，即支持CC中网络搜索功能 |
 | **🔄 Token 自动刷新** | 自动管理和刷新 OAuth Token |
 | **👥 多账号支持** | 支持配置多个账号，按优先级自动故障转移 |
 | **⚖️ 负载均衡** | 支持 `priority`（按优先级）和 `balanced`（均衡分配）两种模式 |
 | **🔁 智能重试** | 单账号最多重试 3 次，单请求最多重试 9 次 |
 | **🧠 Thinking 模式** | 支持 Claude 的 extended thinking 功能 |
 | **🛠️ 工具调用** | 完整支持 function calling / tool use |
-| **🔍 WebSearch** | 内置 WebSearch 工具转换逻辑 |
 | **🛡️ Admin 管理** | 可选的 Web 管理界面，支持账号管理、余额查询等 |
 | **🌐 账号级代理** | 支持为每个账号单独配置 HTTP/SOCKS5 代理 |
 

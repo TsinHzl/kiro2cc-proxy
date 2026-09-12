@@ -4286,7 +4286,16 @@ mod tests {
         // 重构为仅判断 GPT 系而丢失，导致 haiku-4.5 全量 502。
         use super::super::types::{Message as AnthropicMessage, Thinking};
 
-        for model in ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"] {
+        // 覆盖 /v1/models 暴露的带日期变体（含 -thinking）及简写形式
+        for model in [
+            "claude-haiku-4-5",
+            "claude-sonnet-4-5",
+            "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4-5-20250929-thinking",
+            "claude-opus-4-5",
+            "claude-opus-4-5-20251101",
+            "claude-opus-4-5-20251101-thinking",
+        ] {
             let req = MessagesRequest {
                 model: model.to_string(),
                 max_tokens: 32000,

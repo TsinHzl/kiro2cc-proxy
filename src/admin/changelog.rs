@@ -17,7 +17,6 @@ pub async fn get_changelog() -> impl IntoResponse {
         .into_iter()
         .map(|note| AdminReleaseNote {
             version: note.version,
-            date: note.date,
             is_latest: note.is_latest,
             groups: note
                 .groups

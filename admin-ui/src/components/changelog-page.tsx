@@ -52,11 +52,6 @@ function kindOf(group: ReleaseNoteGroup): SectionKind {
   return SECTION_KIND.get(group.title_zh) ?? SECTION_KIND.get(group.title_en) ?? 'other'
 }
 
-/** 「2026-08-13」→「08-13」；格式不符时回退原串 */
-function shortDate(date: string): string {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5) : date
-}
-
 /** 「2.8.25」→「2.8」；段数不足时回退原串 */
 function minorOf(version: string): string {
   const parts = version.split('.')
@@ -90,8 +85,8 @@ interface IndexEntry {
   label: string
   /** 跳转目标版本号（聚合档指向该 minor 下最新的一个版本） */
   target: string
-  /** 右侧副文本：逐条档显示发布日期，聚合档显示该 minor 落在归档区的版本数 */
-  meta: { kind: 'date'; value: string } | { kind: 'count'; value: number }
+  /** 右侧副文本：逐条档显示该版本变更条数，聚合档显示该 minor 落在归档区的版本数 */
+  meta: { kind: 'count'; value: number }
 }
 
 /**
@@ -118,7 +113,7 @@ function buildIndex(notes: ReleaseNote[]): { recent: IndexEntry[]; archive: Inde
         key: note.version,
         label: `v${note.version}`,
         target: note.version,
-        meta: { kind: 'date', value: note.date },
+        meta: { kind: 'count', value: changeCount(note) },
       })
       return
     }
@@ -137,7 +132,7 @@ function buildIndex(notes: ReleaseNote[]): { recent: IndexEntry[]; archive: Inde
       key: note.version,
       label: `v${note.version}`,
       target: note.version,
-      meta: { kind: 'date' as const, value: note.date },
+      meta: { kind: 'count' as const, value: changeCount(note) },
     })),
     archive,
   }
@@ -195,9 +190,7 @@ export function ChangelogPage() {
     >
       <span className="truncate">{entry.label}</span>
       <span className="ml-auto flex-none text-[10px] text-ink-3">
-        {entry.meta.kind === 'date'
-          ? shortDate(entry.meta.value)
-          : t('changelog.archiveCount', { count: entry.meta.value })}
+        {entry.meta.kind === 'count' && t('changelog.changeCount', { count: entry.meta.value })}
       </span>
     </button>
   )
@@ -268,7 +261,7 @@ export function ChangelogPage() {
                       </span>
                     )}
                     <span className="text-[11px] text-ink-3">
-                      {note.date} · {t('changelog.changeCount', { count: changeCount(note) })}
+                      {t('changelog.changeCount', { count: changeCount(note) })}
                     </span>
                   </div>
 

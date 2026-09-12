@@ -1,0 +1,25 @@
+README.md
+  d8fb88b95ccc696d 32
+README.en.md
+  d8fb88b95ccc696d 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7955f37ec06c098c7134abbc7a44caf7e0ffe0fd",
+  "prompts": {
+    "d8fb88b95ccc696d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "606346ac-9a20-493f-ac4e-3879ae970b85",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 6,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

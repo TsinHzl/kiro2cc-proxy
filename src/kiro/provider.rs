@@ -39,19 +39,17 @@ const MAX_CONCURRENT_REQUESTS: usize = 50;
 /// 单账号最大并发请求数
 const MAX_CONCURRENT_PER_CREDENTIAL: usize = 20;
 
-/// 普通请求的上游 HTTP 超时（秒）
+/// 所有上游 API 请求统一使用的 HTTP 总超时（秒）。
 ///
-/// 历史上曾统一使用 1000s（见 `COMPACT_TIMEOUT_SECS` 注释），但普通请求绝大多数
-/// 在数秒到数十秒内返回，1000s 上限对它们而言只会拖长网络异常时的报错等待时间。
-/// 收窄回 180s，压缩请求单独使用更长超时（见 `is_compact_request`）。
-const NORMAL_TIMEOUT_SECS: u64 = 180;
-
-/// 压缩请求（Claude Code `/compact` 手动触发或 auto-compact）的上游 HTTP 超时（秒）。
-///
-/// 压缩请求要对超长历史做一次性摘要，实测耗时明显高于普通请求，且原 180s 超时
-/// 会导致大上下文非流式请求 502（历史修复 commit 9338888）。保留 1000s 上限，
-/// 但仅对识别为压缩请求的调用生效，避免普通请求被这个长上限拖累报错时机。
-const COMPACT_TIMEOUT_SECS: u64 = 1000;
+/// 历史上曾按请求类型分档：压缩请求 1000s（历史修复 commit 9338888，大上下文
+/// 非流式 502），普通请求 180s（commit d669fb6，意图是让网络异常时报错更快）。
+/// 但 `reqwest::Client::timeout` 是覆盖「发请求到读完整个响应体」的总超时，
+/// 流式响应的持续生成阶段同样受它约束——100K+ 输入的长生成请求实测可超过 180s，
+/// 会被该超时在中途掐断（表现为 `error decoding response body` / 502），
+/// 生产日志已实证（三次流式失败 + 一次非流式 502 耗时全部 ≈180s）。
+/// 故统一回 1000s：上游正常生成耗时不受影响（超时只是上限），
+/// 真正挂死的连接由 TCP keepalive 与客户端自身重试兜底。
+const UPSTREAM_TIMEOUT_SECS: u64 = 1000;
 
 /// Kiro API Provider
 ///
@@ -61,10 +59,11 @@ pub struct KiroProvider {
     token_manager: Arc<MultiTokenManager>,
     /// 全局代理配置（用于账号无自定义代理时的回退）
     global_proxy: Option<ProxyConfig>,
-    /// Client 缓存：key = (effective proxy config, is_compact)，value = reqwest::Client
+    /// Client 缓存：key = (effective proxy config, use_long_timeout)，value = reqwest::Client
     /// 不同代理配置的账号使用不同的 Client，共享相同代理的账号复用 Client。
-    /// 同一代理配置下按请求类型（是否为 /compact 压缩请求）分别缓存两套 Client，
-    /// 分别使用 NORMAL_TIMEOUT_SECS / COMPACT_TIMEOUT_SECS 超时（见常量定义）。
+    /// 历史上按请求类型分两档超时（压缩/流式 1000s vs 普通 180s），现已统一为
+    /// UPSTREAM_TIMEOUT_SECS=1000s，但缓存结构保留 bool 维度以兼容既有调用点
+    /// （见 `client_for`）。
     client_cache: Mutex<HashMap<(Option<ProxyConfig>, bool), Client>>,
     /// TLS 后端配置
     tls_backend: TlsBackend,
@@ -92,8 +91,8 @@ impl KiroProvider {
     /// 创建带代理配置的 KiroProvider 实例
     pub fn with_proxy(token_manager: Arc<MultiTokenManager>, proxy: Option<ProxyConfig>) -> Self {
         let tls_backend = token_manager.config().tls_backend;
-        // 预热：为全局代理配置构建普通超时 Client（压缩超时 Client 按需懒创建）
-        let initial_client = build_client(proxy.as_ref(), NORMAL_TIMEOUT_SECS, tls_backend)
+        // 预热：为全局代理配置构建普通超时 Client（长超时 Client 按需懒创建）
+        let initial_client = build_client(proxy.as_ref(), UPSTREAM_TIMEOUT_SECS, tls_backend)
             .expect("创建 HTTP 客户端失败");
         let mut cache = HashMap::new();
         cache.insert((proxy.clone(), false), initial_client);
@@ -136,30 +135,26 @@ impl KiroProvider {
         self
     }
 
-    /// 根据账号的代理配置和请求类型获取（或创建并缓存）对应的 reqwest::Client
+    /// 根据账号的代理配置获取（或创建并缓存）对应的 reqwest::Client
     ///
-    /// `is_compact` 为 true 时使用 `COMPACT_TIMEOUT_SECS`（压缩请求，超长历史摘要），
-    /// 否则使用 `NORMAL_TIMEOUT_SECS`（普通请求）。同一代理配置下两种超时的 Client
-    /// 分别缓存，互不影响。
+    /// 历史上按请求类型分两档超时（参数 `use_long_timeout` 区分），现统一为
+    /// `UPSTREAM_TIMEOUT_SECS`。参数保留以兼容既有调用点，两档构建的 Client
+    /// 超时一致，仅缓存 key 隔离。
     fn client_for(
         &self,
         credentials: &KiroCredentials,
-        is_compact: bool,
+        use_long_timeout: bool,
     ) -> anyhow::Result<Client> {
         let effective = credentials.effective_proxy(self.global_proxy.as_ref());
-        let key = (effective.clone(), is_compact);
+        let key = (effective.clone(), use_long_timeout);
         let mut cache = self.client_cache.lock();
         if let Some(client) = cache.get(&key) {
             return Ok(client.clone());
         }
-        let timeout_secs = if is_compact {
-            COMPACT_TIMEOUT_SECS
-        } else {
-            NORMAL_TIMEOUT_SECS
-        };
+        let timeout_secs = UPSTREAM_TIMEOUT_SECS;
         tracing::debug!(
-            "[CLIENT] 创建新 Client：is_compact={} timeout_secs={}",
-            is_compact,
+            "[CLIENT] 创建新 Client：use_long_timeout={} timeout_secs={}",
+            use_long_timeout,
             timeout_secs
         );
         let client = build_client(effective.as_ref(), timeout_secs, self.tls_backend)?;
@@ -409,7 +404,8 @@ impl KiroProvider {
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
-    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求（决定使用的上游超时）
+    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求
+    ///   （超时统一为 `UPSTREAM_TIMEOUT_SECS`，历史分档已移除）
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
@@ -433,7 +429,8 @@ impl KiroProvider {
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的请求体字符串
-    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求（决定使用的上游超时）
+    /// * `is_compact` - 是否为 Claude Code `/compact` 压缩请求
+    ///   （超时统一为 `UPSTREAM_TIMEOUT_SECS`，历史分档已移除）
     ///
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
@@ -450,7 +447,7 @@ impl KiroProvider {
     /// 发送 MCP API 请求
     ///
     /// 用于 WebSearch 等工具调用。MCP 调用不涉及 `/compact` 压缩语义，
-    /// 始终使用普通超时（`NORMAL_TIMEOUT_SECS`）。
+    /// 与普通请求共用统一超时（`UPSTREAM_TIMEOUT_SECS`）。
     ///
     /// # Arguments
     /// * `request_body` - JSON 格式的 MCP 请求体字符串
@@ -736,6 +733,10 @@ impl KiroProvider {
         bound_ids: &[u64],
     ) -> anyhow::Result<(reqwest::Response, u64)> {
         let _permit = self.concurrency_limit.acquire().await?;
+        // 流式请求的响应体在上游 200 headers 返回后仍持续生成，受 reqwest
+        // 总超时约束，统一使用 `UPSTREAM_TIMEOUT_SECS` 长超时档；若使用较短
+        // 档位会在长生成中途被掐断（历史分档背景见常量注释）
+        let use_long_timeout = is_stream || is_compact;
         let effective_pool = if bound_ids.is_empty() {
             self.token_manager.total_count()
         } else {
@@ -860,7 +861,7 @@ impl KiroProvider {
             };
 
             // 发送请求
-            let client = match self.client_for(&ctx.credentials, is_compact) {
+            let client = match self.client_for(&ctx.credentials, use_long_timeout) {
                 Ok(c) => c,
                 Err(e) => {
                     last_error = Some(e);

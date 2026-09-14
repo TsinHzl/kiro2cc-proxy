@@ -1,0 +1,23 @@
+Cargo.toml
+  75dbbdfbecbab90d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2c5386c51a80382860254a71b92c1b3d3add0bfd",
+  "prompts": {
+    "75dbbdfbecbab90d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "550e122d-474d-47f2-af7d-b0391d6241a6",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

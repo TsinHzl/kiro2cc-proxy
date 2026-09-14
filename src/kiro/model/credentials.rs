@@ -185,8 +185,11 @@ fn is_zero(value: &u32) -> bool {
     *value == 0
 }
 
-fn canonicalize_auth_method_value(value: &str) -> &str {
-    if value.eq_ignore_ascii_case("builder-id") || value.eq_ignore_ascii_case("iam") {
+pub(crate) fn canonicalize_auth_method_value(value: &str) -> &str {
+    if value.eq_ignore_ascii_case("idc")
+        || value.eq_ignore_ascii_case("builder-id")
+        || value.eq_ignore_ascii_case("iam")
+    {
         "idc"
     } else if value.eq_ignore_ascii_case("azuread") || value.eq_ignore_ascii_case("entraid") {
         "external_idp"
@@ -1045,6 +1048,8 @@ mod tests {
             ("external_idp", "external_idp"),
             ("social", "social"),
             ("idc", "idc"),
+            ("IdC", "idc"),
+            ("IDC", "idc"),
             ("builder-id", "idc"),
             ("iam", "idc"),
         ];

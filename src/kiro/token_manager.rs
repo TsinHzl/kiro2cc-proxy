@@ -20,7 +20,7 @@ use crate::common::fs::atomic_write;
 use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::machine_id;
 use crate::kiro::model::available_models::AvailableModelsResponse;
-use crate::kiro::model::credentials::KiroCredentials;
+use crate::kiro::model::credentials::{KiroCredentials, canonicalize_auth_method_value};
 use crate::kiro::model::token_refresh::{
     IdcRefreshRequest, IdcRefreshResponse, RefreshRequest, RefreshResponse,
 };
@@ -157,6 +157,18 @@ impl std::fmt::Display for RefreshTokenInvalidError {
         write!(f, "refreshToken 已被服务端撤销（invalid_grant）")
     }
 }
+
+/// 账号不支持 getUsageLimits 查询（如 BuilderId 个人账号），区别于认证失败等可重试错误
+#[derive(Debug)]
+pub(crate) struct UsageLimitsUnsupportedError;
+
+impl std::fmt::Display for UsageLimitsUnsupportedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "此账号不支持 getUsageLimits 查询")
+    }
+}
+
+impl std::error::Error for UsageLimitsUnsupportedError {}
 
 impl std::error::Error for RefreshTokenInvalidError {}
 
@@ -495,7 +507,11 @@ pub(crate) fn select_usage_limits_token<'a>(
     credentials: &'a KiroCredentials,
     token: &'a str,
 ) -> &'a str {
-    if credentials.auth_method.as_deref() == Some("idc") {
+    if credentials
+        .auth_method
+        .as_deref()
+        .is_some_and(|m| m.eq_ignore_ascii_case("idc"))
+    {
         credentials.sso_access_token.as_deref().unwrap_or(token)
     } else {
         token
@@ -513,15 +529,30 @@ pub(crate) async fn get_usage_limits(
 
     // 优先级：账号.api_region > config.api_region > config.region
     let region = credentials.effective_api_region(config);
-    let host = format!("q.{}.amazonaws.com", region);
+    let region_lower = region.to_lowercase();
+    // 企业 IdC 账号（有 profileArn）用 q.{region}.amazonaws.com；
+    // BuilderId 个人账号用 codewhisperer 端点（us-east-1 专用主机，其他区域回退到 q.*）
+    let host = if credentials.profile_arn.is_some() {
+        format!("q.{}.amazonaws.com", region_lower)
+    } else if region_lower == "us-east-1" {
+        format!("codewhisperer.{}.amazonaws.com", region_lower)
+    } else {
+        format!("q.{}.amazonaws.com", region_lower)
+    };
     let machine_id = machine_id::generate_from_credentials(credentials, config);
     let kiro_version = &config.kiro_version;
 
     // 构建 URL
-    let mut url = format!(
-        "https://{}/getUsageLimits?origin=AI_EDITOR&resourceType=AGENTIC_REQUEST",
-        host
-    );
+    // resourceType=AGENTIC_REQUEST 仅对企业 IdC 账号（有 profileArn）有效；
+    // BuilderId 个人账号不支持该参数，发送会导致 400 Invalid profileArn。
+    let mut url = if credentials.profile_arn.is_some() {
+        format!(
+            "https://{}/getUsageLimits?origin=AI_EDITOR&resourceType=AGENTIC_REQUEST",
+            host
+        )
+    } else {
+        format!("https://{}/getUsageLimits?origin=AI_EDITOR", host)
+    };
 
     // profileArn 是可选的
     if let Some(profile_arn) = &credentials.profile_arn {
@@ -562,6 +593,10 @@ pub(crate) async fn get_usage_limits(
     let status = response.status();
     if !status.is_success() {
         let body_text = response.text().await.unwrap_or_default();
+        // BuilderId 个人账号不支持 getUsageLimits，AWS 返回 400 "Invalid profileArn"
+        if status.as_u16() == 400 && body_text.contains("Invalid profileArn") {
+            return Err(UsageLimitsUnsupportedError.into());
+        }
         let error_msg = match status.as_u16() {
             401 => "认证失败，Token 无效或已过期",
             403 => "权限不足，无法获取使用额度",
@@ -2798,13 +2833,9 @@ impl MultiTokenManager {
             validated_cred.profile_arn = new_cred.profile_arn;
         }
         validated_cred.priority = new_cred.priority;
-        validated_cred.auth_method = new_cred.auth_method.map(|m| {
-            if m.eq_ignore_ascii_case("builder-id") || m.eq_ignore_ascii_case("iam") {
-                "idc".to_string()
-            } else {
-                m
-            }
-        });
+        validated_cred.auth_method = new_cred
+            .auth_method
+            .map(|m| canonicalize_auth_method_value(&m).to_string());
         validated_cred.client_id = new_cred.client_id;
         validated_cred.client_secret = new_cred.client_secret;
         validated_cred.region = new_cred.region;
@@ -2952,13 +2983,7 @@ impl MultiTokenManager {
         update: &crate::admin::types::UpdateCredentialRequest,
     ) {
         if let Some(ref am) = update.auth_method {
-            cred.auth_method = Some(
-                if am.eq_ignore_ascii_case("builder-id") || am.eq_ignore_ascii_case("iam") {
-                    "idc".to_string()
-                } else {
-                    am.clone()
-                },
-            );
+            cred.auth_method = Some(canonicalize_auth_method_value(am).to_string());
         }
         if let Some(ref ci) = update.client_id {
             cred.client_id = if ci.is_empty() {

@@ -598,8 +598,28 @@ impl KiroProvider {
                 continue;
             }
 
-            // 400 Bad Request
+            // 400 Bad Request - 请求问题，重试/切换账号无意义；
+            // 例外：上游要求 profileArn（企业 IdC 账号缺失该字段）属账号级缺陷，
+            // 与 401/403 同样处理：计入失败、记日志并故障转移到其他账号
             if status.as_u16() == 400 {
+                if Self::is_profile_arn_required_error(&body) {
+                    tracing::warn!(
+                        "MCP 请求失败（账号缺少 profileArn，尝试 {}/{}）: {} {}",
+                        attempt + 1,
+                        max_retries,
+                        status,
+                        body
+                    );
+                    let has_available = self.token_manager.report_failure(ctx.id);
+                    if let Some(ref store) = self.failure_log_store {
+                        store.record(ctx.id, "mcp", status.as_u16(), &body);
+                    }
+                    if !has_available {
+                        anyhow::bail!("MCP 请求失败（所有账号已用尽）: {} {}", status, body);
+                    }
+                    last_error = Some(anyhow::anyhow!("MCP 请求失败: {} {}", status, body));
+                    continue;
+                }
                 anyhow::bail!("MCP 请求失败: {} {}", status, body);
             }
 
@@ -937,8 +957,38 @@ impl KiroProvider {
                 continue;
             }
 
-            // 400 Bad Request - 请求问题，重试/切换账号无意义
+            // 400 Bad Request - 请求问题，重试/切换账号无意义；
+            // 例外：上游要求 profileArn（企业 IdC 账号缺失该字段）属账号级缺陷，
+            // 与 401/403 同样处理：计入失败、记日志并故障转移到其他账号
             if status.as_u16() == 400 {
+                if Self::is_profile_arn_required_error(&body) {
+                    tracing::warn!(
+                        "API 请求失败（账号缺少 profileArn，尝试 {}/{}）: {} {}",
+                        attempt + 1,
+                        max_retries,
+                        status,
+                        body
+                    );
+                    let has_available = self.token_manager.report_failure(ctx.id);
+                    if let Some(ref store) = self.failure_log_store {
+                        store.record(ctx.id, "api", status.as_u16(), &body);
+                    }
+                    if !has_available {
+                        anyhow::bail!(
+                            "{} API 请求失败（所有账号已用尽）: {} {}",
+                            api_type,
+                            status,
+                            body
+                        );
+                    }
+                    last_error = Some(anyhow::anyhow!(
+                        "{} API 请求失败: {} {}",
+                        api_type,
+                        status,
+                        body
+                    ));
+                    continue;
+                }
                 anyhow::bail!("{} API 请求失败: {} {}", api_type, status, body);
             }
 
@@ -1162,6 +1212,15 @@ impl KiroProvider {
             .is_some_and(|v| v == "MONTHLY_REQUEST_COUNT")
     }
 
+    /// 检测数据面 400 是否为"账号缺少 profileArn"类错误。
+    ///
+    /// 企业 IdC 账号必须携带 profileArn，缺失时上游返回
+    /// `400 {"message":"profileArn is required for this request."}`，
+    /// 属账号级缺陷而非请求级错误，应故障转移到其他账号。
+    fn is_profile_arn_required_error(body: &str) -> bool {
+        body.contains("profileArn is required")
+    }
+
     /// 将请求 body 中的 `profileArn` 替换为当前选中账号的值。
     ///
     /// - 账号有 profile_arn → 设置 / 覆盖字段
@@ -1269,6 +1328,22 @@ mod tests {
     fn test_is_monthly_request_limit_false() {
         let body = r#"{"message":"nope","reason":"DAILY_REQUEST_COUNT"}"#;
         assert!(!KiroProvider::is_monthly_request_limit(body));
+    }
+
+    #[test]
+    fn test_is_profile_arn_required_error_matches_upstream_message() {
+        // 真实上游返回体（issue 场景：BuilderId 账号缺 profileArn）
+        assert!(KiroProvider::is_profile_arn_required_error(
+            r#"{"message":"profileArn is required for this request.","reason":null}"#
+        ));
+        assert!(KiroProvider::is_profile_arn_required_error(
+            "400 Bad Request {\"message\":\"profileArn is required for this request.\"}"
+        ));
+        // 其他 400 不误判
+        assert!(!KiroProvider::is_profile_arn_required_error(
+            r#"{"message":"Invalid profileArn.","reason":null}"#
+        ));
+        assert!(!KiroProvider::is_profile_arn_required_error(""));
     }
 
     #[test]

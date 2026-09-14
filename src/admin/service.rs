@@ -10,7 +10,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::kiro::model::credentials::KiroCredentials;
-use crate::kiro::token_manager::MultiTokenManager;
+use crate::kiro::token_manager::{MultiTokenManager, UsageLimitsUnsupportedError};
 use crate::model::throttle_log::ThrottleLogStore;
 
 use super::error::AdminServiceError;
@@ -223,11 +223,22 @@ impl AdminService {
 
     /// 从上游获取余额（无缓存）
     async fn fetch_balance(&self, id: u64) -> Result<BalanceResponse, AdminServiceError> {
-        let usage = self
-            .token_manager
-            .get_usage_limits_for(id)
-            .await
-            .map_err(|e| self.classify_balance_error(e, id))?;
+        let usage = match self.token_manager.get_usage_limits_for(id).await {
+            Ok(u) => u,
+            Err(e) if e.downcast_ref::<UsageLimitsUnsupportedError>().is_some() => {
+                // BuilderId 个人账号不支持 getUsageLimits，返回空 balance 而非报错
+                return Ok(BalanceResponse {
+                    id,
+                    subscription_title: None,
+                    current_usage: 0.0,
+                    usage_limit: 0.0,
+                    remaining: 0.0,
+                    usage_percentage: 0.0,
+                    next_reset_at: None,
+                });
+            }
+            Err(e) => return Err(self.classify_balance_error(e, id)),
+        };
 
         let current_usage = usage.current_usage();
         let usage_limit = usage.usage_limit();
@@ -333,13 +344,42 @@ impl AdminService {
         let tm = self.token_manager.clone();
         tokio::spawn(async move {
             if let Err(e) = tm.get_usage_limits_for(credential_id).await {
-                tracing::warn!("添加账号后获取订阅等级失败（不影响账号添加）: {}", e);
+                if e.downcast_ref::<UsageLimitsUnsupportedError>().is_some() {
+                    tracing::debug!(
+                        "账号 #{} 不支持 getUsageLimits 查询（BuilderId 个人账号），跳过订阅等级获取",
+                        credential_id
+                    );
+                } else {
+                    tracing::warn!("添加账号后获取订阅等级失败（不影响账号添加）: {}", e);
+                }
             }
         });
 
+        // 企业 IdC 认证但缺少 profileArn：上游数据面接口强制要求该字段，
+        // 此账号无法发起对话请求，提示用户补充而非静默添加不可用账号
+        let warning = {
+            let snapshot = self.token_manager.snapshot();
+            snapshot
+                .entries
+                .iter()
+                .find(|e| e.id == credential_id)
+                .filter(|e| {
+                    e.auth_method
+                        .as_deref()
+                        .is_some_and(|m| m.eq_ignore_ascii_case("idc"))
+                        && !e.has_profile_arn
+                })
+                .map(|_| {
+                    "警告：该账号为 IdC 认证但缺少 profileArn，上游要求对话请求必须携带此字段，当前账号无法正常使用，请在账号配置中补充 profileArn"
+                })
+        };
+
         Ok(AddCredentialResponse {
             success: true,
-            message: format!("账号添加成功，ID: {}", credential_id),
+            message: match warning {
+                Some(w) => format!("账号添加成功，ID: {}。{}", credential_id, w),
+                None => format!("账号添加成功，ID: {}", credential_id),
+            },
             credential_id,
             email,
         })

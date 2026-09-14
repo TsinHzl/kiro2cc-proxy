@@ -1,0 +1,34 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1b3da55ed38f7b53cbe57e4512754b4a8bbb9ffb",
+  "prompts": {
+    "8a3ea118b6509d7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d1c4bc4-624b-4383-bbaf-84a14a6f9f6d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 99,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    },
+    "caaca3a1b9a36386": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2faf8ff1-9ee9-4c52-9d50-3fafa508c9cd",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 57,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}

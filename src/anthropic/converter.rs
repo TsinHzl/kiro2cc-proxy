@@ -1613,15 +1613,16 @@ fn build_additional_model_request_fields(
         fields.insert("thinking".into(), serde_json::Value::Object(thinking_obj));
     }
 
-    let effort = req
-        .output_config
-        .as_ref()
-        .map(|c| c.effort.as_str())
-        .unwrap_or("high");
-    fields.insert(
-        "output_config".into(),
-        serde_json::json!({ "effort": effort }),
-    );
+    // effort 仅透传：客户端显式携带 output_config（如 Claude Code 会传
+    // {"effort":"high"}）时按原值转发；未携带时不注入默认值，对齐 Kiro IDE
+    // 直连行为（issue #40：此前无条件注入 effort="high" 导致反代链路比
+    // 直连慢）。
+    if let Some(cfg) = &req.output_config {
+        fields.insert(
+            "output_config".into(),
+            serde_json::json!({ "effort": cfg.effort }),
+        );
+    }
 
     if req.max_tokens > 0 {
         let cap = model_max_output_tokens(&req.model);
@@ -1722,15 +1723,18 @@ fn generate_thinking_prefix(req: &MessagesRequest, model_id: &str) -> Option<Str
                 t.budget_tokens
             ));
         } else if t.thinking_type == "adaptive" {
-            let effort = req
-                .output_config
-                .as_ref()
-                .map(|c| c.effort.as_str())
-                .unwrap_or("high");
-            return Some(format!(
-                "<thinking_mode>adaptive</thinking_mode><thinking_effort>{}</thinking_effort>",
-                effort
-            ));
+            // effort 与 build_additional_model_request_fields 保持同一口径：
+            // 仅透传客户端显式携带的 output_config.effort；未携带时省略
+            // <thinking_effort> 标签，不再默认注入 "high"（issue #40）。
+            // 注：该前缀只在客户端携带/缺失 output_config 的行为跨请求稳定时
+            // 才逐字节稳定，与结构化字段口径一致后不引入额外抖动。
+            if let Some(effort) = req.output_config.as_ref().map(|c| c.effort.as_str()) {
+                return Some(format!(
+                    "<thinking_mode>adaptive</thinking_mode><thinking_effort>{}</thinking_effort>",
+                    effort
+                ));
+            }
+            return Some("<thinking_mode>adaptive</thinking_mode>".to_string());
         }
     }
     None
@@ -4275,6 +4279,149 @@ mod tests {
                 "model={model} max_tokens 应被下限收敛到至少 1024，实际={max_tokens}"
             );
         }
+    }
+
+    #[test]
+    fn test_output_config_effort_passthrough_only() {
+        // 回归测试（issue #40）：effort 仅透传——客户端显式携带 output_config 时
+        // 按原值转发；未携带时不再注入默认 effort="high"（对齐 Kiro IDE 直连行为）。
+        use super::super::types::{Message as AnthropicMessage, OutputConfig};
+
+        // 场景 1：客户端未携带 output_config → 不注入 output_config 键
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        };
+        let result = convert_request(&req).unwrap();
+        let fields = result
+            .additional_model_request_fields
+            .expect("非 4.5 代模型应构建 additionalModelRequestFields");
+        assert!(
+            fields.get("output_config").is_none(),
+            "客户端未携带 output_config 时不应注入 output_config 字段（issue #40）"
+        );
+
+        // 场景 2：客户端显式携带 output_config → effort 按客户端值透传
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: Some(OutputConfig {
+                effort: "low".to_string(),
+                format: None,
+            }),
+            metadata: None,
+        };
+        let result = convert_request(&req).unwrap();
+        let fields = result
+            .additional_model_request_fields
+            .expect("非 4.5 代模型应构建 additionalModelRequestFields");
+        assert_eq!(
+            fields["output_config"]["effort"].as_str(),
+            Some("low"),
+            "effort 必须按客户端传入值透传"
+        );
+    }
+
+    #[test]
+    fn test_thinking_prefix_adaptive_effort_alignment() {
+        // 回归测试（issue #40 CR #1）：generate_thinking_prefix 的 adaptive 分支
+        // 与 build_additional_model_request_fields 的 effort 透传口径一致——
+        // 客户端未携带 output_config 时省略 <thinking_effort> 标签；携带时按
+        // 客户端值注入。
+        use super::super::types::{Message as AnthropicMessage, OutputConfig, Thinking};
+
+        // 场景 1：adaptive + 无 output_config → 仅有 thinking_mode，无 effort 标签
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "adaptive".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+        let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
+        assert!(prefix.contains("<thinking_mode>adaptive</thinking_mode>"));
+        assert!(
+            !prefix.contains("<thinking_effort>"),
+            "未携带 output_config 时不应注入 <thinking_effort> 标签"
+        );
+
+        // 场景 2：adaptive + output_config.effort="medium" → 按客户端值注入
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "adaptive".to_string(),
+                budget_tokens: 20000,
+            }),
+            output_config: Some(OutputConfig {
+                effort: "medium".to_string(),
+                format: None,
+            }),
+            metadata: None,
+        };
+        let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
+        assert!(prefix.contains("<thinking_effort>medium</thinking_effort>"));
+
+        // 场景 3：enabled thinking 不受影响，仍带 max_thinking_length
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 24576,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+        let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
+        assert!(prefix.contains("<max_thinking_length>24576</max_thinking_length>"));
     }
 
     #[test]

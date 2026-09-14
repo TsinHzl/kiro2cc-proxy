@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.2.1".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "additionalModelRequestFields 中的 effort 改为仅透传：客户端携带 output_config 时按原值转发，未携带时不再默认注入 effort=\"high\"，修复反代链路 claude-sonnet-5 / claude-opus-5 响应显著慢于 Kiro IDE 直连的问题",
+                "The effort in additionalModelRequestFields is now pass-through only: it is forwarded as-is when the client sends output_config and no longer defaults to effort=\"high\" when absent, fixing claude-sonnet-5 / claude-opus-5 responding much slower through the proxy than direct Kiro IDE connections",
+            )])],
+        },
+        ReleaseNote {
             version: "3.2.0".to_string(),
             is_latest: false,
             groups: vec![

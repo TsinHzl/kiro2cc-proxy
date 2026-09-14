@@ -1608,16 +1608,23 @@ fn build_additional_model_request_fields(
     // 发 thinking 字段会让 Kiro 后端走额外的 thinking 调度路径，显著增加 TTFB。
     // Kiro 后端的 thinking 行为由其自身默认值控制，无需代理显式指定。
 
-    // effort 仅透传：客户端显式携带 output_config（如 Claude Code 会传
-    // {"effort":"high"}）时按原值转发；未携带时不注入默认值，对齐 Kiro IDE
-    // 直连行为（issue #40：此前无条件注入 effort="high" 导致反代链路比
-    // 直连慢）。
-    if let Some(cfg) = &req.output_config {
-        fields.insert(
-            "output_config".into(),
-            serde_json::json!({ "effort": cfg.effort }),
-        );
-    }
+    // effort 透传 + 默认注入：客户端显式携带 output_config 时按原值转发；
+    // 未携带时默认注入 effort="high"。
+    // 注意：此为对 issue #40（仅透传、不注入默认值）的显式回退，用户决策于
+    // 2026-09-15 做出——已知 issue #40 曾记录无条件注入 effort="high" 可能导致
+    // 部分模型反代链路 TTFB 慢于直连，但仍需恢复注入以保证未携带 output_config
+    // 的客户端拿到与 Claude Code 默认行为一致的推理力度。勿在无新实测依据时
+    // 单方面改回仅透传，避免行为反复横跳。
+    let effort = req
+        .output_config
+        .as_ref()
+        .map(|c| c.effort.as_str())
+        .filter(|e| !e.is_empty())
+        .unwrap_or("high");
+    fields.insert(
+        "output_config".into(),
+        serde_json::json!({ "effort": effort }),
+    );
 
     if req.max_tokens > 0 {
         let cap = model_max_output_tokens(&req.model);
@@ -4270,12 +4277,12 @@ mod tests {
     }
 
     #[test]
-    fn test_output_config_effort_passthrough_only() {
-        // 回归测试（issue #40）：effort 仅透传——客户端显式携带 output_config 时
-        // 按原值转发；未携带时不再注入默认 effort="high"（对齐 Kiro IDE 直连行为）。
+    fn test_output_config_effort_passthrough_with_default() {
+        // effort 透传 + 默认注入（回退 issue #40 的仅透传行为）：客户端显式携带
+        // output_config 时按原值转发；未携带时默认注入 effort="high"。
         use super::super::types::{Message as AnthropicMessage, OutputConfig};
 
-        // 场景 1：客户端未携带 output_config → 不注入 output_config 键
+        // 场景 1：客户端未携带 output_config → 默认注入 effort="high"
         let req = MessagesRequest {
             model: "claude-sonnet-5".to_string(),
             max_tokens: 32000,
@@ -4295,9 +4302,10 @@ mod tests {
         let fields = result
             .additional_model_request_fields
             .expect("非 4.5 代模型应构建 additionalModelRequestFields");
-        assert!(
-            fields.get("output_config").is_none(),
-            "客户端未携带 output_config 时不应注入 output_config 字段（issue #40）"
+        assert_eq!(
+            fields["output_config"]["effort"].as_str(),
+            Some("high"),
+            "客户端未携带 output_config 时应默认注入 effort=\"high\""
         );
 
         // 场景 2：客户端显式携带 output_config → effort 按客户端值透传
@@ -4328,6 +4336,69 @@ mod tests {
             Some("low"),
             "effort 必须按客户端传入值透传"
         );
+
+        // 场景 3：客户端携带 output_config 但 effort 为空串 → 兜底为 "high"
+        let req = MessagesRequest {
+            model: "claude-sonnet-5".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: None,
+            output_config: Some(OutputConfig {
+                effort: "".to_string(),
+                format: None,
+            }),
+            metadata: None,
+        };
+        let result = convert_request(&req).unwrap();
+        let fields = result
+            .additional_model_request_fields
+            .expect("非 4.5 代模型应构建 additionalModelRequestFields");
+        assert_eq!(
+            fields["output_config"]["effort"].as_str(),
+            Some("high"),
+            "空串 effort 应兜底为 \"high\"，避免转发非法值"
+        );
+    }
+
+    #[test]
+    fn test_4_5_generation_skips_fields_even_with_output_config() {
+        // 回归测试（CR #3 补充）：4.5 代际模型即使客户端携带 output_config，
+        // 也必须整体跳过 additionalModelRequestFields（该代际 schema 不接受
+        // 任何结构化字段，见 build_additional_model_request_fields 文档）。
+        use super::super::types::{Message as AnthropicMessage, OutputConfig};
+
+        for model in ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"] {
+            let req = MessagesRequest {
+                model: model.to_string(),
+                max_tokens: 32000,
+                messages: vec![AnthropicMessage {
+                    role: "user".to_string(),
+                    content: serde_json::json!("Hello"),
+                }],
+                stream: false,
+                system: None,
+                tools: None,
+                tool_choice: None,
+                thinking: None,
+                output_config: Some(OutputConfig {
+                    effort: "low".to_string(),
+                    format: None,
+                }),
+                metadata: None,
+            };
+            let result = convert_request(&req).unwrap();
+            assert!(
+                result.additional_model_request_fields.is_none(),
+                "{model} 携带 output_config 时仍应整体跳过 additionalModelRequestFields"
+            );
+        }
     }
 
     #[test]

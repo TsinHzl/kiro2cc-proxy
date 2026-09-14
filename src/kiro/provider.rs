@@ -599,8 +599,8 @@ impl KiroProvider {
             }
 
             // 400 Bad Request - 请求问题，重试/切换账号无意义；
-            // 例外：上游要求 profileArn（企业 IdC 账号缺失该字段）属账号级缺陷，
-            // 与 401/403 同样处理：计入失败、记日志并故障转移到其他账号
+            // 例外：企业 IdC 账号缺失 profileArn 属确定性配置缺陷——首即禁用
+            // （ProfileArnMissing，不做失败计数）并故障转移到其他账号
             if status.as_u16() == 400 {
                 if Self::is_profile_arn_required_error(&body) {
                     tracing::warn!(
@@ -610,7 +610,8 @@ impl KiroProvider {
                         status,
                         body
                     );
-                    let has_available = self.token_manager.report_failure(ctx.id);
+                    // 确定性配置缺陷：首即禁用（ProfileArnMissing），不做失败计数
+                    let has_available = self.token_manager.report_profile_arn_missing(ctx.id);
                     if let Some(ref store) = self.failure_log_store {
                         store.record(ctx.id, "mcp", status.as_u16(), &body);
                     }
@@ -958,8 +959,8 @@ impl KiroProvider {
             }
 
             // 400 Bad Request - 请求问题，重试/切换账号无意义；
-            // 例外：上游要求 profileArn（企业 IdC 账号缺失该字段）属账号级缺陷，
-            // 与 401/403 同样处理：计入失败、记日志并故障转移到其他账号
+            // 例外：企业 IdC 账号缺失 profileArn 属确定性配置缺陷——首即禁用
+            // （ProfileArnMissing，不做失败计数）并故障转移到其他账号
             if status.as_u16() == 400 {
                 if Self::is_profile_arn_required_error(&body) {
                     tracing::warn!(
@@ -969,7 +970,8 @@ impl KiroProvider {
                         status,
                         body
                     );
-                    let has_available = self.token_manager.report_failure(ctx.id);
+                    // 确定性配置缺陷：首即禁用（ProfileArnMissing），不做失败计数
+                    let has_available = self.token_manager.report_profile_arn_missing(ctx.id);
                     if let Some(ref store) = self.failure_log_store {
                         store.record(ctx.id, "api", status.as_u16(), &body);
                     }

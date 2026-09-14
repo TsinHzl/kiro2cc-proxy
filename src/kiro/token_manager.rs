@@ -705,6 +705,8 @@ pub enum DisabledReason {
     QuotaExceeded,
     /// refreshToken 已被服务端永久撤销（invalid_grant），需人工更换凭证
     InvalidRefreshToken,
+    /// 企业 IdC 账号缺少 profileArn，上游数据面接口强制要求该字段，需人工补充凭证
+    ProfileArnMissing,
     /// Token 刷新连续失败达到阈值后自动禁用
     TooManyRefreshFailures,
 }
@@ -717,6 +719,9 @@ impl DisabledReason {
             DisabledReason::TooManyFailures => "因连续认证失败被自动禁用",
             DisabledReason::QuotaExceeded => "本月请求额度已用尽",
             DisabledReason::InvalidRefreshToken => "refreshToken 已被服务端撤销，需人工更换凭证",
+            DisabledReason::ProfileArnMissing => {
+                "缺少 profileArn，无法发起对话请求，需在账号配置中补充"
+            }
             DisabledReason::TooManyRefreshFailures => "因连续 Token 刷新失败被自动禁用",
         }
     }
@@ -1974,6 +1979,7 @@ impl MultiTokenManager {
                                         | DisabledReason::TooManyFailures
                                         | DisabledReason::InvalidRefreshToken
                                         | DisabledReason::TooManyRefreshFailures
+                                        | DisabledReason::ProfileArnMissing
                                 )
                             }),
                             quota_exhausted_at: e.quota_exhausted_at.map(|t| t.to_rfc3339()),
@@ -2263,6 +2269,61 @@ impl MultiTokenManager {
         result
     }
 
+    /// 报告指定账号缺少 profileArn（企业 IdC 账号必需字段）
+    ///
+    /// 用于数据面/MCP 接口返回 400 "profileArn is required" 的场景：
+    /// - 立即禁用该账号（确定性配置缺陷，重试与继续失败计数均无意义）
+    /// - 切换到下一个可用账号继续重试
+    /// - 返回是否还有可用账号
+    pub fn report_profile_arn_missing(&self, id: u64) -> bool {
+        let result = {
+            let mut entries = self.entries.lock();
+            let mut current_id = self.current_id.lock();
+
+            let entry = match entries.iter_mut().find(|e| e.id == id) {
+                Some(e) => e,
+                None => return entries.iter().any(|e| !e.disabled),
+            };
+
+            // 已禁用的账号直接返回，避免覆盖其原始禁用原因
+            if entry.disabled {
+                return entries.iter().any(|e| !e.disabled);
+            }
+
+            entry.disabled = true;
+            entry.disabled_reason = Some(DisabledReason::ProfileArnMissing);
+            entry.last_used_at = Some(Utc::now().to_rfc3339());
+            // 设为阈值，便于在管理面板中直观看到该账号已不可用
+            entry.failure_count = MAX_FAILURES_PER_CREDENTIAL;
+
+            tracing::error!(
+                "账号 #{} 缺少 profileArn（企业 IdC 账号必需），已被禁用，需在账号配置中补充该字段",
+                id
+            );
+
+            // 切换到优先级最高的可用账号
+            if let Some(next) = entries
+                .iter()
+                .filter(|e| !e.disabled)
+                .min_by_key(|e| e.credentials.priority)
+            {
+                *current_id = next.id;
+                tracing::info!(
+                    "已切换到账号 #{}（优先级 {}）",
+                    next.id,
+                    next.credentials.priority
+                );
+                true
+            } else {
+                tracing::error!("所有账号均已禁用！");
+                false
+            }
+        };
+        // 禁用原因是关键状态，跳过 30s 防抖立即落盘，避免进程重启丢失
+        self.save_stats();
+        result
+    }
+
     /// 报告指定账号额度已用尽
     ///
     /// 用于处理 402 Payment Required 且 reason 为 `MONTHLY_REQUEST_COUNT` 的场景：
@@ -2423,6 +2484,10 @@ impl MultiTokenManager {
             .iter()
             .filter(|e| e.disabled_reason == Some(DisabledReason::TooManyFailures))
             .count();
+        let profile_arn_missing = in_scope
+            .iter()
+            .filter(|e| e.disabled_reason == Some(DisabledReason::ProfileArnMissing))
+            .count();
         let manual = in_scope
             .iter()
             .filter(|e| e.disabled_reason == Some(DisabledReason::Manual))
@@ -2446,10 +2511,13 @@ impl MultiTokenManager {
         if failures > 0 {
             parts.push(format!("{} 个连续认证失败", failures));
         }
+        if profile_arn_missing > 0 {
+            parts.push(format!("{} 个缺少 profileArn", profile_arn_missing));
+        }
         if manual > 0 {
             parts.push(format!("{} 个手动禁用", manual));
         }
-        let others = total.saturating_sub(quota + failures + manual);
+        let others = total.saturating_sub(quota + failures + profile_arn_missing + manual);
         if others > 0 {
             parts.push(format!("{} 个无有效 Token", others));
         }
@@ -4716,6 +4784,49 @@ mod tests {
             "混合原因不应标记为额度耗尽，实际: {}",
             msg
         );
+    }
+
+    #[test]
+    fn test_report_profile_arn_missing_disables_immediately() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+        let cred2 = KiroCredentials::default();
+
+        let manager =
+            MultiTokenManager::new(config, vec![cred1, cred2], None, None, false).unwrap();
+
+        assert_eq!(manager.available_count(), 2);
+        assert!(manager.report_profile_arn_missing(1));
+        assert_eq!(manager.available_count(), 1);
+
+        {
+            let entries = manager.entries.lock();
+            assert!(entries[0].disabled);
+            assert_eq!(
+                entries[0].disabled_reason,
+                Some(DisabledReason::ProfileArnMissing)
+            );
+            assert_eq!(entries[0].failure_count, MAX_FAILURES_PER_CREDENTIAL);
+        }
+
+        // 再禁用第二个后，无可用账号
+        assert!(!manager.report_profile_arn_missing(2));
+        assert_eq!(manager.available_count(), 0);
+    }
+
+    #[test]
+    fn test_describe_unavailable_profile_arn_missing_has_dedicated_label() {
+        let config = Config::default();
+        let cred1 = KiroCredentials::default();
+
+        let manager = MultiTokenManager::new(config, vec![cred1], None, None, false).unwrap();
+
+        manager.report_profile_arn_missing(1);
+
+        let msg = manager.describe_unavailable(None, &[]);
+        assert!(msg.contains("1 个缺少 profileArn"), "实际: {}", msg);
+        // 不应误报为连续认证失败（issue 场景的核心误导点）
+        assert!(!msg.contains("连续认证失败"), "实际: {}", msg);
     }
 
     #[test]

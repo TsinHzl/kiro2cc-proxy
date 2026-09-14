@@ -1,0 +1,27 @@
+Cargo.toml
+  75dbbdfbecbab90d 3
+src/admin/changelog_data.rs
+  75dbbdfbecbab90d 70-76
+src/anthropic/converter.rs
+  75dbbdfbecbab90d 1616-1625,1726-1737,4285-4426
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "571bab07e288c61378531cf731c42dd41a31af59",
+  "prompts": {
+    "75dbbdfbecbab90d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "550e122d-474d-47f2-af7d-b0391d6241a6",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 175,
+      "total_deletions": 20,
+      "accepted_lines": 174,
+      "overriden_lines": 0
+    }
+  }
+}

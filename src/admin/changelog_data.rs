@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.3.0".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "修复反代链路 TTFB 显著慢于 Kiro CLI 直连的问题：代理此前会将 thinking: {type: 'adaptive'} 写入 additionalModelRequestFields 并向 system 消息注入 <thinking_mode>adaptive</thinking_mode> 标签，触发 Kiro 后端额外的 thinking 调度路径，导致首包延迟（TTFB）增加 2–4 秒。对齐 Kiro CLI 行为：不发 thinking 字段，让 Kiro 后端走默认路径。影响模型：claude-sonnet-4.6 / opus-4.6 / opus-4.7 / opus-4.8 / sonnet-5 / opus-5",
+                "Fixed TTFB significantly higher through the proxy than with direct Kiro CLI connections: the proxy was injecting thinking: {type: 'adaptive'} into additionalModelRequestFields and adding <thinking_mode>adaptive</thinking_mode> to the system prompt, triggering an extra thinking scheduling path on the Kiro backend and adding 2–4 s to the first-byte latency. Aligned with Kiro CLI behaviour: no longer sending the thinking field, letting the Kiro backend use its default path. Affected models: claude-sonnet-4.6 / opus-4.6 / opus-4.7 / opus-4.8 / sonnet-5 / opus-5",
+            )])],
+        },
+        ReleaseNote {
             version: "3.2.1".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

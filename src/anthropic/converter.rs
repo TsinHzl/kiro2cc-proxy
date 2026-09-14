@@ -1603,15 +1603,10 @@ fn build_additional_model_request_fields(
 
     let mut fields = serde_json::Map::new();
 
-    if let Some(t) = &req.thinking {
-        let mut thinking_obj = serde_json::Map::new();
-        if t.thinking_type == "enabled" || t.thinking_type == "adaptive" {
-            thinking_obj.insert("type".into(), serde_json::json!("adaptive"));
-        } else {
-            thinking_obj.insert("type".into(), serde_json::json!("disabled"));
-        }
-        fields.insert("thinking".into(), serde_json::Value::Object(thinking_obj));
-    }
+    // thinking 字段不发送：Kiro CLI 经 ListAvailableModels schema 解析后，
+    // 对 claude-sonnet-4.6 等模型只发 output_config.effort，不发 thinking 字段。
+    // 发 thinking 字段会让 Kiro 后端走额外的 thinking 调度路径，显著增加 TTFB。
+    // Kiro 后端的 thinking 行为由其自身默认值控制，无需代理显式指定。
 
     // effort 仅透传：客户端显式携带 output_config（如 Claude Code 会传
     // {"effort":"high"}）时按原值转发；未携带时不注入默认值，对齐 Kiro IDE
@@ -1723,18 +1718,11 @@ fn generate_thinking_prefix(req: &MessagesRequest, model_id: &str) -> Option<Str
                 t.budget_tokens
             ));
         } else if t.thinking_type == "adaptive" {
-            // effort 与 build_additional_model_request_fields 保持同一口径：
-            // 仅透传客户端显式携带的 output_config.effort；未携带时省略
-            // <thinking_effort> 标签，不再默认注入 "high"（issue #40）。
-            // 注：该前缀只在客户端携带/缺失 output_config 的行为跨请求稳定时
-            // 才逐字节稳定，与结构化字段口径一致后不引入额外抖动。
-            if let Some(effort) = req.output_config.as_ref().map(|c| c.effort.as_str()) {
-                return Some(format!(
-                    "<thinking_mode>adaptive</thinking_mode><thinking_effort>{}</thinking_effort>",
-                    effort
-                ));
-            }
-            return Some("<thinking_mode>adaptive</thinking_mode>".to_string());
+            // adaptive 模式不注入任何 thinking 标签到 system 消息：
+            // Kiro CLI 不注入这些标签，让 Kiro 后端用自身默认行为控制 thinking。
+            // 此前注入 <thinking_mode>adaptive</thinking_mode> 会触发 Kiro 后端
+            // 额外的 thinking 调度路径，显著增加 TTFB（实测根因）。
+            return None;
         }
     }
     None
@@ -4345,12 +4333,10 @@ mod tests {
     #[test]
     fn test_thinking_prefix_adaptive_effort_alignment() {
         // 回归测试（issue #40 CR #1）：generate_thinking_prefix 的 adaptive 分支
-        // 与 build_additional_model_request_fields 的 effort 透传口径一致——
-        // 客户端未携带 output_config 时省略 <thinking_effort> 标签；携带时按
-        // 客户端值注入。
+        // adaptive 模式不注入任何 thinking 标签（对齐 Kiro CLI 行为）。
         use super::super::types::{Message as AnthropicMessage, OutputConfig, Thinking};
 
-        // 场景 1：adaptive + 无 output_config → 仅有 thinking_mode，无 effort 标签
+        // 场景 1：adaptive + 无 output_config → None（不注入任何 thinking 标签）
         let req = MessagesRequest {
             model: "claude-sonnet-5".to_string(),
             max_tokens: 32000,
@@ -4369,14 +4355,12 @@ mod tests {
             output_config: None,
             metadata: None,
         };
-        let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
-        assert!(prefix.contains("<thinking_mode>adaptive</thinking_mode>"));
         assert!(
-            !prefix.contains("<thinking_effort>"),
-            "未携带 output_config 时不应注入 <thinking_effort> 标签"
+            generate_thinking_prefix(&req, "claude-sonnet-5").is_none(),
+            "adaptive 模式下不应注入任何 thinking 标签（对齐 Kiro CLI 直连行为）"
         );
 
-        // 场景 2：adaptive + output_config.effort="medium" → 按客户端值注入
+        // 场景 2：adaptive + output_config.effort="medium" → 同样返回 None
         let req = MessagesRequest {
             model: "claude-sonnet-5".to_string(),
             max_tokens: 32000,
@@ -4398,8 +4382,10 @@ mod tests {
             }),
             metadata: None,
         };
-        let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
-        assert!(prefix.contains("<thinking_effort>medium</thinking_effort>"));
+        assert!(
+            generate_thinking_prefix(&req, "claude-sonnet-5").is_none(),
+            "adaptive 模式下不管有没有 output_config，都不应注入 thinking 标签"
+        );
 
         // 场景 3：enabled thinking 不受影响，仍带 max_thinking_length
         let req = MessagesRequest {

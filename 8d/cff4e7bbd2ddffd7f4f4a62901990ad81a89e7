@@ -1,0 +1,42 @@
+src/admin/service.rs
+  eae384d5665d6b04 13,226-241,347-352,354,358-376,379-382
+src/kiro/provider.rs
+  eae384d5665d6b04 601-603,605-622,960-962,964-991,1215-1223,1334-1348
+src/kiro/token_manager.rs
+  eae384d5665d6b04 161-172,532-541,546-548,550-555,596-599,2986
+src/kiro/model/credentials.rs
+  eae384d5665d6b04 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8dcff4e7bbd2ddffd7f4f4a62901990ad81a89e7",
+  "prompts": {
+    "d132a232363fbe7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20ff5438-96fd-43fc-857a-60fe24fce661",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 0,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    },
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 160,
+      "overriden_lines": 0
+    }
+  }
+}

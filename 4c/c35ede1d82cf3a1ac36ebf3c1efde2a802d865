@@ -1,0 +1,36 @@
+src/anthropic/converter.rs
+  e22e48f89574fd6f 1611-1627,4280-4282,4285,4305-4308,4339-4401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4cc35ede1d82cf3a1ac36ebf3c1efde2a802d865",
+  "prompts": {
+    "e22e48f89574fd6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65780d46-7dc2-4a73-9a71-6d8fb4dcc24e",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 25,
+      "accepted_lines": 94,
+      "overriden_lines": 0
+    },
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 174,
+      "total_deletions": 41,
+      "accepted_lines": 161,
+      "overriden_lines": 0
+    }
+  }
+}

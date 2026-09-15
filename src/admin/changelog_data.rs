@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.3.1".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "修复 BuilderId（含教育版）账号无法查询额度、添加报 400 Invalid profileArn 的问题：上游数据面对缺失 profileArn 的请求直接拒绝，此类账号（部分 BuilderId/教育账号天然无 profileArn）导入或添加后对话与额度查询均失败。现按 Kiro IDE 行为在账号加载/添加时自动注入固定 fallback ARN 并持久化存储，数据面请求 400 提示 profileArn is required 时首即禁用该账号并自动切换到可用账号，不再影响其他账号的正常使用",
+                "Fixed BuilderId (including education) accounts failing balance queries with 400 Invalid profileArn: the upstream data plane rejects requests missing profileArn, so such accounts (some BuilderId/education accounts naturally have none) failed both conversations and balance queries after import or addition. Following Kiro IDE behaviour, a fixed fallback ARN is now injected automatically at account load/add time and persisted; when a data-plane request returns 400 profileArn is required, the account is disabled immediately and traffic fails over to other available accounts",
+            )])],
+        },
+        ReleaseNote {
             version: "3.3.0".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

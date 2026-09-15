@@ -1,0 +1,25 @@
+src/kiro/model/credentials.rs
+  eae384d5665d6b04 201-237,427-446,498-587
+src/kiro/token_manager.rs
+  eae384d5665d6b04 964,983-987,1069-1070,1072,1074,2925-2934,3290,3545-3552,3572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "caa4ed13e42c4ef91644a199a2c28f688900a80b",
+  "prompts": {
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 223,
+      "total_deletions": 54,
+      "accepted_lines": 180,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -519,6 +519,13 @@ pub(crate) fn select_usage_limits_token<'a>(
 }
 
 /// 获取使用额度信息
+///
+/// host/resourceType 分流说明：实测（curl 验证，BuilderId Student 账号）表明
+/// q 端点 + resourceType=AGENTIC_REQUEST + BuilderId 占位 ARN 组合返回 200，
+/// 并非旧注释断言的"BuilderId 携带 resourceType 必 400"。分流判据因此保留
+/// profile_arn 存在性：补全后 idc/social 账号恒有占位 ARN，统一走
+/// q + resourceType 路径（实测正确）；codewhisperer 分支仅对极少数
+/// 无 ARN 的 external_idp/未知类型账号可达。
 pub(crate) async fn get_usage_limits(
     credentials: &KiroCredentials,
     config: &Config,
@@ -543,8 +550,9 @@ pub(crate) async fn get_usage_limits(
     let kiro_version = &config.kiro_version;
 
     // 构建 URL
-    // resourceType=AGENTIC_REQUEST 仅对企业 IdC 账号（有 profileArn）有效；
-    // BuilderId 个人账号不支持该参数，发送会导致 400 Invalid profileArn。
+    // resourceType=AGENTIC_REQUEST 对企业 IdC 账号（有 profileArn）有效；实测
+    // BuilderId 占位 ARN + resourceType 组合同样返回 200（见函数级 doc 注释），
+    // 补全后的 idc/social 账号统一走此路径
     let mut url = if credentials.profile_arn.is_some() {
         format!(
             "https://{}/getUsageLimits?origin=AI_EDITOR&resourceType=AGENTIC_REQUEST",
@@ -2627,13 +2635,11 @@ impl MultiTokenManager {
                     priority: e.credentials.priority,
                     disabled: e.disabled,
                     failure_count: e.failure_count,
-                    auth_method: e.credentials.auth_method.as_deref().map(|m| {
-                        if m.eq_ignore_ascii_case("builder-id") || m.eq_ignore_ascii_case("iam") {
-                            "idc".to_string()
-                        } else {
-                            m.to_string()
-                        }
-                    }),
+                    auth_method: e
+                        .credentials
+                        .auth_method
+                        .as_deref()
+                        .map(|m| canonicalize_auth_method_value(m).to_string()),
                     has_profile_arn: e.credentials.profile_arn.is_some(),
                     expires_at: e.credentials.expires_at.clone(),
                     refresh_token_hash: e.credentials.refresh_token.as_deref().map(sha256_hex),
@@ -3542,7 +3548,8 @@ mod tests {
         );
     }
 
-    /// 回归测试：add_credential 添加链路会调用 fill_missing_profile_arn。
+    /// 回归测试：add_credential 添加链路会调用 fill_missing_profile_arn，
+    /// 对 external_idp（不补全类型）保守跳过。
     ///
     /// 注：idc/social 形态的刷新分别硬编码请求真实 AWS OIDC / Kiro OAuth 端点
     /// （无 tokenEndpoint 注入点，external_idp 的 tokenEndpoint 仅 external_idp
@@ -3551,7 +3558,7 @@ mod tests {
     /// - MultiTokenManager::new 加载路径持久化测试（test_new_fills_missing_profile_arn_and_persists）
     /// 此处用可 mock 的 external_idp 形态验证添加链路走通且对不补全类型保守跳过。
     #[tokio::test]
-    async fn test_add_credential_fills_missing_profile_arn() {
+    async fn test_add_credential_skips_profile_arn_fill_for_external_idp() {
         let body = r#"{"access_token":"new-access-token","expires_in":3600}"#;
         let endpoint = spawn_single_response_server(200, body).await;
 

@@ -355,31 +355,12 @@ impl AdminService {
             }
         });
 
-        // 企业 IdC 认证但缺少 profileArn：上游数据面接口强制要求该字段，
-        // 此账号无法发起对话请求，提示用户补充而非静默添加不可用账号
-        let warning = {
-            let snapshot = self.token_manager.snapshot();
-            snapshot
-                .entries
-                .iter()
-                .find(|e| e.id == credential_id)
-                .filter(|e| {
-                    e.auth_method
-                        .as_deref()
-                        .is_some_and(|m| m.eq_ignore_ascii_case("idc"))
-                        && !e.has_profile_arn
-                })
-                .map(|_| {
-                    "警告：该账号为 IdC 认证但缺少 profileArn，上游要求对话请求必须携带此字段，当前账号无法正常使用，请在账号配置中补充 profileArn"
-                })
-        };
-
         Ok(AddCredentialResponse {
             success: true,
-            message: match warning {
-                Some(w) => format!("账号添加成功，ID: {}。{}", credential_id, w),
-                None => format!("账号添加成功，ID: {}", credential_id),
-            },
+            // social/idc 账号缺 profileArn 已由 add_credential 自动补全并持久化；
+            // external_idp（企业 IdC）真实 ARN 因租户而异，无法代填，缺失时由数据面
+            // 400 → ProfileArnMissing 首即禁用兜底，无需在此重复提示
+            message: format!("账号添加成功，ID: {}", credential_id),
             credential_id,
             email,
         })

@@ -1223,10 +1223,45 @@ impl KiroProvider {
         body.contains("profileArn is required")
     }
 
+    /// Kiro IDE 源码 FixedProfileArns 给 BuilderId 账号硬编码的占位 profileArn。
+    /// 上游数据面对所有账号类型都要求 profileArn 字段存在，BuilderId 用此固定值即可。
+    const BUILDER_ID_PLACEHOLDER_PROFILE_ARN: &str =
+        "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
+
+    /// Social 登录（Github/Google）账号共用的固定 profileArn。
+    const SOCIAL_PROFILE_ARN: &str =
+        "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK";
+
+    /// 无 profile_arn 账号的数据面 fallback ARN（对齐 Kiro IDE FixedProfileArns 行为）。
+    ///
+    /// - social → 固定 Social ARN
+    /// - idc → BuilderId 占位符（本仓库将 builder-id 归一化为 idc，且
+    ///   BuilderId 账号同样以 OIDC clientId/clientSecret 刷新，无法进一步区分；
+    ///   Kiro IDE 对该类账号即使用此占位符）
+    /// - external_idp（企业 IdC）及未知/未归一化值 → None：真实 ARN 因租户而异，
+    ///   缺失属确定性配置缺陷，由调用方移除字段并触发 ProfileArnMissing 禁用逻辑
+    fn fallback_profile_arn(credentials: &KiroCredentials) -> Option<&'static str> {
+        let auth_method = credentials.auth_method.as_deref().unwrap_or_else(|| {
+            if credentials.client_id.is_some() && credentials.client_secret.is_some() {
+                "idc"
+            } else {
+                "social"
+            }
+        });
+        // 未知/未归一化值保守回退 None：移除字段交由上游 400 触发
+        // ProfileArnMissing 禁用，而非向上游发送归属不明的 ARN
+        match auth_method.trim().to_ascii_lowercase().as_str() {
+            "social" => Some(Self::SOCIAL_PROFILE_ARN),
+            "idc" | "builder_id" => Some(Self::BUILDER_ID_PLACEHOLDER_PROFILE_ARN),
+            _ => None,
+        }
+    }
+
     /// 将请求 body 中的 `profileArn` 替换为当前选中账号的值。
     ///
     /// - 账号有 profile_arn → 设置 / 覆盖字段
-    /// - 账号无 profile_arn → 移除字段（上游要求字段缺失而非 null）
+    /// - 账号无 profile_arn → 按账号类型注入固定 ARN（见 [`Self::fallback_profile_arn`]）：
+    ///   上游数据面对所有账号都要求该字段存在，缺失会 400 "profileArn is required"
     /// - JSON 解析失败 → 原样返回，不阻断请求
     fn rewrite_profile_arn(body: &str, credentials: &KiroCredentials) -> String {
         let Ok(mut value) = serde_json::from_str::<serde_json::Value>(body) else {
@@ -1236,11 +1271,15 @@ impl KiroProvider {
             Some(o) => o,
             None => return body.to_string(),
         };
-        match &credentials.profile_arn {
+        let arn = match &credentials.profile_arn {
+            Some(arn) => Some(arn.as_str()),
+            None => Self::fallback_profile_arn(credentials),
+        };
+        match arn {
             Some(arn) => {
                 obj.insert(
                     "profileArn".to_string(),
-                    serde_json::Value::String(arn.clone()),
+                    serde_json::Value::String(arn.to_string()),
                 );
             }
             None => {
@@ -1430,9 +1469,79 @@ mod tests {
     }
 
     #[test]
-    fn test_rewrite_profile_arn_removes_field_when_none() {
+    fn test_rewrite_profile_arn_injects_social_arn_when_none() {
+        // 无 profile_arn 且无 clientId/secret（视为 social）→ 注入固定 Social ARN
         let body = r#"{"conversationState":{},"profileArn":"some-arn"}"#;
-        let cred = KiroCredentials::default(); // profile_arn is None
+        let cred = KiroCredentials::default(); // profile_arn / auth_method 均为 None
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            v["profileArn"].as_str(),
+            Some(KiroProvider::SOCIAL_PROFILE_ARN)
+        );
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_injects_builder_id_placeholder_for_idc_when_none() {
+        // BuilderId 账号（auth_method 归一化为 idc，带 OIDC clientId/secret）缺 ARN
+        // → 注入 Kiro IDE 官方占位符 ARN，而非移除字段
+        let body = r#"{"conversationState":{}}"#;
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("idc".to_string());
+        cred.client_id = Some("client".to_string());
+        cred.client_secret = Some("secret".to_string());
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            v["profileArn"].as_str(),
+            Some(KiroProvider::BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
+        );
+    }
+
+    #[test]
+    fn test_fallback_infer_idc_when_oidc_creds_present() {
+        // auth_method 缺失但带 OIDC clientId/secret → 推断为 idc → BuilderId 占位符
+        let mut cred = KiroCredentials::default();
+        cred.client_id = Some("c".to_string());
+        cred.client_secret = Some("s".to_string());
+        assert_eq!(
+            KiroProvider::fallback_profile_arn(&cred),
+            Some(KiroProvider::BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
+        );
+    }
+
+    #[test]
+    fn test_fallback_infer_social_when_no_oidc_creds() {
+        // auth_method 缺失且无 OIDC 凭据 → 推断为 social → 固定 Social ARN
+        let cred = KiroCredentials::default();
+        assert_eq!(
+            KiroProvider::fallback_profile_arn(&cred),
+            Some(KiroProvider::SOCIAL_PROFILE_ARN)
+        );
+    }
+
+    #[test]
+    fn test_fallback_unknown_auth_method_returns_none() {
+        // 未知/未归一化 auth_method（external_idp、enterprise 等）→ None
+        // 移除字段交由上游 400 触发 ProfileArnMissing 禁用
+        for method in ["external_idp", "enterprise", "unknown"] {
+            let mut cred = KiroCredentials::default();
+            cred.auth_method = Some(method.to_string());
+            assert_eq!(
+                KiroProvider::fallback_profile_arn(&cred),
+                None,
+                "auth_method={method} 应返回 None"
+            );
+        }
+    }
+
+    #[test]
+    fn test_rewrite_profile_arn_removes_field_for_external_idp_when_none() {
+        // 企业 IdC 账号缺 ARN：真实 ARN 因租户而异，仍移除字段，
+        // 由上游 400 触发 ProfileArnMissing 禁用逻辑
+        let body = r#"{"conversationState":{},"profileArn":"some-arn"}"#;
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("external_idp".to_string());
         let result = KiroProvider::rewrite_profile_arn(body, &cred);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("profileArn").is_none());

@@ -1,0 +1,38 @@
+src/kiro/token_manager.rs
+  eae384d5665d6b04 522-528,553-555,2638-2642,3551-3552,3561
+src/admin/service.rs
+  eae384d5665d6b04 360-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9a5e881ed8e9244fd9dfd76b9e2417fc2ea0df42",
+  "prompts": {
+    "4941e265707f37f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5b0e74f-7de4-4da4-a880-9aaf5fac361c",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 215,
+      "total_deletions": 0,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    },
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 42,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

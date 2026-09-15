@@ -1,0 +1,56 @@
+src/admin/service.rs
+  eae384d5665d6b04 335
+src/anthropic/converter.rs
+  eae384d5665d6b04 520-524,1024-1028
+admin-ui/src/components/ui/dropdown-menu.tsx
+  eae384d5665d6b04 57-91
+src/admin/types.rs
+  eae384d5665d6b04 166,207-209
+admin-ui/src/i18n/locales/zh.json
+  eae384d5665d6b04 152-156
+admin-ui/src/i18n/locales/en.json
+  eae384d5665d6b04 152-156
+src/kiro/model/credentials.rs
+  eae384d5665d6b04 140-148,188,626,751,788,907,959-987
+admin-ui/src/types/api.ts
+  eae384d5665d6b04 27-28,111-112
+src/kiro/token_manager.rs
+  eae384d5665d6b04 843-844,2658,3158-3160,3401-3410,3412-3414,3416-3423,3425-3427
+src/anthropic/handlers.rs
+  eae384d5665d6b04 819-820,923,944,977-978,1001,1274-1275,1281-1286,1539,2131-2132,2138-2143,2361-2366,2812-2813,2916,2937,3697
+admin-ui/src/components/account-row.tsx
+  eae384d5665d6b04 24-25,32-33,124,135-143,378-385,388,393-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "67d6b610095730bad5e71ee3b46efcee82934e5c",
+  "prompts": {
+    "4941e265707f37f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5b0e74f-7de4-4da4-a880-9aaf5fac361c",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    },
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 510,
+      "total_deletions": 54,
+      "accepted_lines": 448,
+      "overriden_lines": 8
+    }
+  }
+}

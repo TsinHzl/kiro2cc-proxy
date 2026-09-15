@@ -18,7 +18,7 @@ use crate::kiro::endpoint::{
     BUCKET_THROTTLE_DURATION, Endpoint, EndpointBucketRegistry, EndpointName,
 };
 use crate::kiro::machine_id;
-use crate::kiro::model::credentials::KiroCredentials;
+use crate::kiro::model::credentials::{KiroCredentials, fallback_profile_arn_value};
 use crate::kiro::token_manager::{CallContext, MultiTokenManager};
 use crate::model::config::TlsBackend;
 use crate::model::failure_log::FailureLogStore;
@@ -1223,38 +1223,12 @@ impl KiroProvider {
         body.contains("profileArn is required")
     }
 
-    /// Kiro IDE 源码 FixedProfileArns 给 BuilderId 账号硬编码的占位 profileArn。
-    /// 上游数据面对所有账号类型都要求 profileArn 字段存在，BuilderId 用此固定值即可。
-    const BUILDER_ID_PLACEHOLDER_PROFILE_ARN: &str =
-        "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
-
-    /// Social 登录（Github/Google）账号共用的固定 profileArn。
-    const SOCIAL_PROFILE_ARN: &str =
-        "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK";
-
-    /// 无 profile_arn 账号的数据面 fallback ARN（对齐 Kiro IDE FixedProfileArns 行为）。
+    /// 无 profile_arn 账号的数据面 fallback ARN。
     ///
-    /// - social → 固定 Social ARN
-    /// - idc → BuilderId 占位符（本仓库将 builder-id 归一化为 idc，且
-    ///   BuilderId 账号同样以 OIDC clientId/clientSecret 刷新，无法进一步区分；
-    ///   Kiro IDE 对该类账号即使用此占位符）
-    /// - external_idp（企业 IdC）及未知/未归一化值 → None：真实 ARN 因租户而异，
-    ///   缺失属确定性配置缺陷，由调用方移除字段并触发 ProfileArnMissing 禁用逻辑
+    /// 常量与推导逻辑统一定义在 [`crate::kiro::model::credentials`]（添加/加载账号时
+    /// 即按此补全并持久化），此处委托保持行为一致。
     fn fallback_profile_arn(credentials: &KiroCredentials) -> Option<&'static str> {
-        let auth_method = credentials.auth_method.as_deref().unwrap_or_else(|| {
-            if credentials.client_id.is_some() && credentials.client_secret.is_some() {
-                "idc"
-            } else {
-                "social"
-            }
-        });
-        // 未知/未归一化值保守回退 None：移除字段交由上游 400 触发
-        // ProfileArnMissing 禁用，而非向上游发送归属不明的 ARN
-        match auth_method.trim().to_ascii_lowercase().as_str() {
-            "social" => Some(Self::SOCIAL_PROFILE_ARN),
-            "idc" | "builder_id" => Some(Self::BUILDER_ID_PLACEHOLDER_PROFILE_ARN),
-            _ => None,
-        }
+        fallback_profile_arn_value(credentials)
     }
 
     /// 将请求 body 中的 `profileArn` 替换为当前选中账号的值。
@@ -1293,6 +1267,7 @@ impl KiroProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kiro::model::credentials::{BUILDER_ID_PLACEHOLDER_PROFILE_ARN, SOCIAL_PROFILE_ARN};
     use crate::kiro::token_manager::CallContext;
     use crate::model::config::Config;
 
@@ -1475,10 +1450,7 @@ mod tests {
         let cred = KiroCredentials::default(); // profile_arn / auth_method 均为 None
         let result = KiroProvider::rewrite_profile_arn(body, &cred);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(
-            v["profileArn"].as_str(),
-            Some(KiroProvider::SOCIAL_PROFILE_ARN)
-        );
+        assert_eq!(v["profileArn"].as_str(), Some(SOCIAL_PROFILE_ARN));
     }
 
     #[test]
@@ -1494,7 +1466,7 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(
             v["profileArn"].as_str(),
-            Some(KiroProvider::BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
         );
     }
 
@@ -1506,7 +1478,7 @@ mod tests {
         cred.client_secret = Some("s".to_string());
         assert_eq!(
             KiroProvider::fallback_profile_arn(&cred),
-            Some(KiroProvider::BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
         );
     }
 
@@ -1516,7 +1488,7 @@ mod tests {
         let cred = KiroCredentials::default();
         assert_eq!(
             KiroProvider::fallback_profile_arn(&cred),
-            Some(KiroProvider::SOCIAL_PROFILE_ARN)
+            Some(SOCIAL_PROFILE_ARN)
         );
     }
 

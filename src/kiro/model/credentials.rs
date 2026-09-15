@@ -198,6 +198,43 @@ pub(crate) fn canonicalize_auth_method_value(value: &str) -> &str {
     }
 }
 
+/// Kiro IDE 源码 FixedProfileArns 给 BuilderId 账号硬编码的占位 profileArn。
+/// 上游对几乎所有请求都要求 profileArn 字段存在，BuilderId 用此固定值即可。
+pub(crate) const BUILDER_ID_PLACEHOLDER_PROFILE_ARN: &str =
+    "arn:aws:codewhisperer:us-east-1:638616132270:profile/AAAACCCCXXXX";
+
+/// Social 登录（Github/Google）账号共用的固定 profileArn。
+pub(crate) const SOCIAL_PROFILE_ARN: &str =
+    "arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK";
+
+/// 无 profile_arn 账号按账号类型推导的 fallback ARN（对齐 Kiro IDE FixedProfileArns 行为）。
+///
+/// - social → 固定 Social ARN
+/// - idc → BuilderId 占位符（本仓库将 builder-id 归一化为 idc，且
+///   BuilderId 账号同样以 OIDC clientId/clientSecret 刷新，无法进一步区分；
+///   Kiro IDE 对该类账号即使用此占位符）
+/// - external_idp（企业 IdC）及未知/未归一化值（含空字符串，视为未知类型）
+///   → None：真实 ARN 因租户而异
+pub(crate) fn fallback_profile_arn_value(credentials: &KiroCredentials) -> Option<&'static str> {
+    let auth_method = credentials
+        .auth_method
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            if credentials.client_id.is_some() && credentials.client_secret.is_some() {
+                "idc"
+            } else {
+                "social"
+            }
+        });
+    match auth_method.trim().to_ascii_lowercase().as_str() {
+        "social" => Some(SOCIAL_PROFILE_ARN),
+        "idc" | "builder_id" => Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN),
+        _ => None,
+    }
+}
+
 /// 账号配置（支持单对象或数组格式）
 ///
 /// 自动识别配置文件格式：
@@ -387,6 +424,26 @@ impl KiroCredentials {
         }
     }
 
+    /// 缺失或为空字符串（脏数据）时按账号类型自动补全 fallback ARN（social → 固定
+    /// Social ARN、idc/builder_id → BuilderId 占位符），随凭据持久化后供数据面与
+    /// 控制面（额度查询/订阅展示/模型列表）所有路径统一使用。
+    ///
+    /// external_idp（企业 IdC）及未知类型不补全：真实 ARN 因租户而异，
+    /// 缺失属确定性配置缺陷，保留 None 交由数据面 400 触发 ProfileArnMissing 禁用。
+    /// 已有非空 profile_arn（含用户显式填写）时不覆盖，返回 false。
+    pub fn fill_missing_profile_arn(&mut self) -> bool {
+        if self.profile_arn.as_deref().is_some_and(|s| !s.is_empty()) {
+            return false;
+        }
+        match fallback_profile_arn_value(self) {
+            Some(arn) => {
+                self.profile_arn = Some(arn.to_string());
+                true
+            }
+            None => false,
+        }
+    }
+
     /// 检查账号是否支持 Opus 模型
     ///
     /// Free 账号不支持 Opus 模型，需要 PRO 或更高等级订阅
@@ -435,6 +492,97 @@ mod tests {
 
         let creds = KiroCredentials::from_json(json).unwrap();
         assert_eq!(creds.access_token, Some("test_token".to_string()));
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_social() {
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("social".to_string());
+        assert!(cred.fill_missing_profile_arn());
+        assert_eq!(cred.profile_arn, Some(SOCIAL_PROFILE_ARN.to_string()));
+        // 已有 ARN 后再调用不覆盖
+        assert!(!cred.fill_missing_profile_arn());
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_idc_placeholder() {
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("idc".to_string());
+        assert!(cred.fill_missing_profile_arn());
+        assert_eq!(
+            cred.profile_arn,
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN.to_string())
+        );
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_infers_idc_from_oidc_creds() {
+        // auth_method 缺失但带 OIDC clientId/secret → 推断为 idc
+        let mut cred = KiroCredentials::default();
+        cred.client_id = Some("c".to_string());
+        cred.client_secret = Some("s".to_string());
+        assert!(cred.fill_missing_profile_arn());
+        assert_eq!(
+            cred.profile_arn,
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN.to_string())
+        );
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_keeps_user_explicit_arn() {
+        let mut cred = KiroCredentials::default();
+        cred.profile_arn = Some("arn:aws:user-explicit".to_string());
+        assert!(!cred.fill_missing_profile_arn());
+        assert_eq!(cred.profile_arn, Some("arn:aws:user-explicit".to_string()));
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_treats_empty_string_as_missing() {
+        // 空字符串 profile_arn（credentials.json 手工编辑产生的脏数据）
+        // 视为缺失：补全覆盖，避免空值原样发往上游
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("idc".to_string());
+        cred.profile_arn = Some(String::new());
+        assert!(cred.fill_missing_profile_arn());
+        assert_eq!(
+            cred.profile_arn,
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN.to_string())
+        );
+    }
+
+    #[test]
+    fn test_fallback_profile_arn_value_empty_auth_method_falls_back_to_inference() {
+        // 空字符串 auth_method 视为未声明：按 OIDC 凭据存在性推断（而非落入未知类型）
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("   ".to_string());
+        cred.client_id = Some("c".to_string());
+        cred.client_secret = Some("s".to_string());
+        assert_eq!(
+            fallback_profile_arn_value(&cred),
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN)
+        );
+
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some(String::new());
+        assert_eq!(fallback_profile_arn_value(&cred), Some(SOCIAL_PROFILE_ARN));
+    }
+
+    #[test]
+    fn test_fill_missing_profile_arn_skips_external_idp_and_unknown() {
+        // 企业 IdC 与未知类型不补全：真实 ARN 因租户而异，
+        // 保留 None 交由数据面 400 触发 ProfileArnMissing 禁用
+        for method in ["external_idp", "enterprise", "unknown"] {
+            let mut cred = KiroCredentials::default();
+            cred.auth_method = Some(method.to_string());
+            assert!(
+                !cred.fill_missing_profile_arn(),
+                "auth_method={method} 不应补全"
+            );
+            assert!(
+                cred.profile_arn.is_none(),
+                "auth_method={method} 应保持 None"
+            );
+        }
     }
 
     #[test]

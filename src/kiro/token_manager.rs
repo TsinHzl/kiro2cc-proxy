@@ -961,6 +961,7 @@ impl MultiTokenManager {
         let mut next_id = starting_max_id + 1;
         let mut has_new_ids = false;
         let mut has_new_machine_ids = false;
+        let mut has_new_profile_arns = false;
         let config_ref = &config;
 
         let entries: Vec<CredentialEntry> = credentials
@@ -978,6 +979,11 @@ impl MultiTokenManager {
                     cred.machine_id =
                         Some(machine_id::generate_from_credentials(&cred, config_ref));
                     has_new_machine_ids = true;
+                }
+                // 存量账号补全：旧版本添加的 social/idc 账号可能没有 profileArn，
+                // 启动加载时按账号类型补全并标记写回配置文件
+                if cred.fill_missing_profile_arn() {
+                    has_new_profile_arns = true;
                 }
                 CredentialEntry {
                     id,
@@ -1060,12 +1066,12 @@ impl MultiTokenManager {
         // 避免文件丢失/首次运行时缺失导致回退到仅按当前列表推算）
         manager.save_id_counter_at_least(final_max_id);
 
-        // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
-        if has_new_ids || has_new_machine_ids {
+        // 如果有新分配的 ID、新生成的 machineId 或补全的 profileArn，立即持久化到配置文件
+        if has_new_ids || has_new_machine_ids || has_new_profile_arns {
             if let Err(e) = manager.persist_credentials() {
-                tracing::warn!("补全账号 ID/machineId 后持久化失败: {}", e);
+                tracing::warn!("补全账号 ID/machineId/profileArn 后持久化失败: {}", e);
             } else {
-                tracing::info!("已补全账号 ID/machineId 并写回配置文件");
+                tracing::info!("已补全账号 ID/machineId/profileArn 并写回配置文件");
             }
         }
 
@@ -2916,6 +2922,16 @@ impl MultiTokenManager {
         validated_cred.proxy_username = new_cred.proxy_username;
         validated_cred.proxy_password = new_cred.proxy_password;
 
+        // 无 profile_arn 的 social/idc 账号按类型自动补全 fallback ARN 并随凭据持久化，
+        // 后续对话、额度查询、订阅展示、模型列表均直接使用该持久化值
+        // （external_idp/未知类型不补全，真实 ARN 因租户而异）
+        if validated_cred.fill_missing_profile_arn() {
+            tracing::info!(
+                "账号无 profileArn，已按账号类型（{}）自动补全 fallback ARN",
+                validated_cred.auth_method.as_deref().unwrap_or("unknown")
+            );
+        }
+
         {
             let mut entries = self.entries.lock();
             entries.push(CredentialEntry {
@@ -3271,6 +3287,7 @@ impl Drop for MultiTokenManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kiro::model::credentials::{BUILDER_ID_PLACEHOLDER_PROFILE_ARN, SOCIAL_PROFILE_ARN};
 
     #[test]
     fn test_token_manager_new() {
@@ -3489,6 +3506,70 @@ mod tests {
             new_id, 3,
             "重启后新增账号仍不应复用已删除账号 #2 的 ID，实际: {}",
             new_id
+        );
+    }
+
+    /// 回归测试：启动加载时为无 profileArn 的 social/idc 存量账号自动补全 fallback ARN
+    /// 并写回配置文件（覆盖旧版本添加的账号，如 BuilderId 注册但 authMethod 标 idc 的形态）。
+    #[test]
+    fn test_new_fills_missing_profile_arn_and_persists() {
+        let dir_guard = TempDirGuard::new(&format!("k2cc_fill_arn_load_{}", std::process::id()));
+        let cred_path = dir_guard.path().join("credentials.json");
+
+        let mut cred = KiroCredentials::default();
+        cred.id = Some(14);
+        cred.auth_method = Some("idc".to_string());
+        cred.client_id = Some("client-id".to_string());
+        cred.client_secret = Some("client-secret".to_string());
+        cred.refresh_token = Some("r".repeat(150));
+
+        let config = Config::default();
+        let manager =
+            MultiTokenManager::new(config, vec![cred], None, Some(cred_path.clone()), true)
+                .unwrap();
+
+        // 内存中已补全
+        let ids = manager.credential_ids();
+        assert_eq!(ids, vec![14]);
+        // 触发写回：磁盘上的 credentials.json 应包含补全后的占位符 ARN
+        let persisted: Vec<KiroCredentials> =
+            serde_json::from_str(&std::fs::read_to_string(&cred_path).unwrap()).unwrap();
+        assert_eq!(persisted.len(), 1);
+        assert_eq!(
+            persisted[0].profile_arn.as_deref(),
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN),
+            "存量账号的 profileArn 应已补全并持久化"
+        );
+    }
+
+    /// 回归测试：add_credential 添加链路会调用 fill_missing_profile_arn。
+    ///
+    /// 注：idc/social 形态的刷新分别硬编码请求真实 AWS OIDC / Kiro OAuth 端点
+    /// （无 tokenEndpoint 注入点，external_idp 的 tokenEndpoint 仅 external_idp
+    /// 刷新路径消费），单测无法 mock，故正向补全覆盖落在：
+    /// - credentials.rs 纯函数单测（fill_missing_profile_arn 各分支）
+    /// - MultiTokenManager::new 加载路径持久化测试（test_new_fills_missing_profile_arn_and_persists）
+    /// 此处用可 mock 的 external_idp 形态验证添加链路走通且对不补全类型保守跳过。
+    #[tokio::test]
+    async fn test_add_credential_fills_missing_profile_arn() {
+        let body = r#"{"access_token":"new-access-token","expires_in":3600}"#;
+        let endpoint = spawn_single_response_server(200, body).await;
+
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("external_idp".to_string());
+        cred.refresh_token = Some("c".repeat(150));
+        cred.client_id = Some("client-id".to_string());
+        cred.token_endpoint = Some(endpoint);
+
+        let config = Config::default();
+        let manager = MultiTokenManager::new(config, vec![], None, None, false).unwrap();
+        let new_id = manager.add_credential(cred).await.unwrap();
+
+        let entries = manager.entries.lock();
+        let added = entries.iter().find(|e| e.id == new_id).unwrap();
+        assert!(
+            added.credentials.profile_arn.is_none(),
+            "external_idp 不应补全 ARN（真实 ARN 因租户而异）"
         );
     }
 

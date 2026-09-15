@@ -24,6 +24,8 @@ export interface CredentialStatusItem {
   lastUsedAt: string | null
   hasProxy: boolean
   proxyUrl?: string
+  /** 账号级 thinking adaptive 注入开关（客户端请求 thinking: adaptive 时按此开关注入 Kiro） */
+  thinkingAdaptive: boolean
   healthStatus: 'healthy' | 'warning' | 'degraded' | 'unhealthy' | 'disabled'
   throttleCount: number
   /**
@@ -106,6 +108,8 @@ export interface UpdateCredentialRequest {
   proxyUrl?: string
   proxyUsername?: string
   proxyPassword?: string
+  /** 账号级 thinking adaptive 注入开关（可选，不传则不更新该字段） */
+  thinkingAdaptive?: boolean
 }
 
 // 添加凭据响应

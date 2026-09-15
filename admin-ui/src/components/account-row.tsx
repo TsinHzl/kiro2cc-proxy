@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
-import { Boxes, FileText, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
+import { Boxes, FileText, Lightbulb, LightbulbOff, MoreHorizontal, Pencil, RefreshCw, Trash2, Wallet } from 'lucide-react'
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
 import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
 import { Button } from '@/components/ui/button'
@@ -21,10 +21,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useDeleteCredential, useResetFailure, useSetDisabled } from '@/hooks/use-credentials'
+import {
+  useDeleteCredential,
+  useResetFailure,
+  useSetDisabled,
+  useUpdateCredential,
+} from '@/hooks/use-credentials'
 import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState, maskEmail } from '@/lib/account-state'
 import { localeTag } from '@/lib/locale'
 import { getSubscriptionColor } from '@/lib/utils'
@@ -114,6 +121,7 @@ export function AccountRow({
   const setDisabled = useSetDisabled()
   const resetFailure = useResetFailure()
   const deleteCredential = useDeleteCredential()
+  const updateCredential = useUpdateCredential()
 
   const opFailed = (err: Error) => toast.error(t('credentials.toastOpFailed', { message: err.message }))
 
@@ -121,6 +129,18 @@ export function AccountRow({
     setDisabled.mutate(
       { id: credential.id, disabled: !credential.disabled },
       { onSuccess: res => toast.success(res.message), onError: opFailed },
+    )
+  }
+
+  // 账号级 thinking adaptive 注入开关：直接切换，成功/失败文案区分开关方向
+  const handleToggleThinkingAdaptive = (next: boolean) => {
+    updateCredential.mutate(
+      { id: credential.id, data: { thinkingAdaptive: next } },
+      {
+        onSuccess: () =>
+          toast.success(t(next ? 'credentials.toggleThinkingAdaptiveOn' : 'credentials.toggleThinkingAdaptiveOff')),
+        onError: opFailed,
+      },
     )
   }
 
@@ -355,6 +375,38 @@ export function AccountRow({
             <SwitchPrimitive.Thumb className="block size-3 translate-x-[2px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.28)] transition-transform data-[state=checked]:translate-x-[18px]" />
           </SwitchPrimitive.Root>
           <span aria-hidden="true" className="mx-[5px] h-4 w-px flex-none bg-hairline" />
+          {/* 账号级 thinking adaptive 注入：文字 Badge 按钮直接显示当前状态，点击弹单选菜单（默认不注入 / 注入 adaptive） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                disabled={updateCredential.isPending}
+                aria-label={t('credentials.toggleThinkingAdaptive')}
+                title={t('credentials.toggleThinkingAdaptive')}
+                className={`grid size-[26px] flex-none place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 data-[state=on]:text-brand`}
+                data-state={credential.thinkingAdaptive ? 'on' : 'off'}
+              >
+                {credential.thinkingAdaptive ? (
+                  <Lightbulb className="size-[14px]" strokeWidth={2} />
+                ) : (
+                  <LightbulbOff className="size-[14px]" strokeWidth={1.75} />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuRadioGroup
+                value={credential.thinkingAdaptive ? 'on' : 'off'}
+                onValueChange={(v) => handleToggleThinkingAdaptive(v === 'on')}
+              >
+                <DropdownMenuRadioItem value="off">
+                  {t('credentials.thinkingAdaptiveOffOption')}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="on">
+                  {t('credentials.thinkingAdaptiveOnOption')}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             type="button"
             className={ICON_BTN}

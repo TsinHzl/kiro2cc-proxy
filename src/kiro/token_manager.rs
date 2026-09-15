@@ -840,6 +840,8 @@ pub struct CredentialEntrySnapshot {
     /// too_many_refresh_failures）；None = 未禁用。Admin 面板据此区分「已禁用」与「额度已用尽」
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_reason: Option<DisabledReason>,
+    /// 账号级 thinking adaptive 注入开关
+    pub thinking_adaptive: bool,
 }
 
 /// 账号管理器状态快照
@@ -2653,6 +2655,7 @@ impl MultiTokenManager {
                     health_status: Self::compute_health(e),
                     throttle_count: e.throttle_count,
                     disabled_reason: e.disabled_reason,
+                    thinking_adaptive: e.credentials.thinking_adaptive,
                 })
                 .collect(),
             current_id,
@@ -3152,6 +3155,9 @@ impl MultiTokenManager {
                 Some(pp.clone())
             };
         }
+        if let Some(ta) = update.thinking_adaptive {
+            cred.thinking_adaptive = ta;
+        }
     }
 
     /// 删除账号（Admin API）
@@ -3390,6 +3396,33 @@ mod tests {
         let body =
             r#"{"error":"invalid_grant","error_description":"Invalid refresh token provided"}"#;
         assert!(!is_invalid_grant_response(401, body));
+    }
+
+    #[test]
+    fn test_apply_update_fields_thinking_adaptive() {
+        let mut cred = KiroCredentials::default();
+        assert!(!cred.thinking_adaptive);
+
+        // Some(v) 覆盖现有值
+        let mut update = crate::admin::types::UpdateCredentialRequest {
+            thinking_adaptive: Some(true),
+            ..Default::default()
+        };
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert!(cred.thinking_adaptive);
+
+        update.thinking_adaptive = Some(false);
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert!(!cred.thinking_adaptive);
+
+        // None 表示不更新该字段
+        let update = crate::admin::types::UpdateCredentialRequest {
+            thinking_adaptive: None,
+            ..Default::default()
+        };
+        cred.thinking_adaptive = true;
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert!(cred.thinking_adaptive);
     }
 
     #[tokio::test]

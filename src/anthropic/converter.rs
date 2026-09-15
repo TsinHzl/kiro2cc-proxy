@@ -517,6 +517,11 @@ pub struct ConversionResult {
     ///
     /// 供 handlers 桥接层计算多轮搜索上限 `min(max_uses, 5)`。
     pub web_search_max_uses: Option<Option<i32>>,
+    /// 客户端是否请求了 `thinking: {"type": "adaptive"}`
+    ///
+    /// 账号在 provider 阶段才确定，converter 阶段先记录该意图，
+    /// 由 provider 按目标账号的 `thinking_adaptive` 开关决定是否注入。
+    pub thinking_adaptive_requested: bool,
 }
 
 /// 转换错误
@@ -1016,6 +1021,11 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         additional_model_request_fields,
         is_compact_request: is_compact,
         web_search_max_uses,
+        thinking_adaptive_requested: req
+            .thinking
+            .as_ref()
+            .map(|t| t.thinking_type == "adaptive")
+            .unwrap_or(false),
     })
 }
 

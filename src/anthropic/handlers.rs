@@ -816,6 +816,8 @@ pub async fn post_messages(
 
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     let is_compact_request = conversion_result.is_compact_request;
+    // 客户端是否请求了 thinking adaptive（与账号级开关在 provider 侧共同决定注入）
+    let thinking_adaptive_requested = conversion_result.thinking_adaptive_requested;
 
     // web_search server tool 桥接上下文（D5/D7：未携带时为 None，零行为变化）
     // 必须在 KiroRequest 构建（conversation_state 被 move）前构造
@@ -918,6 +920,7 @@ pub async fn post_messages(
             client_ip,
             None, // /v1 无全局 deadline（保持现有行为）
             is_compact_request,
+            thinking_adaptive_requested,
             bridge_ctx,
         )
         .await
@@ -938,6 +941,7 @@ pub async fn post_messages(
             fp_tracker,
             fp_profile,
             is_compact_request,
+            thinking_adaptive_requested,
             bridge_ctx,
         )
         .await
@@ -970,6 +974,8 @@ pub(crate) struct BridgeContext {
     pub bound_ids: Vec<u64>,
     /// 决定续请求的上游超时分档（普通 180s / compact 1000s）
     pub is_compact_request: bool,
+    /// 客户端是否请求了 thinking adaptive（续请求与首轮同参注入，D1）
+    pub thinking_adaptive_requested: bool,
 }
 
 /// 构造桥接上下文（D5/D7）
@@ -992,6 +998,7 @@ fn build_bridge_context(
         max_uses,
         bound_ids,
         is_compact_request: conversion_result.is_compact_request,
+        thinking_adaptive_requested: conversion_result.thinking_adaptive_requested,
     })
 }
 
@@ -1264,12 +1271,19 @@ async fn handle_stream_request(
     stream_deadline: Option<Duration>,
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     is_compact_request: bool,
+    // 客户端是否请求了 thinking adaptive（与账号级开关在 provider 侧共同决定注入）
+    thinking_adaptive_requested: bool,
     // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
     bridge_ctx: Option<BridgeContext>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
-        .call_api_stream(request_body, is_compact_request, &bound_ids)
+        .call_api_stream(
+            request_body,
+            is_compact_request,
+            thinking_adaptive_requested,
+            &bound_ids,
+        )
         .await
     {
         Ok(resp) => resp,
@@ -1522,6 +1536,7 @@ async fn bridge_execute_round(
         .call_api_stream(
             &request_body,
             bridge_ctx.is_compact_request,
+            bridge_ctx.thinking_adaptive_requested,
             &bridge_ctx.bound_ids,
         )
         .await
@@ -2113,12 +2128,19 @@ async fn handle_non_stream_request(
     fp_profile: Option<Vec<crate::cache::fingerprint::ContentSegment>>,
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     is_compact_request: bool,
+    // 客户端是否请求了 thinking adaptive（与账号级开关在 provider 侧共同决定注入）
+    thinking_adaptive_requested: bool,
     // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
     bridge_ctx: Option<BridgeContext>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
-        .call_api(request_body, is_compact_request, &bound_ids)
+        .call_api(
+            request_body,
+            is_compact_request,
+            thinking_adaptive_requested,
+            &bound_ids,
+        )
         .await
     {
         Ok(resp) => resp,
@@ -2336,7 +2358,12 @@ async fn handle_non_stream_request(
 
         // 3. 续请求：响应体继续进入同一收集循环（多轮在同一 loop 内演进）
         match provider
-            .call_api(&request_body, ctx.is_compact_request, &ctx.bound_ids)
+            .call_api(
+                &request_body,
+                ctx.is_compact_request,
+                ctx.thinking_adaptive_requested,
+                &ctx.bound_ids,
+            )
             .await
         {
             Ok((resp, _credential_id)) => {
@@ -2782,6 +2809,8 @@ pub async fn post_messages_cc(
 
     // 是否为 Claude Code /compact 压缩请求（决定上游超时：普通 180s / 压缩 1000s）
     let is_compact_request = conversion_result.is_compact_request;
+    // 客户端是否请求了 thinking adaptive（与账号级开关在 provider 侧共同决定注入）
+    let thinking_adaptive_requested = conversion_result.thinking_adaptive_requested;
 
     // web_search server tool 桥接上下文（D5/D7：未携带时为 None，零行为变化）
     // 必须在 KiroRequest 构建（conversation_state 被 move）前构造
@@ -2884,6 +2913,7 @@ pub async fn post_messages_cc(
             client_ip,
             Some(Duration::from_secs(300)),
             is_compact_request,
+            thinking_adaptive_requested,
             bridge_ctx,
         )
         .await
@@ -2904,6 +2934,7 @@ pub async fn post_messages_cc(
             fp_tracker,
             fp_profile,
             is_compact_request,
+            thinking_adaptive_requested,
             bridge_ctx,
         )
         .await
@@ -3663,6 +3694,7 @@ mod tests {
             max_uses: Some(3),
             bound_ids: vec![1],
             is_compact_request: false,
+            thinking_adaptive_requested: false,
         }
     }
 

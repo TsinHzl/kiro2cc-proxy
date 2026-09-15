@@ -53,6 +53,8 @@ pub struct CredentialStatusItem {
     /// 代理 URL（用于前端展示）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
+    /// 账号级 thinking adaptive 注入开关（前端按钮显示当前状态）
+    pub thinking_adaptive: bool,
     /// 健康状态
     pub health_status: crate::kiro::token_manager::HealthStatus,
     /// 最近 7 天限流次数（429 响应，滚动 7×24 小时窗口）
@@ -161,7 +163,7 @@ pub struct AddCredentialResponse {
 }
 
 /// 更新账号请求（所有字段可选，只更新提供的字段）
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCredentialRequest {
     /// 刷新令牌（可选，更新后会重新验证）
@@ -202,6 +204,9 @@ pub struct UpdateCredentialRequest {
 
     /// 账号级代理认证密码（可选）
     pub proxy_password: Option<String>,
+
+    /// 账号级 thinking adaptive 注入开关（可选，None 表示不更新该字段）
+    pub thinking_adaptive: Option<bool>,
 }
 
 // ============ 余额查询 ============

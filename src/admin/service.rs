@@ -136,6 +136,7 @@ impl AdminService {
                 last_used_at: entry.last_used_at.clone(),
                 has_proxy: entry.has_proxy,
                 proxy_url: entry.proxy_url,
+                thinking_adaptive: entry.thinking_adaptive,
                 health_status: entry.health_status,
                 throttle_count: self
                     .throttle_log_store
@@ -331,6 +332,7 @@ impl AdminService {
             proxy_password: req.proxy_password,
             disabled: false, // 新添加的账号默认启用
             endpoint: None,
+            thinking_adaptive: false, // 新添加的账号默认不注入 thinking 字段
         };
 
         // 调用 token_manager 添加账号

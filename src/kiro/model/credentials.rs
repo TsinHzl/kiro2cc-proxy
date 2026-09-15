@@ -137,6 +137,15 @@ pub struct KiroCredentials {
     /// 示例：`["runtime", "codewhisperer"]` → `[Runtime, Codewhisperer, Ide, Amazonq]`
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub endpoint: Option<Vec<crate::kiro::endpoint::EndpointName>>,
+
+    /// 账号级 thinking adaptive 注入开关（默认为 false）
+    ///
+    /// 开启后，当客户端请求携带 `thinking: {"type": "adaptive"}` 且路由到该账号时，
+    /// provider 会向 Kiro 上游的 `additionalModelRequestFields` 注入
+    /// `thinking: {"type": "adaptive"}`（恢复该账号的 thinking 调度，响应变慢）。
+    /// 关闭时与 v3.3.0 以来"不发 thinking 字段"的行为完全一致。
+    #[serde(default)]
+    pub thinking_adaptive: bool,
 }
 
 /// 对邮箱做部分掩码（保留首字符与域名，如 u***@example.com）
@@ -176,6 +185,7 @@ impl std::fmt::Debug for KiroCredentials {
             .field("proxy_username", &self.proxy_username)
             .field("proxy_password", &redact(&self.proxy_password))
             .field("disabled", &self.disabled)
+            .field("thinking_adaptive", &self.thinking_adaptive)
             .finish()
     }
 }
@@ -613,6 +623,7 @@ mod tests {
             proxy_password: None,
             disabled: false,
             endpoint: None,
+            thinking_adaptive: false,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -737,6 +748,7 @@ mod tests {
             proxy_password: None,
             disabled: false,
             endpoint: None,
+            thinking_adaptive: false,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -773,6 +785,7 @@ mod tests {
             proxy_password: None,
             disabled: false,
             endpoint: None,
+            thinking_adaptive: false,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -891,6 +904,7 @@ mod tests {
             proxy_password: None,
             disabled: false,
             endpoint: None,
+            thinking_adaptive: false,
         };
 
         let json = original.to_pretty_json().unwrap();
@@ -940,6 +954,35 @@ mod tests {
         assert!(json.contains("eu-west-1"));
         assert!(json.contains("apiRegion"));
         assert!(json.contains("us-west-2"));
+    }
+
+    // ============ thinking_adaptive 字段测试 ============
+
+    #[test]
+    fn test_thinking_adaptive_default_false_for_legacy_json() {
+        // 旧版本 credentials.json 不含 thinkingAdaptive 字段 → 反序列化为 false
+        let json = r#"{"refreshToken": "test"}"#;
+        let creds = KiroCredentials::from_json(json).unwrap();
+        assert!(!creds.thinking_adaptive);
+    }
+
+    #[test]
+    fn test_thinking_adaptive_explicit_true() {
+        let json = r#"{"refreshToken": "test", "thinkingAdaptive": true}"#;
+        let creds = KiroCredentials::from_json(json).unwrap();
+        assert!(creds.thinking_adaptive);
+    }
+
+    #[test]
+    fn test_thinking_adaptive_roundtrip() {
+        let mut creds = KiroCredentials::default();
+        creds.refresh_token = Some("test".to_string());
+        creds.thinking_adaptive = true;
+
+        let json = creds.to_pretty_json().unwrap();
+        assert!(json.contains("thinkingAdaptive"));
+        let parsed = KiroCredentials::from_json(&json).unwrap();
+        assert!(parsed.thinking_adaptive);
     }
 
     #[test]

@@ -54,4 +54,39 @@ const DropdownMenuSeparator = React.forwardRef<
 ))
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 
-export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator }
+/** 单选组 + 单选项：选中项左侧渲染选中态圆点，样式对齐 DropdownMenuItem */
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
+
+const DropdownMenuRadioItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
+>(({ className, children, ...props }, ref) => (
+  <DropdownMenuPrimitive.RadioItem
+    ref={ref}
+    className={cn(
+      'flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[6px] text-[11.5px] font-medium outline-none transition-colors',
+      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'text-ink-2 data-[highlighted]:bg-surface-3 data-[highlighted]:text-ink data-[state=checked]:text-ink',
+      className,
+    )}
+    {...props}
+  >
+    <span className="flex size-3 flex-none items-center justify-center">
+      <DropdownMenuPrimitive.ItemIndicator>
+        <span className="size-[5px] rounded-full bg-brand" />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+    {children}
+  </DropdownMenuPrimitive.RadioItem>
+))
+DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
+
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+}

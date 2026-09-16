@@ -1307,7 +1307,9 @@ impl KiroProvider {
                 .and_then(|cm| cm.get("userInputMessage"))
                 .and_then(|uim| uim.get("modelId"))
                 .and_then(|m| m.as_str())
-                .unwrap_or("");
+                .unwrap_or("")
+                .to_string();
+            let model_id = model_id.as_str();
             if !model_id.is_empty()
                 && !crate::anthropic::converter::additional_fields_skipped(model_id)
             {
@@ -1320,9 +1322,16 @@ impl KiroProvider {
                             "thinking".to_string(),
                             serde_json::json!({ "type": "adaptive" }),
                         );
+                        tracing::debug!(
+                            "[THINKING-ADAPTIVE] injected: credential={} model_id={} model_type=adaptive",
+                            credentials.id.map(|i| i.to_string()).unwrap_or_default(),
+                            model_id
+                        );
                     }
                     None => tracing::warn!(
-                        "[THINKING-ADAPTIVE] additionalModelRequestFields 非对象，跳过注入"
+                        "[THINKING-ADAPTIVE] additionalModelRequestFields 非对象，跳过注入: credential={} model_id={}",
+                        credentials.id.map(|i| i.to_string()).unwrap_or_default(),
+                        model_id
                     ),
                 }
             }

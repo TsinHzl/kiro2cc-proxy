@@ -149,7 +149,7 @@
     "clearFilters": "清除筛选条件",
     "toggleEnabled": "启用或禁用 {{name}}",
     "moreActions": "更多操作",
-    "toggleThinkingAdaptive": "thinking adaptive 注入（开启后客户端请求 thinking: adaptive 时向 Kiro 注入，思考耗时可能增加）",
+    "toggleThinkingAdaptive": "thinking adaptive 注入（开启后客户端请求 thinking: adaptive 时向 Kiro 注入，思考耗时会增加）",
     "thinkingAdaptiveOffOption": "关闭深度思考",
     "thinkingAdaptiveOnOption": "开启深度思考",
     "toggleThinkingAdaptiveOn": "已开启 thinking adaptive 注入",

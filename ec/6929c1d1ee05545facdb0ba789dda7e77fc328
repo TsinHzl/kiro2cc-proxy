@@ -1,0 +1,29 @@
+src/anthropic/converter/convert.rs
+  2aed727b9df31e7b 7,17,23,25
+src/anthropic/converter/tools.rs
+  2aed727b9df31e7b 7
+src/anthropic/converter/cache.rs
+  2aed727b9df31e7b 12-13,17
+src/anthropic/converter/message.rs
+  2aed727b9df31e7b 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ec6929c1d1ee05545facdb0ba789dda7e77fc328",
+  "prompts": {
+    "2aed727b9df31e7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be6c88f5-05ea-473e-9609-99519c4489a9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 8,
+      "accepted_lines": 9,
+      "overriden_lines": 1
+    }
+  }
+}

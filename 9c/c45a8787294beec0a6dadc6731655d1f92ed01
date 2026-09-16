@@ -1,0 +1,90 @@
+admin-ui/src/components/account-row.tsx
+  eae384d5665d6b04 386-387
+src/anthropic/converter.rs
+  eae384d5665d6b04 1610,1661-1669
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9cc45a8787294beec0a6dadc6731655d1f92ed01",
+  "prompts": {
+    "07d87f323f272c77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b65f75a2-8dcc-41f7-8824-2a5a693e7de1",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 85,
+      "total_deletions": 87,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "0e9c5c7109719c2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39191f52-cf42-442f-bad6-3c525fc37766",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 159,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "2f649ec87679b6e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90330e0c-d5cd-4446-87b5-1d100ec689e7",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 97,
+      "total_deletions": 0,
+      "accepted_lines": 97,
+      "overriden_lines": 0
+    },
+    "4941e265707f37f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5b0e74f-7de4-4da4-a880-9aaf5fac361c",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "6aa05f44355fac50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbfc07f3-61a1-4168-b8ed-18b6a1810e0e",
+        "model": "gemini-3.8-flash-tiered"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 73,
+      "total_deletions": 75,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "eae384d5665d6b04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22e52873-c0b6-4cc8-af83-83d2e3f3fe1b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 3,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

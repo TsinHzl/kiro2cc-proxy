@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.3.2".to_string(),
+            is_latest: false,
+            groups: vec![feat_group(vec![Bilingual::new(
+                "新增账号级深度思考（thinking adaptive）注入开关：管理界面每个账号可独立开关。开启后，客户端请求携带 thinking: {type: 'adaptive'} 且目标模型支持时，代理在发送给 Kiro 前向 additionalModelRequestFields 注入 thinking 字段；关闭时完全透传不注入。开关立即生效（无需重启）并持久化到 credentials.json。旧版配置文件无该字段时默认关闭，兼容无害",
+                "Added a per-account thinking adaptive injection toggle: each account can be toggled independently in the admin UI. When enabled, if the client request carries thinking: {type: 'adaptive'} and the target model supports it, the proxy injects the thinking field into additionalModelRequestFields before sending to Kiro; when disabled, requests are passed through without injection. The toggle takes effect immediately (no restart needed) and is persisted to credentials.json. Legacy config files without the field default to disabled, fully compatible",
+            )])],
+        },
+        ReleaseNote {
             version: "3.3.1".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

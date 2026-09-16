@@ -908,6 +908,7 @@ impl KiroProvider {
                     continue;
                 }
             };
+            tracing::debug!("[KIRO-REQUEST] url={} body={}", url, effective_body);
             let response = match client
                 .post(&url)
                 .headers(headers)

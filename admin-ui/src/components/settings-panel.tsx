@@ -224,7 +224,7 @@ export function SettingsPanel({
         note={t('settings.headNote')}
       />
 
-      <div className="flex max-w-[1180px] flex-col gap-5 pb-[26px]">
+      <div className="flex flex-col gap-5 pb-[26px]">
         <Section icon={Server} title={t('settings.capService')}>
           <Row label={t('settings.loadBalancingMode')} desc={t('settings.selectStrategyDesc')}>
             <Seg

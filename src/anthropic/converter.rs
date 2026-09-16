@@ -1607,7 +1607,7 @@ fn build_additional_model_request_fields(
     model_id: &str,
 ) -> Option<serde_json::Value> {
     // "4.5" 代际（sonnet/opus/haiku）与 GPT 系均需整体跳过，见上方实测说明
-    if model_id.ends_with("4.5") || is_gpt_model(model_id) {
+    if additional_fields_skipped(model_id) {
         return None;
     }
 
@@ -1656,6 +1656,15 @@ fn build_additional_model_request_fields(
 
 pub(crate) fn is_gpt_model(model_id: &str) -> bool {
     model_id.to_ascii_lowercase().starts_with("gpt-")
+}
+
+/// `additionalModelRequestFields` 结构化字段的整体跳过谓词（单一来源）。
+///
+/// "4.5" 代际（sonnet/opus/haiku）与 GPT 系均被 Kiro 后端拒绝该字段，
+/// converter 侧 `build_additional_model_request_fields` 与 provider 侧
+/// thinking adaptive 注入共用本谓词，避免排除条件双份硬编码漂移。
+pub(crate) fn additional_fields_skipped(model_id: &str) -> bool {
+    model_id.ends_with("4.5") || is_gpt_model(model_id)
 }
 
 /// 判断是否为 `gpt-5.6-luna`。

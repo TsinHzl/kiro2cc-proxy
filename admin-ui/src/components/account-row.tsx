@@ -383,8 +383,8 @@ export function AccountRow({
                 disabled={updateCredential.isPending}
                 aria-label={t('credentials.toggleThinkingAdaptive')}
                 title={t('credentials.toggleThinkingAdaptive')}
-                className={`grid size-[26px] flex-none place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 data-[state=on]:text-brand`}
-                data-state={credential.thinkingAdaptive ? 'on' : 'off'}
+                className={`grid size-[26px] flex-none place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 data-[adaptive=on]:text-brand`}
+                data-adaptive={credential.thinkingAdaptive ? 'on' : 'off'}
               >
                 {credential.thinkingAdaptive ? (
                   <Lightbulb className="size-[14px]" strokeWidth={2} />

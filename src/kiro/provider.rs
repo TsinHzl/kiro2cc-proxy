@@ -887,8 +887,8 @@ impl KiroProvider {
             );
 
             let url = self.base_url_for(&ctx.credentials, &endpoint);
-            let effective_body = Self::inject_thinking_adaptive(
-                &Self::rewrite_profile_arn(request_body, &ctx.credentials),
+            let effective_body = Self::rewrite_request_body(
+                request_body,
                 &ctx.credentials,
                 thinking_adaptive_requested,
             );
@@ -1257,6 +1257,19 @@ impl KiroProvider {
     ///   上游数据面对所有账号都要求该字段存在，缺失会 400 "profileArn is required"
     /// - JSON 解析失败 → 原样返回，不阻断请求
     fn rewrite_profile_arn(body: &str, credentials: &KiroCredentials) -> String {
+        Self::rewrite_request_body(body, credentials, false)
+    }
+
+    /// 单次解析管线：profileArn 改写 + 按需 thinking adaptive 注入合并处理，
+    /// 避免大请求体（Claude Code 场景可达数 MB）在链路内被多轮 parse/serialize。
+    ///
+    /// - JSON 解析失败 → 原样返回，不阻断请求
+    /// - `requested=false` 时跳过注入，仅做 profileArn 改写（含 MCP 路径复用）
+    fn rewrite_request_body(
+        body: &str,
+        credentials: &KiroCredentials,
+        thinking_adaptive_requested: bool,
+    ) -> String {
         let Ok(mut value) = serde_json::from_str::<serde_json::Value>(body) else {
             return body.to_string();
         };
@@ -1279,61 +1292,42 @@ impl KiroProvider {
                 obj.remove("profileArn");
             }
         }
-        serde_json::to_string(&value).unwrap_or_else(|_| body.to_string())
-    }
 
-    /// 按账号级开关注入 `additionalModelRequestFields.thinking: {"type": "adaptive"}`。
-    ///
-    /// 注入条件（全部满足才注入）：
-    /// - 账号级开关 `credentials.thinking_adaptive` 已开启
-    /// - 客户端请求了 `thinking: {"type": "adaptive"}`（`requested` 为 true）
-    /// - 目标模型非 GPT 系且非 "4.5" 代际（与 converter 侧
-    ///   `build_additional_model_request_fields` 的整体跳过条件一致：
-    ///   Kiro 后端对这两类模型拒绝 additionalModelRequestFields 结构化字段）
-    ///
-    /// `additionalModelRequestFields` 不存在时创建新对象并插入；JSON 解析失败
-    /// 原样返回，不阻断请求。`requested` 为 false 时零开销短路。
-    fn inject_thinking_adaptive(
-        body: &str,
-        credentials: &KiroCredentials,
-        requested: bool,
-    ) -> String {
-        if !requested || !credentials.thinking_adaptive {
-            return body.to_string();
-        }
-        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(body) else {
-            return body.to_string();
-        };
-        let obj = match value.as_object_mut() {
-            Some(o) => o,
-            None => return body.to_string(),
-        };
-
-        // 从请求体读取模型 ID，应用与 converter 相同的排除条件；
-        // modelId 取不到时 fail-closed 跳过注入，防止结构变更导致误注入
-        let model_id = obj
-            .get("conversationState")
-            .and_then(|cs| cs.get("currentMessage"))
-            .and_then(|cm| cm.get("userInputMessage"))
-            .and_then(|uim| uim.get("modelId"))
-            .and_then(|m| m.as_str())
-            .unwrap_or("");
-        if model_id.is_empty()
-            || model_id.ends_with("4.5")
-            || crate::anthropic::converter::is_gpt_model(model_id)
-        {
-            return body.to_string();
+        // 按账号级开关注入 `additionalModelRequestFields.thinking`，复用同一份
+        // 已解析的 value，不产生第二次 parse/serialize。注入条件（全部满足）：
+        // - `thinking_adaptive_requested` 为 true（客户端请求了 adaptive）
+        // - 账号级开关 `credentials.thinking_adaptive` 已开启
+        // - 目标模型非 GPT 系且非 "4.5" 代际（复用 converter 侧
+        //   `additional_fields_skipped` 谓词，与 `build_additional_model_request_fields`
+        //   的整体跳过条件保持单一来源；modelId 取不到时 fail-closed 跳过）
+        if thinking_adaptive_requested && credentials.thinking_adaptive {
+            let model_id = obj
+                .get("conversationState")
+                .and_then(|cs| cs.get("currentMessage"))
+                .and_then(|cm| cm.get("userInputMessage"))
+                .and_then(|uim| uim.get("modelId"))
+                .and_then(|m| m.as_str())
+                .unwrap_or("");
+            if !model_id.is_empty()
+                && !crate::anthropic::converter::additional_fields_skipped(model_id)
+            {
+                let fields = obj
+                    .entry("additionalModelRequestFields")
+                    .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+                match fields.as_object_mut() {
+                    Some(f) => {
+                        f.insert(
+                            "thinking".to_string(),
+                            serde_json::json!({ "type": "adaptive" }),
+                        );
+                    }
+                    None => tracing::warn!(
+                        "[THINKING-ADAPTIVE] additionalModelRequestFields 非对象，跳过注入"
+                    ),
+                }
+            }
         }
 
-        let fields = obj
-            .entry("additionalModelRequestFields")
-            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-        if let Some(f) = fields.as_object_mut() {
-            f.insert(
-                "thinking".to_string(),
-                serde_json::json!({ "type": "adaptive" }),
-            );
-        }
         serde_json::to_string(&value).unwrap_or_else(|_| body.to_string())
     }
 }
@@ -1555,7 +1549,7 @@ mod tests {
     fn test_inject_thinking_adaptive_injects_when_enabled_and_requested() {
         // 开关开启 + 客户端请求 adaptive + 非 4.5/GPT 模型 → 注入 thinking 字段
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-sonnet-4-6"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(
             v["additionalModelRequestFields"]["thinking"]["type"],
@@ -1568,7 +1562,7 @@ mod tests {
         // 客户端请求 adaptive 但账号开关关闭 → 不注入
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-sonnet-4-6"}}}}"#;
         let cred = KiroCredentials::default(); // thinking_adaptive = false
-        let result = KiroProvider::inject_thinking_adaptive(body, &cred, true);
+        let result = KiroProvider::rewrite_request_body(body, &cred, true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("additionalModelRequestFields").is_none());
     }
@@ -1577,7 +1571,7 @@ mod tests {
     fn test_inject_thinking_adaptive_not_injected_when_not_requested() {
         // 开关开启但客户端未请求 adaptive（enabled / 不传）→ 不注入
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-sonnet-4-6"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), false);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), false);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("additionalModelRequestFields").is_none());
     }
@@ -1586,7 +1580,7 @@ mod tests {
     fn test_inject_thinking_adaptive_skipped_for_4_5_models() {
         // "4.5" 代际模型 → 保持与 converter 整体跳过一致，不注入
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-sonnet-4.5"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("additionalModelRequestFields").is_none());
     }
@@ -1595,7 +1589,7 @@ mod tests {
     fn test_inject_thinking_adaptive_skipped_for_gpt_models() {
         // GPT 系模型 → 不注入
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"gpt-5.6-luna"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("additionalModelRequestFields").is_none());
     }
@@ -1604,7 +1598,7 @@ mod tests {
     fn test_inject_thinking_adaptive_creates_fields_when_missing() {
         // additionalModelRequestFields 不存在 → 创建新对象并插入 thinking
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-opus-4-6"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v["additionalModelRequestFields"].is_object());
         assert_eq!(
@@ -1617,7 +1611,7 @@ mod tests {
     fn test_inject_thinking_adaptive_merges_into_existing_fields() {
         // additionalModelRequestFields 已存在 → 保留既有键，追加 thinking
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"claude-opus-4-6"}}},"additionalModelRequestFields":{"max_tokens":8192}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         let fields = &v["additionalModelRequestFields"];
         assert_eq!(fields["max_tokens"], serde_json::json!(8192));
@@ -1628,7 +1622,7 @@ mod tests {
     fn test_inject_thinking_adaptive_invalid_json_passthrough() {
         // JSON 解析失败 → 原样返回
         let body = "not-a-json";
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         assert_eq!(result, body);
     }
 
@@ -1637,7 +1631,7 @@ mod tests {
         // fail-closed：modelId 路径缺失（取不到模型）→ 跳过注入
         let body =
             r#"{"conversationState":{"currentMessage":{"userInputMessage":{"content":"hi"}}}}"#;
-        let result = KiroProvider::inject_thinking_adaptive(body, &adaptive_cred(), true);
+        let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.get("additionalModelRequestFields").is_none());
     }

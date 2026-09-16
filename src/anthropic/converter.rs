@@ -1681,9 +1681,9 @@ pub(crate) fn is_luna_model(model_id: &str) -> bool {
 }
 
 /// `gpt-5.6-luna` 上游恒返回 `thinking=0`（已知限制，见 README/openai::model_map），
-/// 且不支持 Claude/Kiro 的结构化 thinking 协议（`additionalModelRequestFields.thinking`
-/// 与 `<thinking_mode>` 文本标签均被 `generate_thinking_prefix`/
-/// `build_additional_model_request_fields` 对全部 GPT 系模型跳过，luna 自然包含在内）。
+/// 且不支持 Claude/Kiro 的 thinking 协议：`build_additional_model_request_fields`
+/// 对全部 GPT 系跳过结构化字段；`generate_thinking_prefix` 已收窄至仅 luna 跳过
+/// `<thinking_mode>` 文本标签（sol/terra 会注入，见该函数文档）。
 ///
 /// 当客户端请求里仍然携带 `thinking` 配置（如 Claude Code 默认开启 extended
 /// thinking）时，luna 在缺少思考协议约束、且自身不产出推理内容的情况下，有概率
@@ -1730,10 +1730,12 @@ fn gpt_anti_pseudo_tag_hint(req: &MessagesRequest, model_id: &str) -> Option<&'s
 
 /// 生成 thinking 标签前缀。
 ///
-/// GPT 变体的 Kiro schema 不支持 Claude/Kiro thinking 控制协议，
-/// 因此不能把这些控制标签写入 GPT 的历史提示词。
+/// 仅 `gpt-5.6-luna` 跳过：luna 不支持 Claude/Kiro thinking 控制协议，且上游恒返回
+/// `thinking=0`（实测，见 `is_luna_model` 文档）。sol/terra 未见同类实测证据，此前对
+/// 全部 GPT 系一刀切跳过导致其 thinking 恒不生效，现收窄到 luna，sol/terra 与 Claude
+/// 系一样按 `<thinking_mode>` 文本协议注入。
 fn generate_thinking_prefix(req: &MessagesRequest, model_id: &str) -> Option<String> {
-    if is_gpt_model(model_id) {
+    if is_luna_model(model_id) {
         return None;
     }
 
@@ -1775,7 +1777,7 @@ fn build_history(
 ) -> Result<Vec<Message>, ConversionError> {
     let mut history = Vec::new();
 
-    // 生成 thinking 前缀（GPT 后端不使用 Claude/Kiro 文本控制标签）
+    // 生成 thinking 前缀（仅 luna 不使用 Claude/Kiro 文本控制标签）
     let thinking_prefix = generate_thinking_prefix(req, model_id);
     // GPT 系模型在客户端请求 thinking 时，额外注入反伪标签引导语（见函数文档）
     let anti_pseudo_tag_hint = gpt_anti_pseudo_tag_hint(req, model_id);
@@ -4498,6 +4500,50 @@ mod tests {
         };
         let prefix = generate_thinking_prefix(&req, "claude-sonnet-5").unwrap();
         assert!(prefix.contains("<max_thinking_length>24576</max_thinking_length>"));
+    }
+
+    #[test]
+    fn test_thinking_prefix_gpt_generation() {
+        // 回归测试：GPT 系 thinking 前缀注入范围收窄至 luna。
+        // 此前对全部 gpt-* 一刀切跳过，导致 sol/terra 在客户端请求 extended
+        // thinking 时也永远不注入 <thinking_mode> 标签，thinking 恒不生效。
+        use super::super::types::{Message as AnthropicMessage, Thinking};
+
+        let mk_req = || MessagesRequest {
+            model: "gpt-5.6-terra".to_string(),
+            max_tokens: 32000,
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("Hello"),
+            }],
+            stream: false,
+            system: None,
+            tools: None,
+            tool_choice: None,
+            thinking: Some(Thinking {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 24576,
+            }),
+            output_config: None,
+            metadata: None,
+        };
+
+        // sol / terra：enabled thinking 应照常注入 <thinking_mode> 文本协议标签
+        for model in ["gpt-5.6-terra", "gpt-5.6-sol"] {
+            let prefix = generate_thinking_prefix(&mk_req(), model).unwrap_or_else(|| {
+                panic!("{model} 在 enabled thinking 下应注入 thinking 前缀");
+            });
+            assert!(
+                prefix.contains("<thinking_mode>enabled</thinking_mode>"),
+                "{model} 注入的前缀应包含 thinking_mode 标签，实际: {prefix}"
+            );
+        }
+
+        // luna：已知上游恒返回 thinking=0 且不支持该协议，仍保持跳过
+        assert!(
+            generate_thinking_prefix(&mk_req(), "gpt-5.6-luna").is_none(),
+            "luna 不支持 thinking 文本协议，应维持跳过"
+        );
     }
 
     #[test]

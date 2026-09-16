@@ -1,0 +1,23 @@
+src/anthropic/converter.rs
+  2aed727b9df31e7b 1684-1686,1733-1736,1738,1780,4506-4548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "55da2b28af335362f11f60d92cd6b5570091596c",
+  "prompts": {
+    "2aed727b9df31e7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be6c88f5-05ea-473e-9609-99519c4489a9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 7,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}

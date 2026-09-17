@@ -1,0 +1,35 @@
+src/anthropic/converter/tests.rs
+  2aed727b9df31e7b 824,1619,2123,2203-2213,2217-2267,2272-2276,2301-2302,2335,2361-2362
+src/anthropic/converter/fields.rs
+  2aed727b9df31e7b 2,29-30,52-60,66,89-119
+src/anthropic/converter/result.rs
+  2aed727b9df31e7b 11,13-14
+src/kiro/model/requests/kiro.rs
+  2aed727b9df31e7b 39,42-44
+src/anthropic/types.rs
+  2aed727b9df31e7b 118-120,136-138
+src/anthropic/handlers.rs
+  2aed727b9df31e7b 835,970,972-973,1001,1436,2833,3701
+src/anthropic/converter/convert.rs
+  2aed727b9df31e7b 12,180,191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "167b9b509a41b4ae580c30644b44c9ac8735f40d",
+  "prompts": {
+    "2aed727b9df31e7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be6c88f5-05ea-473e-9609-99519c4489a9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 167,
+      "total_deletions": 40,
+      "accepted_lines": 158,
+      "overriden_lines": 0
+    }
+  }
+}

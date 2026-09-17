@@ -1,0 +1,25 @@
+admin-ui/src/i18n/locales/en.json
+  2aed727b9df31e7b 152
+admin-ui/src/i18n/locales/zh.json
+  2aed727b9df31e7b 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d50cb93bd93ba281aea29efe643a3702d8164a8f",
+  "prompts": {
+    "2aed727b9df31e7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be6c88f5-05ea-473e-9609-99519c4489a9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

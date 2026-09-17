@@ -149,7 +149,7 @@
     "clearFilters": "Clear filters",
     "toggleEnabled": "Enable or disable {{name}}",
     "moreActions": "More actions",
-    "toggleThinkingAdaptive": "Thinking adaptive injection (when on, injects thinking: adaptive into Kiro for client adaptive requests; may increase thinking latency)",
+    "toggleThinkingAdaptive": "Thinking adaptive injection (when on, injects thinking: adaptive into Kiro for client adaptive requests; may increase thinking latency but makes the model smarter)",
     "thinkingAdaptiveOffOption": "Thinking Injection Off",
     "thinkingAdaptiveOnOption": "Thinking Injection On",
     "toggleThinkingAdaptiveOn": "Thinking adaptive injection enabled",

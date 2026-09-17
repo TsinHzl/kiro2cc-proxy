@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! convert_request 主入口与触发类型判定
 
-use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::anthropic::types::MessagesRequest;
@@ -119,19 +118,6 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         if !existing_tool_names.contains(&tool_name.to_lowercase()) {
             tools.push(create_placeholder_tool(&tool_name));
         }
-    }
-
-    // 11. [cache-check] 打印 history 条目哈希，便于跨请求验证 prefix cache 稳定性
-    for (i, msg) in history.iter().enumerate() {
-        let json = serde_json::to_string(msg).unwrap_or_default();
-        let hash = format!("{:x}", Sha256::digest(json.as_bytes()));
-        tracing::info!(
-            "[cache-check] session={} history[{}] hash={} len={}",
-            conversation_id,
-            i,
-            &hash[..8],
-            json.len(),
-        );
     }
 
     // 11b. 构建 UserInputMessageContext —— tools 完整定义直接写入 context.tools（与 Kiro 官方 CLI 一致）

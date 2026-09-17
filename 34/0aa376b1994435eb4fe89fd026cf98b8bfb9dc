@@ -1,0 +1,40 @@
+src/anthropic/converter/fields.rs
+  2aed727b9df31e7b 73-76,100-103,112-120
+src/openai/responses_request.rs
+  2aed727b9df31e7b 22,24,287-291,984-1000
+src/openai/chat_request.rs
+  2aed727b9df31e7b 102-107,903-919
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "340aa376b1994435eb4fe89fd026cf98b8bfb9dc",
+  "prompts": {
+    "2aed727b9df31e7b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be6c88f5-05ea-473e-9609-99519c4489a9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 104,
+      "overriden_lines": 0
+    },
+    "475be1bad6abc252": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2cc1e7e-7570-4c36-a9eb-c28cabcb3b94",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    }
+  }
+}

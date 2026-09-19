@@ -1,0 +1,27 @@
+admin-ui/src/components/dashboard.tsx
+  178f875c378ae29d 1086
+admin-ui/src/hooks/use-theme.ts
+  178f875c378ae29d 22,41-42
+admin-ui/src/components/settings-panel.tsx
+  178f875c378ae29d 311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8b4797166a7b1fc694307d5d52808d69e270f6c7",
+  "prompts": {
+    "178f875c378ae29d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15cd5b8d-fd7e-4f3b-beb1-a54d7978ca5c",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1401,
+      "total_deletions": 1042,
+      "accepted_lines": 5,
+      "overriden_lines": 18
+    }
+  }
+}

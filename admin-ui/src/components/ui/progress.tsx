@@ -46,8 +46,9 @@ Progress.displayName = 'Progress'
 
 /** 消费额度百分比胶囊徽章：与 Progress 共用四档配色阈值 */
 export function QuotaPercentBadge({ percent }: { percent: number }) {
-  const usedPct = Math.min(Math.max(percent, 0), 100)
-  const tone = quotaTone(100 - usedPct)
+  const usedPct = Math.max(percent, 0)
+  const remainingForTone = Math.max(0, 100 - Math.min(100, usedPct))
+  const tone = quotaTone(remainingForTone)
   return (
     <span
       className="inline-flex items-center rounded-full px-[7px] py-px font-mono text-[11px] font-semibold tabular-nums"

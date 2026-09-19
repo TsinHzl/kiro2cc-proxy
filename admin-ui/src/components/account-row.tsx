@@ -105,13 +105,17 @@ export function AccountRow({
   const displayName = credential.nickname || t('credentials.accountFallbackName', { id: credential.id })
   // 首字符按码点取，避免 emoji / 代理对昵称被截半
   const initial = [...label][0] ?? '#'
-  // 消费百分比：后端直接给已用百分比，钳到 0–100 防脏数据把进度条撑出轨道
-  const usedPct = balance ? Math.max(0, Math.min(100, balance.usagePercentage)) : null
-  // 已用额度绝对值：usageLimit ≤ 0 时降级（不展示该单元格的数字段）
+  // 消费百分比：支持超额显示真实比例
+  const usedPct = balance ? Math.max(0, balance.usagePercentage) : null
+  // 已用额度绝对值：优先取 currentUsage（真实已用额度，支持超额），降级使用 usageLimit - remaining
   const usedValue =
-    balance && balance.usageLimit > 0 ? Math.max(0, balance.usageLimit - balance.remaining) : null
-  // 剩余百分比：进度条按”剩余”语义渲染（越消费越短），文字仍展示已用值/已用%
-  const remainingPct = usedPct === null ? null : 100 - usedPct
+    balance && balance.usageLimit > 0
+      ? (typeof balance.currentUsage === 'number' && !Number.isNaN(balance.currentUsage)
+          ? balance.currentUsage
+          : Math.max(0, balance.usageLimit - balance.remaining))
+      : null
+  // 剩余百分比：进度条按”剩余”语义渲染（越消费越短），超额用完时为 0%
+  const remainingPct = usedPct === null ? null : Math.max(0, 100 - Math.min(100, usedPct))
   const numFmt = localeTag()
   // 设计稿对「已禁用」与「从未调用」行的 RPM 显示 —（原型行 968/1007/1046），数字对这两类行无意义
   const rpmIdle = credential.disabled || credential.lastUsedAt === null
@@ -260,7 +264,9 @@ export function AccountRow({
             {balance && usedPct !== null ? (
               <>
                 <span className="font-mono text-[11.5px] tabular-nums text-ink-2">
-                  <b className="font-semibold text-ink">{usedValue !== null ? usedValue.toFixed(1) : '—'}</b> /{' '}
+                  <b className={`font-semibold ${usedValue !== null && usedValue > balance.usageLimit ? 'text-danger' : 'text-ink'}`}>
+                    {usedValue !== null ? usedValue.toFixed(1) : '—'}
+                  </b> /{' '}
                   {balance.usageLimit.toFixed(0)}
                 </span>
                 <QuotaPercentBadge percent={usedPct} />

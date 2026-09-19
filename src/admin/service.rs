@@ -245,7 +245,7 @@ impl AdminService {
         let usage_limit = usage.usage_limit();
         let remaining = (usage_limit - current_usage).max(0.0);
         let usage_percentage = if usage_limit > 0.0 {
-            (current_usage / usage_limit * 100.0).min(100.0)
+            current_usage / usage_limit * 100.0
         } else {
             0.0
         };

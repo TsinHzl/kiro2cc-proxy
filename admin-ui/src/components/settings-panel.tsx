@@ -93,7 +93,7 @@ function Seg<T extends string>({
   groupLabel: string
   value: T | undefined
   options: readonly [SegOption<T>, SegOption<T>]
-  onSelect: (next: T) => void
+  onSelect: (next: T, x?: number, y?: number) => void
   disabled?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -130,8 +130,8 @@ function Seg<T extends string>({
                 move(i, 1)
               }
             }}
-            onClick={() => {
-              if (!on) onSelect(opt.value)
+            onClick={(e) => {
+              if (!on) onSelect(opt.value, e.clientX, e.clientY)
             }}
             className={`${SEG_BTN} ${on ? SEG_BTN_ON : ''}`}
           >
@@ -164,7 +164,7 @@ interface SettingsPanelProps {
   /** 主题与折叠态由 Dashboard 持有：useTheme() 每实例独立 state，
    *  本页自行调用会与侧栏页脚按钮各持一份而无法同步 */
   theme: Theme
-  onToggleTheme: () => void
+  onToggleTheme: (x?: number, y?: number) => void
   sidebarCollapsed: boolean
   onToggleSidebarCollapsed: () => void
 }
@@ -308,7 +308,7 @@ export function SettingsPanel({
                 { value: 'light' as const, label: t('settings.themeLight'), icon: Sun },
                 { value: 'dark' as const, label: t('settings.themeDark'), icon: Moon },
               ]}
-              onSelect={onToggleTheme}
+              onSelect={() => onToggleTheme()}
             />
           </Row>
           <Row label={t('settings.sidebarCollapsed')} desc={t('settings.sidebarCollapsedDesc')}>

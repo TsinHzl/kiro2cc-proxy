@@ -353,3 +353,11 @@
     background: var(--hairline-2);
   }
 }
+
+/* 主题切换 View Transitions：默认交叉淡入淡出禁用，
+   由 JS 驱动 ::view-transition-new(root) 的圆形 clip-path 扩散 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}

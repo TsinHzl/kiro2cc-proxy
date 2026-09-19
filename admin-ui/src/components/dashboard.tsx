@@ -1083,7 +1083,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             variant="ghost"
             size="icon"
             className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
-            onClick={toggleTheme}
+            onClick={(e) => toggleTheme(e.clientX, e.clientY)}
             title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
             aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
           >

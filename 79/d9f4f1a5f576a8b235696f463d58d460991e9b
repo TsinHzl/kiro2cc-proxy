@@ -1,0 +1,38 @@
+README.md
+  396d5a81ce10576c 765-766
+README.en.md
+  396d5a81ce10576c 744-745
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "79d9f4f1a5f576a8b235696f463d58d460991e9b",
+  "prompts": {
+    "396d5a81ce10576c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11fff36b-07c0-4804-9258-68f6396392ab",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 322,
+      "total_deletions": 131,
+      "accepted_lines": 1239,
+      "overriden_lines": 0
+    }
+  }
+}

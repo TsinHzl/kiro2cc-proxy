@@ -1,0 +1,23 @@
+Cargo.toml
+  6c0831ae5a18f020 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c7fa17986c1e31337d25b01fa3eaec30fb1a2074",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

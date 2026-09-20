@@ -584,7 +584,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           ? t('apiKeys.boundBalanceCompact', {
               remaining: bal.remaining.toFixed(2),
               limit: bal.usageLimit.toFixed(2),
-              percent: (100 - bal.usagePercentage).toFixed(0),
+              percent: Math.max(0, 100 - bal.usagePercentage).toFixed(0),
             })
           : null,
       }
@@ -1375,7 +1375,7 @@ function CredentialMultiSelect({
                       {bal ? (
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {t('apiKeys.remainingUsageLabel', { remaining: bal.remaining.toFixed(2), limit: bal.usageLimit.toFixed(2) })}
-                          <span className="ml-1">{t('apiKeys.remainingPercentSuffix', { percent: (100 - bal.usagePercentage).toFixed(1) })}</span>
+                          <span className="ml-1">{t('apiKeys.remainingPercentSuffix', { percent: Math.max(0, 100 - bal.usagePercentage).toFixed(1) })}</span>
                         </div>
                       ) : (
                         <div className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.balanceNotLoaded')}</div>

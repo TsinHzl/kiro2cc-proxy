@@ -877,5 +877,6 @@ Thanks to all the contributors of this project:
 
 - [kosuke-zhang](https://github.com/kosuke-zhang)
 - [lqzhgood](https://github.com/lqzhgood)
+- [xhsngdsan](https://github.com/xhsngdsan)
 
 > Thanks to everyone who has filed issues, shared feedback, and joined the discussions — you keep making this project better.

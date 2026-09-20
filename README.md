@@ -898,5 +898,6 @@ MIT
 
 - [kosuke-zhang](https://github.com/kosuke-zhang)
 - [lqzhgood](https://github.com/lqzhgood)
+- [xhsngdsan](https://github.com/xhsngdsan)
 
 > 感谢每一位提交 Issue、反馈建议和参与讨论的用户，是你们让这个项目不断完善。

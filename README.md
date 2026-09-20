@@ -762,6 +762,8 @@ Authorization: Bearer your-api-key
 
 配置了 `adminPsw`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
 
+![Admin 管理面板](docs/assets/admin-panel.png)
+
 功能：
 - 查看所有账号状态（是否有效、失败次数等）
 - 添加 / 删除账号

@@ -741,6 +741,8 @@ Any model name containing the following keywords is automatically mapped to the 
 
 When `adminPsw` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
 
+![Admin Panel](docs/assets/admin-panel.png)
+
 Features:
 - View all account statuses (validity, failure count, etc.)
 - Add / delete accounts

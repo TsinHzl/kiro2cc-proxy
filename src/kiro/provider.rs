@@ -1313,6 +1313,7 @@ impl KiroProvider {
             let model_id = model_id.as_str();
             if !model_id.is_empty()
                 && !crate::anthropic::converter::additional_fields_skipped(model_id)
+                && !crate::anthropic::converter::is_gpt_model(model_id)
             {
                 let fields = obj
                     .entry("additionalModelRequestFields")
@@ -1597,7 +1598,8 @@ mod tests {
 
     #[test]
     fn test_inject_thinking_adaptive_skipped_for_gpt_models() {
-        // GPT 系模型 → 不注入
+        // GPT 系模型通过 reasoning.effort 传递配置，不走 Kiro thinking 协议，
+        // 所以 rewrite_request_body 不应注入 thinking.type=adaptive。
         let body = r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"gpt-5.6-luna"}}}}"#;
         let result = KiroProvider::rewrite_request_body(body, &adaptive_cred(), true);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();

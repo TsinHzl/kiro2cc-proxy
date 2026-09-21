@@ -1773,8 +1773,9 @@ fn test_map_model_opus_4_6_unchanged() {
 
 #[test]
 fn test_gpt_5_6_additional_model_request_fields_is_none() {
-    // 实测：gpt-5.6-* 的 additionalModelRequestFields schema 既不认识 max_tokens
-    // 也不认识 output_config（均返回 400 REQUEST_BODY_INVALID），需整体跳过该字段。
+    // 实测（抓包）：gpt-5.6-* 使用 additionalModelRequestFields.reasoning.effort 路径，
+    // 不接受 output_config / max_tokens（均返回 400 REQUEST_BODY_INVALID）。
+    // 本测试验证 GPT 系生成正确的 reasoning.effort 结构，且默认注入 effort="high"。
     use crate::anthropic::types::Message as AnthropicMessage;
 
     let req = MessagesRequest {
@@ -1794,9 +1795,22 @@ fn test_gpt_5_6_additional_model_request_fields_is_none() {
     };
 
     let result = convert_request(&req).unwrap();
+    let fields = result
+        .additional_model_request_fields
+        .as_ref()
+        .expect("gpt-5.6 系列必须包含 additionalModelRequestFields");
+    assert_eq!(
+        fields["reasoning"]["effort"].as_str(),
+        Some("high"),
+        "gpt-5.6 系列未携带 output_config 时应默认注入 reasoning.effort=\"high\""
+    );
     assert!(
-        result.additional_model_request_fields.is_none(),
-        "gpt-5.6 系列必须整体省略 additionalModelRequestFields 字段"
+        fields.get("output_config").is_none(),
+        "gpt-5.6 系列不得包含 output_config 字段"
+    );
+    assert!(
+        fields.get("max_tokens").is_none(),
+        "gpt-5.6 系列不得包含 max_tokens 字段"
     );
 }
 
@@ -1835,7 +1849,14 @@ fn test_gpt_thinking_is_not_injected_into_history() {
 
     assert!(!content.contains("<thinking_mode>"));
     assert!(!content.contains("<thinking_effort>"));
-    assert!(result.additional_model_request_fields.is_none());
+    assert_eq!(
+        result
+            .additional_model_request_fields
+            .as_ref()
+            .and_then(|f| f["reasoning"]["effort"].as_str()),
+        Some("high"),
+        "gpt-5.6-luna + thinking 请求应生成 reasoning.effort=\"high\""
+    );
     // 收窄修复：luna 在客户端请求 thinking 时，应注入反伪标签引导语，
     // 防止模型在缺乏结构化 thinking 协议约束且自身不产出推理内容时，
     // 自造 <analysis>/<summary> 等标签（该提示仅对 luna 生效，不含 terra/sol）。

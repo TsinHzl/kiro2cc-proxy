@@ -9,19 +9,21 @@ pub(crate) fn is_gpt_model(model_id: &str) -> bool {
 
 /// `additionalModelRequestFields` 结构化字段的整体跳过谓词（单一来源）。
 ///
-/// "4.5" 代际（sonnet/opus/haiku）与 GPT 系均被 Kiro 后端拒绝该字段，
+/// "4.5" 代际（sonnet/opus/haiku）被 Kiro 后端拒绝该字段，需整体跳过。
+/// GPT 系已改为发送 `reasoning.effort` 独立结构（见 `fields.rs`），
+/// 不再属于"整体跳过"范畴，故本谓词仅保留 "4.5" 代际跳过条件。
 /// converter 侧 `build_additional_model_request_fields` 与 provider 侧
 /// thinking adaptive 注入共用本谓词，避免排除条件双份硬编码漂移。
 pub(crate) fn additional_fields_skipped(model_id: &str) -> bool {
-    model_id.ends_with("4.5") || is_gpt_model(model_id)
+    model_id.ends_with("4.5")
 }
 
 /// 判断是否为 `gpt-5.6-luna`。
 ///
 /// **注意范围**：与 `is_gpt_model`（匹配全部 gpt-* 系列）不同，这里专指 luna 一个
-/// 型号。代码库里有实测依据（400 REQUEST_BODY_INVALID）支持整个 gpt-5.6 系列都不接受
-/// `additionalModelRequestFields` 结构化字段（见 `build_additional_model_request_fields`
-/// 文档），但"上游恒返回 `thinking=0`"这一具体观察目前只在 luna 上验证过
+/// 型号。GPT 系现已改为发送 `reasoning.effort` 结构（见 `build_additional_model_request_fields`），
+/// 不再整体跳过 `additionalModelRequestFields`。但"上游恒返回 `thinking=0`"
+/// 这一具体观察目前只在 luna 上验证过
 /// （见 `openai::model_map` 已知限制注释与 README）。terra/sol 是否同样如此并无
 /// 实测证据，因此涉及"是否应完全放弃 thinking 处理"的判断只能收窄到 luna，
 /// 不能套用到全部 GPT 系模型，否则会误伤 terra/sol 本该具备的推理能力。
@@ -30,8 +32,9 @@ pub(crate) fn is_luna_model(model_id: &str) -> bool {
 }
 
 /// `gpt-5.6-luna` 上游恒返回 `thinking=0`（已知限制，见 README/openai::model_map），
-/// 且不支持 Claude/Kiro 的 thinking 协议：`build_additional_model_request_fields`
-/// 对全部 GPT 系跳过结构化字段；`generate_thinking_prefix` 已收窄至仅 luna 跳过
+/// 且不支持 Claude/Kiro 的 thinking 协议。注意：GPT 系现已改为发送
+/// `reasoning.effort` 结构，不再整体跳过 `additionalModelRequestFields`；
+/// `generate_thinking_prefix` 已收窄至仅 luna 跳过
 /// `<thinking_mode>` 文本标签（sol/terra 会注入，见该函数文档）。
 ///
 /// 当客户端请求里仍然携带 `thinking` 配置（如 Claude Code 默认开启 extended

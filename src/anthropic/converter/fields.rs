@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-//! additionalModelRequestFields 构建（thinking/output_config/max_tokens）
+//! additionalModelRequestFields 构建（thinking/output_config/max_tokens/reasoning）
 
 use crate::anthropic::types::MessagesRequest;
 
-use super::thinking::additional_fields_skipped;
+use super::thinking::{additional_fields_skipped, is_gpt_model};
 
 /// 根据模型返回 Kiro 允许的 max_tokens 上限
 /// claude-opus-5 / claude-opus-4.7 / claude-opus-4.8 Max Output = 128K（1M 窗口代际）
@@ -24,18 +24,32 @@ pub(super) fn model_max_output_tokens(model: &str) -> i32 {
     }
 }
 
-/// 构建 additionalModelRequestFields（thinking、output_config、max_tokens）
+/// 构建 additionalModelRequestFields（thinking、output_config、max_tokens、reasoning）
 ///
-/// 实测：claude-sonnet-4.5 / claude-opus-4.5 / claude-haiku-4.5 这三个 "4.5" 代际模型，
-/// 以及 gpt-5.6-* 系列，Kiro 后端均拒绝该字段（先后遇到 400 REQUEST_BODY_INVALID：
+/// 实测：claude-sonnet-4.5 / claude-opus-4.5 / claude-haiku-4.5 这三个 "4.5" 代际模型
+/// Kiro 后端均拒绝该字段（先后遇到 400 REQUEST_BODY_INVALID：
 /// max_tokens、output_config 均不在 schema 定义内且不允许额外属性），需跳过整个字段构建。
+///
+/// GPT 系（gpt-5.6-luna 等）使用独立的 `reasoning.effort` 结构（抓包实测），
+/// 与 Claude 系的 `output_config.effort` 完全分离。
 pub(super) fn build_additional_model_request_fields(
     req: &MessagesRequest,
     model_id: &str,
 ) -> Option<serde_json::Value> {
-    // "4.5" 代际（sonnet/opus/haiku）与 GPT 系均需整体跳过，见上方实测说明
+    // "4.5" 代际整体跳过，见上方实测说明
     if additional_fields_skipped(model_id) {
         return None;
+    }
+
+    // GPT 系走 reasoning.effort 路径（抓包实测：luna 使用此结构）
+    if is_gpt_model(model_id) {
+        let effort = req
+            .output_config
+            .as_ref()
+            .map(|c| c.effort.as_str())
+            .filter(|e| !e.is_empty())
+            .unwrap_or("high");
+        return Some(serde_json::json!({ "reasoning": { "effort": effort } }));
     }
 
     let mut fields = serde_json::Map::new();

@@ -1,0 +1,27 @@
+admin-ui/src/components/api-key-row.tsx
+  1d847af12519e490 168-170
+admin-ui/src/components/api-keys-panel.tsx
+  1d847af12519e490 323,570,574
+src/model/api_key.rs
+  1d847af12519e490 391-395,405-411,413,580-655
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "db475d673f5516b0f31ec3c0ccbfd4e412deb70d",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 90,
+      "total_deletions": 9,
+      "accepted_lines": 95,
+      "overriden_lines": 1
+    }
+  }
+}

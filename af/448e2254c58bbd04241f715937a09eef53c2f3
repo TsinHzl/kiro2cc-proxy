@@ -1,0 +1,23 @@
+admin-ui/src/components/dashboard.tsx
+  6c0831ae5a18f020 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "af448e2254c58bbd04241f715937a09eef53c2f3",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1657,
+      "total_deletions": 390,
+      "accepted_lines": 2704,
+      "overriden_lines": 11
+    }
+  }
+}

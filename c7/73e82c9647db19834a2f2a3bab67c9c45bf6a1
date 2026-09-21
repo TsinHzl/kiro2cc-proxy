@@ -1,0 +1,31 @@
+Dockerfile
+  6c0831ae5a18f020 4-5,10-11,26
+.github/workflows/build.yaml
+  6c0831ae5a18f020 85,93,111
+.github/workflows/test.yaml
+  6c0831ae5a18f020 34,42
+.github/workflows/docker-build.yaml
+  6c0831ae5a18f020 151,161-245,248
+README.md
+  6c0831ae5a18f020 557-559,634-636
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c773e82c9647db19834a2f2a3bab67c9c45bf6a1",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 424,
+      "overriden_lines": 0
+    }
+  }
+}

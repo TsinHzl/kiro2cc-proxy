@@ -69,6 +69,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editName, setEditName] = useState('')
   const [editMode, setEditMode] = useState<'date' | 'quota'>('date')
   const [editDuration, setEditDuration] = useState<number | null | string>(1)
+  // 用户是否主动改过有效期；未改过时不提交 durationDays/expiresAt，
+  // 避免旧版固定到期 Key 仅改名称/绑定账号时被静默清除到期时间
+  const [editExpiryDirty, setEditExpiryDirty] = useState(false)
   const [editDurationUnit, setEditDurationUnit] = useState<'days' | 'hours'>('days')
   const [editBoundCredentialIds, setEditBoundCredentialIds] = useState<number[]>([])
   const [editSpendingLimit, setEditSpendingLimit] = useState(50)
@@ -255,7 +258,9 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     const duration = editDuration === '' ? null : editDuration
     const data: Record<string, unknown> = { name: editName || undefined }
     if (editMode === 'date') {
-      if (duration !== null) {
+      if (!editExpiryDirty) {
+        // 用户未触碰有效期控件：不提交有效期字段，保留现有 durationDays/expiresAt
+      } else if (duration !== null) {
         data.durationDays = toDays(Number(duration), editDurationUnit)
         // 活跃 Key 不清除 expiresAt，由后端增量计算
         if (getKeyStatus(editingKey) !== 'active') {
@@ -306,6 +311,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const openEdit = (key: ApiKeyItem) => {
     setEditingKey(key)
     setEditName(key.name)
+    setEditExpiryDirty(false)
     // 根据 key 类型设置编辑模式
     if (key.spendingLimit != null) {
       setEditMode('quota')
@@ -1132,7 +1138,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       type="button"
                       size="sm"
                       variant={editDuration === opt.value && editDurationUnit === opt.unit ? 'default' : 'outline'}
-                      onClick={() => { setEditDuration(opt.value); setEditDurationUnit(opt.unit) }}
+                      onClick={() => { setEditDuration(opt.value); setEditDurationUnit(opt.unit); setEditExpiryDirty(true) }}
                     >
                       {opt.value} {unitLabel(opt.unit)}
                     </Button>
@@ -1141,7 +1147,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                     type="button"
                     size="sm"
                     variant={editDuration === null ? 'default' : 'outline'}
-                    onClick={() => setEditDuration(null)}
+                    onClick={() => { setEditDuration(null); setEditExpiryDirty(true) }}
                   >
                     {t('apiKeys.neverExpires')}
                   </Button>
@@ -1155,6 +1161,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
                       onChange={(e) => {
                         const v = e.target.value
                         setEditDuration(v === '' ? '' : Math.max(1, Number(v)))
+                        setEditExpiryDirty(true)
                       }}
                       className="w-24"
                     />

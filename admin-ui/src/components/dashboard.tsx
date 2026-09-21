@@ -26,7 +26,7 @@ import { ThrottleLogPage } from '@/components/throttle-log-page'
 import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
-import { useCredentials, useApiKeys, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo, CREDENTIALS_REFETCH_INTERVAL_MS } from '@/hooks/use-credentials'
+import { useCredentials, useApiKeys, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
 import { useTheme } from '@/hooks/use-theme'
 import { DailyStatsPage } from '@/components/daily-stats-page'
 import { ModelListPage } from '@/components/model-list-page'
@@ -1151,10 +1151,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
           note={t('dashboard.pageSubtitle')}
           actions={
             <>
-              <span className="inline-flex h-5 shrink-0 items-center gap-[5px] rounded-md border border-ok-line bg-ok-soft px-[7px] text-[11px] font-semibold text-ok">
-                <span className="h-[5px] w-[5px] shrink-0 animate-pulse rounded-full bg-ok ring-[2.5px] ring-ok-soft" aria-hidden="true" />
-                {t('dashboard.autoRefreshTag', { seconds: Math.round(CREDENTIALS_REFETCH_INTERVAL_MS / 1000) })}
-              </span>
               <a
                 href="https://github.com/TsinHzl/kiro2cc-proxy#readme"
                 target="_blank"

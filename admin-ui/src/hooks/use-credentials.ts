@@ -34,15 +34,11 @@ import {
 } from '@/api/credentials'
 import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest } from '@/types/api'
 
-// 账号列表轮询间隔：页头「自动刷新 30s」标签与此值同源，避免文案与实际行为漂移
-export const CREDENTIALS_REFETCH_INTERVAL_MS = 30_000
-
 // 查询凭据列表
 export function useCredentials() {
   return useQuery({
     queryKey: ['credentials'],
     queryFn: getCredentials,
-    refetchInterval: CREDENTIALS_REFETCH_INTERVAL_MS,
   })
 }
 

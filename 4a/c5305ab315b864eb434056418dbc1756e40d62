@@ -1,0 +1,38 @@
+admin-ui/src/components/api-keys-panel.tsx
+  1d847af12519e490 72-74,261-263,314,1141,1150,1164
+Cargo.toml
+  1d847af12519e490 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4ac5305ab315b864eb434056418dbc1756e40d62",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 4,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "41084f0bd5cc8944": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e885dcd7-5bab-42dc-a5a0-7a5d05054a7b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 105,
+      "total_deletions": 48,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}

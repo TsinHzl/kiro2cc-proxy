@@ -1,0 +1,62 @@
+src/admin/router.rs
+  1d847af12519e490 19-21,54-55
+admin-ui/src/hooks/use-credentials.ts
+  1d847af12519e490 11-12,131-152
+src/admin/service.rs
+  1d847af12519e490 20,158-168,347-348,595,597-632,636,643-647
+admin-ui/src/i18n/locales/en.json
+  1d847af12519e490 191-192,196-210
+src/admin/handlers.rs
+  1d847af12519e490 110-133
+admin-ui/src/types/api.ts
+  1d847af12519e490 8-20
+admin-ui/src/components/dashboard.tsx
+  1d847af12519e490 3,21,110-111,143-144,1258-1273,1395-1402
+admin-ui/src/components/account-row.tsx
+  1d847af12519e490 156,475-477,501
+src/kiro/token_manager.rs
+  1d847af12519e490 853-854,863-876,888-889,997-1002,1049-1050,1086,1809-1811,1826,2690-2701,2941-2960,3224,3227-3231,3235,3237,3240-3244,3248-3255,3260-3263,3265,3268-3273,3277-3311,3334-3446,3714-3965,3992,3997,4001
+src/admin/types.rs
+  1d847af12519e490 20-37
+admin-ui/src/i18n/locales/zh.json
+  1d847af12519e490 191-192,196-210
+admin-ui/src/components/recycle-bin-dialog.tsx
+  1d847af12519e490 1-137
+src/kiro/model/credentials.rs
+  1d847af12519e490 149-162,522-550
+admin-ui/src/api/credentials.ts
+  1d847af12519e490 102-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "71f1f23bc2912dd7fbf1be50af1e66fb3e3b2582",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1293,
+      "total_deletions": 221,
+      "accepted_lines": 1120,
+      "overriden_lines": 0
+    },
+    "41084f0bd5cc8944": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e885dcd7-5bab-42dc-a5a0-7a5d05054a7b",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}

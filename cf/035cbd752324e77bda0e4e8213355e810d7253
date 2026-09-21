@@ -1,0 +1,27 @@
+src/kiro/endpoint.rs
+  6c0831ae5a18f020 154-181,316-349
+src/kiro/provider.rs
+  6c0831ae5a18f020 13,36-40,480,482,486-504,506-514,517-526,534,537-543,635-637,827-837,840-842,844-898,905,907,914,934,943,947-948,968-969,972-973,981-982,1043-1045,1462-1519,1521-1562,1990-2054
+src/kiro/token_manager.rs
+  6c0831ae5a18f020 1132-1163,1178,1183,1269,1274-1275,1279-1280,1282-1285,1287-1290,1294,1336-1337,1340-1341,1364-1365,1367,1440,1484,1501,1635-1647,2490,3590,4481-4587,4742,4759,4770-4813,4816-4877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "cf035cbd752324e77bda0e4e8213355e810d7253",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2632,
+      "overriden_lines": 0
+    }
+  }
+}

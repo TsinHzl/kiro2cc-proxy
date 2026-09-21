@@ -213,10 +213,10 @@ export function ApiKeyRow({
               </span>
               <span className={`font-semibold ${tone.text}`}>{Math.round(percent)}%</span>
             </div>
-            <span className="flex h-1 justify-end overflow-hidden rounded-[3px] bg-track">
+            <span className="flex h-1 overflow-hidden rounded-[3px] bg-track">
               <span
                 className="block h-full rounded-[3px] transition-all"
-                style={{ width: `${remainingPct}%`, backgroundImage: quotaGradTone(remainingPct).grad }}
+                style={{ width: `${Math.min(100, Math.max(0, percent))}%`, backgroundImage: quotaGradTone(remainingPct).grad }}
               />
             </span>
           </div>

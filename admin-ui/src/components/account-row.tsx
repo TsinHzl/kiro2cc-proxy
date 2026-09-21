@@ -281,14 +281,14 @@ export function AccountRow({
             )}
           </div>
           <div
-            className={`flex h-1 justify-end overflow-hidden rounded-[3px] bg-track ${
+            className={`flex h-1 overflow-hidden rounded-[3px] bg-track ${
               !balance && loadingBalance ? 'animate-pulse' : ''
             }`}
           >
             {remainingPct !== null && (
               <span
                 className="block h-full rounded-[3px] transition-all duration-300"
-                style={{ width: `${remainingPct}%`, backgroundImage: quotaTone(remainingPct).grad }}
+                style={{ width: `${Math.min(100, usedPct ?? 0)}%`, backgroundImage: quotaTone(remainingPct).grad }}
               />
             )}
           </div>

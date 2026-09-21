@@ -31,12 +31,12 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     return (
       <div
         ref={ref}
-        className={cn('relative flex h-1 w-full justify-end overflow-hidden rounded-[3px] bg-track', className)}
+        className={cn('relative flex h-1 w-full overflow-hidden rounded-[3px] bg-track', className)}
         {...props}
       >
         <div
           className="h-full rounded-[3px] transition-all"
-          style={{ width: `${remainingPct}%`, backgroundImage: quotaTone(remainingPct).grad }}
+          style={{ width: `${usedPct}%`, backgroundImage: quotaTone(remainingPct).grad }}
         />
       </div>
     )

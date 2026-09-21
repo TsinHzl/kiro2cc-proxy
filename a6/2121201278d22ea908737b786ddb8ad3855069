@@ -1,0 +1,35 @@
+src/anthropic/websearch.rs
+  6c0831ae5a18f020 19,469,473,500,507
+src/anthropic/converter/mod.rs
+  6c0831ae5a18f020 42
+src/anthropic/handlers.rs
+  6c0831ae5a18f020 11,162-165,1510-1521,2335-2343,3245-3266
+src/anthropic/converter/convert.rs
+  6c0831ae5a18f020 15,50
+src/admin/service.rs
+  6c0831ae5a18f020 246-248,250,471-483,485-486,489-493,627-672,919-923,965-969,971-972,974-978,980,982-986,988-992,994-1000,1002-1091
+src/anthropic/converter/session.rs
+  6c0831ae5a18f020 100-115
+Cargo.toml
+  6c0831ae5a18f020 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a62121201278d22ea908737b786ddb8ad3855069",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1697,
+      "overriden_lines": 0
+    }
+  }
+}

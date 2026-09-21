@@ -1,0 +1,31 @@
+admin-ui/src/types/api.ts
+  1d847af12519e490 240
+src/anthropic/handlers.rs
+  1d847af12519e490 907-909,928,950,1283-1284,1305,2143-2144,2550,2910-2912,2932,2954
+src/model/usage.rs
+  1d847af12519e490 53-55,271,288,532,589-591,664,867,942,1005-1032,1034-1045
+src/anthropic/stream.rs
+  1d847af12519e490 756-757,796,813-818,1649
+admin-ui/src/components/usage-log-table.tsx
+  1d847af12519e490 157-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "663500b442545d2cf5e374d5add807c299ca9ed7",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 170,
+      "total_deletions": 22,
+      "accepted_lines": 143,
+      "overriden_lines": 1
+    }
+  }
+}

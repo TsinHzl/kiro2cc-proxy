@@ -320,7 +320,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         setEditDuration(Math.round(key.durationDays * 24 * 100) / 100)
         setEditDurationUnit('hours')
       } else {
-        setEditDuration(key.durationDays ?? 1)
+        setEditDuration(key.durationDays ?? null) // null = 永不过期，带入当前配置
         setEditDurationUnit('days')
       }
     }
@@ -567,11 +567,11 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     return undefined
   }
 
-  /** 剩余天数（向上取整，最少 1 天）；已过期或超出预警窗口返回 null */
+  /** 剩余天数（向上取整，最少 1 天）；已过期返回 null */
   const expiringInDaysOf = (key: ApiKeyItem): number | null => {
     if (!key.expiresAt) return null
     const left = new Date(key.expiresAt).getTime() - nowMs
-    if (left <= 0 || left > EXPIRING_SOON_MS) return null
+    if (left <= 0) return null
     return Math.max(1, Math.ceil(left / 86_400_000))
   }
 

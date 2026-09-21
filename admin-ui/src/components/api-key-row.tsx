@@ -165,7 +165,9 @@ export function ApiKeyRow({
             {t(visual.labelKey)}
           </span>
           {expiringInDays !== null && (
-            <span className={`${TAG_BASE} border-warn-line bg-warn-soft text-warn`}>
+            <span
+              className={`${TAG_BASE} ${status === 'active' ? 'border-hairline bg-surface-3 text-ink-2' : 'border-warn-line bg-warn-soft text-warn'}`}
+            >
               {t('apiKeys.expiringSoonTag', { count: expiringInDays })}
             </span>
           )}

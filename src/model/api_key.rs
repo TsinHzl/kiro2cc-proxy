@@ -388,7 +388,11 @@ impl ApiKeyManager {
         if let Some(duration_days) = duration_days {
             match duration_days {
                 Some(new_days) => {
-                    if api_key.is_active() && api_key.expires_at.is_some() {
+                    // 待激活 = duration_days 有值但从未激活；永不过期 key 从未走 activate()，
+                    // activated_at 为 None 但一直在正常使用，不能误判为待激活
+                    let currently_pending =
+                        api_key.duration_days.is_some() && api_key.activated_at.is_none();
+                    if !currently_pending && api_key.is_active() && api_key.expires_at.is_some() {
                         // 活跃 Key（有到期时间）：在当前到期时间上增量续期
                         let extension =
                             chrono::Duration::milliseconds((new_days * 86_400_000.0) as i64);
@@ -398,6 +402,15 @@ impl ApiKeyManager {
                         let total_ms =
                             (new_expires - api_key.activated_at.unwrap()).num_milliseconds();
                         api_key.duration_days = Some(total_ms as f64 / 86_400_000.0);
+                    } else if !currently_pending && api_key.enabled && !api_key.is_expired() {
+                        // 生效中的永不过期 key（activated_at 为 None 但在使用）：立即激活。
+                        // disabled 的 key 不激活，保持待激活，重新启用后首次使用再计时
+                        let now = Utc::now();
+                        api_key.duration_days = Some(new_days);
+                        api_key.activated_at = Some(now);
+                        api_key.expires_at = Some(
+                            now + chrono::Duration::milliseconds((new_days * 86_400_000.0) as i64),
+                        );
                     } else {
                         // 已过期或待激活：重置为待激活状态
                         api_key.duration_days = Some(new_days);
@@ -563,5 +576,81 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), total, "并发分配出现重复 id");
         assert!(ids.iter().all(|&id| id > 0), "id 0 保留给主密钥");
+    }
+
+    /// 回归测试：从未设置过期限的启用中 key（永不过期，activated_at 为 None），
+    /// 编辑续期为 N 天后应立即激活（expires_at = now + N），而不是误判为待激活被清空
+    #[test]
+    fn test_update_duration_on_never_expiring_key_activates_immediately() {
+        let dir = TempDirGuard::new();
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        // create(name, expires_at, spending_limit, limit_unit, duration_days, bound) 全 None = 永不过期
+        let key = create_key(&mgr, "k1");
+        assert!(key.activated_at.is_none());
+        assert!(key.duration_days.is_none());
+
+        let before = Utc::now();
+        let updated = mgr
+            .update(key.id, None, None, None, None, None, Some(Some(7.0)), None)
+            .unwrap()
+            .unwrap();
+        let after = Utc::now();
+
+        assert!(updated.activated_at.is_some(), "应立即激活而非回到待激活");
+        assert!(updated.is_active(), "应为活跃状态");
+        let expires = updated.expires_at.unwrap();
+        let expected_lo = before + chrono::Duration::milliseconds((7.0 * 86_400_000.0) as i64);
+        let expected_hi = after + chrono::Duration::milliseconds((7.0 * 86_400_000.0) as i64);
+        assert!(expires >= expected_lo && expires <= expected_hi);
+    }
+
+    /// disabled 的永不过期 key 续期不应立即激活，避免禁用期间计时白跑
+    #[test]
+    fn test_update_duration_on_disabled_never_expiring_key_stays_pending() {
+        let dir = TempDirGuard::new();
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        let key = create_key(&mgr, "k1");
+        // 先禁用
+        let disabled = mgr
+            .update(key.id, None, Some(false), None, None, None, None, None)
+            .unwrap()
+            .unwrap();
+        assert!(disabled.activated_at.is_none());
+
+        let updated = mgr
+            .update(key.id, None, None, None, None, None, Some(Some(7.0)), None)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(updated.duration_days, Some(7.0));
+        assert!(
+            updated.activated_at.is_none(),
+            "disabled 的 key 不应被立即激活"
+        );
+        assert!(updated.expires_at.is_none());
+        // 重新启用后仍是待激活态，首次使用时才计时
+        assert!(!updated.is_active());
+    }
+
+    /// 待激活 key（duration_days 有值但未激活）续期仍应保持待激活语义
+    #[test]
+    fn test_update_duration_on_pending_key_stays_pending() {
+        let dir = TempDirGuard::new();
+        let mgr = ApiKeyManager::load(dir.keys_path()).unwrap();
+        let key = mgr
+            .create("k1".to_string(), None, None, None, Some(3.0), None)
+            .unwrap();
+        assert!(key.activated_at.is_none());
+
+        let updated = mgr
+            .update(key.id, None, None, None, None, None, Some(Some(7.0)), None)
+            .unwrap()
+            .unwrap();
+        assert!(
+            updated.activated_at.is_none(),
+            "待激活 key 续期后应保持待激活"
+        );
+        assert!(updated.expires_at.is_none());
+        assert_eq!(updated.duration_days, Some(7.0));
     }
 }

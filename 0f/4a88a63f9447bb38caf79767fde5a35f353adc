@@ -1,0 +1,25 @@
+src/main.rs
+  6c0831ae5a18f020 177-180
+src/model/api_key.rs
+  6c0831ae5a18f020 3,7,147-155,169-170,193,201,204-205,210,219-246,249-255,261-268,277-278,280-289,291,297-299,301-302,309-328,336,338,407,417,419-422,612,626,637-723,725-802
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0f4a88a63f9447bb38caf79767fde5a35f353adc",
+  "prompts": {
+    "6c0831ae5a18f020": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7df1a9b-17f5-4b62-b982-cead7f592e6f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1975,
+      "overriden_lines": 0
+    }
+  }
+}

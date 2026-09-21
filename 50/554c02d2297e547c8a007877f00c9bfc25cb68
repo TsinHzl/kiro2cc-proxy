@@ -1,0 +1,57 @@
+src/anthropic/converter/tests.rs
+  5ebb3fbbf232ae0b 1802,1804
+  1d847af12519e490 1776-1778,1798-1801,1803,1805,1807-1810,1812-1813,1852-1859
+src/anthropic/converter/mod.rs
+  1d847af12519e490 43
+src/kiro/provider.rs
+  1d847af12519e490 1316,1601-1602
+src/anthropic/converter/fields.rs
+  1d847af12519e490 2,6,27,29-30,33-34,39,44,46-52
+  5ebb3fbbf232ae0b 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "50554c02d2297e547c8a007877f00c9bfc25cb68",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 121,
+      "total_deletions": 491,
+      "accepted_lines": 119,
+      "overriden_lines": 0
+    },
+    "40025f4cbe068b95": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "841e3666-88d6-4b60-b442-92cf3b29dc77",
+        "model": "unknown"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 201,
+      "total_deletions": 30,
+      "accepted_lines": 150,
+      "overriden_lines": 0
+    },
+    "5ebb3fbbf232ae0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c016fb2-ba08-43bd-913e-ed95988bd4e3",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1288,
+      "total_deletions": 737,
+      "accepted_lines": 681,
+      "overriden_lines": 1
+    }
+  }
+}

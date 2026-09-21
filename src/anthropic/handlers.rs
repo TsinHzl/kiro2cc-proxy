@@ -904,6 +904,9 @@ pub async fn post_messages(
         .map(|f| f.format_type == "json_schema")
         .unwrap_or(false);
 
+    // effort 级别（output_config 整体存在时取 effort 字符串，否则 None）
+    let effort = payload.output_config.as_ref().map(|c| c.effort.clone());
+
     if payload.stream {
         // 流式响应
         handle_stream_request(
@@ -922,6 +925,7 @@ pub async fn post_messages(
             is_compact_request,
             thinking_adaptive_requested,
             bridge_ctx,
+            effort,
         )
         .await
     } else {
@@ -943,6 +947,7 @@ pub async fn post_messages(
             is_compact_request,
             thinking_adaptive_requested,
             bridge_ctx,
+            effort,
         )
         .await
     }
@@ -1275,6 +1280,8 @@ async fn handle_stream_request(
     thinking_adaptive_requested: bool,
     // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
     bridge_ctx: Option<BridgeContext>,
+    // 请求的 effort 级别（output_config 存在时取值，否则 None），随 usage 记录入库
+    effort: Option<String>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -1294,7 +1301,8 @@ async fn handle_stream_request(
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
         .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)
         .with_prompt_cache_usage(prompt_cache_usage)
-        .with_prefix_estimated_tokens(prefix_estimated_tokens);
+        .with_prefix_estimated_tokens(prefix_estimated_tokens)
+        .with_effort(effort);
 
     // 生成初始事件
     let initial_events = ctx.generate_initial_events();
@@ -2132,6 +2140,8 @@ async fn handle_non_stream_request(
     thinking_adaptive_requested: bool,
     // web_search server tool 桥接上下文（None = 非桥接请求，零行为变化）
     bridge_ctx: Option<BridgeContext>,
+    // 请求的 effort 级别（output_config 存在时取值，否则 None），随 usage 记录入库
+    effort: Option<String>,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -2537,6 +2547,7 @@ async fn handle_non_stream_request(
             metering_usage,
             Some(report_cache_read),
             Some(report_cache_creation),
+            effort.clone(),
         );
     }
 
@@ -2896,6 +2907,9 @@ pub async fn post_messages_cc(
         .map(|f| f.format_type == "json_schema")
         .unwrap_or(false);
 
+    // effort 级别（output_config 整体存在时取 effort 字符串，否则 None）
+    let effort = payload.output_config.as_ref().map(|c| c.effort.clone());
+
     if payload.stream {
         // 流式响应：与 /v1 相同的实时转发，额外带 300s 全局 deadline
         // （上游挂起保护，沿用此端点历史上一直具备的 5min 上限）
@@ -2915,6 +2929,7 @@ pub async fn post_messages_cc(
             is_compact_request,
             thinking_adaptive_requested,
             bridge_ctx,
+            effort,
         )
         .await
     } else {
@@ -2936,6 +2951,7 @@ pub async fn post_messages_cc(
             is_compact_request,
             thinking_adaptive_requested,
             bridge_ctx,
+            effort,
         )
         .await
     }

@@ -237,6 +237,7 @@ export interface UsageRecord {
   credentialId?: number
   credentialLabel?: string
   clientIp?: string
+  effort?: string
 }
 
 // 分页原始记录响应

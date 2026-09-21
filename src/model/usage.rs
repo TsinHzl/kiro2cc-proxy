@@ -50,6 +50,9 @@ pub struct UsageRecord {
     /// 客户端 IP（None 表示旧数据或未知）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_ip: Option<String>,
+    /// 请求的 effort 级别（low/medium/high/xhigh/max；None 表示旧数据或客户端未传 output_config）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
 }
 
 /// 单个 API Key 的用量汇总
@@ -265,6 +268,7 @@ impl UsageTracker {
         credits_used: Option<f64>,
         cache_read_input_tokens: Option<i32>,
         cache_creation_input_tokens: Option<i32>,
+        effort: Option<String>,
     ) {
         let cost = calculate_cost(&model, input_tokens, output_tokens);
         let record = UsageRecord {
@@ -281,6 +285,7 @@ impl UsageTracker {
             cache_creation_1h_input_tokens: 0,
             created_at: Utc::now(),
             client_ip,
+            effort,
         };
         {
             let mut records = self.records.write();
@@ -524,6 +529,7 @@ impl UsageTracker {
                     credential_id: r.credential_id,
                     credential_label,
                     client_ip: r.client_ip,
+                    effort: r.effort,
                 }
             })
             .collect();
@@ -580,6 +586,9 @@ pub struct UsageRecordItem {
     /// 客户端 IP（None 表示旧数据或未知）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_ip: Option<String>,
+    /// 请求的 effort 级别（None 表示旧数据或客户端未传 output_config）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
 }
 
 impl UsageTracker {
@@ -652,6 +661,7 @@ impl UsageTracker {
                     credential_id: r.credential_id,
                     credential_label,
                     client_ip: r.client_ip,
+                    effort: r.effort,
                 }
             })
             .collect();
@@ -854,6 +864,7 @@ impl UsageTracker {
                     credential_id: r.credential_id,
                     credential_label,
                     client_ip: r.client_ip,
+                    effort: r.effort,
                 }
             })
             .collect();
@@ -895,6 +906,7 @@ mod tests {
             Some(3.43),
             None,
             None,
+            None,
         );
         tracker.record(
             1,
@@ -904,6 +916,7 @@ mod tests {
             100,
             None,
             Some(1.0),
+            None,
             None,
             None,
         );
@@ -922,6 +935,7 @@ mod tests {
             "claude-sonnet-4.5".to_string(),
             1_000_000,
             0,
+            None,
             None,
             None,
             None,
@@ -947,6 +961,7 @@ mod tests {
             Some(5.0),
             None,
             None,
+            None,
         );
         tracker.record(
             2,
@@ -956,6 +971,7 @@ mod tests {
             10,
             None,
             Some(99.0),
+            None,
             None,
             None,
         );
@@ -979,9 +995,51 @@ mod tests {
             Some(2.5),
             None,
             None,
+            None,
         );
         let summary = tracker.get_summary(1);
         assert!((summary.total_credits - tracker.get_total_credits(1)).abs() < 1e-9);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn test_record_effort_persisted_and_none_fallback() {
+        let path = temp_usage_path("effort_field");
+        let tracker = UsageTracker::load(&path).unwrap();
+        tracker.record(
+            1,
+            None,
+            "claude-opus-4.8".to_string(),
+            100,
+            10,
+            None,
+            None,
+            None,
+            None,
+            Some("xhigh".to_string()),
+        );
+        tracker.record(
+            1,
+            None,
+            "claude-sonnet-4.5".to_string(),
+            100,
+            10,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let page = tracker.get_records_paged(1, 1, 10, &HashMap::new());
+        assert_eq!(page.records.len(), 2);
+        // 有 effort 的记录映射到 UsageRecordItem
+        assert!(
+            page.records
+                .iter()
+                .any(|r| r.effort.as_deref() == Some("xhigh"))
+        );
+        // None 兜底：未传 output_config 的旧请求 effort 保持 None
+        assert!(page.records.iter().any(|r| r.effort.is_none()));
         let _ = std::fs::remove_file(&path);
     }
 

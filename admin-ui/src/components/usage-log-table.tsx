@@ -154,7 +154,19 @@ export function UsageLogTable({
                 >
                   {record.credentialLabel ?? <span className="text-ink-3">—</span>}
                 </td>
-                <td className={`${CELL} font-mono text-[11.5px] ${getModelColor(record.model)}`}>{record.model}</td>
+                <td className={`${CELL} text-[11.5px]`}>
+                  <div className="flex flex-col items-start gap-px">
+                    <span className={`font-mono ${getModelColor(record.model)}`}>{record.model}</span>
+                    {record.effort && (
+                      <span
+                        className="rounded bg-orange-500/15 px-1 py-px font-mono text-[10px] leading-tight text-orange-500"
+                        title={`effort: ${record.effort}`}
+                      >
+                        {record.effort}
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className={`${CELL} whitespace-nowrap text-[11px] text-ink-2`}>
                   <div className="flex flex-col gap-px">
                     <span>

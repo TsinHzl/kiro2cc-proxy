@@ -753,6 +753,8 @@ pub struct StreamContext {
     /// `Some(0)` 表示"已估算且无前缀"（首条请求且无 system/tools），cache_read=0；
     /// `None` 表示"未注入估算"，降级到模拟值。
     prefix_estimated_tokens: Option<i32>,
+    /// 请求的 effort 级别（output_config 存在时取值），随 usage 记录入库
+    effort: Option<String>,
 }
 
 impl StreamContext {
@@ -791,6 +793,7 @@ impl StreamContext {
             metering_cache_creation_tokens: None,
             context_usage_percentage: None,
             prefix_estimated_tokens: None,
+            effort: None,
         }
     }
 
@@ -804,6 +807,12 @@ impl StreamContext {
     /// 显式注入后，即使前缀 = 0 也会被选用（cache_read=0，全部计为 new_input）。
     pub fn with_prefix_estimated_tokens(mut self, prefix: i32) -> Self {
         self.prefix_estimated_tokens = Some(prefix);
+        self
+    }
+
+    /// 设置 effort 级别（随 usage 记录入库）
+    pub fn with_effort(mut self, effort: Option<String>) -> Self {
+        self.effort = effort;
         self
     }
 
@@ -1637,6 +1646,7 @@ impl StreamContext {
                 self.metering_usage,
                 report_cache_read,
                 report_cache_creation,
+                self.effort.clone(),
             );
         }
         // 流式 SSE 路径暂未接入 fingerprint，cache_creation 不区分 5m/1h tier，

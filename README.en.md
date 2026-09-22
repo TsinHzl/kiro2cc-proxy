@@ -8,6 +8,8 @@
 
 **🇺🇸 English** | **[🇨🇳 中文](README.md)**
 
+![Admin Panel](docs/assets/admin-panel.png)
+
 > **✅ Supported Models: Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Opus 5 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
 
 ### 📖 Quick Navigation
@@ -740,8 +742,6 @@ Any model name containing the following keywords is automatically mapped to the 
 ## 🛡️ Admin Panel
 
 When `adminPsw` is configured, access the admin panel at `http://127.0.0.1:5678/admin`.
-
-![Admin Panel](docs/assets/admin-panel.png)
 
 Features:
 - View all account statuses (validity, failure count, etc.)

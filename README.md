@@ -8,6 +8,8 @@
 
 **[🇺🇸 English](README.en.md)** | **🇨🇳 中文**
 
+![Admin 管理面板](docs/assets/admin-panel.png)
+
 > **✅ 支持模型**：Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Opus 5 · Claude Haiku 4.5 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
 
 ### 📖 快速导航
@@ -761,8 +763,6 @@ Authorization: Bearer your-api-key
 ## 🛡️ Admin 管理面板
 
 配置了 `adminPsw`（Admin Password）后，访问 `http://127.0.0.1:5678/admin` 进入管理面板。
-
-![Admin 管理面板](docs/assets/admin-panel.png)
 
 功能：
 - 查看所有账号状态（是否有效、失败次数等）

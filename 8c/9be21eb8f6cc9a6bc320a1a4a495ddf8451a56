@@ -1,0 +1,27 @@
+admin-ui/src/components/account-row.tsx
+  fc06edc9e4ca35e2 69-70,91,192-194
+admin-ui/src/components/dashboard.tsx
+  fc06edc9e4ca35e2 1315,1319
+Cargo.toml
+  fc06edc9e4ca35e2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8c9be21eb8f6cc9a6bc320a1a4a495ddf8451a56",
+  "prompts": {
+    "fc06edc9e4ca35e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ac786d0-414a-447b-9d72-2af6dba849f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 4,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

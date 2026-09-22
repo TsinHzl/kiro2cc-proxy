@@ -1,0 +1,38 @@
+README.md
+  fc06edc9e4ca35e2 11-12
+README.en.md
+  fc06edc9e4ca35e2 11-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7bfe0f1551d4a6d8ae25664184702152fd0b6e11",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "fc06edc9e4ca35e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ac786d0-414a-447b-9d72-2af6dba849f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

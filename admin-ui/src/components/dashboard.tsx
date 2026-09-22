@@ -1312,10 +1312,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 />
               }
             >
-              {paged.map((credential) => (
+              {paged.map((credential, index) => (
                 <AccountRow
                   key={credential.id}
                   credential={credential}
+                  sequence={(page - 1) * itemsPerPage + index + 1}
                   balance={balanceMap.get(credential.id) ?? null}
                   loadingBalance={loadingBalanceIds.has(credential.id)}
                   rpm={rpmData?.byCredential?.[String(credential.id)] ?? 0}

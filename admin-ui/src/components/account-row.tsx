@@ -66,6 +66,8 @@ function formatAbsolute(date: Date, t: TFunction): string {
 
 export interface AccountRowProps {
   credential: CredentialStatusItem
+  /** 表格展示序号（页内连续行号，与底层 ID 分离） */
+  sequence: number
   /** 已查询到的余额；null = 尚未查询（参与状态派生） */
   balance: BalanceResponse | null
   /** 该账号余额正在查询中：额度单元格显示行内加载态 */
@@ -86,6 +88,7 @@ export interface AccountRowProps {
 /** 账号表格行（设计稿 tbody tr）：10 列 = 选择框 / ID / 账号 / 状态 / 套餐 / 额度 / 调用 / RPM / 最后调用 / 操作 */
 export function AccountRow({
   credential,
+  sequence,
   balance,
   loadingBalance,
   rpm,
@@ -186,8 +189,9 @@ export function AccountRow({
         />
       </td>
       <td className={CELL}>
-        <span className="font-mono text-[11.5px] font-medium text-ink-3">
-          #{String(credential.id).padStart(3, '0')}
+        {/* 展示页内连续序号，真实 ID 悬停可见（参考 codex2api sequence 模式） */}
+        <span className="font-mono text-[11.5px] font-medium text-ink-3" title={`ID ${credential.id}`}>
+          {String(sequence).padStart(3, '0')}
         </span>
       </td>
       <td className={CELL}>

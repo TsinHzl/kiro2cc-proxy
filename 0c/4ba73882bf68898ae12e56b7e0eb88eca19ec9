@@ -1,0 +1,53 @@
+admin-ui/src/lib/locale.ts
+  cf74cc103ae860b6 13,18-20
+  a910d1e9ca826a39 12,14-17
+admin-ui/src/components/api-key-row.tsx
+  a910d1e9ca826a39 26,210-219,233,235,237,240-244,247,251
+  cf74cc103ae860b6 236,238-239,245-246,248-250,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0c4ba73882bf68898ae12e56b7e0eb88eca19ec9",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 6,
+      "accepted_lines": 69,
+      "overriden_lines": 0
+    },
+    "a910d1e9ca826a39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d6ea235-86d1-44c2-aa3e-2cec2cf61edc",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 26,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    },
+    "cf74cc103ae860b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "daed8de0-7361-4742-bb6a-0c8d0e3fdef2",
+        "model": "gemini-3.8-flash-tiered"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 5,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}

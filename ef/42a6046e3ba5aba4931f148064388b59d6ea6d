@@ -1,0 +1,23 @@
+admin-ui/src/components/dashboard/use-balance-fetcher.ts
+  4046efd29aebbd59 1-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ef42a6046e3ba5aba4931f148064388b59d6ea6d",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 288,
+      "overriden_lines": 0
+    }
+  }
+}

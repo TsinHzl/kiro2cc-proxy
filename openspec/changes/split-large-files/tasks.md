@@ -8,7 +8,7 @@
 - [x] T3 拆分 `src/anthropic/stream.rs`（子模块：thinking 标签检测/SseStateManager 与 SseEvent/StreamContext/测试）
 - [x] T4 拆分 `src/anthropic/converter/tests.rs`（该文件已是独立测试模块，按被测子模块拆为 `converter/tests/` 目录下多文件，无对外路径需保持）
 - [x] T5 拆分 `src/openai/responses_response.rs`（非流式转换/流式转换器/测试）
-- [ ] T6 拆分 `src/kiro/provider.rs`（请求构建与 header/重试与故障转移/错误分类与 body 改写/测试）
+- [x] T6 拆分 `src/kiro/provider.rs`（请求构建与 header/重试与故障转移/错误分类与 body 改写/测试）
 - [ ] T7 拆分 `src/kiro/model/credentials.rs`（凭据模型/配置反序列化）
 - [ ] T8 拆分 `src/openai/responses_request.rs`（工具收集与转换/消息转换）
 - [ ] T9 拆分 `src/openai/chat_response.rs`（非流式转换/流式转换器）

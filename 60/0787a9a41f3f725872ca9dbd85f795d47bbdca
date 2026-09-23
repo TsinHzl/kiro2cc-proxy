@@ -1,0 +1,25 @@
+src/anthropic/handlers/bridge.rs
+  4046efd29aebbd59 18
+src/anthropic/handlers/mod.rs
+  4046efd29aebbd59 29-33,35,38-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "600787a9a41f3f725872ca9dbd85f795d47bbdca",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 1,
+      "accepted_lines": 80,
+      "overriden_lines": 1
+    }
+  }
+}

@@ -468,7 +468,9 @@
     "confirmBatchReset": "确认重置所选 {{count}} 个 Key 的用量统计？此操作不可撤销。",
     "toastBatchDisabled": "已停用 {{count}} 个 Key",
     "toastBatchReset": "已重置 {{count}} 个 Key 的用量",
-    "toastBatchPartial": "部分操作失败：成功 {{done}} / {{total}}"
+    "toastBatchPartial": "部分操作失败：成功 {{done}} / {{total}}",
+    "requestsUnit": "次",
+    "tokenIoTitle": "输入 {{input}} / 输出 {{output}} Token"
   },
   "dailyStats": {
     "pageTitle": "每日用量统计",

@@ -468,7 +468,9 @@
     "confirmBatchReset": "Reset usage stats for the {{count}} selected key(s)? This cannot be undone.",
     "toastBatchDisabled": "Disabled {{count}} key(s)",
     "toastBatchReset": "Reset usage for {{count}} key(s)",
-    "toastBatchPartial": "Partially failed: {{done}} / {{total}} succeeded"
+    "toastBatchPartial": "Partially failed: {{done}} / {{total}} succeeded",
+    "requestsUnit": "reqs",
+    "tokenIoTitle": "Input {{input}} / Output {{output}} tokens"
   },
   "dailyStats": {
     "pageTitle": "Daily Usage Stats",

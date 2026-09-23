@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { quotaTone as quotaGradTone } from '@/components/ui/progress'
-import { formatTokenCount, localeTag } from '@/lib/locale'
+import { formatCompactToken, localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 
 export type KeyStatus = 'active' | 'disabled' | 'expired' | 'pending'
@@ -207,9 +207,16 @@ export function ApiKeyRow({
         ) : (
           <div className="flex min-w-[132px] flex-col gap-[5px]">
             <div className="flex items-baseline justify-between gap-2 font-mono text-[11.5px] tabular-nums text-ink-2">
-              <span>
-                <b className="font-semibold text-ink">{used.toFixed(2)}</b> / {apiKey.spendingLimit.toFixed(2)}
-                <span className="text-ink-3">{apiKey.limitUnit === 'credits' ? ' cr' : ' $'}</span>
+              <span className="whitespace-nowrap">
+                {apiKey.limitUnit === 'credits'
+                  ? <>
+                    <b className="font-semibold text-ink">{used.toFixed(2)}</b> / {apiKey.spendingLimit.toFixed(2)}
+                    <span className="text-ink-3"> cr</span>
+                  </>
+                  : <>
+                    <span className="text-ink-3">$</span>
+                    <b className="font-semibold text-ink">{used.toFixed(2)}</b> / {apiKey.spendingLimit.toFixed(2)}
+                  </>}
               </span>
               <span className={`font-semibold ${tone.text}`}>{Math.round(percent)}%</span>
             </div>
@@ -223,11 +230,26 @@ export function ApiKeyRow({
         )}
       </td>
 
-      {/* 请求数（原「请求 / 失败」降级：后端无失败计数）；副行补 in / out token */}
+      {/* 请求数（原「请求 / 失败」降级：后端无失败计数）；副行 ↑in / ↓out 紧凑 SI 缩写 */}
       <td className={`${CELL} text-right`}>
-        <div className="font-mono text-[12px] tabular-nums text-ink-2">{requests.toLocaleString(localeTag())}</div>
-        <div className="font-mono text-[10px] tabular-nums text-ink-3">
-          {formatTokenCount(usage?.totalInputTokens ?? 0)} / {formatTokenCount(usage?.totalOutputTokens ?? 0)}
+        <div className="font-mono text-[12px] font-semibold tabular-nums text-ink">
+          {requests.toLocaleString(localeTag())}
+          <span className="ml-0.5 text-[10px] font-normal text-ink-3">{t('apiKeys.requestsUnit')}</span>
+        </div>
+        <div
+          className="mt-0.5 flex items-center justify-end gap-1.5 font-mono text-[10.5px] tabular-nums text-ink-3"
+          title={t('apiKeys.tokenIoTitle', {
+            input: (usage?.totalInputTokens ?? 0).toLocaleString(localeTag()),
+            output: (usage?.totalOutputTokens ?? 0).toLocaleString(localeTag()),
+          })}
+        >
+          <span className="font-medium text-blue-600 dark:text-blue-400">
+            ↑{formatCompactToken(usage?.totalInputTokens ?? 0)}
+          </span>
+          <span className="opacity-40">/</span>
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+            ↓{formatCompactToken(usage?.totalOutputTokens ?? 0)}
+          </span>
         </div>
       </td>
 

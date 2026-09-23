@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { RefreshCw, LogOut, Server, Plus, Upload, FileUp, Trash2, CheckCircle2, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, Info, History, PanelLeftClose, PanelLeftOpen, FileText } from 'lucide-react'
+import { LogOut, Server, Key, Settings, BarChart2, ScrollText, Boxes, Sun, Moon, History, PanelLeftClose, PanelLeftOpen, FileText } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +43,8 @@ import {
   type SortDirection,
 } from '@/lib/account-state'
 import type { BalanceResponse, ApiKeyItem } from '@/types/api'
-import { ADMIN_NAME, CREDITS_DELTA_MIN_BASE, formatLocalDate, ACTION_BTN, ACTION_BTN_DANGER, ACTION_BTN_PRIMARY, ACTION_VDIV, SIDEBAR_COLLAPSED_STORAGE_KEY, SIDEBAR_TRANSITION_MS, readStoredSidebarCollapsed } from '@/components/dashboard/panel-constants'
+import { CredentialActionBar } from '@/components/dashboard/credential-action-bar'
+import { ADMIN_NAME, CREDITS_DELTA_MIN_BASE, formatLocalDate, SIDEBAR_COLLAPSED_STORAGE_KEY, SIDEBAR_TRANSITION_MS, readStoredSidebarCollapsed } from '@/components/dashboard/panel-constants'
 
 interface DashboardProps {
   onLogout: () => void
@@ -1157,80 +1158,22 @@ export function Dashboard({ onLogout }: DashboardProps) {
         {/* 凭据列表 */}
         <div className="space-y-4">
           {/* 操作条（设计稿 .actionbar）：6 项常驻操作，危险操作用竖分隔线隔离并染红 */}
-          <div className="flex flex-wrap items-center gap-[7px]">
-            <button type="button" onClick={handleRefresh} aria-label={t('dashboard.refreshList')} className={ACTION_BTN}>
-              <RefreshCw />
-              <span className="hidden sm:inline">{t('dashboard.refreshList')}</span>
-            </button>
-            {allCredentials.length > 0 && (
-              <button
-                type="button"
-                onClick={handleQueryCurrentPageInfo}
-                disabled={queryingInfo}
-                aria-label={t('dashboard.queryInfo')}
-                className={ACTION_BTN}
-              >
-                <Info className={queryingInfo ? 'animate-pulse' : ''} />
-                <span className="hidden sm:inline">
-                  {queryingInfo
-                    ? t('dashboard.queryingProgress', { current: queryInfoProgress.current, total: queryInfoProgress.total })
-                    : t('dashboard.queryInfo')}
-                </span>
-              </button>
-            )}
-            {/* 「清除已禁用」两侧的竖线随按钮一起显隐，空列表时不留孤立分隔线 */}
-            {allCredentials.length > 0 && (
-              <>
-                <span aria-hidden="true" className={ACTION_VDIV} />
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  disabled={disabledCredentialCount === 0}
-                  title={disabledCredentialCount === 0 ? t('dashboard.noClearableDisabled') : undefined}
-                  aria-label={t('dashboard.clearDisabled')}
-                  className={ACTION_BTN_DANGER}
-                >
-                  <Trash2 />
-                  <span className="hidden sm:inline">{t('dashboard.clearDisabled')}</span>
-                </button>
-                <span aria-hidden="true" className={ACTION_VDIV} />
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setKamImportDialogOpen(true)}
-              aria-label={t('dashboard.kamImport')}
-              className={ACTION_BTN}
-            >
-              <FileUp />
-              <span className="hidden sm:inline">{t('dashboard.kamImport')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setBatchImportDialogOpen(true)}
-              aria-label={t('dashboard.batchImport')}
-              className={ACTION_BTN}
-            >
-              <Upload />
-              <span className="hidden sm:inline">{t('dashboard.batchImport')}</span>
-            </button>
-            {/* 验活进度浮动入口：设计稿无此项，为保留既有能力挂在主按钮左侧 */}
-            {verifying && !verifyDialogOpen && (
-              <button type="button" onClick={() => setVerifyDialogOpen(true)} className={ACTION_BTN}>
-                <CheckCircle2 className="animate-spin" />
-                {t('dashboard.verifyingProgress', { current: verifyProgress.current, total: verifyProgress.total })}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setAddDialogOpen(true)}
-              aria-label={t('dashboard.addAccount')}
-              className={`${ACTION_BTN_PRIMARY} ml-auto`}
-            >
-              <Plus />
-              <span className="hidden sm:inline">{t('dashboard.addAccount')}</span>
-            </button>
-          </div>
+          <CredentialActionBar
+            allCredentials={allCredentials}
+            disabledCredentialCount={disabledCredentialCount}
+            handleRefresh={handleRefresh}
+            handleQueryCurrentPageInfo={handleQueryCurrentPageInfo}
+            queryingInfo={queryingInfo}
+            queryInfoProgress={queryInfoProgress}
+            handleClearAll={handleClearAll}
+            openKamImport={() => setKamImportDialogOpen(true)}
+            openBatchImport={() => setBatchImportDialogOpen(true)}
+            verifying={verifying}
+            verifyDialogOpen={verifyDialogOpen}
+            openVerifyDialog={() => setVerifyDialogOpen(true)}
+            verifyProgress={verifyProgress}
+            openAddDialog={() => setAddDialogOpen(true)}
+          />
 
           {/* 工具栏（设计稿 .toolbar）：搜索 + 状态分段筛选 + 更新时间 */}
           <AccountToolbar

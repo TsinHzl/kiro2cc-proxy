@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Copy, Plus, Check, Clock, RotateCw, DollarSign, Loader2, Link2, FileText, Eye, EyeOff, Eraser, Box } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHead } from '@/components/page-head'
-import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring, Sparkline } from '@/components/metrics'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
 import { ApiKeyTable } from '@/components/api-key-table'
-import { ApiKeyRow, quotaTone, type KeyStatus } from '@/components/api-key-row'
+import { ApiKeyRow, type KeyStatus } from '@/components/api-key-row'
 import { ApiKeyPanelFoot } from '@/components/api-key-panel-foot'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,9 +29,10 @@ import {
 import { extractErrorMessage } from '@/lib/utils'
 import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
 import { importToCcSwitch, type CcSwitchApp } from '@/lib/ccswitch'
-import { formatTokenCount, localeTag } from '@/lib/locale'
+import { localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
 import { CredentialMultiSelect } from '@/components/api-keys/credential-multi-select'
+import { ApiKeysUsageMetrics } from '@/components/api-keys/usage-metrics'
 import { EXPIRING_SOON_MS, ITEMS_PER_PAGE, formatLocalDate, type KeyStatusFilter, type SortBy } from '@/components/api-keys/panel-constants'
 
 interface ApiKeysPanelProps {
@@ -670,113 +670,18 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           </Button>
         </div>
       </section>
-
       {/* 指标条（设计稿 .metrics） */}
-      <div className="mt-[15px]">
-        <MetricsBar>
-          <Metric label={t('apiKeys.metricKeysLabel')}>
-            <MetricValue value={String(statusCounts.all)} unit={t('apiKeys.metricKeysUnit')} />
-            <MetricFoot>
-              <span>
-                <b className="font-medium text-ink-2">{statusCounts.active}</b> {t('apiKeys.statusActive')}
-              </span>
-              {statusCounts.pending > 0 && (
-                <>
-                  <FootSep />
-                  <span>
-                    <b className="font-medium text-ink-2">{statusCounts.pending}</b> {t('apiKeys.statusPending')}
-                  </span>
-                </>
-              )}
-              <FootSep />
-              <span>
-                <b className="font-medium text-ink-2">{statusCounts.disabled}</b> {t('apiKeys.statusDisabled')}
-              </span>
-              {statusCounts.expired > 0 && (
-                <>
-                  <FootSep />
-                  <span>
-                    <b className="font-medium text-ink-2">{statusCounts.expired}</b> {t('apiKeys.statusExpired')}
-                  </span>
-                </>
-              )}
-              {expiringSoonCount > 0 && (
-                <>
-                  <FootSep />
-                  <span className="font-semibold text-warn">
-                    {t('apiKeys.metricExpiringSoon', { count: expiringSoonCount })}
-                  </span>
-                </>
-              )}
-            </MetricFoot>
-          </Metric>
-
-          <Metric label={t('apiKeys.metricTodayLabel')}>
-            <MetricValue
-              value={todayRequests === null ? '—' : todayRequests.toLocaleString(localeTag())}
-              trailing={requestsDeltaPercent === null ? undefined : <Delta percent={requestsDeltaPercent} />}
-            />
-            <MetricFoot className="truncate pr-[92px]">
-              <span>
-                {t('apiKeys.metricTodayCost')}{' '}
-                <b className="font-medium text-ink-2">${(todayStats?.totalCost ?? 0).toFixed(2)}</b>
-              </span>
-              <FootSep />
-              <span>
-                {t('apiKeys.metricTodayCredits')}{' '}
-                <b className="font-medium text-ink-2">{(todayStats?.totalCredits ?? 0).toFixed(1)}</b>
-              </span>
-            </MetricFoot>
-            {requestTrend.length >= 2 && (
-              <MetricAside>
-                <Sparkline values={requestTrend} />
-              </MetricAside>
-            )}
-          </Metric>
-
-          <Metric label={t('apiKeys.metricTotalLabel')}>
-            <MetricValue value={cumulative.requests.toLocaleString(localeTag())} />
-            <MetricFoot>
-              <span>
-                Token <b className="font-medium text-ink-2">{formatTokenCount(cumulative.tokens)}</b>
-              </span>
-              {sinceLabel && (
-                <>
-                  <FootSep />
-                  <span>{t('apiKeys.metricSince', { date: sinceLabel })}</span>
-                </>
-              )}
-            </MetricFoot>
-          </Metric>
-
-          <Metric label={t('apiKeys.metricQuotaLabel')}>
-            <MetricValue
-              value={topQuota === null ? '—' : String(Math.round(topQuota.percent))}
-              unit={topQuota === null ? undefined : '%'}
-            />
-            {topQuota === null ? (
-              <div className="mt-[3px] text-[11px] text-ink-3">{t('apiKeys.metricQuotaEmpty')}</div>
-            ) : (
-              <div className="mt-[3px] truncate pr-14 text-[11px] text-ink-3">
-                Key <b className="font-medium text-ink-2">{topQuota.name}</b>
-                {' · '}
-                <span className={`font-semibold ${quotaTone(topQuota.percent).text}`}>
-                  {topQuota.unit === 'credits'
-                    ? t('apiKeys.metricQuotaUsedCredits', { used: topQuota.used.toFixed(1), limit: topQuota.limit })
-                    : t('apiKeys.metricQuotaUsedUsd', { used: topQuota.used.toFixed(2), limit: topQuota.limit })}
-                </span>
-              </div>
-            )}
-            <MetricAside>
-              <Ring
-                percent={topQuota === null ? null : topQuota.percent}
-                tone={topQuota === null ? undefined : quotaTone(topQuota.percent).stroke}
-                size={42}
-              />
-            </MetricAside>
-          </Metric>
-        </MetricsBar>
-      </div>
+      <ApiKeysUsageMetrics
+        statusCounts={statusCounts}
+        expiringSoonCount={expiringSoonCount}
+        todayRequests={todayRequests}
+        requestsDeltaPercent={requestsDeltaPercent}
+        requestTrend={requestTrend}
+        cumulative={cumulative}
+        todayStats={todayStats}
+        sinceLabel={sinceLabel}
+        topQuota={topQuota}
+      />
 
       {/* 操作条（设计稿 .actionbar）：危险操作用竖分隔线隔离并染红；「导出配置」依赖未实现的后端能力，不渲染 */}
       <div className="flex flex-wrap items-center gap-[7px] pt-[15px]">

@@ -17,7 +17,7 @@
 //! - `fields`: additionalModelRequestFields 构建
 //! - `thinking`: thinking 前缀生成与模型谓词
 //! - `history`: 历史消息构建与合并
-//! - `tests`: 原内联测试整体迁移（零改动）
+//! - `tests/`: 原内联测试按被测子模块拆分为目录（model/schema/pdf/prompt/fields/session/websearch/tools/thinking_gpt/history_cache）
 
 mod cache;
 mod convert;
@@ -31,7 +31,67 @@ mod result;
 mod schema;
 mod session;
 #[cfg(test)]
-mod tests;
+mod tests {
+    pub(crate) use super::*;
+
+    /// 构造用于 fallback 派生测试的最小请求（system + 工具名 + 消息序列）
+    fn fallback_req(
+        system: Option<&str>,
+        tool_names: &[&str],
+        messages: &[(&str, &str)],
+    ) -> crate::anthropic::types::MessagesRequest {
+        use crate::anthropic::types::{Message as AnthropicMessage, SystemMessage, Tool};
+        crate::anthropic::types::MessagesRequest {
+            model: "claude-sonnet-4".to_string(),
+            max_tokens: 1024,
+            messages: messages
+                .iter()
+                .map(|(role, text)| AnthropicMessage {
+                    role: (*role).to_string(),
+                    content: serde_json::json!(*text),
+                })
+                .collect(),
+            stream: false,
+            system: system.map(|s| {
+                vec![SystemMessage {
+                    text: s.to_string(),
+                }]
+            }),
+            tools: if tool_names.is_empty() {
+                None
+            } else {
+                Some(
+                    tool_names
+                        .iter()
+                        .map(|name| Tool {
+                            tool_type: None,
+                            name: (*name).to_string(),
+                            description: String::new(),
+                            input_schema: Default::default(),
+                            max_uses: None,
+                            defer_loading: None,
+                        })
+                        .collect(),
+                )
+            },
+            tool_choice: None,
+            thinking: None,
+            output_config: None,
+            metadata: None,
+        }
+    }
+
+    mod fields;
+    mod history_cache;
+    mod model;
+    mod pdf;
+    mod prompt;
+    mod schema;
+    mod session;
+    mod thinking_gpt;
+    mod tools;
+    mod websearch;
+}
 mod thinking;
 mod tools;
 mod websearch;

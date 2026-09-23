@@ -1,0 +1,29 @@
+src/openai/responses_response/mod.rs
+  4046efd29aebbd59 1-17
+openspec/changes/split-large-files/tasks.md
+  4046efd29aebbd59 1-24
+src/openai/responses_response/stream.rs
+  4046efd29aebbd59 12-13
+src/openai/responses_response/nonstream.rs
+  4046efd29aebbd59 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5e6d6408429447395ab275d8a365d46312f5c283",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 6,
+      "accepted_lines": 89,
+      "overriden_lines": 0
+    }
+  }
+}

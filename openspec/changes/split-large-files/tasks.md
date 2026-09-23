@@ -10,9 +10,9 @@
 - [x] T5 拆分 `src/openai/responses_response.rs`（非流式转换/流式转换器/测试）
 - [x] T6 拆分 `src/kiro/provider.rs`（请求构建与 header/重试与故障转移/错误分类与 body 改写/测试）
 - [x] T7 拆分 `src/kiro/model/credentials.rs`（凭据模型/配置反序列化）
-- [ ] T8 拆分 `src/openai/responses_request.rs`（工具收集与转换/消息转换）
-- [ ] T9 拆分 `src/openai/chat_response.rs`（非流式转换/流式转换器）
-- [ ] T10 拆分 `src/model/usage.rs`（定价计算/用量记录与追踪/分页与日报查询）
+- [x] T8 拆分 `src/openai/responses_request.rs`（工具收集与转换/消息转换）
+- [x] T9 拆分 `src/openai/chat_response.rs`（非流式转换/流式转换器）
+- [x] T10 拆分 `src/model/usage.rs`（定价计算/用量记录与追踪/分页与日报查询）
 - [ ] T11 拆分 `admin-ui/src/components/api-keys-panel.tsx`（子组件 CredentialMultiSelect 等提取到独立文件）
 - [ ] T12 拆分 `admin-ui/src/components/dashboard.tsx`（常量/工具函数/子区块提取）
 - [ ] T13 全量回归：`cargo fmt` + `cargo clippy` + `cargo test` + 前端双 build

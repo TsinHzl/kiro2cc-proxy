@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Plus, Check, Clock, RotateCw, DollarSign, Loader2, Link2, FileText, Eye, EyeOff, Eraser, Box } from 'lucide-react'
+import { Copy, Plus, Check, RotateCw, Link2, FileText, Eye, EyeOff, Eraser, Box } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
@@ -9,18 +9,11 @@ import { ApiKeyTable } from '@/components/api-key-table'
 import { ApiKeyRow, type KeyStatus } from '@/components/api-key-row'
 import { ApiKeyPanelFoot } from '@/components/api-key-panel-foot'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApiKeys, useCreateApiKey, useUpdateApiKey, useDeleteApiKey, useAllUsage, useResetKeyUsage, useRpm, useCredentials, useCredentialBalances, useDailyUsage } from '@/hooks/use-credentials'
+import { CreateKeyDialog } from '@/components/api-keys/create-key-dialog'
+import { EditKeyDialog } from '@/components/api-keys/edit-key-dialog'
+import { PurgeDialog } from '@/components/api-keys/purge-dialog'
 import {
   deleteApiKey as deleteApiKeyApi,
   resetKeyUsage as resetKeyUsageApi,
@@ -31,7 +24,6 @@ import { copyToClipboard as writeToClipboard } from '@/lib/clipboard'
 import { importToCcSwitch, type CcSwitchApp } from '@/lib/ccswitch'
 import { localeTag } from '@/lib/locale'
 import type { ApiKeyItem, UsageSummary } from '@/types/api'
-import { CredentialMultiSelect } from '@/components/api-keys/credential-multi-select'
 import { ApiKeysUsageMetrics } from '@/components/api-keys/usage-metrics'
 import { EXPIRING_SOON_MS, ITEMS_PER_PAGE, formatLocalDate, type KeyStatusFilter, type SortBy } from '@/components/api-keys/panel-constants'
 
@@ -79,16 +71,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [credSearchQuery, setCredSearchQuery] = useState('')
   const createCredDropdownRef = useRef<HTMLDivElement>(null)
   const editCredDropdownRef = useRef<HTMLDivElement>(null)
-
-  const quickDurationOptions = [
-    { value: 1, unit: 'hours' as const },
-    { value: 3, unit: 'hours' as const },
-    { value: 6, unit: 'hours' as const },
-    { value: 12, unit: 'hours' as const },
-    { value: 1, unit: 'days' as const },
-    { value: 3, unit: 'days' as const },
-    { value: 7, unit: 'days' as const },
-  ]
 
   const unitLabel = (unit: 'days' | 'hours') => t(unit === 'hours' ? 'apiKeys.hoursUnit' : 'apiKeys.daysUnit')
 
@@ -798,361 +780,80 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         ))}
       </ApiKeyTable>
       {/* 创建对话框 */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('apiKeys.createDialogTitle')}</DialogTitle>
-            <DialogDescription>{t('apiKeys.createDialogDesc')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">{t('apiKeys.serialLabel')}</label>
-              <Input
-                placeholder={t('apiKeys.serialPlaceholder')}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-              {nameConflict && (
-                <p className="text-xs text-destructive mt-1">{t('apiKeys.serialConflict')}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium">{t('apiKeys.limitModeLabel')}</label>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={newMode === 'date' ? 'default' : 'outline'}
-                  onClick={() => setNewMode('date')}
-                >
-                  <Clock className="h-3.5 w-3.5 mr-1.5" />
-                  {t('apiKeys.byDateButton')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={newMode === 'quota' ? 'default' : 'outline'}
-                  onClick={() => setNewMode('quota')}
-                >
-                  <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-                  {t('apiKeys.byQuotaButton')}
-                </Button>
-              </div>
-            </div>
-            {newMode === 'date' ? (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.validityLabel')}</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {quickDurationOptions.map((opt) => (
-                    <Button
-                      key={`${opt.value}-${opt.unit}`}
-                      type="button"
-                      size="sm"
-                      variant={newDuration === opt.value && newDurationUnit === opt.unit ? 'default' : 'outline'}
-                      onClick={() => { setNewDuration(opt.value); setNewDurationUnit(opt.unit) }}
-                    >
-                      {opt.value} {unitLabel(opt.unit)}
-                    </Button>
-                  ))}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={newDuration === null ? 'default' : 'outline'}
-                    onClick={() => setNewDuration(null)}
-                  >
-                    {t('apiKeys.neverExpires')}
-                  </Button>
-                </div>
-                {newDuration !== null && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={newDuration}
-                      onChange={(e) => setNewDuration(Math.max(1, Number(e.target.value)))}
-                      className="w-24"
-                    />
-                    <div className="flex gap-1">
-                      <Button type="button" size="sm" variant={newDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('hours')}>{t('apiKeys.hoursUnit')}</Button>
-                      <Button type="button" size="sm" variant={newDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setNewDurationUnit('days')}>{t('apiKeys.daysUnit')}</Button>
-                    </div>
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  <Clock className="h-3 w-3 inline mr-1" />
-                  {newDuration !== null ? t('apiKeys.activatesAfterFirstUse', { value: newDuration, unit: unitLabel(newDurationUnit) }) : t('apiKeys.neverExpires')}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.meteringUnitLabel')}</label>
-                <div className="flex gap-2 mt-2">
-                  <Button type="button" size="sm" variant={newLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('usd')}>{t('apiKeys.usdEstimate')}</Button>
-                  <Button type="button" size="sm" variant={newLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setNewLimitUnit('credits')}>{t('apiKeys.realCredits')}</Button>
-                </div>
-                <label className="text-sm font-medium mt-3 block">
-                  {t('apiKeys.quotaLimitLabel', { unit: newLimitUnit === 'credits' ? 'credits' : t('apiKeys.unitUsd') })}
-                </label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={newUnlimited ? 'default' : 'outline'}
-                    onClick={() => setNewUnlimited(true)}
-                  >
-                    {t('apiKeys.unlimitedQuotaButton')}
-                  </Button>
-                  {(newLimitUnit === 'credits' ? [1000, 5000, 10000] : [100, 500, 1000]).map((amount) => (
-                    <Button
-                      key={amount}
-                      type="button"
-                      size="sm"
-                      variant={!newUnlimited && newSpendingLimit === amount ? 'default' : 'outline'}
-                      onClick={() => { setNewUnlimited(false); setNewSpendingLimit(amount) }}
-                    >
-                      {newLimitUnit === 'credits' ? amount : `$${amount}`}
-                    </Button>
-                  ))}
-                </div>
-                {!newUnlimited && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-sm text-muted-foreground">
-                      {newLimitUnit === 'credits' ? t('apiKeys.customCredits') : t('apiKeys.customUsd')}
-                    </span>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={newSpendingLimit || ''}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/\D/g, '')
-                        setNewSpendingLimit(v === '' ? 0 : Number(v))
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      className="w-32"
-                    />
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  <DollarSign className="h-3 w-3 inline mr-1" />
-                  {newUnlimited
-                    ? t('apiKeys.unlimitedQuotaHint')
-                    : t('apiKeys.quotaAutoStopHint', { amount: newLimitUnit === 'credits' ? `${newSpendingLimit} credits` : `$${newSpendingLimit}` })}
-                </div>
-              </div>
-            )}
-            {credentials && credentials.credentials && credentials.credentials.length > 0 && (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.boundAccountsLabel')}</label>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.bindAccountsHint')}</p>
-                <CredentialMultiSelect
-                  credentials={credentials.credentials}
-                  balanceMap={credentialBalanceMap}
-                  selected={newBoundCredentialIds}
-                  onChange={setNewBoundCredentialIds}
-                  dropdownRef={createCredDropdownRef}
-                  open={createCredDropdownOpen}
-                  onOpenChange={setCreateCredDropdownOpen}
-                  searchQuery={credSearchQuery}
-                  onSearchChange={setCredSearchQuery}
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleCreate} disabled={!newName.trim() || nameConflict || isCreating}>
-              {isCreating ? t('apiKeys.creatingButton') : t('apiKeys.createConfirmButton')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateKeyDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        newName={newName}
+        setNewName={setNewName}
+        nameConflict={nameConflict}
+        newMode={newMode}
+        setNewMode={setNewMode}
+        newDuration={newDuration}
+        setNewDuration={setNewDuration}
+        newDurationUnit={newDurationUnit}
+        setNewDurationUnit={setNewDurationUnit}
+        newSpendingLimit={newSpendingLimit}
+        setNewSpendingLimit={setNewSpendingLimit}
+        newLimitUnit={newLimitUnit}
+        setNewLimitUnit={setNewLimitUnit}
+        newUnlimited={newUnlimited}
+        setNewUnlimited={setNewUnlimited}
+        newBoundCredentialIds={newBoundCredentialIds}
+        setNewBoundCredentialIds={setNewBoundCredentialIds}
+        credentials={credentials?.credentials}
+        credentialBalanceMap={credentialBalanceMap}
+        createCredDropdownRef={createCredDropdownRef}
+        createCredDropdownOpen={createCredDropdownOpen}
+        setCreateCredDropdownOpen={setCreateCredDropdownOpen}
+        credSearchQuery={credSearchQuery}
+        setCredSearchQuery={setCredSearchQuery}
+        unitLabel={unitLabel}
+        handleCreate={handleCreate}
+        isCreating={isCreating}
+      />
 
       {/* 编辑对话框 */}
-      <Dialog open={!!editingKey} onOpenChange={(open) => !open && setEditingKey(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('apiKeys.editDialogTitle')}</DialogTitle>
-            <DialogDescription>{t('apiKeys.editDialogDesc')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">{t('apiKeys.remarkNameLabel')}</label>
-              <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">{t('apiKeys.limitModeLabel')}</label>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={editMode === 'date' ? 'default' : 'outline'}
-                  onClick={() => setEditMode('date')}
-                >
-                  <Clock className="h-3.5 w-3.5 mr-1.5" />
-                  {t('apiKeys.byDateButton')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={editMode === 'quota' ? 'default' : 'outline'}
-                  onClick={() => setEditMode('quota')}
-                >
-                  <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-                  {t('apiKeys.byQuotaButton')}
-                </Button>
-              </div>
-            </div>
-            {editMode === 'date' ? (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.renewDurationLabel')}</label>
-                {editingKey?.activatedAt ? (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {t('apiKeys.activatedAtLabel', { date: formatDate(editingKey.activatedAt) })}
-                    {editingKey.expiresAt && t('apiKeys.expiresSuffix', { date: formatDate(editingKey.expiresAt) })}
-                  </div>
-                ) : editingKey?.durationDays != null ? (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {t('apiKeys.pendingWithDuration', { duration: formatDuration(editingKey.durationDays) })}
-                  </div>
-                ) : editingKey?.expiresAt && new Date(editingKey.expiresAt) > new Date() ? (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {t('apiKeys.currentExpiryLabel', { date: new Date(editingKey.expiresAt).toLocaleString(localeTag(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) })}
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {quickDurationOptions.map((opt) => (
-                    <Button
-                      key={`${opt.value}-${opt.unit}`}
-                      type="button"
-                      size="sm"
-                      variant={editDuration === opt.value && editDurationUnit === opt.unit ? 'default' : 'outline'}
-                      onClick={() => { setEditDuration(opt.value); setEditDurationUnit(opt.unit); setEditExpiryDirty(true) }}
-                    >
-                      {opt.value} {unitLabel(opt.unit)}
-                    </Button>
-                  ))}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={editDuration === null ? 'default' : 'outline'}
-                    onClick={() => { setEditDuration(null); setEditExpiryDirty(true) }}
-                  >
-                    {t('apiKeys.neverExpires')}
-                  </Button>
-                </div>
-                {editDuration !== null && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={editDuration}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setEditDuration(v === '' ? '' : Math.max(1, Number(v)))
-                        setEditExpiryDirty(true)
-                      }}
-                      className="w-24"
-                    />
-                    <div className="flex gap-1">
-                      <Button type="button" size="sm" variant={editDurationUnit === 'hours' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('hours')}>{t('apiKeys.hoursUnit')}</Button>
-                      <Button type="button" size="sm" variant={editDurationUnit === 'days' ? 'default' : 'outline'} onClick={() => setEditDurationUnit('days')}>{t('apiKeys.daysUnit')}</Button>
-                    </div>
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground mt-2">
-                  <Clock className="h-3 w-3 inline mr-1" />
-                  {editDuration !== null && editDuration !== ''
-                    ? (editingKey && getKeyStatus(editingKey) === 'active'
-                        ? t('apiKeys.renewOnCurrentExpiry', { value: editDuration, unit: unitLabel(editDurationUnit) })
-                        : t('apiKeys.activatesAfterFirstUse', { value: editDuration, unit: unitLabel(editDurationUnit) }))
-                    : t('apiKeys.neverExpires')}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.meteringUnitLabel')}</label>
-                <div className="flex gap-2 mt-2">
-                  <Button type="button" size="sm" variant={editLimitUnit === 'usd' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('usd')}>{t('apiKeys.usdEstimate')}</Button>
-                  <Button type="button" size="sm" variant={editLimitUnit === 'credits' ? 'default' : 'outline'} onClick={() => setEditLimitUnit('credits')}>{t('apiKeys.realCredits')}</Button>
-                </div>
-                <label className="text-sm font-medium mt-3 block">
-                  {t('apiKeys.quotaLimitLabel', { unit: editLimitUnit === 'credits' ? 'credits' : t('apiKeys.unitUsd') })}
-                </label>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm text-muted-foreground">{editLimitUnit === 'credits' ? '' : '$'}</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={editSpendingLimit}
-                    onChange={(e) => setEditSpendingLimit(Number(e.target.value))}
-                    className="w-32"
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground mt-2">
-                  <DollarSign className="h-3 w-3 inline mr-1" />
-                  {t('apiKeys.quotaAutoStopHint', { amount: editLimitUnit === 'credits' ? `${editSpendingLimit} credits` : `$${editSpendingLimit}` })}
-                </div>
-              </div>
-            )}
-            {credentials && credentials.credentials && credentials.credentials.length > 0 && (
-              <div>
-                <label className="text-sm font-medium">{t('apiKeys.boundAccountsLabel')}</label>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('apiKeys.bindAccountsHint')}</p>
-                <CredentialMultiSelect
-                  credentials={credentials.credentials}
-                  balanceMap={credentialBalanceMap}
-                  selected={editBoundCredentialIds}
-                  onChange={setEditBoundCredentialIds}
-                  dropdownRef={editCredDropdownRef}
-                  open={editCredDropdownOpen}
-                  onOpenChange={setEditCredDropdownOpen}
-                  searchQuery={credSearchQuery}
-                  onSearchChange={setCredSearchQuery}
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingKey(null)}>{t('common.cancel')}</Button>
-            <Button onClick={handleUpdate}>{t('common.save')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditKeyDialog
+        editingKey={editingKey}
+        setEditingKey={setEditingKey}
+        editName={editName}
+        setEditName={setEditName}
+        editMode={editMode}
+        setEditMode={setEditMode}
+        editDuration={editDuration}
+        setEditDuration={setEditDuration}
+        setEditExpiryDirty={setEditExpiryDirty}
+        editDurationUnit={editDurationUnit}
+        setEditDurationUnit={setEditDurationUnit}
+        editBoundCredentialIds={editBoundCredentialIds}
+        setEditBoundCredentialIds={setEditBoundCredentialIds}
+        editSpendingLimit={editSpendingLimit}
+        setEditSpendingLimit={setEditSpendingLimit}
+        editLimitUnit={editLimitUnit}
+        setEditLimitUnit={setEditLimitUnit}
+        credentials={credentials?.credentials}
+        credentialBalanceMap={credentialBalanceMap}
+        editCredDropdownRef={editCredDropdownRef}
+        editCredDropdownOpen={editCredDropdownOpen}
+        setEditCredDropdownOpen={setEditCredDropdownOpen}
+        credSearchQuery={credSearchQuery}
+        setCredSearchQuery={setCredSearchQuery}
+        unitLabel={unitLabel}
+        formatDuration={formatDuration}
+        formatDate={formatDate}
+        getKeyStatus={getKeyStatus}
+        handleUpdate={handleUpdate}
+      />
 
       {/* 清除无效 Key 对话框 */}
-      <Dialog open={purgeDialogOpen} onOpenChange={(open) => !purging && setPurgeDialogOpen(open)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('apiKeys.purgeDialogTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('apiKeys.purgeDialogDesc', { count: invalidKeys.length })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-60 overflow-y-auto space-y-1 text-sm">
-            {invalidKeys.map((k) => (
-              <div key={k.id} className="flex items-center justify-between py-1 px-2 rounded bg-muted/50">
-                <span>
-                  <code className="text-xs font-mono text-muted-foreground mr-2">{String(k.id).padStart(3, '0')}</code>
-                  {k.name}
-                </span>
-                <Badge variant={getKeyStatus(k) === 'disabled' ? 'destructive' : 'warning'} className="text-xs">
-                  {getKeyStatus(k) === 'disabled' ? t('apiKeys.statusDisabled') : t('apiKeys.statusExpired')}
-                </Badge>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)} disabled={purging}>{t('common.cancel')}</Button>
-            <Button variant="destructive" onClick={handlePurge} disabled={purging}>
-              {purging ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('apiKeys.purgingButton')}</> : t('apiKeys.confirmPurgeButton', { count: invalidKeys.length })}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PurgeDialog
+        open={purgeDialogOpen}
+        onOpenChange={setPurgeDialogOpen}
+        invalidKeys={invalidKeys}
+        getKeyStatus={getKeyStatus}
+        handlePurge={handlePurge}
+        purging={purging}
+      />
     </div>
   )
 }

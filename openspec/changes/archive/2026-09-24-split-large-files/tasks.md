@@ -1,6 +1,6 @@
 # 任务清单：split-large-files
 
-## 状态：DONE
+## 状态：ARCHIVED
 
 ## 任务
 - [x] T1 拆分 `src/kiro/token_manager.rs`（子模块：单账号管理/刷新与 IDC/多账号状态条目/多账号选择与 sticky/统计与持久化/账号管理操作；tests 随归属移动）

@@ -1,0 +1,25 @@
+src/anthropic/converter/fields.rs
+  fd9a96f6efda84f4 63-69,75
+src/anthropic/converter/tests/fields.rs
+  fd9a96f6efda84f4 73-74,77-78,100-101,133,158-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ac269d30fe9455f1edd25a34820a8e7e4b15622d",
+  "prompts": {
+    "fd9a96f6efda84f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b37a70b-a72c-4356-bb94-709da2e76065",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 15,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}

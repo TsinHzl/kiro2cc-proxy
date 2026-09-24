@@ -1,30 +1,13 @@
 //! converter 测试（自 tests.rs 拆分，纯代码搬移）
 #![cfg(test)]
 
-use super::super::cache;
-use super::super::convert::{
-    convert_request, determine_agent_task_type, determine_chat_trigger_type,
-};
-use super::super::fields::model_max_output_tokens;
+use super::super::convert::convert_request;
 use super::super::history::{convert_assistant_message, merge_assistant_messages};
-use super::super::model::map_model;
-use super::super::pdf::extract_pdf_text_from_base64;
-use super::super::prompt::append_recent_knowledge_hints;
-use super::super::schema::normalize_json_schema;
-use super::super::session::{
-    derive_fallback_conversation_id, extract_session_id, is_compact_request, is_valid_uuid,
-};
-use super::super::thinking::generate_thinking_prefix;
 use super::super::tools::{remove_orphaned_tool_uses, validate_tool_pairing};
-use super::super::websearch::{
-    collect_history_tool_names, create_placeholder_tool, is_web_search_server_tool,
-    split_web_search_tool,
-};
+use super::super::websearch::{collect_history_tool_names, create_placeholder_tool};
 #[allow(unused_imports)]
 use crate::anthropic::types::ContentBlock as _;
-use crate::anthropic::types::{
-    Message as AnthropicMessage, MessagesRequest, OutputConfig, Tool as AnthropicTool2,
-};
+use crate::anthropic::types::MessagesRequest;
 #[allow(unused_imports)]
 use crate::kiro::model::requests::conversation::Message;
 use crate::kiro::model::requests::conversation::{

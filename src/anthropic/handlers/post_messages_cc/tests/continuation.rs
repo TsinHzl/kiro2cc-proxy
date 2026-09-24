@@ -1,302 +1,12 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-// Bridge 网桥流程测试（自 handlers/tests.rs 拆出，纯代码搬移）
+// 续请求构建与非流式 bridge 测试（自 post_messages_cc/tests.rs 拆出，纯代码搬移）
+
 #[cfg(test)]
-pub(crate) mod tests {
-
-    use super::super::super::bridge::{
-        BridgeContext, BridgePhase, BridgeState, bridge_handle_event, build_bridge_context,
-        build_continuation_request, build_search_tool_result,
-    };
-
-    use crate::anthropic::stream::StreamContext;
-
-    use crate::kiro::model::events::Event;
-    use crate::kiro::model::events::ToolUseEvent;
-    use crate::kiro::model::requests::conversation::ConversationState;
-    use crate::kiro::model::requests::conversation::Message;
-
-    use crate::anthropic::converter as converter_mod;
-
-    /// 构造只携带一条 user 消息的最小 MessagesRequest（tools 可选）
-    pub(crate) fn bridge_test_request(
-        tools: Option<Vec<crate::anthropic::types::Tool>>,
-    ) -> crate::anthropic::types::MessagesRequest {
-        crate::anthropic::types::MessagesRequest {
-            model: "claude-sonnet-4".to_string(),
-            max_tokens: 1024,
-            messages: vec![crate::anthropic::types::Message {
-                role: "user".to_string(),
-                content: serde_json::json!("搜索一下今天的新闻"),
-            }],
-            stream: false,
-            system: None,
-            tools,
-            tool_choice: None,
-            thinking: None,
-            output_config: None,
-            metadata: None,
-        }
-    }
-
-    pub(crate) fn ws_tool_for_bridge(
-        tool_type: Option<&str>,
-        name: &str,
-        max_uses: Option<i32>,
-    ) -> crate::anthropic::types::Tool {
-        crate::anthropic::types::Tool {
-            tool_type: tool_type.map(|s| s.to_string()),
-            name: name.to_string(),
-            description: String::new(),
-            input_schema: Default::default(),
-            max_uses,
-            defer_loading: None,
-        }
-    }
-
-    #[test]
-    fn test_build_bridge_context_hit_constructs() {
-        // 携带 web_search server tool → Some(BridgeContext)，字段取自 conversion_result
-        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(
-            Some("web_search_20250305"),
-            "web_search",
-            Some(3),
-        )]));
-        let conversion = converter_mod::convert_request(&req).unwrap();
-
-        let ctx = build_bridge_context(&conversion, Some("arn:test".to_string()), vec![1, 2]);
-        let ctx = ctx.expect("命中 server tool 应构造 BridgeContext");
-        assert_eq!(ctx.max_uses, Some(3));
-        assert_eq!(ctx.profile_arn, Some("arn:test".to_string()));
-        assert_eq!(ctx.bound_ids, vec![1, 2]);
-        assert_eq!(ctx.is_compact_request, conversion.is_compact_request);
-        // conversation_state 是首次转换结果的 clone（D3 演进基底）
-        assert_eq!(
-            serde_json::to_string(&ctx.conversation_state).unwrap(),
-            serde_json::to_string(&conversion.conversation_state).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_build_bridge_context_no_hit_returns_none() {
-        // 未携带 web_search server tool → None（零行为变化路径）
-        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(None, "Read", None)]));
-        let conversion = converter_mod::convert_request(&req).unwrap();
-
-        assert!(build_bridge_context(&conversion, None, Vec::new()).is_none());
-    }
-
-    #[test]
-    fn test_build_bridge_context_hit_without_max_uses_still_constructs() {
-        // 命中但未声明 max_uses（内层 None）→ 仍构造，max_uses 为 None（上限由桥接层兜底 5）
-        let req = bridge_test_request(Some(vec![ws_tool_for_bridge(
-            Some("web_search_20250305"),
-            "web_search",
-            None,
-        )]));
-        let conversion = converter_mod::convert_request(&req).unwrap();
-
-        let ctx = build_bridge_context(&conversion, None, Vec::new())
-            .expect("命中但未声明 max_uses 仍应构造");
-        assert_eq!(ctx.max_uses, None);
-    }
-
-    #[test]
-    fn test_build_bridge_context_mixed_list_hit() {
-        // 混合工具列表（普通工具 + web_search server tool）→ 命中构造；
-        // 且构造条件与 stream 无关（D7：流式/非流式共用同一判定，构造函数不接收 stream 字段）
-        let req = bridge_test_request(Some(vec![
-            ws_tool_for_bridge(None, "Bash", None),
-            ws_tool_for_bridge(Some("web_search_20250305"), "web_search", Some(5)),
-        ]));
-        let conversion = converter_mod::convert_request(&req).unwrap();
-
-        let ctx = build_bridge_context(&conversion, None, Vec::new())
-            .expect("混合列表命中 server tool 应构造");
-        assert_eq!(ctx.max_uses, Some(5));
-
-        // 对照：同一请求 stream=true 的转换结果构造条件一致
-        let mut req_stream = req;
-        req_stream.stream = true;
-        let conversion_stream = converter_mod::convert_request(&req_stream).unwrap();
-        assert!(build_bridge_context(&conversion_stream, None, Vec::new()).is_some());
-    }
-
-    // ---- 桥接状态机截获与聚合（任务 3 单测，D4/D8）----
-
-    /// 构造最小 StreamContext（thinking 关闭；字段无外部依赖）
-    pub(crate) fn bridge_stream_context() -> StreamContext {
-        StreamContext::new_with_thinking("claude-sonnet-4", 1000, false)
-    }
-
-    /// 构造 Kiro ToolUse 事件
-    pub(crate) fn tool_use_event(name: &str, id: &str, input: &str, stop: bool) -> Event {
-        Event::ToolUse(ToolUseEvent {
-            name: name.to_string(),
-            tool_use_id: id.to_string(),
-            input: input.to_string(),
-            stop,
-        })
-    }
-
-    #[test]
-    fn test_bridge_input_fragments_aggregated() {
-        // 分片到达（stop=false）→ Collecting 聚合，不透传也不发块；
-        // stop=true → 截获完成，发 server_tool_use + web_search_tool_result 可见性块
-        let mut ctx = bridge_stream_context();
-        let mut bridge = Some(BridgeState::new(Some(3)));
-
-        // 分片 1：不透传、无可见性块
-        let (consumed, events) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("web_search", "tu1", r#"{"que"#, false),
-        );
-        assert!(consumed, "web_search toolUse 分片应被截获");
-        assert!(events.is_empty(), "聚合期间不应发任何 SSE 块");
-        assert!(matches!(
-            bridge.as_ref().unwrap().phase,
-            BridgePhase::Collecting { .. }
-        ));
-
-        // 分片 2 + stop：截获完成，发出可见性块
-        let (consumed, events) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("web_search", "tu1", r#"ry":"rust programming"}"#, true),
-        );
-        assert!(consumed, "stop 分片仍属于同一 toolUse，应被截获");
-        // 截获完成只发 server_tool_use(start/delta/stop) 共 3 个事件；
-        // web_search_tool_result 结果块由续流阶段（unfold None 分支）携带真实 MCP 结果发出
-        assert_eq!(
-            events.len(),
-            3,
-            "应发出 server_tool_use(start/delta/stop) 共 3 个事件"
-        );
-        let types: Vec<&str> = events.iter().map(|e| e.event.as_str()).collect();
-        assert!(
-            types.contains(&"content_block_start"),
-            "应含 content_block_start"
-        );
-        assert!(
-            types.contains(&"content_block_stop"),
-            "应含 content_block_stop"
-        );
-        // 回到 PassThrough 且轮次计数 +1
-        assert!(matches!(
-            bridge.as_ref().unwrap().phase,
-            BridgePhase::PassThrough
-        ));
-        assert_eq!(bridge.as_ref().unwrap().rounds_used, 1);
-    }
-
-    #[test]
-    fn test_bridge_non_target_tool_passthrough() {
-        // 非目标工具（Read）与 Collecting 期间的 AssistantResponse 均正常透传（D8）
-        let mut ctx = bridge_stream_context();
-        let mut bridge = Some(BridgeState::new(Some(3)));
-
-        let (consumed, _) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("Read", "tu0", r#"{"file_path":"a.rs"}"#, true),
-        );
-        assert!(!consumed, "非 web_search 工具应走现有透传路径");
-        // 透传 SSE 由 unfold 调用方调用 process_kiro_event 产生（bridge_handle_event 返回空 Vec）
-        let sse = ctx.process_kiro_event(&tool_use_event(
-            "Read",
-            "tu0",
-            r#"{"file_path":"a.rs"}"#,
-            true,
-        ));
-        assert!(
-            !sse.is_empty(),
-            "透传时 process_kiro_event 应产生 tool_use SSE"
-        );
-        assert!(matches!(
-            bridge.as_ref().unwrap().phase,
-            BridgePhase::PassThrough
-        ));
-        // 透传路径应分配 tool_use 块
-        assert!(
-            !ctx.tool_block_indices.is_empty(),
-            "透传应分配 tool_use 块索引"
-        );
-
-        // 进入 Collecting 后，AssistantResponse 说明文字仍透传
-        let (consumed, _) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("web_search", "tu1", r#"{"q"#, false),
-        );
-        assert!(consumed);
-        // extra 字段私有，走 serde 反序列化构造
-        let resp: crate::kiro::model::events::AssistantResponseEvent =
-            serde_json::from_str(r#"{"content":"让我搜索一下"}"#).unwrap();
-        let resp_event = Event::AssistantResponse(resp);
-        let (consumed, _) = bridge_handle_event(&mut ctx, &mut bridge, &resp_event);
-        assert!(!consumed, "Collecting 期间 AssistantResponse 应透传");
-        let sse = ctx.process_kiro_event(&resp_event);
-        assert!(!sse.is_empty(), "AssistantResponse 透传应产生 text SSE");
-    }
-
-    #[test]
-    fn test_bridge_no_tool_use_sse_leak() {
-        // 截获的 web_search 不产生普通 tool_use 块：state_manager 未分配 tool_use 块，
-        // 客户端可见的是 server_tool_use 块（索引由 next_block_index 单调分配）
-        let mut ctx = bridge_stream_context();
-        let mut bridge = Some(BridgeState::new(None));
-
-        let (consumed, _) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("web_search", "tu1", r#"{"query":"rust"}"#, true),
-        );
-        assert!(consumed);
-        assert!(
-            ctx.tool_block_indices.is_empty(),
-            "截获路径不得分配普通 tool_use 块索引"
-        );
-        // 截获完成时 server_tool_use 块消耗了 1 个块索引；
-        // web_search_tool_result 结果块由续流阶段发出（届时再消耗 1 个）
-        let next = ctx.state_manager.next_block_index();
-        assert!(
-            next >= 1,
-            "server_tool_use 块应已占用至少 1 个块索引，实际 next={next}"
-        );
-        // max_uses 未声明（内层 None）时兜底上限 5
-        assert_eq!(bridge.as_ref().unwrap().max_rounds, 5);
-    }
-
-    #[test]
-    fn test_bridge_rounds_exhausted_passthrough() {
-        // 轮次耗尽后 web_search 不再截获，按普通 tool_use 透传（D8 上限语义）
-        let mut ctx = bridge_stream_context();
-        // 上限 0（max_uses=0 时 clamp 到 0）
-        let mut bridge = Some(BridgeState::new(Some(0)));
-
-        let (consumed, _) = bridge_handle_event(
-            &mut ctx,
-            &mut bridge,
-            &tool_use_event("web_search", "tu1", r#"{"query":"x"}"#, true),
-        );
-        assert!(!consumed, "轮次耗尽后应透传为普通 tool_use");
-        // 透传 SSE 由 unfold 调用方调用 process_kiro_event 产生
-        ctx.process_kiro_event(&tool_use_event(
-            "web_search",
-            "tu1",
-            r#"{"query":"x"}"#,
-            true,
-        ));
-        assert!(
-            !ctx.tool_block_indices.is_empty(),
-            "透传路径应分配普通 tool_use 块"
-        );
-    }
-
+mod tests {
     // ---- 续请求体构建（任务 4 单测，D3）----
 
     /// 构造测试用 BridgeContext（conversation_state 带完整字段供不变量断言）
-    pub(crate) fn bridge_ctx_for_continuation() -> BridgeContext {
+    fn bridge_ctx_for_continuation() -> BridgeContext {
         let mut state = ConversationState::new("conv-123");
         state.agent_continuation_id = Some("cont-456".to_string());
         state.agent_task_type = Some("vibe".to_string());
@@ -317,9 +27,9 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn sample_search_results() -> crate::anthropic::websearch::WebSearchResults {
-        crate::anthropic::websearch::WebSearchResults {
-            results: vec![crate::anthropic::websearch::WebSearchResult {
+    fn sample_search_results() -> websearch::WebSearchResults {
+        websearch::WebSearchResults {
+            results: vec![websearch::WebSearchResult {
                 title: "Rust 官方文档".to_string(),
                 url: "https://doc.rust-lang.org".to_string(),
                 snippet: Some("The Rust programming language".to_string()),
@@ -584,4 +294,306 @@ pub(crate) mod tests {
         // 之后又截获到新轮次窗口的情形不存在（rounds_used 不回退），上限语义稳定
         assert!(!state.has_remaining_rounds());
     }
+
+    #[test]
+    fn test_generate_final_events_message_stop_exactly_once() {
+        // 桥接收尾恰好一次：generate_final_events 的 message_stop 由 message_ended
+        // 门控——首次调用补发 message_stop，重复调用不再产生（防客户端双 message_stop）
+        let mut ctx = bridge_stream_context();
+        ctx.process_kiro_event(&Event::AssistantResponse(
+            serde_json::from_str(r#"{"content":"回答正文"}"#).unwrap(),
+        ));
+        // 模拟流结束：置位 message_ended 前的最终事件序列
+        let final_events = ctx.generate_final_events();
+        let stops: Vec<_> = final_events
+            .iter()
+            .filter(|e| e.event == "message_stop")
+            .collect();
+        assert_eq!(stops.len(), 1, "首次收尾应恰好发出 1 个 message_stop");
+        // 桥接失败兜底路径可能再次调用收尾——message_ended 门控保证不重发
+        let repeated = ctx.generate_final_events();
+        assert!(
+            !repeated.iter().any(|e| e.event == "message_stop"),
+            "重复收尾不得再次发出 message_stop"
+        );
+    }
+
+    // ---- 非流式桥接（任务 5.5 单测，D4 非流式段 / D5 非流式段）----
+
+    fn non_stream_tool_use_event(
+        name: &str,
+        id: &str,
+        input: &str,
+        stop: bool,
+    ) -> crate::kiro::model::events::ToolUseEvent {
+        // input 与上游流一致，是原始 JSON 字符串（未解析），可传分片
+        crate::kiro::model::events::ToolUseEvent {
+            name: name.to_string(),
+            tool_use_id: id.to_string(),
+            input: input.to_string(),
+            stop,
+        }
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_intercept_and_aggregate() {
+        // 截获聚合：轮次未达上限的 web_search 分片被截获，stop 时完成并解析 query；
+        // 期间不产生普通 tool_use 语义（调用方据此不置 has_tool_use）
+        let mut collecting: Option<(String, String)> = None;
+
+        // 分片 1（非 stop）→ 截获、未完成
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu1", r#"{"query":"rus"#, false),
+        );
+        assert!(intercepted);
+        assert!(completed.is_none());
+        assert!(collecting.is_some());
+
+        // 分片 2（stop）→ 完成截获，query 聚合完整
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu1", r#"t"}"#, true),
+        );
+        assert!(intercepted);
+        let pending = completed.expect("stop 分片应完成截获");
+        assert_eq!(pending.tool_use_id, "tu1");
+        assert_eq!(pending.query, "rust");
+        assert!(collecting.is_none());
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_query_parse_failure_yields_empty() {
+        // input 非 JSON（query 解析失败）→ parse_bridge_query 兜底空串，仍完成截获
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut None,
+            0,
+            5,
+            &non_stream_tool_use_event("web_search", "tu-bad", "not-json", true),
+        );
+        assert!(intercepted);
+        assert_eq!(completed.unwrap().query, "");
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_limit_passthrough() {
+        // 轮次耗尽（rounds_used >= max_rounds）→ 不截获，按普通 tool_use 透传；
+        // 非桥接请求（max_rounds=0）同样不截获
+        let (intercepted, completed) = non_stream_bridge_step(
+            &mut None,
+            3,
+            3,
+            &non_stream_tool_use_event("web_search", "tu1", r#"{"query":"a"}"#, true),
+        );
+        assert!(!intercepted, "轮次耗尽后应按普通 tool_use 透传");
+        assert!(completed.is_none());
+
+        let (intercepted, _) = non_stream_bridge_step(
+            &mut None,
+            0,
+            0,
+            &non_stream_tool_use_event("web_search", "tu2", r#"{"query":"b"}"#, true),
+        );
+        assert!(!intercepted, "非桥接请求（max_rounds=0）不应截获");
+    }
+
+    #[test]
+    fn test_non_stream_bridge_step_other_tool_passthrough() {
+        // 非目标工具不截获、不污染聚合状态
+        let mut collecting: Option<(String, String)> = None;
+        let (intercepted, _) = non_stream_bridge_step(
+            &mut collecting,
+            0,
+            5,
+            &non_stream_tool_use_event("Read", "tu-file", r#"{"path":"a.rs"}"#, true),
+        );
+        assert!(!intercepted);
+        assert!(collecting.is_none(), "非 web_search 不得进入聚合状态");
+    }
+
+    #[test]
+    fn test_web_search_result_block_shape() {
+        // web_search_tool_result 块格式（D5 非流式段）：与流式条目格式一致；
+        // MCP 失败（None）时 content 为空数组
+        let block = build_web_search_result_block("tu-ok-1", &Some(sample_search_results()));
+        assert_eq!(block["type"], "web_search_tool_result");
+        assert_eq!(block["tool_use_id"], "tu-ok-1");
+        let items = block["content"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["type"], "web_search_result");
+        assert_eq!(items[0]["title"], "Rust 官方文档");
+        assert_eq!(items[0]["url"], "https://doc.rust-lang.org");
+        assert_eq!(
+            items[0]["encrypted_content"],
+            "The Rust programming language"
+        );
+        assert!(items[0]["page_age"].is_null());
+
+        let empty = build_web_search_result_block("tu-fail-1", &None);
+        assert_eq!(
+            empty["content"].as_array().unwrap().len(),
+            0,
+            "MCP 失败时 content 应为空数组"
+        );
+    }
+
+    // ---- H3：续请求失败 → error 事件收尾（任务 4 单测，unfold None 分支语义）----
+
+    use crate::kiro::model::credentials::KiroCredentials;
+    use crate::kiro::token_manager::MultiTokenManager;
+    use crate::model::config::Config;
+    use chrono::Utc;
+
+    /// 构造"必然刷新失败"的测试 Provider：凭据已过期且无 refreshToken，
+    /// validate_refresh_token 阶段立即失败（无需真实网络请求），
+    /// MCP 调用与续请求 call_api_stream 均快速返回 Err
+    fn bridge_test_provider() -> crate::kiro::provider::KiroProvider {
+        let mut cred = KiroCredentials::default();
+        cred.access_token = Some("test-invalid-token".to_string());
+        cred.expires_at = Some((Utc::now() - chrono::Duration::hours(1)).to_rfc3339());
+        let manager = std::sync::Arc::new(
+            MultiTokenManager::new(Config::default(), vec![cred], None, None, false)
+                .expect("构造 MultiTokenManager 失败"),
+        );
+        crate::kiro::provider::KiroProvider::new(manager)
+    }
+
+    #[tokio::test]
+    async fn test_bridge_execute_round_returns_failed_on_continuation_failure() {
+        // unfold None 分支语义（H3）：bridge_execute_round 在续请求发起失败时
+        // 返回 Failed（携带 MCP 搜索结果供调用方补发结果块配对），调用方据此
+        // 先发 web_search_tool_result 结果块、再补发 stream_interrupted_error_event
+        // 并置 finished=true 正常收尾（不再发 message_stop），防止客户端流悬挂
+        let provider = bridge_test_provider();
+        let bridge_ctx = bridge_ctx_for_continuation();
+        let mut bridge = BridgeState::new(Some(1));
+        let pending = PendingSearch {
+            tool_use_id: "tu-fail-net".to_string(),
+            query: "rust".to_string(),
+        };
+
+        let result = bridge_execute_round(&provider, &bridge_ctx, &mut bridge, pending).await;
+        assert!(
+            matches!(result, BridgeRoundOutcome::Failed(_)),
+            "续请求发起失败时应返回 Failed"
+        );
+        // Err 分支：演进基底写回取出的状态，避免下一轮基于未知状态演进
+        assert!(bridge.evolution_base.is_some());
+
+        // None → unfold 补发的 error 事件结构（与既有
+        // test_stream_interrupted_error_event_signals_failure_not_success 同口径）
+        let event = stream_interrupted_error_event();
+        assert_eq!(event.event, "error");
+        assert_eq!(event.data["error"]["type"], "overloaded_error");
+        assert!(
+            event.data["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("interrupted")
+        );
+    }
+
+    // ---- ⚠️#2（第 2 轮增量 CR）：harvest_bridge_round 三条收尾不变量 ----
+
+    #[test]
+    fn test_harvest_bridge_round_continued_pairs_result_block() {
+        // Continued → 先发配对结果块（finished=false），结果块与 server_tool_use
+        // 成对，且不含 error/message_stop 收尾事件
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let response = reqwest::Response::from(http::Response::new(body_dummy_bytes()));
+        let outcome = BridgeRoundOutcome::Continued(
+            response,
+            EventStreamDecoder::new(),
+            Some(sample_search_results()),
+        );
+
+        let harvest = harvest_bridge_round(outcome, "tu-cont-1", &mut ctx);
+        assert!(!harvest.finished, "Continued 应换入续流，finished=false");
+        assert_eq!(
+            harvest.events.len(),
+            2,
+            "Continued 补发 web_search_tool_result 结果块（start + stop 两事件）"
+        );
+        assert_eq!(
+            harvest.events[0].data["content_block"]["type"],
+            "web_search_tool_result"
+        );
+        assert_eq!(
+            harvest.events[1].event, "content_block_stop",
+            "配对结果块以 stop 事件收尾"
+        );
+    }
+
+    #[test]
+    fn test_harvest_bridge_round_failed_emits_result_then_error() {
+        // Failed → 结果块（携带已产出搜索结果）+ error 收尾事件，finished=true
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let outcome = BridgeRoundOutcome::Failed(Some(sample_search_results()));
+
+        let harvest = harvest_bridge_round(outcome, "tu-fail-1", &mut ctx);
+        assert!(harvest.finished, "Failed 应立即收尾，finished=true");
+        assert_eq!(
+            harvest.events.len(),
+            3,
+            "Failed = 结果块(start + stop) + error 事件"
+        );
+        assert_eq!(
+            harvest.events[0].data["content_block"]["type"],
+            "web_search_tool_result"
+        );
+        assert_eq!(harvest.events[2].event, "error");
+    }
+
+    #[test]
+    fn test_harvest_bridge_round_panic_fallback_empty_results() {
+        // 后台任务 panic 兜底 = Failed(None) → 空数组结果块 + error 收尾，
+        // 与 MCP 失败同口径（保证 server_tool_use / web_search_tool_result 成对）
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false);
+        let outcome = BridgeRoundOutcome::Failed(None);
+
+        let harvest = harvest_bridge_round(outcome, "tu-panic-1", &mut ctx);
+        assert!(harvest.finished);
+        assert_eq!(harvest.events.len(), 3, "panic 兜底同 Failed 收尾结构");
+        assert_eq!(
+            harvest.events[0].data["content_block"]["content"],
+            serde_json::json!([]),
+            "panic 兜底结果块 content 应为空数组"
+        );
+        assert_eq!(harvest.events[2].event, "error");
+    }
+
+    #[test]
+    fn test_flush_unpaired_search_blocks_drains_queue() {
+        // 非流式降级收尾：队列剩余 pending 全部补发空结果块，且队列被清空
+        let mut pending = VecDeque::new();
+        pending.push_back(PendingSearch {
+            tool_use_id: "tu-left-1".to_string(),
+            query: "a".to_string(),
+        });
+        pending.push_back(PendingSearch {
+            tool_use_id: "tu-left-2".to_string(),
+            query: "b".to_string(),
+        });
+        let mut blocks = Vec::new();
+
+        flush_unpaired_search_blocks(&mut pending, &mut blocks);
+
+        assert!(pending.is_empty(), "队列应被 drain 清空");
+        assert_eq!(blocks.len(), 2, "每条遗留 pending 补发一个结果块");
+        for (i, block) in blocks.iter().enumerate() {
+            assert_eq!(block["type"], "web_search_tool_result");
+            assert_eq!(
+                block["content"],
+                serde_json::json!([]),
+                "降级路径搜索未执行，结果块应为空数组"
+            );
+            let _ = i;
+        }
+    }
+}
+}
 }

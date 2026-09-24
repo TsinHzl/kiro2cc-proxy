@@ -2,19 +2,13 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
-    
-    
+
     use super::super::super::refresh::{
-        is_invalid_grant_response,
-        sha256_hex, validate_refresh_token,
+        is_invalid_grant_response, sha256_hex, validate_refresh_token,
     };
     use super::super::super::types::MultiTokenManager;
-    
+
     use crate::kiro::model::credentials::KiroCredentials;
-    
-    
-    
 
     #[test]
     fn test_validate_refresh_token_missing() {

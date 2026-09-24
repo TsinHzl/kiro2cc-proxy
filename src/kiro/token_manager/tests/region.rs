@@ -2,19 +2,13 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
-    
-    
-    use super::super::super::refresh::{
-        apply_idc_refresh_response, select_usage_limits_token,
-    };
-    
-    
+
+    use super::super::super::refresh::{apply_idc_refresh_response, select_usage_limits_token};
+
     use crate::kiro::model::credentials::KiroCredentials;
     use crate::kiro::model::token_refresh::IdcRefreshResponse;
-    
+
     use crate::model::config::Config;
-    
 
     #[test]
     fn test_credential_region_priority_uses_credential_auth_region() {

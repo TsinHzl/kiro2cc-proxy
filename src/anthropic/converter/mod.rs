@@ -32,7 +32,6 @@ mod schema;
 mod session;
 #[cfg(test)]
 mod tests {
-    pub(crate) use super::*;
 
     /// 构造用于 fallback 派生测试的最小请求（system + 工具名 + 消息序列）
     fn fallback_req(

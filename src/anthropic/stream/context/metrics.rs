@@ -5,7 +5,6 @@ use super::StreamContext;
 use crate::anthropic::stream::calib::NEAR_EMPTY_OUTPUT_THRESHOLD;
 use crate::anthropic::stream::calib::empty_response_oversized_threshold;
 use crate::anthropic::stream::helpers::tokens_from_chars;
-use crate::anthropic::stream::state::SseEvent;
 
 impl StreamContext {
     /// 计费口径的输出 tokens（含 thinking）——用于入库、`effective_rate` 与近似空响应判定

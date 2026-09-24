@@ -3,9 +3,7 @@
 #[cfg(test)]
 mod tests {
     use crate::anthropic::stream::{
-        CLIENT_ASSUMED_CONTEXT_WINDOW, SseEvent, SseStateManager, StreamContext,
-        context_window_for_model, count_token_chars, find_real_thinking_end_tag,
-        find_real_thinking_end_tag_at_buffer_end, find_real_thinking_start_tag, scale_for_client,
+        SseEvent, SseStateManager, StreamContext, count_token_chars, scale_for_client,
         split_thinking_and_visible, tokens_from_chars,
     };
     use crate::cache::PromptCacheUsage;

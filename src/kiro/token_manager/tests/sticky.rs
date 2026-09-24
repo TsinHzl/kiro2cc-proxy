@@ -2,17 +2,13 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
-    
-    
-    
+
     use super::super::super::types::{
-        MultiTokenManager,
-        STICKY_CACHE_TTL, STICKY_THROTTLE_EVICT_THRESHOLD,
+        MultiTokenManager, STICKY_CACHE_TTL, STICKY_THROTTLE_EVICT_THRESHOLD,
     };
-    
+
     use crate::kiro::model::credentials::KiroCredentials;
-    
+
     use crate::model::config::Config;
     use chrono::{Duration, Utc};
 

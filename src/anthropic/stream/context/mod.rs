@@ -11,11 +11,8 @@ use crate::cache::PromptCacheUsage;
 use crate::kiro::model::events::Event;
 use crate::model::usage::UsageTracker;
 
-use super::calib::{
-    NEAR_EMPTY_OUTPUT_THRESHOLD, cap_input_tokens, empty_response_oversized_threshold,
-    scale_for_client,
-};
-use super::helpers::{count_token_chars, generate_fake_signature, tokens_from_chars};
+use super::calib::{cap_input_tokens, scale_for_client};
+use super::helpers::count_token_chars;
 use super::state::{SseEvent, SseStateManager};
 use super::thinking::{
     find_char_boundary, find_real_thinking_end_tag, find_real_thinking_end_tag_at_buffer_end,

@@ -3,13 +3,10 @@
 #[cfg(test)]
 pub(crate) mod tests {
     use super::super::super::TokenManager;
-    
-    
-    
-    
+
     use super::super::super::{is_token_expired, is_token_expiring_soon};
     use crate::kiro::model::credentials::KiroCredentials;
-    
+
     use crate::model::config::Config;
     use chrono::{Duration, Utc};
 

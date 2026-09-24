@@ -2,16 +2,13 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
-    
+
     use super::super::super::refresh::RefreshTokenInvalidError;
-    
-    
+
     use super::super::super::refresh_token;
     use crate::kiro::model::credentials::KiroCredentials;
-    
+
     use crate::model::config::Config;
-    
 
     pub(crate) async fn spawn_single_response_server(status: u16, body: &'static str) -> String {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};

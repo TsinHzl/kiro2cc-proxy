@@ -2,16 +2,15 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
+
     use super::super::super::entry::DisabledReason;
-    
-    
+
     use super::super::super::types::{
         MAX_FAILURES_PER_CREDENTIAL, MultiTokenManager, QUOTA_EXHAUSTED_ALL_MARKER,
     };
-    
+
     use crate::kiro::model::credentials::KiroCredentials;
-    
+
     use crate::kiro::token_manager::tests::ext_idp::tests::spawn_single_response_server;
     use crate::kiro::token_manager::tests::sticky::tests::make_valid_cred;
     use crate::model::config::Config;

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
     use crate::model::usage::{UsageTracker, calculate_cost, get_k_ref};
     use std::collections::HashMap;
 

@@ -23,7 +23,4 @@ pub(crate) use helpers::{count_token_chars, tokens_from_chars};
 #[cfg(test)]
 pub(crate) use state::SseStateManager;
 #[cfg(test)]
-pub(crate) use thinking::{
-    find_real_thinking_end_tag, find_real_thinking_end_tag_at_buffer_end,
-    find_real_thinking_start_tag,
-};
+pub(crate) use thinking::{find_real_thinking_end_tag, find_real_thinking_start_tag};

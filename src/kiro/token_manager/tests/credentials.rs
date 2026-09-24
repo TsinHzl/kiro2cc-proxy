@@ -2,21 +2,15 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    
-    
-    
-    
+
     use super::super::super::types::MultiTokenManager;
-    
-    use crate::kiro::model::credentials::{
-        BUILDER_ID_PLACEHOLDER_PROFILE_ARN, KiroCredentials,
-    };
-    
+
+    use crate::kiro::model::credentials::{BUILDER_ID_PLACEHOLDER_PROFILE_ARN, KiroCredentials};
+
     use crate::kiro::token_manager::tests::ext_idp::tests::{
         TempDirGuard, spawn_single_response_server,
     };
     use crate::model::config::Config;
-    
 
     #[tokio::test]
     async fn test_add_credential_reject_duplicate_refresh_token() {

@@ -1,20 +1,37 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-// 模型列表与缓存测试（自 handlers/tests.rs 拆出，纯代码搬移）
+// /cc/v1/messages 端点测试（自 post_messages_cc.rs 拆出，纯代码搬移）
+
 #[cfg(test)]
 mod tests {
-
-    use super::super::super::models::{
+    use super::super::bridge::{
+        BridgeContext, BridgePhase, BridgeRoundOutcome, BridgeState, PendingSearch,
+        body_dummy_bytes, bridge_execute_round, bridge_handle_event, build_bridge_context,
+        build_continuation_request, build_search_tool_result, build_web_search_result_block,
+        flush_unpaired_search_blocks, harvest_bridge_round,
+    };
+    use super::super::error::{format_prompt_too_long, map_provider_error_with_context};
+    use super::super::models::{
         ModelCache, available_model_to_model, build_model_list, cached_if_fresh,
         fetch_models_dynamic, get_model, guess_owned_by, resolve_after_refresh,
     };
-
+    use super::super::nonstream::{build_non_stream_content, non_stream_bridge_step};
+    use super::super::stream::{
+        create_ping_sse, deadline_error_event, stream_interrupted_error_event, wait_deadline,
+    };
+    use super::*;
     use crate::anthropic::middleware::AppState;
-
-    use crate::anthropic::types::Model;
-
-    use axum::{extract::State, http::StatusCode};
-
+    use crate::anthropic::stream::CLIENT_ASSUMED_CONTEXT_WINDOW;
+    use crate::anthropic::stream::scale_for_client;
+    use crate::anthropic::stream::{SseEvent, StreamContext};
+    use crate::anthropic::types::{Model, Thinking};
+    use crate::kiro::model::requests::conversation::ConversationState;
+    use crate::kiro::parser::decoder::EventStreamDecoder;
+    use axum::http::StatusCode;
+    use axum::response::Response;
+    use serde_json::json;
+    use std::collections::VecDeque;
     use std::time::Duration;
+    use tokio::time::Instant;
 
     fn find_by_id(id: &str) -> Option<Model> {
         build_model_list().into_iter().find(|m| m.id == id)
@@ -44,14 +61,14 @@ mod tests {
         }
     }
 
-    fn new_cache(entry: Option<crate::anthropic::middleware::CachedModels>) -> ModelCache {
+    fn new_cache(entry: Option<super::super::super::middleware::CachedModels>) -> ModelCache {
         std::sync::Arc::new(parking_lot::RwLock::new(entry))
     }
 
     // 分支 1：缓存命中且未过期 → 返回缓存，不触发刷新
     #[test]
     fn test_cached_if_fresh_hit() {
-        let cache = new_cache(Some(crate::anthropic::middleware::CachedModels {
+        let cache = new_cache(Some(super::super::super::middleware::CachedModels {
             models: vec![fake_model("cached-a")],
             fetched_at: std::time::Instant::now(),
         }));
@@ -63,7 +80,7 @@ mod tests {
     // 分支 1 反例：缓存过期 → 视为未命中
     #[test]
     fn test_cached_if_fresh_expired() {
-        let cache = new_cache(Some(crate::anthropic::middleware::CachedModels {
+        let cache = new_cache(Some(super::super::super::middleware::CachedModels {
             models: vec![fake_model("stale")],
             fetched_at: std::time::Instant::now() - Duration::from_secs(10),
         }));
@@ -87,7 +104,7 @@ mod tests {
     // 分支 3：刷新失败但有旧缓存 → 续用旧缓存
     #[test]
     fn test_resolve_after_refresh_failure_uses_old_cache() {
-        let cache = new_cache(Some(crate::anthropic::middleware::CachedModels {
+        let cache = new_cache(Some(super::super::super::middleware::CachedModels {
             models: vec![fake_model("old")],
             fetched_at: std::time::Instant::now(),
         }));
@@ -237,4 +254,5 @@ mod tests {
         // 回归
         assert_eq!(find_by_id("claude-sonnet-4-6").unwrap().max_tokens, 64000);
     }
+
 }

@@ -26,16 +26,3 @@ pub use post_messages_cc::post_messages_cc;
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-pub(crate) use bridge::{
-    BridgePhase, BridgeRoundOutcome, BridgeState, PendingSearch, bridge_handle_event,
-    build_bridge_context, build_continuation_request, build_search_tool_result,
-    flush_unpaired_search_blocks, harvest_bridge_round,
-};
-#[cfg(test)]
-pub(crate) use helpers::resolve_thinking_enabled;
-#[cfg(test)]
-pub(crate) use models::{cached_if_fresh, resolve_after_refresh};
-#[cfg(test)]
-pub(crate) use nonstream::{build_non_stream_content, non_stream_bridge_step};

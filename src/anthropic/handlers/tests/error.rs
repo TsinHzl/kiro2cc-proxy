@@ -3,30 +3,20 @@
 #[cfg(test)]
 mod tests {
 
-    use super::super::super::bridge::{
-        BridgeContext, BridgePhase, BridgeRoundOutcome, BridgeState, PendingSearch,
-        body_dummy_bytes, bridge_execute_round, bridge_handle_event, build_bridge_context,
-        build_continuation_request, build_search_tool_result, build_web_search_result_block,
-        flush_unpaired_search_blocks, harvest_bridge_round,
-    };
     use super::super::super::error::{format_prompt_too_long, map_provider_error_with_context};
     use super::super::super::helpers::resolve_thinking_enabled;
-    use super::super::super::models::{
-        ModelCache, available_model_to_model, build_model_list, cached_if_fresh,
-        fetch_models_dynamic, get_model, guess_owned_by, resolve_after_refresh,
-    };
-    use super::super::super::nonstream::{build_non_stream_content, non_stream_bridge_step};
+
+    use super::super::super::nonstream::build_non_stream_content;
     use super::super::super::stream::{stream_interrupted_error_event, wait_deadline};
-    use crate::anthropic::middleware::AppState;
+
     use crate::anthropic::stream::{CLIENT_ASSUMED_CONTEXT_WINDOW, scale_for_client};
-    use crate::anthropic::stream::{SseEvent, StreamContext};
-    use crate::anthropic::types::{Model, Thinking};
-    use crate::kiro::model::requests::conversation::ConversationState;
-    use crate::kiro::parser::decoder::EventStreamDecoder;
+
+    use crate::anthropic::types::Thinking;
+
+    use axum::http::StatusCode;
     use axum::response::Response;
-    use axum::{extract::State, http::StatusCode};
     use serde_json::json;
-    use std::collections::VecDeque;
+
     use std::time::Duration;
     use tokio::time::Instant;
 

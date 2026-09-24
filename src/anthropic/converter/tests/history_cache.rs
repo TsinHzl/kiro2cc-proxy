@@ -50,7 +50,6 @@ fn test_system_history_refreshes_when_content_changes() {
 }
 
 #[test]
-#[test]
 fn test_system_history_uses_only_current_reminder() {
     use crate::anthropic::types::{Message as AnthropicMessage, Metadata, SystemMessage};
 

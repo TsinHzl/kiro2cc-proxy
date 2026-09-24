@@ -73,7 +73,6 @@ fn test_normalize_json_schema_repairs_nested_invalid_values() {
 }
 
 #[test]
-#[test]
 fn test_normalize_resolves_ref_from_defs() {
     // MCP/pydantic 风格：属性用 $ref 指向 $defs 中的子 schema。
     let schema = serde_json::json!({
@@ -108,7 +107,6 @@ fn test_normalize_resolves_ref_from_defs() {
 }
 
 #[test]
-#[test]
 fn test_normalize_ref_cycle_does_not_panic() {
     // 自引用循环：展开应在深度上限处兜底，不栈溢出。
     let schema = serde_json::json!({
@@ -131,7 +129,6 @@ fn test_normalize_ref_cycle_does_not_panic() {
     assert!(normalized.get("$defs").is_none());
 }
 
-#[test]
 #[test]
 fn test_normalize_unresolvable_ref_degrades_to_object() {
     // OpenAPI 风格 / 外部 / 不存在的 $ref：无法展开，应降级为宽松 object，

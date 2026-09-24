@@ -56,7 +56,6 @@ fn test_create_placeholder_tool() {
 }
 
 #[test]
-#[test]
 fn test_history_tools_added_to_tools_list() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -110,7 +109,6 @@ fn test_history_tools_added_to_tools_list() {
 }
 
 #[test]
-#[test]
 fn test_validate_tool_pairing_orphaned_result() {
     // 测试孤立的 tool_result 被过滤
     // 历史中没有 tool_use，但 tool_results 中有 tool_result
@@ -127,7 +125,6 @@ fn test_validate_tool_pairing_orphaned_result() {
     assert!(filtered.is_empty(), "孤立的 tool_result 应该被过滤");
 }
 
-#[test]
 #[test]
 fn test_validate_tool_pairing_orphaned_use() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
@@ -161,7 +158,6 @@ fn test_validate_tool_pairing_orphaned_use() {
 }
 
 #[test]
-#[test]
 fn test_validate_tool_pairing_valid() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
 
@@ -191,7 +187,6 @@ fn test_validate_tool_pairing_valid() {
     assert!(orphaned.is_empty());
 }
 
-#[test]
 #[test]
 fn test_validate_tool_pairing_mixed() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
@@ -225,7 +220,6 @@ fn test_validate_tool_pairing_mixed() {
     assert!(orphaned.contains("tool-2"));
 }
 
-#[test]
 #[test]
 fn test_validate_tool_pairing_history_already_paired() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
@@ -273,7 +267,6 @@ fn test_validate_tool_pairing_history_already_paired() {
 }
 
 #[test]
-#[test]
 fn test_validate_tool_pairing_duplicate_result() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
 
@@ -313,7 +306,6 @@ fn test_validate_tool_pairing_duplicate_result() {
 }
 
 #[test]
-#[test]
 fn test_convert_assistant_message_tool_use_only() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -349,7 +341,6 @@ fn test_convert_assistant_message_tool_use_only() {
 }
 
 #[test]
-#[test]
 fn test_convert_assistant_message_with_text_and_tool_use() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -379,7 +370,6 @@ fn test_convert_assistant_message_with_text_and_tool_use() {
     assert_eq!(tool_uses[0].tool_use_id, "toolu_02XYZ");
 }
 
-#[test]
 #[test]
 fn test_remove_orphaned_tool_uses() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
@@ -421,7 +411,6 @@ fn test_remove_orphaned_tool_uses() {
 }
 
 #[test]
-#[test]
 fn test_remove_orphaned_tool_uses_all_removed() {
     use crate::kiro::model::requests::tool::ToolUseEntry;
 
@@ -454,7 +443,6 @@ fn test_remove_orphaned_tool_uses_all_removed() {
     }
 }
 
-#[test]
 #[test]
 fn test_merge_consecutive_assistant_messages() {
     // 测试连续 assistant 消息被正确合并（Issue #79）
@@ -496,7 +484,6 @@ fn test_merge_consecutive_assistant_messages() {
     assert_eq!(tool_uses[0].tool_use_id, "toolu_01ABC");
 }
 
-#[test]
 #[test]
 fn test_consecutive_assistant_with_tool_use_result_pairing() {
     // 测试 Issue #79 的完整场景

@@ -29,7 +29,6 @@ fn ws_tool(
 }
 
 #[test]
-#[test]
 fn test_is_web_search_server_tool() {
     // tool_type 含 web_search 即命中（官方 server tool 格式）
     assert!(is_web_search_server_tool(&ws_tool(
@@ -53,7 +52,6 @@ fn test_is_web_search_server_tool() {
 }
 
 #[test]
-#[test]
 fn test_split_web_search_tool_mixed_list() {
     // 混合列表：剔除 server tool、提取 max_uses、保留普通工具
     let mut req = fallback_req(None, &["Read", "Write"], &[("user", "hi")]);
@@ -69,7 +67,6 @@ fn test_split_web_search_tool_mixed_list() {
 }
 
 #[test]
-#[test]
 fn test_split_web_search_tool_no_hit() {
     // 无 server tool：返回 None，普通工具列表原样
     let req = fallback_req(None, &["Read", "Bash"], &[("user", "hi")]);
@@ -80,7 +77,6 @@ fn test_split_web_search_tool_no_hit() {
     assert!(split_web_search_tool(&req).is_none());
 }
 
-#[test]
 #[test]
 fn test_split_web_search_tool_no_max_uses() {
     // 携带 server tool 但未声明 max_uses：内层 None
@@ -96,7 +92,6 @@ fn test_split_web_search_tool_no_max_uses() {
     assert_eq!(ordinary[0].name, "Read");
 }
 
-#[test]
 #[test]
 fn test_split_web_search_tool_multiple_declarations_first_wins() {
     // 异常场景：同一请求声明多个 web_search server tool——首个声明的
@@ -114,7 +109,6 @@ fn test_split_web_search_tool_multiple_declarations_first_wins() {
 }
 
 #[test]
-#[test]
 fn test_split_web_search_tool_first_declared_none_then_some() {
     // 首个声明未带 max_uses、后续声明带：首个 None 不锁定上限，向后取首个
     // 有效值（守卫语义为"首个有效声明生效"，避免有效上限被静默丢失）
@@ -128,7 +122,6 @@ fn test_split_web_search_tool_first_declared_none_then_some() {
     assert_eq!(ordinary.len(), 1);
 }
 
-#[test]
 #[test]
 fn test_convert_request_removes_web_search_from_context_tools() {
     use crate::anthropic::types::Message as AnthropicMessage;
@@ -177,7 +170,6 @@ fn test_convert_request_removes_web_search_from_context_tools() {
 }
 
 #[test]
-#[test]
 fn test_convert_request_no_web_search_passes_through() {
     // 无 server tool：web_search_max_uses 为外层 None，工具列表与直接转换一致
     let req = fallback_req(None, &["Read"], &[("user", "hi")]);
@@ -192,7 +184,6 @@ fn test_convert_request_no_web_search_passes_through() {
     assert!(tools.iter().any(|t| t.tool_specification.name == "Read"));
 }
 
-#[test]
 #[test]
 fn test_collect_history_tool_names_excludes_web_search() {
     use crate::kiro::model::requests::tool::ToolUseEntry;

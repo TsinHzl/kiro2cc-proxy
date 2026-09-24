@@ -62,7 +62,6 @@ fn test_gpt_thinking_is_not_injected_into_history() {
 }
 
 #[test]
-#[test]
 fn test_gpt_anti_pseudo_tag_hint_not_injected_without_thinking_request() {
     // 客户端未请求 thinking 时，不应注入反伪标签引导语（避免污染日常请求的
     // 系统提示与 prompt cache key）。
@@ -95,7 +94,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_without_thinking_request() {
     assert!(!content.contains("pseudo-XML"));
 }
 
-#[test]
 #[test]
 fn test_gpt_anti_pseudo_tag_hint_not_injected_when_thinking_explicitly_disabled() {
     // CR 修复回归测试：客户端可能显式传 `{"type": "disabled"}` 来关闭 thinking
@@ -139,7 +137,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_when_thinking_explicitly_disabled(
 }
 
 #[test]
-#[test]
 fn test_gpt_anti_pseudo_tag_hint_injected_for_luna_without_system_message() {
     // luna 没有传 system，但请求了 thinking：仍需插入反伪标签引导语，
     // 否则该场景下模型完全没有任何行为约束。
@@ -173,7 +170,6 @@ fn test_gpt_anti_pseudo_tag_hint_injected_for_luna_without_system_message() {
     assert!(content.contains("pseudo-XML"));
 }
 
-#[test]
 #[test]
 fn test_gpt_anti_pseudo_tag_hint_not_injected_for_terra_or_sol() {
     // 范围收窄：terra/sol 没有 luna 那样的实测问题依据，即使客户端请求了
@@ -216,7 +212,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_for_terra_or_sol() {
 }
 
 #[test]
-#[test]
 fn test_non_gpt_model_thinking_request_no_anti_pseudo_tag_hint() {
     // 非 GPT 模型走 Claude/Kiro 结构化 thinking 协议，不应注入 GPT 专用的
     // 反伪标签引导语（该模型已有 <thinking_mode> 标签约束）。
@@ -253,7 +248,6 @@ fn test_non_gpt_model_thinking_request_no_anti_pseudo_tag_hint() {
     assert!(!content.contains("pseudo-XML"));
 }
 
-#[test]
 #[test]
 fn test_thinking_prefix_adaptive_effort_alignment() {
     // 回归测试（issue #40 CR #1）：generate_thinking_prefix 的 adaptive 分支
@@ -334,7 +328,6 @@ fn test_thinking_prefix_adaptive_effort_alignment() {
     assert!(prefix.contains("<max_thinking_length>24576</max_thinking_length>"));
 }
 
-#[test]
 #[test]
 fn test_thinking_prefix_gpt_generation() {
     // 回归测试：GPT 系 thinking 前缀注入范围收窄至 luna。

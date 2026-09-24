@@ -21,7 +21,6 @@ fn test_extract_pdf_text_from_simple_tj_pdf() {
 }
 
 #[test]
-#[test]
 fn test_extract_pdf_text_non_ascii_no_panic() {
     use base64::Engine as _;
 

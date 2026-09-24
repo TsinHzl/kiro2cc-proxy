@@ -189,7 +189,12 @@ impl KiroProvider {
                     continue;
                 }
             };
-            tracing::debug!("[KIRO-REQUEST] url={} body={}", url, effective_body);
+            // 请求体可能含敏感上下文，禁止整包入日志，只记录 URL 与长度（cr-result C6）
+            tracing::debug!(
+                "[KIRO-REQUEST] url={} body_len={}",
+                url,
+                effective_body.len()
+            );
             let response = match client
                 .post(&url)
                 .headers(headers)

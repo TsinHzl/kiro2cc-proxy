@@ -121,7 +121,7 @@ pub(crate) fn map_provider_error_with_context(
 ///
 /// 替代 axum 的 `Json<MessagesRequest>` 提取器——后者反序列化失败时直接返回 400
 /// 且不记录任何信息，导致无法定位是哪个字段/格式导致客户端请求被拒。
-/// 此函数在失败时打印 serde 错误（行列+字段路径）、body 长度、出错位置附近的片段。
+/// 此函数在失败时打印 serde 错误（行列+字段路径）、body 长度、出错行首 12 字符前缀（脱敏）。
 #[allow(clippy::result_large_err)]
 pub(crate) fn parse_messages_request(body: &[u8]) -> Result<MessagesRequest, Response> {
     match serde_json::from_slice::<MessagesRequest>(body) {
@@ -132,20 +132,19 @@ pub(crate) fn parse_messages_request(body: &[u8]) -> Result<MessagesRequest, Res
             let col = e.column();
             // 估算出错字节偏移附近的上下文（按行列粗略定位，取该行附近 200 字节）
             let body_str = String::from_utf8_lossy(body);
-            let snippet: String = body_str
+            // 请求体可能含 API Key 与敏感上下文（cr-result C1）：
+            // 仅记录出错行首 12 字符前缀做定位线索，不回显完整片段
+            let line_prefix: String = body_str
                 .lines()
                 .nth(line.saturating_sub(1))
-                .map(|l| {
-                    let start = col.saturating_sub(80);
-                    l.chars().skip(start).take(200).collect()
-                })
+                .map(|l| l.chars().take(12).collect())
                 .unwrap_or_default();
             tracing::error!(
                 error = %e,
                 serde_line = line,
                 serde_col = col,
                 body_len = body.len(),
-                snippet = %snippet,
+                line_prefix = %line_prefix,
                 "[REQ-DIAG] /v1/messages 请求体反序列化失败（导致 400，客户端那轮中断）"
             );
             Err((

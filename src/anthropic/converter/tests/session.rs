@@ -32,7 +32,6 @@ fn test_determine_chat_trigger_type() {
 }
 
 #[test]
-#[test]
 fn test_determine_agent_task_type_no_tools() {
     use crate::anthropic::types::Message as AnthropicMessage;
     let req = MessagesRequest {
@@ -53,7 +52,6 @@ fn test_determine_agent_task_type_no_tools() {
     assert_eq!(determine_agent_task_type(&req), "vibe");
 }
 
-#[test]
 #[test]
 fn test_determine_agent_task_type_code_tools() {
     use crate::anthropic::types::{Message as AnthropicMessage, Tool};
@@ -93,7 +91,6 @@ fn test_determine_agent_task_type_code_tools() {
 }
 
 #[test]
-#[test]
 fn test_determine_agent_task_type_non_code_tools() {
     use crate::anthropic::types::{Message as AnthropicMessage, Tool};
     let req = MessagesRequest {
@@ -122,7 +119,6 @@ fn test_determine_agent_task_type_non_code_tools() {
 }
 
 #[test]
-#[test]
 fn test_determine_agent_task_type_bash_tool() {
     use crate::anthropic::types::{Message as AnthropicMessage, Tool};
     let req = MessagesRequest {
@@ -150,7 +146,6 @@ fn test_determine_agent_task_type_bash_tool() {
     assert_eq!(determine_agent_task_type(&req), "spectask");
 }
 
-#[test]
 #[test]
 fn test_extract_session_id_pure_uuid_passthrough() {
     // 纯 UUID 直通：OpenAI user 字段透传场景，显式声明的会话身份直接采用
@@ -193,7 +188,6 @@ fn test_extract_session_id_pure_uuid_passthrough() {
 }
 
 #[test]
-#[test]
 fn test_extract_session_id_valid() {
     // 标准格式: user_xxx_account__session_UUID
     let user_id = "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_8bb5523b-ec7c-4540-a9ca-beb6d79f1552";
@@ -204,7 +198,6 @@ fn test_extract_session_id_valid() {
     );
 }
 
-#[test]
 #[test]
 fn test_extract_session_id_json_format() {
     // JSON 格式: {"session_id":"UUID"} — Claude Code 2.1.128+ 实际发送的格式
@@ -217,7 +210,6 @@ fn test_extract_session_id_json_format() {
 }
 
 #[test]
-#[test]
 fn test_extract_session_id_json_id_field() {
     // JSON 格式: {"id":"UUID"} — 备用字段名
     let user_id = r#"{"id":"3d69af26-0a80-483f-baa0-b4ccaaa07e81"}"#;
@@ -228,7 +220,6 @@ fn test_extract_session_id_json_id_field() {
     );
 }
 
-#[test]
 #[test]
 fn test_extract_session_id_json_pollution_rejected() {
     // 旧版 bug：session_id":"xxx 被误识别为合法 UUID，现在应该被拒绝
@@ -245,7 +236,6 @@ fn test_extract_session_id_json_pollution_rejected() {
 }
 
 #[test]
-#[test]
 fn test_extract_session_id_no_session() {
     // 没有 session 的 user_id
     let user_id = "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd";
@@ -254,7 +244,6 @@ fn test_extract_session_id_no_session() {
 }
 
 #[test]
-#[test]
 fn test_extract_session_id_invalid_uuid() {
     // 无效的 UUID 格式
     let user_id = "user_xxx_session_invalid-uuid";
@@ -262,7 +251,6 @@ fn test_extract_session_id_invalid_uuid() {
     assert_eq!(session_id, None);
 }
 
-#[test]
 #[test]
 fn test_extract_session_id_non_ascii_no_panic() {
     // 回归：session_ 之后第 36 字节落在多字节 UTF-8 字符中间，
@@ -296,7 +284,6 @@ fn test_derive_fallback_distinguishes_different_sessions() {
 }
 
 #[test]
-#[test]
 fn test_derive_fallback_stable_across_turns() {
     // 同一会话的后续轮次追加历史消息，首条消息不变 → conversationId 必须保持稳定，
     // 否则每轮都会重新绑定账号，sticky 与上游 prompt cache 全部失效
@@ -321,7 +308,6 @@ fn test_derive_fallback_stable_across_turns() {
     );
 }
 
-#[test]
 #[test]
 fn test_derive_fallback_array_content_ignores_binary_blocks() {
     // 数组型 content：只有顶层 text 块参与 seed，image 的 base64 数据不参与
@@ -350,7 +336,6 @@ fn test_derive_fallback_array_content_ignores_binary_blocks() {
 }
 
 #[test]
-#[test]
 fn test_derive_fallback_bare_request_uses_first_message() {
     // 无 system 也无工具的裸请求改用首条消息派生稳定 ID：
     // 上游 prompt cache 依赖跨轮会话身份稳定，实测可省约 38% credits
@@ -368,7 +353,6 @@ fn test_derive_fallback_bare_request_uses_first_message() {
     );
 }
 
-#[test]
 #[test]
 fn test_derive_fallback_bare_request_stable_across_turns() {
     // 裸请求同一会话跨轮：首条消息不变 → conversationId 稳定
@@ -392,7 +376,6 @@ fn test_derive_fallback_bare_request_stable_across_turns() {
     );
 }
 
-#[test]
 #[test]
 fn test_agent_continuation_id_stable_within_session() {
     use crate::anthropic::types::{Message as AnthropicMessage, Metadata};
@@ -437,7 +420,6 @@ fn test_agent_continuation_id_stable_within_session() {
 }
 
 #[test]
-#[test]
 fn test_agent_continuation_id_differs_across_sessions() {
     use crate::anthropic::types::{Message as AnthropicMessage, Metadata};
 
@@ -476,7 +458,6 @@ fn test_agent_continuation_id_differs_across_sessions() {
 }
 
 #[test]
-#[test]
 fn test_agent_continuation_id_stable_for_bare_request_without_metadata() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -513,7 +494,6 @@ fn test_agent_continuation_id_stable_for_bare_request_without_metadata() {
 }
 
 #[test]
-#[test]
 fn test_convert_request_with_session_metadata() {
     use crate::anthropic::types::{Message as AnthropicMessage, Metadata};
 
@@ -545,7 +525,6 @@ fn test_convert_request_with_session_metadata() {
     );
 }
 
-#[test]
 #[test]
 fn test_convert_request_without_metadata() {
     use crate::anthropic::types::Message as AnthropicMessage;
@@ -582,7 +561,6 @@ fn test_convert_request_without_metadata() {
 }
 
 #[test]
-#[test]
 fn test_is_compact_request_manual_slash_compact() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -601,7 +579,6 @@ fn test_is_compact_request_manual_slash_compact() {
 }
 
 #[test]
-#[test]
 fn test_is_compact_request_reactive_compact_prompt() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -618,7 +595,6 @@ fn test_is_compact_request_reactive_compact_prompt() {
 }
 
 #[test]
-#[test]
 fn test_is_compact_request_reactive_prompt_case_insensitive() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -634,7 +610,6 @@ fn test_is_compact_request_reactive_prompt_case_insensitive() {
 }
 
 #[test]
-#[test]
 fn test_is_compact_request_content_block_array() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -648,7 +623,6 @@ fn test_is_compact_request_content_block_array() {
     assert!(is_compact_request(&messages));
 }
 
-#[test]
 #[test]
 fn test_is_compact_request_normal_request_not_flagged() {
     use crate::anthropic::types::Message as AnthropicMessage;
@@ -673,7 +647,6 @@ fn test_is_compact_request_normal_request_not_flagged() {
     assert!(!is_compact_request(&messages));
 }
 
-#[test]
 #[test]
 fn test_is_compact_request_only_checks_last_user_turn() {
     use crate::anthropic::types::Message as AnthropicMessage;
@@ -700,7 +673,6 @@ fn test_is_compact_request_only_checks_last_user_turn() {
     assert!(!is_compact_request(&messages));
 }
 
-#[test]
 #[test]
 fn test_is_compact_request_empty_messages() {
     let messages: Vec<crate::anthropic::types::Message> = vec![];

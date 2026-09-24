@@ -152,7 +152,7 @@ pub async fn post_messages_cc(
         }
     };
 
-    tracing::debug!("Kiro request body: {}", request_body);
+    // 请求体可能包含 API Key 与敏感上下文，禁止整包入日志（cr-result C4）
 
     // 构造 fingerprint profile（cc 端点同样接入指纹追踪）
     let fp_tracker = state.fingerprint_tracker.clone();

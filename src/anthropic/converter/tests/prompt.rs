@@ -56,7 +56,6 @@ fn test_json_schema_output_config_appends_instruction() {
 }
 
 #[test]
-#[test]
 fn test_recent_knowledge_prompt_appends_answer_reference() {
     use crate::anthropic::types::Message as AnthropicMessage;
 
@@ -90,7 +89,6 @@ fn test_recent_knowledge_prompt_appends_answer_reference() {
     assert!(content.contains("Keep the requested output format"));
 }
 
-#[test]
 #[test]
 fn test_unrelated_prompt_does_not_append_recent_knowledge_reference() {
     assert_eq!(

@@ -26,7 +26,6 @@ fn test_map_model_sonnet() {
 }
 
 #[test]
-#[test]
 fn test_map_model_opus() {
     assert!(
         map_model("claude-opus-4-20250514")
@@ -36,7 +35,6 @@ fn test_map_model_opus() {
 }
 
 #[test]
-#[test]
 fn test_map_model_haiku() {
     assert!(
         map_model("claude-haiku-4-20250514")
@@ -45,7 +43,6 @@ fn test_map_model_haiku() {
     );
 }
 
-#[test]
 #[test]
 fn test_map_model_passthrough_unknown() {
     // 开放透传：未命中内置规则的非空模型 ID 原样透传
@@ -57,7 +54,6 @@ fn test_map_model_passthrough_unknown() {
 }
 
 #[test]
-#[test]
 fn test_map_model_passthrough_strips_thinking() {
     // 透传时剥离 -thinking 标记（thinking 由 req.thinking 单独控制）
     assert_eq!(map_model("gpt-4-thinking").unwrap(), "gpt-4");
@@ -68,7 +64,6 @@ fn test_map_model_passthrough_strips_thinking() {
 }
 
 #[test]
-#[test]
 fn test_map_model_empty_rejected() {
     // 空字符串仍拒绝
     assert!(map_model("").is_none());
@@ -76,7 +71,6 @@ fn test_map_model_empty_rejected() {
     assert!(map_model("-thinking").is_none());
 }
 
-#[test]
 #[test]
 fn test_map_model_builtin_rules_unaffected() {
     // 内置规则优先级不变
@@ -86,7 +80,6 @@ fn test_map_model_builtin_rules_unaffected() {
 }
 
 #[test]
-#[test]
 fn test_map_model_gpt_5_6_variants() {
     assert_eq!(map_model("gpt-5.6-sol").unwrap(), "gpt-5.6-sol");
     assert_eq!(map_model("gpt-5.6-terra").unwrap(), "gpt-5.6-terra");
@@ -95,14 +88,12 @@ fn test_map_model_gpt_5_6_variants() {
 }
 
 #[test]
-#[test]
 fn test_map_model_thinking_suffix_sonnet() {
     // thinking 后缀不应影响 sonnet 模型映射
     let result = map_model("claude-sonnet-4-5-20250929-thinking");
     assert_eq!(result, Some("claude-sonnet-4.5".to_string()));
 }
 
-#[test]
 #[test]
 fn test_map_model_opus_5_aliases() {
     assert_eq!(map_model("claude-opus-5").unwrap(), "claude-opus-5");
@@ -133,14 +124,12 @@ fn test_map_model_opus_5_aliases() {
 }
 
 #[test]
-#[test]
 fn test_map_model_thinking_suffix_opus_4_5() {
     // thinking 后缀不应影响 opus 4.5 模型映射
     let result = map_model("claude-opus-4-5-20251101-thinking");
     assert_eq!(result, Some("claude-opus-4.5".to_string()));
 }
 
-#[test]
 #[test]
 fn test_map_model_thinking_suffix_opus_4_6() {
     // thinking 后缀不应影响 opus 4.6 模型映射
@@ -149,14 +138,12 @@ fn test_map_model_thinking_suffix_opus_4_6() {
 }
 
 #[test]
-#[test]
 fn test_map_model_thinking_suffix_haiku() {
     // thinking 后缀不应影响 haiku 模型映射
     let result = map_model("claude-haiku-4-5-20251001-thinking");
     assert_eq!(result, Some("claude-haiku-4.5".to_string()));
 }
 
-#[test]
 #[test]
 fn test_map_model_fable_routes_to_kiro_fable() {
     assert_eq!(
@@ -169,7 +156,6 @@ fn test_map_model_fable_routes_to_kiro_fable() {
     );
 }
 
-#[test]
 #[test]
 fn test_map_model_opus_4_6_unchanged() {
     // 回归：opus-4-6 默认走 claude-opus-4.6

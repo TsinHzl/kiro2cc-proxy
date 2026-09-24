@@ -24,7 +24,6 @@ fn test_model_max_output_tokens_opus_5() {
 }
 
 #[test]
-#[test]
 fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude_models() {
     // 回归测试：Kiro 侧 schema 对 max_tokens 强制 minimum = 1024，对支持
     // additionalModelRequestFields 的 Claude 代际生效（实测 claude-sonnet-4-6
@@ -69,7 +68,6 @@ fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude
     }
 }
 
-#[test]
 #[test]
 fn test_output_config_effort_passthrough_with_default() {
     // effort 透传 + 默认注入（回退 issue #40 的仅透传行为）：客户端显式携带
@@ -162,7 +160,6 @@ fn test_output_config_effort_passthrough_with_default() {
 }
 
 #[test]
-#[test]
 fn test_4_5_generation_skips_fields_even_with_output_config() {
     // 回归测试（CR #3 补充）：4.5 代际模型即使客户端携带 output_config，
     // 也必须整体跳过 additionalModelRequestFields（该代际 schema 不接受
@@ -196,7 +193,6 @@ fn test_4_5_generation_skips_fields_even_with_output_config() {
     }
 }
 
-#[test]
 #[test]
 fn test_gpt_5_6_additional_model_request_fields_is_none() {
     // 实测（抓包）：gpt-5.6-* 使用 additionalModelRequestFields.reasoning.effort 路径，
@@ -240,7 +236,6 @@ fn test_gpt_5_6_additional_model_request_fields_is_none() {
     );
 }
 
-#[test]
 #[test]
 fn test_claude_4_5_generation_additional_model_request_fields_is_none() {
     // 回归测试（haiku-4.5 全部请求 400 修复）：实测 claude-sonnet-4.5 /

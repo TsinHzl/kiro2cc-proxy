@@ -43,7 +43,10 @@ impl MultiTokenManager {
         let max_existing_id = credentials.iter().filter_map(|c| c.id).max().unwrap_or(0);
         let persisted_max_id = Self::load_id_counter_from_path(credentials_path.as_deref());
         let starting_max_id = max_existing_id.max(persisted_max_id);
-        let mut next_id = starting_max_id + 1;
+        // checked_add 防御：ID 计数器逼近 u64::MAX 时报错而非静默回绕（cr-result C7）
+        let mut next_id = starting_max_id
+            .checked_add(1)
+            .expect("credential id 计数器溢出（u64::MAX），credentials.json 异常");
         let mut has_new_ids = false;
         let mut has_new_machine_ids = false;
         let mut has_new_profile_arns = false;
@@ -55,7 +58,9 @@ impl MultiTokenManager {
                 cred.canonicalize_auth_method();
                 let id = cred.id.unwrap_or_else(|| {
                     let id = next_id;
-                    next_id += 1;
+                    next_id = next_id
+                        .checked_add(1)
+                        .expect("credential id 计数器溢出（u64::MAX），请检查 credentials.json 中的 id 字段");
                     cred.id = Some(id);
                     has_new_ids = true;
                     id

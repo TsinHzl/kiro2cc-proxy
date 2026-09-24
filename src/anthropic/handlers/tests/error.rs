@@ -20,6 +20,7 @@ mod tests {
     use std::time::Duration;
     use tokio::time::Instant;
 
+    #[test]
     fn test_stream_interrupted_error_event_signals_failure_not_success() {
         // 流中断（已有部分内容）必须报错重试，不能是伪装成功的 message_delta/message_stop
         let event = stream_interrupted_error_event();

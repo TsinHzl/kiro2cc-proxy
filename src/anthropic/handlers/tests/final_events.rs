@@ -9,6 +9,7 @@ mod tests {
 
     use crate::kiro::model::events::Event;
 
+    #[test]
     fn test_generate_final_events_message_stop_exactly_once() {
         // 桥接收尾恰好一次：generate_final_events 的 message_stop 由 message_ended
         // 门控——首次调用补发 message_stop，重复调用不再产生（防客户端双 message_stop）

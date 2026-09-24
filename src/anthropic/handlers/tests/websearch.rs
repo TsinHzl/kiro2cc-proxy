@@ -17,6 +17,7 @@ mod tests {
 
     use std::collections::VecDeque;
 
+    #[test]
     fn test_web_search_result_block_shape() {
         // web_search_tool_result 块格式（D5 非流式段）：与流式条目格式一致；
         // MCP 失败（None）时 content 为空数组

@@ -1,0 +1,33 @@
+admin-ui/src/components/api-keys/purge-dialog.tsx
+  4046efd29aebbd59 1-68
+openspec/changes/split-large-files/tasks.md
+  4046efd29aebbd59 16-17
+admin-ui/src/components/api-keys-panel.tsx
+  4046efd29aebbd59 4,14-16
+openspec/changes/split-large-files/proposal.md
+  4046efd29aebbd59 1-45
+admin-ui/src/components/api-keys/create-key-dialog.tsx
+  4046efd29aebbd59 1-14,16-48,51-263
+admin-ui/src/components/api-keys/edit-key-dialog.tsx
+  4046efd29aebbd59 1-14,16-48,51-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f05f36b19ec4e61a9fb38bfde00a3b3f9d6eaea7",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 587,
+      "total_deletions": 11,
+      "accepted_lines": 627,
+      "overriden_lines": 6
+    }
+  }
+}

@@ -60,18 +60,19 @@ pub(super) fn build_additional_model_request_fields(
     // Kiro 后端的 thinking 行为由其自身默认值控制，无需代理显式指定。
 
     // effort 透传 + 默认注入：客户端显式携带 output_config 时按原值转发；
-    // 未携带时默认注入 effort="high"。
-    // 注意：此为对 issue #40（仅透传、不注入默认值）的显式回退，用户决策于
-    // 2026-09-15 做出——已知 issue #40 曾记录无条件注入 effort="high" 可能导致
-    // 部分模型反代链路 TTFB 慢于直连，但仍需恢复注入以保证未携带 output_config
-    // 的客户端拿到与 Claude Code 默认行为一致的推理力度。勿在无新实测依据时
-    // 单方面改回仅透传，避免行为反复横跳。
+    // 未携带时默认注入 effort="low"。
+    // 注意：默认注入值历经多次调整——issue #40 曾记录默认注入 effort="high"
+    // 导致 sonnet-5 / opus-5 反代链路 TTFB 慢于直连（v3.2.1 改为仅透传修复），
+    // 2026-09-15 为对齐 Claude Code 默认推理力度又回退恢复注入（值 high）。
+    // 2026-09-24 实测 high 兜底仍使 sonnet-5 显著慢于 opus-5（issue #40 评论
+    // 追踪），故兜底值下调为 "low"，在保留"必带 effort 字段"结构的前提下
+    // 降低 Kiro 后端推理调度成本。客户端显式携带 output_config 时不受影响。
     let effort = req
         .output_config
         .as_ref()
         .map(|c| c.effort.as_str())
         .filter(|e| !e.is_empty())
-        .unwrap_or("high");
+        .unwrap_or("low");
     fields.insert(
         "output_config".into(),
         serde_json::json!({ "effort": effort }),

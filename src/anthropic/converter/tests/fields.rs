@@ -70,11 +70,12 @@ fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude
 
 #[test]
 fn test_output_config_effort_passthrough_with_default() {
-    // effort 透传 + 默认注入（回退 issue #40 的仅透传行为）：客户端显式携带
-    // output_config 时按原值转发；未携带时默认注入 effort="high"。
+    // effort 透传 + 默认注入：客户端显式携带 output_config 时按原值转发；
+    // 未携带时默认注入 effort="low"（issue #40：high 兜底致 sonnet-5 TTFB 慢）。
     use crate::anthropic::types::{Message as AnthropicMessage, OutputConfig};
 
-    // 场景 1：客户端未携带 output_config → 默认注入 effort="high"
+    // 场景 1：客户端未携带 output_config → 默认注入 effort="low"
+    // （issue #40：high 兜底导致 sonnet-5 反代链路 TTFB 慢于直连，兜底下调为 low）
     let req = MessagesRequest {
         model: "claude-sonnet-5".to_string(),
         max_tokens: 32000,
@@ -96,8 +97,8 @@ fn test_output_config_effort_passthrough_with_default() {
         .expect("非 4.5 代模型应构建 additionalModelRequestFields");
     assert_eq!(
         fields["output_config"]["effort"].as_str(),
-        Some("high"),
-        "客户端未携带 output_config 时应默认注入 effort=\"high\""
+        Some("low"),
+        "客户端未携带 output_config 时应默认注入 effort=\"low\""
     );
 
     // 场景 2：客户端显式携带 output_config → effort 按客户端值透传
@@ -129,7 +130,7 @@ fn test_output_config_effort_passthrough_with_default() {
         "effort 必须按客户端传入值透传"
     );
 
-    // 场景 3：客户端携带 output_config 但 effort 为空串 → 兜底为 "high"
+    // 场景 3：客户端携带 output_config 但 effort 为空串 → 兜底为 "low"
     let req = MessagesRequest {
         model: "claude-sonnet-5".to_string(),
         max_tokens: 32000,
@@ -154,8 +155,8 @@ fn test_output_config_effort_passthrough_with_default() {
         .expect("非 4.5 代模型应构建 additionalModelRequestFields");
     assert_eq!(
         fields["output_config"]["effort"].as_str(),
-        Some("high"),
-        "空串 effort 应兜底为 \"high\"，避免转发非法值"
+        Some("low"),
+        "空串 effort 应兜底为 \"low\"，避免转发非法值"
     );
 }
 

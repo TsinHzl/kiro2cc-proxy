@@ -1,0 +1,44 @@
+src/anthropic/handlers/post_messages.rs
+  4046efd29aebbd59 156
+src/anthropic/handlers/post_messages_cc/mod.rs
+  4046efd29aebbd59 155
+src/kiro/provider/retry.rs
+  4046efd29aebbd59 192,194,196
+src/anthropic/handlers/error.rs
+  4046efd29aebbd59 124,135-137,140,147
+src/kiro/token_manager/manager/core.rs
+  4046efd29aebbd59 46-49,61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "66b9101625d5fcd732557b807f6ca6a272feb19b",
+  "prompts": {
+    "33694753b2c24187": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41664209-d6d4-4f2a-a1b4-d20aea19b478",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1615,
+      "total_deletions": 0,
+      "accepted_lines": 1615,
+      "overriden_lines": 0
+    },
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 19,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}

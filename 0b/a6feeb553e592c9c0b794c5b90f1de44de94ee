@@ -1,0 +1,29 @@
+src/anthropic/handlers/tests/error.rs
+  4046efd29aebbd59 23
+src/anthropic/handlers/tests/final_events.rs
+  4046efd29aebbd59 12
+openspec/changes/split-large-files/tasks.md
+  4046efd29aebbd59 3,18,21-24
+src/anthropic/handlers/tests/websearch.rs
+  4046efd29aebbd59 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0ba6feeb553e592c9c0b794c5b90f1de44de94ee",
+  "prompts": {
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 6,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

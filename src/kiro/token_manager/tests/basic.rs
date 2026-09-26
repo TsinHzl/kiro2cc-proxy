@@ -2,21 +2,10 @@
 // token_manager 测试（自 tests.rs 拆出，纯代码搬移）
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::super::super::TokenManager;
-
     use super::super::super::{is_token_expired, is_token_expiring_soon};
     use crate::kiro::model::credentials::KiroCredentials;
 
-    use crate::model::config::Config;
     use chrono::{Duration, Utc};
-
-    #[test]
-    fn test_token_manager_new() {
-        let config = Config::default();
-        let credentials = KiroCredentials::default();
-        let tm = TokenManager::new(config, credentials, None);
-        assert!(tm.credentials().access_token.is_none());
-    }
 
     #[test]
     fn test_is_token_expired_with_expired_token() {

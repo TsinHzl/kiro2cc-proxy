@@ -77,18 +77,6 @@ impl ApiKey {
         }
     }
 
-    /// 检查 key 是否有效（启用且未过期）
-    #[allow(dead_code)]
-    pub fn is_valid(&self) -> bool {
-        if !self.enabled {
-            return false;
-        }
-        if let Some(expires_at) = self.expires_at {
-            return Utc::now() < expires_at;
-        }
-        true
-    }
-
     /// 检查是否已过期
     /// 待激活状态（duration_days 有值但 activated_at 为 None）返回 false
     pub fn is_expired(&self) -> bool {
@@ -445,12 +433,6 @@ impl ApiKeyManager {
             self.save()?;
         }
         Ok(deleted)
-    }
-
-    /// 获取文件路径
-    #[allow(dead_code)]
-    pub fn file_path(&self) -> &Path {
-        &self.file_path
     }
 
     /// 激活指定 key（幂等操作）

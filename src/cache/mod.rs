@@ -15,10 +15,6 @@ pub mod simulation;
 pub use simulation::{
     CacheSimulationRatioConfig, PromptCacheUsage, split_creation_by_ephemeral_ratio,
 };
-#[allow(unused_imports)]
-pub use simulation::{
-    DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_PROBABILITY, DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_RADIUS,
-};
 
 /// 四层降级链选择终值 usage：
 ///

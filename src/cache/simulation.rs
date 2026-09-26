@@ -6,14 +6,6 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 比例模式默认核心集中半径：峰值前后 5 个百分点。
-#[allow(dead_code)]
-pub const DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_RADIUS: f64 = 0.05;
-
-/// 比例模式默认核心集中概率：至少大部分请求落在核心区间内。
-#[allow(dead_code)]
-pub const DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_PROBABILITY: f64 = 0.8;
-
 /// 固定比例模式的随机比例配置。
 ///
 /// 使用两层三角分布采样：大概率落在 `peak_ratio ± focus_radius`
@@ -43,91 +35,6 @@ impl CacheSimulationRatioConfig {
             focus_radius: 0.0,
             focus_probability: 1.0,
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn new(min_ratio: f64, max_ratio: f64, peak_ratio: f64) -> anyhow::Result<Self> {
-        Self::with_focus(
-            min_ratio,
-            max_ratio,
-            peak_ratio,
-            DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_RADIUS,
-            DEFAULT_CACHE_SIMULATION_RATIO_FOCUS_PROBABILITY,
-        )
-    }
-
-    #[allow(dead_code)]
-    pub fn with_focus(
-        min_ratio: f64,
-        max_ratio: f64,
-        peak_ratio: f64,
-        focus_radius: f64,
-        focus_probability: f64,
-    ) -> anyhow::Result<Self> {
-        let config = Self {
-            min_ratio,
-            max_ratio,
-            peak_ratio,
-            focus_radius,
-            focus_probability,
-        };
-        config.validate()?;
-        Ok(config)
-    }
-
-    #[allow(dead_code)]
-    pub fn validate(self) -> anyhow::Result<()> {
-        if !self.min_ratio.is_finite()
-            || !self.max_ratio.is_finite()
-            || !self.peak_ratio.is_finite()
-            || !self.focus_radius.is_finite()
-            || !self.focus_probability.is_finite()
-        {
-            anyhow::bail!("缓存模拟比例必须是有限数字");
-        }
-
-        for (name, ratio) in [
-            ("minRatio", self.min_ratio),
-            ("maxRatio", self.max_ratio),
-            ("peakRatio", self.peak_ratio),
-        ] {
-            if ratio <= 0.0 || ratio > 1.0 {
-                anyhow::bail!("{} 必须大于 0.0 且不超过 1.0，当前值: {}", name, ratio);
-            }
-        }
-
-        if self.focus_radius <= 0.0 || self.focus_radius > 1.0 {
-            anyhow::bail!(
-                "focusRadius 必须大于 0.0 且不超过 1.0，当前值: {}",
-                self.focus_radius
-            );
-        }
-
-        if self.focus_probability <= 0.0 || self.focus_probability > 1.0 {
-            anyhow::bail!(
-                "focusProbability 必须大于 0.0 且不超过 1.0，当前值: {}",
-                self.focus_probability
-            );
-        }
-
-        if self.min_ratio > self.max_ratio {
-            anyhow::bail!(
-                "minRatio 不能大于 maxRatio，当前值: {} > {}",
-                self.min_ratio,
-                self.max_ratio
-            );
-        }
-
-        if self.peak_ratio < self.min_ratio || self.peak_ratio > self.max_ratio {
-            anyhow::bail!(
-                "peakRatio 必须位于 minRatio 和 maxRatio 之间，当前值: {} 不在 {} ~ {} 内",
-                self.peak_ratio,
-                self.min_ratio,
-                self.max_ratio
-            );
-        }
-
-        Ok(())
     }
 
     pub fn is_fixed(self) -> bool {
@@ -206,25 +113,10 @@ impl PromptCacheUsage {
         cache_simulation_ratio: f64,
         cache_creation_ratio: f64,
     ) -> Self {
-        Self::from_ratios_with_ephemeral(
-            input_tokens,
-            cache_simulation_ratio,
-            cache_creation_ratio,
-            0.0,
-        )
-    }
-
-    pub fn from_ratios_with_ephemeral(
-        input_tokens: i32,
-        cache_simulation_ratio: f64,
-        cache_creation_ratio: f64,
-        ephemeral_1h_ratio: f64,
-    ) -> Self {
         let cached_total = ((input_tokens as f64) * cache_simulation_ratio.clamp(0.0, 1.0)) as i32;
         let cache_creation = ((cached_total as f64) * cache_creation_ratio.clamp(0.0, 1.0)) as i32;
         let cache_read = cached_total.saturating_sub(cache_creation);
-        let (creation_5m, creation_1h) =
-            split_creation_by_ephemeral_ratio(cache_creation, ephemeral_1h_ratio);
+        let (creation_5m, creation_1h) = split_creation_by_ephemeral_ratio(cache_creation, 0.0);
         Self {
             input_tokens: input_tokens.saturating_sub(cached_total),
             cache_creation_input_tokens: cache_creation,
@@ -243,21 +135,6 @@ impl PromptCacheUsage {
             input_tokens,
             cache_simulation_ratio.sample_ratio(),
             cache_creation_ratio,
-        )
-    }
-
-    #[allow(dead_code)]
-    pub fn from_ratio_config_with_ephemeral(
-        input_tokens: i32,
-        cache_simulation_ratio: CacheSimulationRatioConfig,
-        cache_creation_ratio: f64,
-        ephemeral_1h_ratio: f64,
-    ) -> Self {
-        Self::from_ratios_with_ephemeral(
-            input_tokens,
-            cache_simulation_ratio.sample_ratio(),
-            cache_creation_ratio,
-            ephemeral_1h_ratio,
         )
     }
 

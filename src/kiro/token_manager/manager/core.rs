@@ -179,8 +179,8 @@ impl MultiTokenManager {
         &self.config
     }
 
-    /// 获取当前活动账号的克隆
-    #[allow(dead_code)]
+    /// 获取当前活动账号的克隆（仅测试使用）
+    #[cfg(test)]
     pub fn credentials(&self) -> KiroCredentials {
         let entries = self.entries.lock();
         let current_id = *self.current_id.lock();
@@ -652,18 +652,6 @@ impl MultiTokenManager {
         }
 
         Ok(ctx)
-    }
-
-    /// 驱逐 sticky cache 中指定 continuation_id 的绑定
-    ///
-    /// 无条件解绑，供账号被禁用、额度耗尽等确定性不可用场景使用。
-    /// 限流场景请改用 `report_sticky_throttled`，避免瞬时 429 破坏 prompt cache。
-    #[allow(dead_code)]
-    pub fn evict_sticky(&self, continuation_id: &str) {
-        let removed = self.sticky_cache.lock().remove(continuation_id).is_some();
-        if removed {
-            tracing::debug!("sticky cache 已驱逐: continuation_id={}", continuation_id);
-        }
     }
 
     /// 记录一次 429 并按阈值决定是否解除 sticky 绑定

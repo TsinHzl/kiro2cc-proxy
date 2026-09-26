@@ -1,5 +1,4 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
@@ -266,20 +265,6 @@ impl Config {
     /// 获取配置文件路径（如果有）
     pub fn config_path(&self) -> Option<&Path> {
         self.config_path.as_deref()
-    }
-
-    /// 将当前配置写回原始配置文件
-    #[allow(dead_code)]
-    pub fn save(&self) -> anyhow::Result<()> {
-        let path = self
-            .config_path
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("配置文件路径未知，无法保存配置"))?;
-
-        let content = serde_json::to_string_pretty(self).context("序列化配置失败")?;
-        fs::write(path, content)
-            .with_context(|| format!("写入配置文件失败: {}", path.display()))?;
-        Ok(())
     }
 
     /// 从环境变量覆盖配置项（用于容器化部署，如 Zeabur）

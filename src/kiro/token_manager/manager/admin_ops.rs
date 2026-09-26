@@ -40,20 +40,6 @@ impl MultiTokenManager {
         }
     }
 
-    /// 获取使用额度信息
-    #[allow(dead_code)]
-    pub async fn get_usage_limits(&self) -> anyhow::Result<UsageLimitsResponse> {
-        let ctx = self.acquire_context(None).await?;
-        let effective_proxy = ctx.credentials.effective_proxy(self.proxy.as_ref());
-        get_usage_limits(
-            &ctx.credentials,
-            &self.config,
-            &ctx.token,
-            effective_proxy.as_ref(),
-        )
-        .await
-    }
-
     /// 获取当前支持的模型列表（含官方费率倍率），取任意可用账号
     pub async fn list_available_models(&self) -> anyhow::Result<AvailableModelsResponse> {
         let ctx = self.acquire_context(None).await?;

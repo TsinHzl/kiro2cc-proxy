@@ -82,11 +82,6 @@ impl FingerprintTracker {
         })
     }
 
-    #[allow(dead_code)]
-    pub fn shutdown(&self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-    }
-
     fn start_background_evict(self: &Arc<Self>, interval: Duration) {
         let weak = Arc::downgrade(self);
         tokio::spawn(async move {
@@ -310,11 +305,6 @@ impl FingerprintTracker {
                 now.duration_since(b.last_hit_at) <= ttl
             });
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn config(&self) -> CacheSimulationConfig {
-        self.config
     }
 }
 

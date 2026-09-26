@@ -50,6 +50,36 @@ pub(crate) fn split_web_search_tool(
     }
 }
 
+/// 构建 web_search 桥接工具定义（普通 tool spec 格式，Kiro 可识别）
+///
+/// 请求携带 web_search server tool 时注入 context.tools，让 Kiro 侧模型
+/// 知道搜索能力可用并主动发起 `web_search` toolUse；handlers 桥接层截获该
+/// toolUse 后走 Kiro MCP 真实搜索（见 handlers/bridge.rs）。
+pub(super) fn create_web_search_bridge_tool() -> Tool {
+    Tool {
+        tool_specification: ToolSpecification {
+            name: "web_search".to_string(),
+            description: "Search the web for real-time or up-to-date information \
+                          (news, weather, prices, documentation, etc.). Use this tool \
+                          whenever the user asks about current events or facts that may \
+                          have changed after your knowledge cutoff."
+                .to_string(),
+            input_schema: InputSchema::from_json(serde_json::json!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query to execute"
+                    }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            })),
+        },
+    }
+}
+
 /// 收集历史消息中使用的所有工具名称
 ///
 /// 桥接产生的 web_search toolUse 不参与占位符生成——Kiro 不识别该 server tool，

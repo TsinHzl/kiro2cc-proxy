@@ -150,18 +150,25 @@ fn test_convert_request_removes_web_search_from_context_tools() {
     // web_search max_uses 透传给桥接层
     assert_eq!(result.web_search_max_uses, Some(Some(3)));
 
-    // Kiro context.tools 仅含普通工具，web_search 被剔除
+    // server tool 被剔除，但注入普通格式的 web_search 桥接工具定义
+    // （否则 Kiro 侧模型不知道搜索能力可用，不会发起 toolUse，桥接永不触发）
     let tools = &result
         .conversation_state
         .current_message
         .user_input_message
         .user_input_message_context
         .tools;
+    let ws = tools
+        .iter()
+        .find(|t| t.tool_specification.name == "web_search")
+        .expect("context.tools 应包含注入的 web_search 桥接工具");
     assert!(
-        tools
-            .iter()
-            .all(|t| t.tool_specification.name != "web_search"),
-        "context.tools 不应包含 web_search"
+        ws.tool_specification
+            .input_schema
+            .json
+            .get("properties")
+            .is_some(),
+        "桥接工具应为普通 tool spec 格式（含 input_schema）"
     );
     assert!(
         tools.iter().any(|t| t.tool_specification.name == "Read"),

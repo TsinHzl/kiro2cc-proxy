@@ -20,7 +20,8 @@ use super::session::{
 };
 use super::tools::{convert_tools, remove_orphaned_tool_uses, validate_tool_pairing};
 use super::websearch::{
-    collect_history_tool_names, create_placeholder_tool, split_web_search_tool,
+    collect_history_tool_names, create_placeholder_tool, create_web_search_bridge_tool,
+    split_web_search_tool,
 };
 
 /// 将 Anthropic 请求转换为 Kiro 请求
@@ -92,6 +93,18 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         None => (None, &req.tools),
     };
     let mut tools = convert_tools(split_tools);
+
+    // 6b. web_search server tool 命中时注入桥接工具定义（普通 tool spec 格式）
+    // 剔除 server tool 后若不在 context.tools 中补一份 Kiro 可识别的普通定义，
+    // 模型不知道自己具备搜索能力，不会发起 web_search toolUse，桥接永不触发
+    // （表现为模型回复"我没有 websearch 工具可用"）。
+    // collect_history_tool_names 会跳过历史中的 web_search toolUse，因此该
+    // 定义不会被占位符逻辑重复生成。
+    // 有效 max_uses（未声明默认 5）为 0 时桥接层不会截获任何轮次，注入反而
+    // 会让 toolUse 按普通 tool_use 透传给客户端，故跳过注入。
+    if web_search_max_uses.is_some_and(|max_uses| max_uses.unwrap_or(5) > 0) {
+        tools.push(create_web_search_bridge_tool());
+    }
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）
     let mut history = build_history(req, messages, &model_id, &conversation_id)?;

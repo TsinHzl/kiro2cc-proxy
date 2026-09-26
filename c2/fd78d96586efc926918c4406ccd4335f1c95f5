@@ -1,0 +1,27 @@
+src/anthropic/converter/tests/websearch.rs
+  4790dc844e21d4bf 153-154,161-164,166-171
+src/anthropic/converter/convert.rs
+  4790dc844e21d4bf 23-24,97-108
+src/anthropic/converter/websearch.rs
+  4790dc844e21d4bf 53-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c2fd78d96586efc926918c4406ccd4335f1c95f5",
+  "prompts": {
+    "4790dc844e21d4bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1249539-c7b0-4dbe-818d-f2d6dc5999cc",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}

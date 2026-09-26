@@ -124,6 +124,32 @@ fn test_map_model_opus_5_aliases() {
 }
 
 #[test]
+fn test_map_model_5_5_aliases() {
+    // 5.5 代际映射（档位沿用 5 代）
+    assert_eq!(map_model("claude-opus-5.5").unwrap(), "claude-opus-5.5");
+    assert_eq!(map_model("claude-opus-5-5").unwrap(), "claude-opus-5.5");
+    assert_eq!(
+        map_model("claude-opus-5.5-thinking").unwrap(),
+        "claude-opus-5.5"
+    );
+    assert_eq!(
+        map_model("claude-opus-5.5-20260301").unwrap(),
+        "claude-opus-5.5"
+    );
+    assert_eq!(map_model("Claude Opus 5.5").unwrap(), "claude-opus-5.5");
+    assert_eq!(map_model("claude-sonnet-5.5").unwrap(), "claude-sonnet-5.5");
+    assert_eq!(map_model("claude-sonnet-5-5").unwrap(), "claude-sonnet-5.5");
+    assert_eq!(
+        map_model("claude-sonnet-5.5-thinking").unwrap(),
+        "claude-sonnet-5.5"
+    );
+
+    // 回归：现有 opus-5 / sonnet-5 不被 5.5 分支误命中
+    assert_eq!(map_model("claude-opus-5").unwrap(), "claude-opus-5");
+    assert_eq!(map_model("claude-sonnet-5").unwrap(), "claude-sonnet-5");
+}
+
+#[test]
 fn test_map_model_thinking_suffix_opus_4_5() {
     // thinking 后缀不应影响 opus 4.5 模型映射
     let result = map_model("claude-opus-4-5-20251101-thinking");

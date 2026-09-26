@@ -1,0 +1,27 @@
+src/anthropic/converter/model.rs
+  552bd453543dd502 7,10,19-22,37-40
+Cargo.toml
+  552bd453543dd502 3
+src/anthropic/converter/tests/model.rs
+  552bd453543dd502 127-129,131-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "73ae49528e6c81bc04e2e57eb48d196d0b760af9",
+  "prompts": {
+    "552bd453543dd502": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2d13c52-4384-45fd-80f4-a998ebb7fa0d",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 11,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    }
+  }
+}

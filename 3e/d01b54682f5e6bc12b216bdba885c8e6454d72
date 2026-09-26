@@ -1,0 +1,27 @@
+src/kiro/token_manager/mod.rs
+  4790dc844e21d4bf 5,30-31
+src/kiro/token_manager/manager/core.rs
+  4790dc844e21d4bf 182-183
+src/cache/simulation.rs
+  4790dc844e21d4bf 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3ed01b54682f5e6bc12b216bdba885c8e6454d72",
+  "prompts": {
+    "4790dc844e21d4bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1249539-c7b0-4dbe-818d-f2d6dc5999cc",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 310,
+      "accepted_lines": 80,
+      "overriden_lines": 0
+    }
+  }
+}

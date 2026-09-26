@@ -1,0 +1,25 @@
+README.md
+  4790dc844e21d4bf 13,742,746
+README.en.md
+  4790dc844e21d4bf 13,721,725
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "76c7814130e251be499001486065f2c8dbf0f657",
+  "prompts": {
+    "4790dc844e21d4bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1249539-c7b0-4dbe-818d-f2d6dc5999cc",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 2,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}

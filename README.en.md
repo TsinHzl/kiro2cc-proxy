@@ -10,7 +10,7 @@
 
 ![Admin Panel](docs/assets/admin-panel.png)
 
-> **✅ Supported Models: Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Opus 5 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
+> **✅ Supported Models: Claude Sonnet 5.5 / Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 5.5 / Claude Opus 5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 4.5 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
 
 ### 📖 Quick Navigation
 
@@ -718,9 +718,11 @@ Any model name containing the following keywords is automatically mapped to the 
 
 | Request model name (keyword) | Kiro model used |
 |------------------------------|----------------|
+| `*sonnet*` (including 5.5/5-5) | `claude-sonnet-5.5` |
 | `*sonnet*` (including 4.6/4-6) | `claude-sonnet-4.6` |
 | `*sonnet*` (including 5/sonnet-5) | `claude-sonnet-5` |
 | `*sonnet*` (others) | `claude-sonnet-4.5` |
+| `*opus*` (including 5.5/5-5) | `claude-opus-5.5` |
 | `*opus*` (including 5/opus-5) | `claude-opus-5` |
 | `*opus*` (including 4.5/4-5) | `claude-opus-4.5` |
 | `*opus*` (including 4.7/4-7) | `claude-opus-4.7` |

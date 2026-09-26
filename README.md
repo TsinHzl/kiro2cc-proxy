@@ -10,7 +10,7 @@
 
 ![Admin 管理面板](docs/assets/admin-panel.png)
 
-> **✅ 支持模型**：Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Opus 5 · Claude Haiku 4.5 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
+> **✅ 支持模型**：Claude Sonnet 5.5 · Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 5.5 · Claude Opus 5 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Haiku 4.5 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
 
 ### 📖 快速导航
 
@@ -739,9 +739,11 @@ Authorization: Bearer your-api-key
 
 | 请求模型名（含关键词） | 实际使用的 Kiro 模型 |
 |----------------------|-------------------|
+| `*sonnet*`（含 5.5/5-5） | `claude-sonnet-5.5` |
 | `*sonnet*`（含 4.6/4-6） | `claude-sonnet-4.6` |
 | `*sonnet*`（含 5/sonnet-5） | `claude-sonnet-5` |
 | `*sonnet*`（其他） | `claude-sonnet-4.5` |
+| `*opus*`（含 5.5/5-5） | `claude-opus-5.5` |
 | `*opus*`（含 5/opus-5） | `claude-opus-5` |
 | `*opus*`（含 4.5/4-5） | `claude-opus-4.5` |
 | `*opus*`（含 4.7/4-7） | `claude-opus-4.7` |

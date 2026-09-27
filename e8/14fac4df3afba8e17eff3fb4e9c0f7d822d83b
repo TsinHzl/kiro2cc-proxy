@@ -1,0 +1,27 @@
+admin-ui/src/i18n/locales/zh.json
+  d26c4a73101a85fc 63
+admin-ui/src/i18n/locales/en.json
+  d26c4a73101a85fc 63
+admin-ui/src/components/dashboard/sidebar.tsx
+  d26c4a73101a85fc 4,7,43-53,159,161-174,178-181,183,186,208-211,213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e814fac4df3afba8e17eff3fb4e9c0f7d822d83b",
+  "prompts": {
+    "d26c4a73101a85fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55183472-a78a-4dd1-9703-32a7e9f2e677",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 77,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}

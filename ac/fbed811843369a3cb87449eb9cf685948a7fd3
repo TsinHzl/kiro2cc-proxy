@@ -1,0 +1,85 @@
+src/kiro/token_manager/tests/credentials.rs
+  cdb97b48cabe0217 101,135-243
+src/kiro/token_manager/manager/admin_ops.rs
+  cdb97b48cabe0217 614-617,621,623,625-626,628,631,633-639
+admin-ui/src/i18n/locales/zh.json
+  cdb97b48cabe0217 80
+admin-ui/src/i18n/locales/en.json
+  cdb97b48cabe0217 80
+Cargo.toml
+  cdb97b48cabe0217 3
+admin-ui/src/components/account-row.tsx
+  cdb97b48cabe0217 478-480,504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "acfbed811843369a3cb87449eb9cf685948a7fd3",
+  "prompts": {
+    "426c462f5ae749d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a9c011-f2a7-4a37-b371-2c29a14c6507",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 324,
+      "total_deletions": 25,
+      "accepted_lines": 202,
+      "overriden_lines": 0
+    },
+    "440239cda68201c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4bd1b900-a721-4a71-9fa4-afeb1d59882a",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 38,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "cdb97b48cabe0217": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77b89a6-d218-4adb-8780-76f629b3bd6f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 171,
+      "total_deletions": 102,
+      "accepted_lines": 137,
+      "overriden_lines": 0
+    },
+    "da4b0314bba372b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3f0a4aa-6995-4604-b0d7-bd69a1a7c71b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 70,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "fabde08d5c809685": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "99758c74-ab8f-4097-b87e-0ef9f3734a47",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 356,
+      "total_deletions": 146,
+      "accepted_lines": 307,
+      "overriden_lines": 0
+    }
+  }
+}

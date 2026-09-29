@@ -1,0 +1,48 @@
+src/kiro/provider/errors.rs
+  250a8fcf421d10cc 10-17,24,35-37,56-57
+src/model/config.rs
+  250a8fcf421d10cc 45,48,53-55,57
+src/main.rs
+  250a8fcf421d10cc 29-30,37
+src/anthropic/handlers/post_messages_cc/mod.rs
+  250a8fcf421d10cc 28-34,205-206,234
+src/kiro/token_manager/refresh.rs
+  250a8fcf421d10cc 16-24,27,32,60,152,269,374,416,507,521,570
+src/anthropic/converter/fields.rs
+  250a8fcf421d10cc 8-14,28,30,95
+src/kiro/provider/headers.rs
+  250a8fcf421d10cc 10-13,32-33,37-39,78-80,121-122,126-128,161-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2cd7eb6d078f052bd216a5bf358799e7db519c4f",
+  "prompts": {
+    "250a8fcf421d10cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08c1d098-43ce-4998-a997-c59b18865687",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 151,
+      "total_deletions": 52,
+      "accepted_lines": 142,
+      "overriden_lines": 0
+    },
+    "cdb97b48cabe0217": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77b89a6-d218-4adb-8780-76f629b3bd6f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 415,
+      "total_deletions": 183,
+      "accepted_lines": 232,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,31 @@
+admin-ui/src/i18n/locales/en.json
+  cdb97b48cabe0217 79,277,300-301
+admin-ui/src/i18n/locales/zh.json
+  cdb97b48cabe0217 79,277,300-301
+admin-ui/src/components/kam-import-dialog.tsx
+  cdb97b48cabe0217 505,509,511,513,516-518,520,522-531
+admin-ui/src/components/batch-import-dialog.tsx
+  cdb97b48cabe0217 428,432,434,436,439-444,446,448-457
+Cargo.toml
+  cdb97b48cabe0217 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "521d7190a1a70a63cc5445e2ae537470763cc25a",
+  "prompts": {
+    "cdb97b48cabe0217": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77b89a6-d218-4adb-8780-76f629b3bd6f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1141,
+      "total_deletions": 377,
+      "accepted_lines": 867,
+      "overriden_lines": 5
+    }
+  }
+}

@@ -1,0 +1,27 @@
+admin-ui/src/lib/constants.ts
+  cdb97b48cabe0217 1
+admin-ui/src/components/batch-import-dialog.tsx
+  cdb97b48cabe0217 16,433
+admin-ui/src/components/kam-import-dialog.tsx
+  cdb97b48cabe0217 17,510
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "613991ae51f3093e1bf4e336f6df320aa87559fc",
+  "prompts": {
+    "cdb97b48cabe0217": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77b89a6-d218-4adb-8780-76f629b3bd6f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}

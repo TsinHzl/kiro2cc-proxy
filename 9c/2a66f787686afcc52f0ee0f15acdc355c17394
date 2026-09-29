@@ -1,0 +1,36 @@
+src/kiro/provider/headers.rs
+  250a8fcf421d10cc 14,38,43,128,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9c2a66f787686afcc52f0ee0f15acdc355c17394",
+  "prompts": {
+    "250a8fcf421d10cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08c1d098-43ce-4998-a997-c59b18865687",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 2,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "8ba29704022ffc42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e5989aa-efaa-471d-a1c1-0cb982f70dfe",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 68,
+      "total_deletions": 0,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}

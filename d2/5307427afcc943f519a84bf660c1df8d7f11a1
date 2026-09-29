@@ -1,0 +1,113 @@
+src/kiro/token_manager/refresh.rs
+  250a8fcf421d10cc 16-24,27,32,60,152,269,374,416,507,521,570
+src/anthropic/converter/fields.rs
+  250a8fcf421d10cc 8-14,28,30,95
+src/kiro/provider/headers.rs
+  250a8fcf421d10cc 10-14,33-35,38-41,43,80-84,123-125,128-133,164-168
+src/kiro/provider/errors.rs
+  250a8fcf421d10cc 10-17,24,35-37,56-57
+src/main.rs
+  250a8fcf421d10cc 29-30,37
+src/model/config.rs
+  250a8fcf421d10cc 45,48,53-55,57
+src/anthropic/handlers/post_messages_cc/mod.rs
+  250a8fcf421d10cc 28-34,205-206,234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d25307427afcc943f519a84bf660c1df8d7f11a1",
+  "prompts": {
+    "1d847af12519e490": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6eaf0dba-57dd-43b5-a2eb-1a330092e2fd",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "250a8fcf421d10cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08c1d098-43ce-4998-a997-c59b18865687",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 2,
+      "accepted_lines": 96,
+      "overriden_lines": 0
+    },
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "5ebb3fbbf232ae0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c016fb2-ba08-43bd-913e-ed95988bd4e3",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1288,
+      "total_deletions": 737,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "d26c4a73101a85fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55183472-a78a-4dd1-9703-32a7e9f2e677",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 12,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "df08713a7fca15b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b77642f-f943-4a76-9b6a-6f92573db27a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 108,
+      "total_deletions": 102,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "fd9a96f6efda84f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b37a70b-a72c-4356-bb94-709da2e76065",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 15,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

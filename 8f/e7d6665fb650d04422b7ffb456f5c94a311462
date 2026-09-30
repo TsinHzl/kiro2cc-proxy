@@ -1,0 +1,82 @@
+src/kiro/provider/errors.rs
+  4aa3bc9e80922c26 116,147-149,153
+src/kiro/token_manager/tests/region.rs
+  4aa3bc9e80922c26 6-8,264-277
+src/kiro/model/credentials/methods.rs
+  4aa3bc9e80922c26 10-12,124-126,128-135,137-145,148,152-163,165-168
+README.en.md
+  4aa3bc9e80922c26 798-804
+src/kiro/token_manager/tests/refresh.rs
+  4aa3bc9e80922c26 7-8,22-44
+admin-ui/src/i18n/locales/en.json
+  4aa3bc9e80922c26 206,217
+README.md
+  4aa3bc9e80922c26 819-825
+src/kiro/token_manager/refresh.rs
+  4aa3bc9e80922c26 5,99-119,447-457,499,502,506,567-572,587-653
+src/kiro/model/mod.rs
+  4aa3bc9e80922c26 12,15
+src/kiro/model/credentials/model.rs
+  4aa3bc9e80922c26 215,217-248,259-302
+src/kiro/model/credentials/mod.rs
+  4aa3bc9e80922c26 21-22
+src/kiro/model/credentials/tests.rs
+  4aa3bc9e80922c26 9,129,136,142-143,158-260
+admin-ui/src/components/batch-import-dialog.tsx
+  4aa3bc9e80922c26 36-37,95-98,102-114,198
+admin-ui/src/components/add-credential-dialog.tsx
+  4aa3bc9e80922c26 22-42,51,81-83,93-94,102,175,181,183-187,218-219
+admin-ui/src/i18n/locales/zh.json
+  4aa3bc9e80922c26 206,217
+src/kiro/token_manager/tests/credentials.rs
+  4aa3bc9e80922c26 9,311,313-316,320,324,340,343-347,350-352,355-472
+src/kiro/provider/tests.rs
+  4aa3bc9e80922c26 323,333,340-343,355-382,388-398
+src/admin/changelog_data.rs
+  4aa3bc9e80922c26 70-90
+Cargo.toml
+  4aa3bc9e80922c26 3
+src/kiro/token_manager/manager/admin_ops.rs
+  4aa3bc9e80922c26 5-7,14,67-68,418-532,535-538,542-550,553-554,558-560,645-650,661,663-664,667,671,710-720
+src/kiro/model/available_profiles.rs
+  4aa3bc9e80922c26 1-38
+src/kiro/token_manager/mod.rs
+  4aa3bc9e80922c26 29
+src/admin/service.rs
+  4aa3bc9e80922c26 13-14,557-569,587,741-760
+admin-ui/src/types/api.ts
+  4aa3bc9e80922c26 82-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8fe7d6665fb650d04422b7ffb456f5c94a311462",
+  "prompts": {
+    "4aa3bc9e80922c26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3370e821-0a13-460d-9798-d463d69d509b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 940,
+      "total_deletions": 96,
+      "accepted_lines": 915,
+      "overriden_lines": 2
+    },
+    "d3a32ab1fcf7d4b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58a9494b-b8de-4ba3-9533-6743f27ab000",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 604,
+      "total_deletions": 1,
+      "accepted_lines": 603,
+      "overriden_lines": 0
+    }
+  }
+}

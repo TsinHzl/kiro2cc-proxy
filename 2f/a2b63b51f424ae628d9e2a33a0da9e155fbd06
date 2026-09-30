@@ -1,0 +1,50 @@
+src/kiro/token_manager/types.rs
+  ebfeed8ef2c300b9 91-92
+src/kiro/model/credentials/tests.rs
+  ebfeed8ef2c300b9 14-34
+src/kiro/token_manager/manager/admin_ops.rs
+  ebfeed8ef2c300b9 123-215,346,375,378-382,387,423-424,426-431,433-434,576-580,667-668,752-754
+src/kiro/model/credentials/methods.rs
+  ebfeed8ef2c300b9 142,144-147
+src/kiro/token_manager/manager/core.rs
+  ebfeed8ef2c300b9 142,769,798,802,806-810,817
+src/kiro/token_manager/tests/refresh.rs
+  ebfeed8ef2c300b9 58-370
+src/kiro/token_manager/tests/recovery.rs
+  ebfeed8ef2c300b9 204-213,215-229,323-324
+Cargo.toml
+  ebfeed8ef2c300b9 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2fa2b63b51f424ae628d9e2a33a0da9e155fbd06",
+  "prompts": {
+    "2fbc3141023050b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d281f4b2-901b-4a4b-9105-a1376a2bc53c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 141,
+      "total_deletions": 0,
+      "accepted_lines": 141,
+      "overriden_lines": 0
+    },
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 523,
+      "total_deletions": 73,
+      "accepted_lines": 503,
+      "overriden_lines": 1
+    }
+  }
+}

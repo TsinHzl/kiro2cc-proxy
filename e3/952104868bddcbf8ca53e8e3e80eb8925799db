@@ -1,0 +1,31 @@
+admin-ui/src/i18n/locales/en.json
+  ebfeed8ef2c300b9 78,269
+README.en.md
+  ebfeed8ef2c300b9 165,265,397,402-405,753
+admin-ui/src/components/batch-import-dialog.tsx
+  ebfeed8ef2c300b9 343
+README.md
+  ebfeed8ef2c300b9 167,269,401,406-409,774
+admin-ui/src/i18n/locales/zh.json
+  ebfeed8ef2c300b9 78,269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e3952104868bddcbf8ca53e8e3e80eb8925799db",
+  "prompts": {
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 26,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}

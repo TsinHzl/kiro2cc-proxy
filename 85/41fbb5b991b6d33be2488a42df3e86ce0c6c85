@@ -1,0 +1,75 @@
+src/kiro/token_manager/tests/refresh.rs
+  4aa3bc9e80922c26 8,45-88,395-447
+src/kiro/token_manager/refresh.rs
+  4aa3bc9e80922c26 6,115,120-129,579-582
+src/admin/changelog_data.rs
+  4aa3bc9e80922c26 74-75,86-87
+src/kiro/model/credentials/methods.rs
+  4aa3bc9e80922c26 123-142,144-145,147-152,154,156,158-165,167-168,170,172,176,182-187,192-194
+src/kiro/token_manager/tests/credentials.rs
+  4aa3bc9e80922c26 310-311,313-316,324,340-343,346-347,392,394-396,398,411-412,414-415,420,423-440,443,446-450,453-454,467-474,476,485-491,493-504,506,508
+README.en.md
+  4aa3bc9e80922c26 798-800,806
+src/kiro/token_manager/manager/admin_ops.rs
+  4aa3bc9e80922c26 10-11,179-183,423-430,433-434,436,438,440-444,446-462,464,481,485-487,494,497-499,503-506,540,551,554-556,568-583
+src/kiro/model/credentials/model.rs
+  4aa3bc9e80922c26 264,266-276,279
+src/kiro/token_manager/manager/core.rs
+  4aa3bc9e80922c26 155
+src/kiro/token_manager/types.rs
+  4aa3bc9e80922c26 118-124,139-144
+README.md
+  4aa3bc9e80922c26 819-821,827
+src/kiro/model/credentials/tests.rs
+  4aa3bc9e80922c26 9,160-162,165-166,172,178-179,183-184,189-208,233-248,264,270-272
+src/kiro/provider/tests.rs
+  4aa3bc9e80922c26 341,354-356,359,363-365,371-373,379-381,387
+src/kiro/model/credentials/mod.rs
+  4aa3bc9e80922c26 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8541fbb5b991b6d33be2488a42df3e86ce0c6c85",
+  "prompts": {
+    "1424a37bff0520c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47587cae-2995-4f01-85eb-053f0f3b72d0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 957,
+      "total_deletions": 1,
+      "accepted_lines": 956,
+      "overriden_lines": 0
+    },
+    "4aa3bc9e80922c26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3370e821-0a13-460d-9798-d463d69d509b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 440,
+      "total_deletions": 198,
+      "accepted_lines": 431,
+      "overriden_lines": 0
+    },
+    "8310dde3a55b00b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4f55854-d438-4769-a758-35bd51cf01c5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 0,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}

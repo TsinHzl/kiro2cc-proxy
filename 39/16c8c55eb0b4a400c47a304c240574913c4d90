@@ -1,0 +1,36 @@
+admin-ui/src/components/dashboard/credential-action-bar.tsx
+  ebfeed8ef2c300b9 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3916c8c55eb0b4a400c47a304c240574913c4d90",
+  "prompts": {
+    "a16d4ccc76158bca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94e8b338-e9c2-47a9-95d8-e90fbc768868",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 64,
+      "total_deletions": 0,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    },
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 92,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}

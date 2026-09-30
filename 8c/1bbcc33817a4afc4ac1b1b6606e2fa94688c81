@@ -1,0 +1,25 @@
+admin-ui/src/i18n/locales/en.json
+  ebfeed8ef2c300b9 282
+admin-ui/src/i18n/locales/zh.json
+  ebfeed8ef2c300b9 282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8c1bbcc33817a4afc4ac1b1b6606e2fa94688c81",
+  "prompts": {
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

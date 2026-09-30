@@ -1,0 +1,59 @@
+admin-ui/src/components/account-panel-foot.tsx
+  ebfeed8ef2c300b9 50-56
+admin-ui/src/components/batch-import-dialog.tsx
+  4c54eaee9b4997d3 14,40-48,65,123,188,192-227,229,236-238,240,245,263-268,274,297-298,318-319,389-391
+admin-ui/src/components/dashboard.tsx
+  ebfeed8ef2c300b9 335,342,344,351,371,373
+src/admin/types.rs
+  4c54eaee9b4997d3 118-121,156-176
+src/admin/service.rs
+  4c54eaee9b4997d3 309,334,346-358,360-361
+src/kiro/token_manager/tests/credentials.rs
+  4c54eaee9b4997d3 10,33-60
+admin-ui/src/types/api.ts
+  4c54eaee9b4997d3 88
+admin-ui/src/components/kam-import-dialog.tsx
+  ebfeed8ef2c300b9 438
+  4c54eaee9b4997d3 15,45-54,141,187,251,255-291,293,300-302,304,309,329,334-340,363-364,381,491-493
+admin-ui/src/i18n/locales/zh.json
+  ebfeed8ef2c300b9 84-86,273
+  4c54eaee9b4997d3 260,266-267,274,279,292,296-297,303
+admin-ui/src/i18n/locales/en.json
+  4c54eaee9b4997d3 260,266-267,274,278-279,291-292,296-297,303
+  ebfeed8ef2c300b9 84-86,273
+src/kiro/token_manager/manager/admin_ops.rs
+  4c54eaee9b4997d3 324,399-400
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "fa69afeecfcb226714a94dfce084c3dc983caece",
+  "prompts": {
+    "4c54eaee9b4997d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c40d8214-eb03-4df3-a6b3-7f29e824d9e9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 288,
+      "total_deletions": 145,
+      "accepted_lines": 258,
+      "overriden_lines": 0
+    },
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 73,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,67 @@
+src/kiro/token_manager/tests/recovery.rs
+  ebfeed8ef2c300b9 168-169,189,203-224
+src/kiro/token_manager/manager/core.rs
+  ebfeed8ef2c300b9 142,334-336,363,560-563,585
+src/kiro/token_manager/tests/sticky.rs
+  ebfeed8ef2c300b9 288-335
+src/kiro/token_manager/manager/admin_ops.rs
+  ebfeed8ef2c300b9 1-2,116-158,160-166,212-215,332-335,379-380,500-501,684-686
+src/kiro/token_manager/tests/multi.rs
+  ebfeed8ef2c300b9 18,258-259,261-262,271,279-280,282-283,292,300-359,362-385
+src/kiro/token_manager/types.rs
+  ebfeed8ef2c300b9 91-92
+src/admin/service.rs
+  ebfeed8ef2c300b9 162,169-176,193,196-197,383,386,522,532-543,548,551,558-563,565-568,571,575,709-742
+src/kiro/token_manager/tests/credentials.rs
+  ebfeed8ef2c300b9 84,131,164-165,193,200-201,217,225-226,235,243-244,266
+admin-ui/src/components/account-row.tsx
+  ebfeed8ef2c300b9 37,133-134
+src/admin/handlers.rs
+  ebfeed8ef2c300b9 32,64,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5c1a742cc6dea6fe959b840dd5d718336415ce8f",
+  "prompts": {
+    "7bd397a22df0051d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f1f53fc-cce9-45f8-9e48-b1ae1b20c2b0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 72,
+      "total_deletions": 0,
+      "accepted_lines": 72,
+      "overriden_lines": 0
+    },
+    "a16d4ccc76158bca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "94e8b338-e9c2-47a9-95d8-e90fbc768868",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 27
+    },
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 374,
+      "total_deletions": 73,
+      "accepted_lines": 347,
+      "overriden_lines": 0
+    }
+  }
+}

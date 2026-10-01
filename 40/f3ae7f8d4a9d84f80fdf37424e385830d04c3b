@@ -1,0 +1,63 @@
+src/anthropic/handlers/error.rs
+  c04b93f3f6ff3f7f 128-143
+src/anthropic/converter/tests/fields.rs
+  c04b93f3f6ff3f7f 164-207,266,325
+src/anthropic/handlers/tests/error.rs
+  c04b93f3f6ff3f7f 6-11,18,50-80,280-330
+src/openai/chat_request.rs
+  c04b93f3f6ff3f7f 9-10,61,387-388,390,394,396,786-793,799,804-805
+src/openai/responses_request/tests.rs
+  c04b93f3f6ff3f7f 447-448,451-455,460-461
+src/anthropic/converter/tests/tools.rs
+  c04b93f3f6ff3f7f 6,110-114,118-140
+src/anthropic/converter/prompt.rs
+  c04b93f3f6ff3f7f 30,33-44,47,53-68
+src/anthropic/converter/message.rs
+  c04b93f3f6ff3f7f 68,108-109,111,115-116,118-122,124,126-127
+src/openai/responses_request/mod.rs
+  c04b93f3f6ff3f7f 24,30,54
+src/anthropic/handlers/post_messages_cc/mod.rs
+  c04b93f3f6ff3f7f 110,114,124-125
+src/anthropic/handlers/post_messages.rs
+  c04b93f3f6ff3f7f 104,108,118-119
+src/anthropic/converter/result.rs
+  c04b93f3f6ff3f7f 29-39,45,53-56
+src/anthropic/converter/tests/schema.rs
+  c04b93f3f6ff3f7f 19-21,29-30,39-52,70-71,82-84,88,95-105
+src/anthropic/converter/history.rs
+  c04b93f3f6ff3f7f 43-45,113,122-129,131-134,138-139,147-154,210-220
+src/anthropic/converter/tests/history_cache.rs
+  c04b93f3f6ff3f7f 53,62,71-72,95-124,126-139
+src/anthropic/converter/schema.rs
+  c04b93f3f6ff3f7f 233-256,267-269,276-285
+src/anthropic/converter/fields.rs
+  c04b93f3f6ff3f7f 69-76,82
+src/anthropic/converter/mod.rs
+  c04b93f3f6ff3f7f 99
+src/anthropic/converter/convert.rs
+  c04b93f3f6ff3f7f 136-137,208-213
+src/anthropic/handlers/helpers.rs
+  c04b93f3f6ff3f7f 106
+src/anthropic/converter/tests/session.rs
+  c04b93f3f6ff3f7f 33-34,36-37,40,42-43,46-50,52-53,55-63,66-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "40f3ae7f8d4a9d84f80fdf37424e385830d04c3b",
+  "prompts": {
+    "c04b93f3f6ff3f7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d2bd84-9059-4830-97ca-bceed02e7da0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 520,
+      "total_deletions": 259,
+      "accepted_lines": 497,
+      "overriden_lines": 0
+    }
+  }
+}

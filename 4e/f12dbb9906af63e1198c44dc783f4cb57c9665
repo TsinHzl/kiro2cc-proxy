@@ -1,0 +1,37 @@
+src/anthropic/converter/convert.rs
+  4b9c52be5c43cc79 8,178-179,201-236,238,240-295
+src/anthropic/handlers/stream.rs
+  4b9c52be5c43cc79 327-334
+src/anthropic/converter/tools.rs
+  4b9c52be5c43cc79 2
+src/anthropic/converter/history.rs
+  4b9c52be5c43cc79 54-55,57,60,73-74,86
+src/anthropic/converter/prompt.rs
+  4b9c52be5c43cc79 2
+src/anthropic/converter/tests/history_cache.rs
+  4b9c52be5c43cc79 53,94-108,110-257
+src/anthropic/converter/message.rs
+  4b9c52be5c43cc79 20-21,28-31
+src/anthropic/converter/mod.rs
+  4b9c52be5c43cc79 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4ef12dbb9906af63e1198c44dc783f4cb57c9665",
+  "prompts": {
+    "4b9c52be5c43cc79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0fc0c3-3044-4f6d-a18b-c814bdc1e38f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 274,
+      "total_deletions": 142,
+      "accepted_lines": 284,
+      "overriden_lines": 2
+    }
+  }
+}

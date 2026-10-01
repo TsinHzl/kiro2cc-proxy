@@ -1,0 +1,38 @@
+Cargo.toml
+  4b9c52be5c43cc79 3
+src/anthropic/handlers/post_messages.rs
+  4b9c52be5c43cc79 286-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "56fed2037823856d95bfdad782e2af7bc6789946",
+  "prompts": {
+    "4b9c52be5c43cc79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0fc0c3-3044-4f6d-a18b-c814bdc1e38f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 65,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    },
+    "65e99b25d64ac49f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "448bffa6-124d-4916-8571-557d703a7b70",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 167,
+      "total_deletions": 1,
+      "accepted_lines": 166,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,38 @@
+admin-ui/src/components/account-row.tsx
+  c04b93f3f6ff3f7f 381-396
+admin-ui/src/components/ui/dropdown-menu.tsx
+  c04b93f3f6ff3f7f 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1d3f31c8bc5793780d0e17b9c6e589c9cd6db699",
+  "prompts": {
+    "c04b93f3f6ff3f7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d2bd84-9059-4830-97ca-bceed02e7da0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 35,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 0,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}

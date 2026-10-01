@@ -1,0 +1,27 @@
+src/anthropic/converter/tests/tools.rs
+  c04b93f3f6ff3f7f 118,127-128,133,139,141-142,144-150
+src/anthropic/converter/message.rs
+  c04b93f3f6ff3f7f 115-123
+src/anthropic/converter/result.rs
+  c04b93f3f6ff3f7f 53-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "cc1f40b08d2d744f9bb9fbf1515e43696698578b",
+  "prompts": {
+    "c04b93f3f6ff3f7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10d2bd84-9059-4830-97ca-bceed02e7da0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 16,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}

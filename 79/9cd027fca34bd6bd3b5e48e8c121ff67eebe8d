@@ -1,0 +1,37 @@
+src/anthropic/converter/convert.rs
+  4b9c52be5c43cc79 8,38-39,41,43-44,46-88,151-152,224
+src/anthropic/converter/tests/history_cache.rs
+  4b9c52be5c43cc79 132-177,179-203,205-225,227-252,254-321
+.gitignore
+  4b9c52be5c43cc79 43
+src/anthropic/converter/history.rs
+  4b9c52be5c43cc79 25-27,31-32,44-45
+src/anthropic/handlers/tests/error.rs
+  4b9c52be5c43cc79 47-81,83-90,92-98,100-112
+src/anthropic/handlers/post_messages.rs
+  4b9c52be5c43cc79 111-115,163-167,269-297
+src/anthropic/handlers/post_messages_cc/mod.rs
+  4b9c52be5c43cc79 117-121
+src/anthropic/converter/result.rs
+  4b9c52be5c43cc79 34-36,44-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "799cd027fca34bd6bd3b5e48e8c121ff67eebe8d",
+  "prompts": {
+    "4b9c52be5c43cc79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0fc0c3-3044-4f6d-a18b-c814bdc1e38f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 458,
+      "total_deletions": 71,
+      "accepted_lines": 389,
+      "overriden_lines": 8
+    }
+  }
+}

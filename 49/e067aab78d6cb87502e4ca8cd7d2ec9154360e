@@ -1,0 +1,40 @@
+Cargo.toml
+  ddb716745b32bc34 3
+src/model/config.rs
+  ddb716745b32bc34 407-417,419-431
+src/anthropic/stream/context/native.rs
+  ddb716745b32bc34 15,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "49e067aab78d6cb87502e4ca8cd7d2ec9154360e",
+  "prompts": {
+    "0cbde135b6d62e2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42330524-2827-43da-9fa9-39c1bfb5f475",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 104,
+      "total_deletions": 0,
+      "accepted_lines": 104,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 11,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}

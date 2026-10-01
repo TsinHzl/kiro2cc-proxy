@@ -1,0 +1,42 @@
+src/anthropic/converter/history.rs
+  4b9c52be5c43cc79 241-242,259-261
+src/anthropic/handlers/stream.rs
+  4b9c52be5c43cc79 299-300,311-317
+src/anthropic/stream/state.rs
+  4b9c52be5c43cc79 243
+src/anthropic/converter/message.rs
+  4b9c52be5c43cc79 25-26,80-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "36096ce8deff15b44196cde5371db86d944db1d7",
+  "prompts": {
+    "4b9c52be5c43cc79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0fc0c3-3044-4f6d-a18b-c814bdc1e38f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 18,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    },
+    "a45ebe87746c823a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179367cf-f651-44f8-a029-cd0c47142a2b",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 177,
+      "total_deletions": 0,
+      "accepted_lines": 177,
+      "overriden_lines": 0
+    }
+  }
+}

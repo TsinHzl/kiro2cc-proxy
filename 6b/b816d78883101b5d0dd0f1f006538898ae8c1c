@@ -1,0 +1,40 @@
+src/anthropic/handlers/post_messages.rs
+  4b9c52be5c43cc79 272,285-297
+src/anthropic/handlers/post_messages_cc/mod.rs
+  4b9c52be5c43cc79 169-174
+.gitignore
+  4b9c52be5c43cc79 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6bb816d78883101b5d0dd0f1f006538898ae8c1c",
+  "prompts": {
+    "4b9c52be5c43cc79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0fc0c3-3044-4f6d-a18b-c814bdc1e38f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 7,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "b29da04cda7d4605": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a563ef1e-3519-4ee1-b846-3d45872ba952",
+        "model": "deepseek-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 321,
+      "total_deletions": 0,
+      "accepted_lines": 321,
+      "overriden_lines": 0
+    }
+  }
+}

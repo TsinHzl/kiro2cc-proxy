@@ -1,0 +1,38 @@
+admin-ui/src/components/dashboard.tsx
+  ddb716745b32bc34 328-346
+admin-ui/src/hooks/use-credentials.ts
+  ddb716745b32bc34 327,329-331,338-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "cf70701ddebcc555f47e122503c951667e00649a",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 17,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    },
+    "f7f40c4c6b82ef2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "79937007-f985-4d20-8c94-325f4d379042",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 170,
+      "total_deletions": 0,
+      "accepted_lines": 170,
+      "overriden_lines": 0
+    }
+  }
+}

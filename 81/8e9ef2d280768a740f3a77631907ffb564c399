@@ -1,0 +1,36 @@
+admin-ui/src/components/dashboard/credential-list.tsx
+  81643abbe8e3fbda 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "818e9ef2d280768a740f3a77631907ffb564c399",
+  "prompts": {
+    "81643abbe8e3fbda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a50321e-0738-4d3e-b381-b1ef54fff90c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "bc6a18df129569b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1860bdb0-5d5f-47ce-b8a9-7d9ea0b708f7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}

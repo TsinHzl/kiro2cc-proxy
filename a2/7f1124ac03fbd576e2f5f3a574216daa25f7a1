@@ -1,0 +1,29 @@
+src/kiro/provider/tests.rs
+  ddb716745b32bc34 225-227,231,235-237,247-250,257-259,261
+openspec/specs/kiro-thinking-adaptive/spec.md
+  ddb716745b32bc34 35,37,39,44,46,53,58-59,61-63,65-67,69-82
+src/anthropic/converter/fields.rs
+  ddb716745b32bc34 64-78,80
+src/kiro/provider/errors.rs
+  ddb716745b32bc34 130,134-138,142,167-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a27f1124ac03fbd576e2f5f3a574216daa25f7a1",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 378,
+      "total_deletions": 241,
+      "accepted_lines": 280,
+      "overriden_lines": 1
+    }
+  }
+}

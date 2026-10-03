@@ -1,0 +1,29 @@
+build-windows.ps1
+  ddb716745b32bc34 31,39
+Dockerfile
+  ddb716745b32bc34 3-4,6,9-10,12,23-24
+build-mac.sh
+  ddb716745b32bc34 38,48
+CLAUDE.md
+  ddb716745b32bc34 7,12,19,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "3bf35759a3d69bec5820e217c449cb6ea72a3cf7",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 16,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}

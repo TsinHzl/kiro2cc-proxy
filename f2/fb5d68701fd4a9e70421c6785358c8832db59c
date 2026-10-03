@@ -1,0 +1,36 @@
+src/anthropic/router.rs
+  ddb716745b32bc34 56-59,104-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f2fb5d68701fd4a9e70421c6785358c8832db59c",
+  "prompts": {
+    "81f618faacd41a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7306d7b8-5e9a-4305-9038-437189d24fe0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 0,
+      "accepted_lines": 82,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 11,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

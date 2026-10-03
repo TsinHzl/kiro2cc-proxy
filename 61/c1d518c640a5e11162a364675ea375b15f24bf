@@ -1,0 +1,27 @@
+web-ui/admin-ui/src/hooks/use-log-stream.ts
+  ddb716745b32bc34 5-7,32-56,100-107,122,130-134,146-150
+web-ui/admin-ui/src/components/log-viewer-page.tsx
+  ddb716745b32bc34 147-150,153,156,162,165-168,172,196-209,212,214,224-226,271,273
+web-ui/admin-ui/src/index.css
+  ddb716745b32bc34 203-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "61c1d518c640a5e11162a364675ea375b15f24bf",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 105,
+      "total_deletions": 46,
+      "accepted_lines": 85,
+      "overriden_lines": 0
+    }
+  }
+}

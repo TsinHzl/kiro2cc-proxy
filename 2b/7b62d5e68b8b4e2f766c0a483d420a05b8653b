@@ -1,0 +1,38 @@
+src/model/usage/tests.rs
+  ddb716745b32bc34 9-10,12-13,16-25,272-286,288-292
+src/model/usage/mod.rs
+  ddb716745b32bc34 231,238-248,519-520,525
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2b7b62d5e68b8b4e2f766c0a483d420a05b8653b",
+  "prompts": {
+    "16603d8cc0a5aaaa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4e9e7f7b-58bd-494c-9b3d-28f5a34b946e",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 152,
+      "total_deletions": 0,
+      "accepted_lines": 152,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 16,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}

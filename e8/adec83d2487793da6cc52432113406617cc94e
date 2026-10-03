@@ -1,0 +1,40 @@
+web-ui/admin-ui/src/index.css
+  ddb716745b32bc34 203-207
+web-ui/admin-ui/src/hooks/use-log-stream.ts
+  ddb716745b32bc34 5-7,32-56,100-107,122,130-134,146-150
+web-ui/admin-ui/src/components/log-viewer-page.tsx
+  ddb716745b32bc34 147-150,153,156,162,165-168,172,196-209,212,214,224-226,266-268,274,276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e8adec83d2487793da6cc52432113406617cc94e",
+  "prompts": {
+    "2cf7e2b3939e2e3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0cbae4ca-42c9-47a1-afda-76dc04109f93",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 0,
+      "accepted_lines": 74,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 108,
+      "total_deletions": 46,
+      "accepted_lines": 88,
+      "overriden_lines": 0
+    }
+  }
+}

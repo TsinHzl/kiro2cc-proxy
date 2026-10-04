@@ -1,0 +1,45 @@
+web-ui/admin-ui/src/i18n/locales/zh.json
+  ddb716745b32bc34 642,654,656
+src/admin/types.rs
+  ddb716745b32bc34 309-332
+src/admin/router.rs
+  ddb716745b32bc34 20-23,69-72
+src/admin/handlers.rs
+  ddb716745b32bc34 296-382,384-400,524-541,543-583
+src/kiro/provider/errors.rs
+  ddb716745b32bc34 48
+src/admin/service.rs
+  ddb716745b32bc34 463-472
+web-ui/admin-ui/src/api/credentials.ts
+  ddb716745b32bc34 132-155
+web-ui/admin-ui/src/components/settings-panel.tsx
+  ddb716745b32bc34 13,30,195-202,237-289,338-397
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  ddb716745b32bc34 17-18,185-205
+web-ui/admin-ui/src/i18n/locales/en.json
+  ddb716745b32bc34 642,654,656
+src/kiro/token_manager/manager/core.rs
+  ddb716745b32bc34 17,136,156,186-195
+src/kiro/token_manager/types.rs
+  ddb716745b32bc34 6,119-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5abc27ceb6547e271f84a90d6de01fd0b2f21146",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 507,
+      "total_deletions": 35,
+      "accepted_lines": 481,
+      "overriden_lines": 2
+    }
+  }
+}

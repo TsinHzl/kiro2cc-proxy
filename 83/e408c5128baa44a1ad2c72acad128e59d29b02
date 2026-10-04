@@ -1,0 +1,23 @@
+src/admin/changelog_data.rs
+  29d82576761acc07 70-75,77-79,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "83e408c5128baa44a1ad2c72acad128e59d29b02",
+  "prompts": {
+    "29d82576761acc07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1279da8-8175-4412-97ed-48ede081ccb9",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 2
+    }
+  }
+}

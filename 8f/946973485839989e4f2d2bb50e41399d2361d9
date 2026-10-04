@@ -1,0 +1,27 @@
+src/anthropic/converter/history.rs
+  ddb716745b32bc34 18,35,44-55,57-62,109-145,147,150-162,201-204,251
+src/anthropic/converter/tests/prompt.rs
+  ddb716745b32bc34 5,130
+src/anthropic/converter/prompt.rs
+  ddb716745b32bc34 6-9,13-23,26-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8f946973485839989e4f2d2bb50e41399d2361d9",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 109,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/i18n/locales/en.json
+  ddb716745b32bc34 654
+web-ui/admin-ui/src/i18n/locales/zh.json
+  ddb716745b32bc34 654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7aa62840edf4f74f464eef98fcd4e63bba141788",
+  "prompts": {
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

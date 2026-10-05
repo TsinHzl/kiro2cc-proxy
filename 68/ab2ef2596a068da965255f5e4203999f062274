@@ -1,0 +1,25 @@
+src/admin/changelog_data.rs
+  cbd0c2220ce8ea05 70-76
+Cargo.toml
+  cbd0c2220ce8ea05 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "68ab2ef2596a068da965255f5e4203999f062274",
+  "prompts": {
+    "cbd0c2220ce8ea05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e72975e1-7106-4e68-b88e-486b7732e382",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 1,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

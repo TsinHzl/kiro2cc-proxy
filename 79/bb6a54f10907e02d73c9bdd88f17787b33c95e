@@ -1,0 +1,36 @@
+src/model/config.rs
+  e814291c88c626df 41-43,177,179,258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "79bb6a54f10907e02d73c9bdd88f17787b33c95e",
+  "prompts": {
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 3,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "ebd7f939898667d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76a1e590-b544-4e51-8821-140ae44ddf9c",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

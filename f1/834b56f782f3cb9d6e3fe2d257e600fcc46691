@@ -1,0 +1,23 @@
+docs/源码阅读路线图.md
+  e814291c88c626df 5,16,23,42,62-65,83,88-108,110-111,121,132,139-147,151,155-170,172,178-187,193-201,208,216,218-270,278,282-286,298,301-302,308-380,388,390,395-396,405,408-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f1834b56f782f3cb9d6e3fe2d257e600fcc46691",
+  "prompts": {
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 229,
+      "total_deletions": 68,
+      "accepted_lines": 228,
+      "overriden_lines": 0
+    }
+  }
+}

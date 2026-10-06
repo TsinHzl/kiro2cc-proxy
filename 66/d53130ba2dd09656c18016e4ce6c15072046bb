@@ -1,0 +1,43 @@
+docs/diagrams/05-feature-failover.svg
+  e814291c88c626df 1-47
+docs/diagrams/02-feature-conversion.svg
+  e814291c88c626df 1-65
+docs/diagrams/03-feature-websearch.svg
+  e814291c88c626df 1-62
+docs/源码阅读路线图.md
+  e814291c88c626df 20,213-409
+docs/diagrams/06-frame-to-sse.svg
+  e814291c88c626df 1-48
+docs/diagrams/07-prompt-cache.svg
+  e814291c88c626df 1-49
+docs/diagrams/04-feature-openai.svg
+  e814291c88c626df 1-43
+docs/diagrams/08-auth-quota.svg
+  e814291c88c626df 1-42
+docs/diagrams/10-token-scale.svg
+  e814291c88c626df 1-43
+docs/diagrams/09-thinking-text.svg
+  e814291c88c626df 1-42
+docs/diagrams/11-admin-api.svg
+  e814291c88c626df 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "66d53130ba2dd09656c18016e4ce6c15072046bb",
+  "prompts": {
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 682,
+      "total_deletions": 0,
+      "accepted_lines": 682,
+      "overriden_lines": 0
+    }
+  }
+}

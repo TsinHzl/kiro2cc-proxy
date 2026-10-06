@@ -1,0 +1,40 @@
+docs/源码阅读路线图.md
+  e814291c88c626df 1-256
+CLAUDE.md
+  e814291c88c626df 92
+docs/diagrams/01-reading-order.svg
+  e814291c88c626df 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ecc45c300e120bbfacf82a279c216e5faf1300cb",
+  "prompts": {
+    "112116c601e8e456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19d85ffa-032f-4217-9dc1-c5866bcbf20f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 109,
+      "overriden_lines": 0
+    },
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 338,
+      "total_deletions": 0,
+      "accepted_lines": 338,
+      "overriden_lines": 0
+    }
+  }
+}

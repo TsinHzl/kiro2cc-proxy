@@ -271,7 +271,7 @@ pub(super) fn convert_assistant_message(
                                 // 思考正文按普通助手文本保留（上下文略增，已确认接受）。
                                 // 注意与上方原生 thinking 的处置差异 —— 前者整块丢弃，后者保留正文。
                                 text_content.push_str(
-                                    crate::anthropic::stream::strip_rendered_thinking(&text),
+                                    &crate::anthropic::stream::strip_rendered_thinking(&text),
                                 );
                             }
                         }

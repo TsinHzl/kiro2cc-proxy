@@ -1,0 +1,35 @@
+src/admin/online_login.rs
+  e814291c88c626df 1-10,12-241,243-247,249-304,306-971,973-1003
+src/admin/types.rs
+  e814291c88c626df 86,367-442
+web-ui/admin-ui/src/api/onlineLogin.ts
+  e814291c88c626df 1-77
+openspec/specs/admin-online-login/spec.md
+  e814291c88c626df 1,6
+src/admin/service.rs
+  e814291c88c626df 91-92,108,112-114,117-121
+web-ui/admin-ui/src/components/add-credential-dialog.tsx
+  e814291c88c626df 2,5,16-23,32-33,38-42,45-171,255-279,281-286,288-301,303-343,345-364,366-370,372-380,382,384-385,387-458,460-463,465-494,496-511,513-517,519-524,527-536,538-541,544-546,548-578,582-596
+src/admin/router.rs
+  e814291c88c626df 27,94-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d89a2d9c4eea096c531cf17a2f1317822f774a51",
+  "prompts": {
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1923,
+      "total_deletions": 352,
+      "accepted_lines": 1785,
+      "overriden_lines": 5
+    }
+  }
+}

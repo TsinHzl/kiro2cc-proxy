@@ -1,0 +1,25 @@
+src/anthropic/stream/thinking_text.rs
+  e814291c88c626df 10-11,15,25-26,62-63,68-70,131,231,274-276,278-279,293-296,337,356,360-362,365
+src/anthropic/converter/tests/history_cache.rs
+  e814291c88c626df 451,453,466,489-491
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e6491ffefdce59aba6137900456cb70597dac59d",
+  "prompts": {
+    "e814291c88c626df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "646bf07b-63ed-4c64-ae9c-120ae4253452",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 36,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}

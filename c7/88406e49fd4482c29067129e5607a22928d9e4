@@ -1,0 +1,55 @@
+src/kiro/token_manager/tests/refresh.rs
+  a0f41112e52437a0 101-102
+src/kiro/token_manager/manager/admin_ops.rs
+  a0f41112e52437a0 140-144
+web-ui/admin-ui/src/components/balance-dialog.tsx
+  a0f41112e52437a0 230-231,347,350-354,384-386
+web-ui/admin-ui/src/components/edit-credential-dialog.tsx
+  a0f41112e52437a0 89-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c788406e49fd4482c29067129e5607a22928d9e4",
+  "prompts": {
+    "60ea4cb43df5ae16": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4aed487c-e416-4bb9-a854-d1a1e4ab6386",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 159,
+      "total_deletions": 0,
+      "accepted_lines": 51,
+      "overriden_lines": 0
+    },
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 22,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    },
+    "f42d475036b68749": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9d52af5-06da-4ebc-8dcd-af28f6eb6c68",
+        "model": "deepseek-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 145,
+      "total_deletions": 108,
+      "accepted_lines": 145,
+      "overriden_lines": 0
+    }
+  }
+}

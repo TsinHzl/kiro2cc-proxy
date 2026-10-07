@@ -86,8 +86,15 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (profileArn !== '') data.profileArn = profileArn
     if (machineId !== '') data.machineId = machineId
     if (proxyUrl !== (credential.proxyUrl || '')) data.proxyUrl = proxyUrl
-    if (proxyUsername !== '') data.proxyUsername = proxyUsername
-    if (proxyPassword !== '') data.proxyPassword = proxyPassword
+    // 代理地址被清空时同步清除认证信息：后端对 username/password 是「留空不修改」语义，
+    // 只清地址会持久化出「无代理但残留凭据」的脏数据
+    if (proxyUrl === '' && (credential.proxyUrl || '') !== '') {
+      data.proxyUsername = ''
+      data.proxyPassword = ''
+    } else {
+      if (proxyUsername !== '') data.proxyUsername = proxyUsername
+      if (proxyPassword !== '') data.proxyPassword = proxyPassword
+    }
     // 登录来源：仅 social 账号可改；空串表示清除。不写 authMethod —— 后端把它也算作身份变更，会白清 subscription_title
     if (isSocial && loginSourceValue !== currentProvider) data.provider = loginSourceValue
 

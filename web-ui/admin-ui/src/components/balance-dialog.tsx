@@ -227,8 +227,8 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                 </div>
               </div>
 
-              {/* 重置周期：虚线分隔行 */}
-              <div className="flex items-center justify-between border-t border-dashed border-hairline pt-2.5 text-[11px] text-ink-3">
+              {/* 重置周期：虚线分隔行，标签与时间紧挨并整体左对齐 */}
+              <div className="flex items-center gap-1 border-t border-dashed border-hairline pt-2.5 text-[11px] text-ink-3">
                 <span className="flex items-center gap-1">
                   <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -344,14 +344,14 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                     : t('credentials.stateEnabled')}
                 </span>
 
-                {/* 代理徽章三态：有地址显示地址，仅有代理配置显示「已配置」，否则「未配置」 */}
+                {/* 代理徽章三态：优先展示地址；仅有代理配置（地址缺失）显示「已配置」，否则「未配置」 */}
                 <span className="inline-flex max-w-full items-center rounded border border-hairline-2 bg-surface-3 px-2 py-0.5 text-[11px] font-medium text-ink-2">
                   <span className="truncate">
-                    {credential.hasProxy
-                      ? (credential.proxyUrl
-                          ? `${t('credentials.proxyBadgeLabel')}: ${credential.proxyUrl}`
-                          : t('credentials.proxyConfigured'))
-                      : t('credentials.proxyNone')}
+                    {credential.proxyUrl
+                      ? `${t('credentials.proxyBadgeLabel')}: ${credential.proxyUrl}`
+                      : credential.hasProxy
+                        ? t('credentials.proxyConfigured')
+                        : t('credentials.proxyNone')}
                   </span>
                 </span>
 
@@ -381,11 +381,9 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
               </div>
 
               {/* 时间戳页脚 */}
-              <div className="pt-1 text-[11px] text-ink-3">
-                <div className="truncate">
-                  <span>{t('credentials.lastUsedAtLabel')}: </span>
-                  <span className="font-mono text-ink-2">{formatIso(credential.lastUsedAt)}</span>
-                </div>
+              <div className="truncate pt-1 text-[11px] text-ink-3">
+                <span>{t('credentials.lastUsedAtLabel')}: </span>
+                <span className="font-mono text-ink-2">{formatIso(credential.lastUsedAt)}</span>
               </div>
             </div>
           )}

@@ -135,10 +135,13 @@ impl MultiTokenManager {
             || update.auth_region.is_some()
             || update.api_region.is_some()
             || update.machine_id.is_some()
-            // 登录来源参与账号身份描述，变更后订阅信息需重新获取
-            || update.provider.is_some()
     }
 
+    /// 比对「会影响上游返回内容」的身份字段。
+    ///
+    /// 不包含 `provider`：它是纯展示字段（登录来源 Google / GitHub），既不参与 token 刷新，
+    /// 也不参与 API 请求，更不影响上游返回的订阅等级。若纳入比对，则「仅改登录来源」的更新
+    /// 会让在途刷新/额度查询以「身份已变更」失败，进而累计 `refresh_failure_count` 误禁用账号。
     fn has_same_subscription_identity(
         current: &KiroCredentials,
         queried: &KiroCredentials,
@@ -148,7 +151,6 @@ impl MultiTokenManager {
             && current.client_id == queried.client_id
             && current.client_secret == queried.client_secret
             && current.profile_arn == queried.profile_arn
-            && current.provider == queried.provider
             && current.token_endpoint == queried.token_endpoint
             && current.scopes == queried.scopes
             && current.region == queried.region

@@ -77,10 +77,6 @@ pub(crate) mod tests {
                 profile_arn: Some("new-profile-arn".to_string()),
                 ..Default::default()
             },
-            crate::admin::types::UpdateCredentialRequest {
-                provider: Some("Google".to_string()),
-                ..Default::default()
-            },
         ];
 
         for update in updates {
@@ -102,6 +98,8 @@ pub(crate) mod tests {
         let update = crate::admin::types::UpdateCredentialRequest {
             nickname: Some("new-name".to_string()),
             thinking_adaptive: Some(true),
+            // 登录来源是纯展示字段，不参与认证流程与订阅等级判定，变更后订阅信息仍然有效
+            provider: Some("Google".to_string()),
             ..Default::default()
         };
 

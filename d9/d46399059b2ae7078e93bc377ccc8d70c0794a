@@ -1,0 +1,23 @@
+src/anthropic/stream/thinking_text.rs
+  a0f41112e52437a0 11-12,25,36-41,74-76,117-119,140-150,162-168,170-183,197-198,248-249,285-286,298,309-317,324-325,385-389,442-450,557-560,565,579-590
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d9d46399059b2ae7078e93bc377ccc8d70c0794a",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 110,
+      "total_deletions": 19,
+      "accepted_lines": 106,
+      "overriden_lines": 1
+    }
+  }
+}

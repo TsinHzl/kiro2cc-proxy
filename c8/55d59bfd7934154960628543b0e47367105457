@@ -1,0 +1,64 @@
+src/admin/service.rs
+  a0f41112e52437a0 135-137
+web-ui/admin-ui/src/components/add-credential-dialog.tsx
+  a0f41112e52437a0 16,33,51,83-84,166-185
+web-ui/admin-ui/src/components/edit-credential-dialog.tsx
+  a0f41112e52437a0 16,39-40,64,91-92,117-120,173-190
+web-ui/admin-ui/src/lib/account-state.ts
+  a0f41112e52437a0 18-49
+web-ui/admin-ui/src/i18n/locales/zh.json
+  a0f41112e52437a0 222-252
+src/kiro/token_manager/manager/admin_ops.rs
+  a0f41112e52437a0 100-102,138-139,734-740
+web-ui/admin-ui/src/types/api.ts
+  a0f41112e52437a0 22-27,101-102,120-121
+src/kiro/token_manager/types.rs
+  a0f41112e52437a0 43-51
+web-ui/admin-ui/src/components/batch-import-dialog.tsx
+  a0f41112e52437a0 19,37-38,96-99,195
+web-ui/admin-ui/src/components/dashboard.tsx
+  a0f41112e52437a0 817-819
+web-ui/admin-ui/src/components/dashboard/dialogs.tsx
+  a0f41112e52437a0 9,13-14,34,56
+src/admin/types.rs
+  a0f41112e52437a0 48-56,167-220,295-298
+src/kiro/token_manager/tests/refresh.rs
+  a0f41112e52437a0 80-83,401-430
+web-ui/admin-ui/src/components/balance-dialog.tsx
+  a0f41112e52437a0 2,10,12,14,16,20-21,26-94,98,107-134,137-158,161-184,186-199,202-213,215-227,230-239,241-242,246,248-282,284-315,318-330,332-344,346-359,362-389,391-399
+web-ui/admin-ui/src/i18n/locales/en.json
+  a0f41112e52437a0 222-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c855d59bfd7934154960628543b0e47367105457",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1301,
+      "total_deletions": 336,
+      "accepted_lines": 1032,
+      "overriden_lines": 0
+    },
+    "d6d1d458de3d1111": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8179d376-60a0-401a-86c4-9551b12c4117",
+        "model": "deepseek-flash"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 202,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -6,9 +6,12 @@ import { AddCredentialDialog } from '@/components/add-credential-dialog'
 import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { BatchVerifyDialog } from '@/components/batch-verify-dialog'
 import type { VerifyResult } from '@/components/batch-verify-dialog'
+import type { CredentialStatusItem } from '@/types/api'
 
 interface DashboardDialogsProps {
   selectedCredentialId: number | null
+  /** 当前选中账号的状态项；列表未加载完 / 账号已删除时为 null */
+  selectedCredential: CredentialStatusItem | null
   balanceDialogOpen: boolean
   setBalanceDialogOpen: (v: boolean) => void
   modelsCredentialId: number | null
@@ -28,6 +31,7 @@ interface DashboardDialogsProps {
 
 export function DashboardDialogs({
   selectedCredentialId,
+  selectedCredential,
   balanceDialogOpen,
   setBalanceDialogOpen,
   modelsCredentialId,
@@ -49,6 +53,7 @@ export function DashboardDialogs({
       {/* 余额对话框 */}
       <BalanceDialog
         credentialId={selectedCredentialId}
+        credential={selectedCredential}
         open={balanceDialogOpen}
         onOpenChange={setBalanceDialogOpen}
       />

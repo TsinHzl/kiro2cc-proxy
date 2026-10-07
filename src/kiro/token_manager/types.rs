@@ -40,6 +40,15 @@ pub struct CredentialEntrySnapshot {
     pub email: Option<String>,
     /// 用户昵称/备注名（用于前端显示）
     pub nickname: Option<String>,
+    /// 登录来源 / IdP 标识（social 账号存 Google / GitHub；external_idp 存 AzureAD 等）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// 账号级 Auth Region（用于 Token 刷新；未配置时回退全局）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_region: Option<String>,
+    /// 账号级 API Region（用于 API 请求；未配置时回退全局）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_region: Option<String>,
     /// API 调用成功次数
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAddCredential } from '@/hooks/use-credentials'
 import { extractErrorMessage } from '@/lib/utils'
+import { normalizeLoginSource } from '@/lib/account-state'
 
 interface AddCredentialDialogProps {
   open: boolean
@@ -29,6 +30,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
   const [refreshToken, setRefreshToken] = useState('')
   const [email, setEmail] = useState('')
   const [authMethod, setAuthMethod] = useState<AuthMethod>('social')
+  const [loginSource, setLoginSource] = useState('')
   const [authRegion, setAuthRegion] = useState('')
   const [apiRegion, setApiRegion] = useState('')
   const [clientId, setClientId] = useState('')
@@ -46,6 +48,7 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
     setRefreshToken('')
     setEmail('')
     setAuthMethod('social')
+    setLoginSource('')
     setAuthRegion('')
     setApiRegion('')
     setClientId('')
@@ -77,6 +80,8 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
       {
         refreshToken: refreshToken.trim(),
         authMethod,
+        // 仅在 social 下提交：切到 idc 后 loginSource 不会自动清空，无条件下发会把 IdC 账号写成脏数据
+        provider: authMethod === 'social' ? normalizeLoginSource(loginSource) : undefined,
         email: email.trim() || undefined,
         authRegion: authRegion.trim() || undefined,
         apiRegion: apiRegion.trim() || undefined,
@@ -157,6 +162,26 @@ export function AddCredentialDialog({ open, onOpenChange }: AddCredentialDialogP
                 <option value="idc">IdC/Builder-ID/IAM</option>
               </select>
             </div>
+
+            {/* 登录来源（仅 social 需要；IdC 的 BuilderId 由 authMethod 推断） */}
+            {authMethod === 'social' && (
+              <div className="space-y-2">
+                <label htmlFor="loginSource" className={LABEL}>
+                  {t('credentials.loginSourceLabel')}
+                </label>
+                <select
+                  id="loginSource"
+                  value={loginSource}
+                  onChange={(e) => setLoginSource(e.target.value)}
+                  disabled={isPending}
+                  className="h-[31px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-2.5 text-[12px] text-ink outline-none transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">{t('credentials.loginSourceUnspecified')}</option>
+                  <option value="Google">Google</option>
+                  <option value="GitHub">GitHub</option>
+                </select>
+              </div>
+            )}
 
             {/* Region 配置 */}
             <div className="space-y-2">

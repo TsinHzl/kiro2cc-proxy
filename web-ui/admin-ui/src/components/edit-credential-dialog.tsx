@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSetPriority, useUpdateCredential } from '@/hooks/use-credentials'
 import { extractErrorMessage } from '@/lib/utils'
+import { normalizeLoginSource } from '@/lib/account-state'
 import type { CredentialStatusItem } from '@/types/api'
 
 interface EditCredentialDialogProps {
@@ -35,6 +36,8 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
   const [proxyUsername, setProxyUsername] = useState('')
   const [proxyPassword, setProxyPassword] = useState('')
   const [priority, setPriority] = useState('')
+  // 空串代表「不指定」，与 normalizeLoginSource 的 undefined 语义对齐
+  const [loginSourceValue, setLoginSourceValue] = useState('')
 
   const { mutateAsync: updateAsync, isPending: updatePending } = useUpdateCredential()
   const { mutateAsync: setPriorityAsync, isPending: priorityPending } = useSetPriority()
@@ -58,6 +61,7 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
       setProxyUsername('')
       setProxyPassword('')
       setPriority(String(credential.priority))
+      setLoginSourceValue(normalizeLoginSource(credential.provider) ?? '')
     }
   }, [open, credential.id])
 
@@ -84,6 +88,8 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
     if (proxyUrl !== (credential.proxyUrl || '')) data.proxyUrl = proxyUrl
     if (proxyUsername !== '') data.proxyUsername = proxyUsername
     if (proxyPassword !== '') data.proxyPassword = proxyPassword
+    // 登录来源：仅 social 账号可改；空串表示清除。不写 authMethod —— 后端把它也算作身份变更，会白清 subscription_title
+    if (isSocial && loginSourceValue !== currentProvider) data.provider = loginSourceValue
 
     if (!priorityChanged && Object.keys(data).length === 0) {
       toast.info(t('credentials.toastNoFieldsToUpdate'))
@@ -108,6 +114,10 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
   }
 
   const isIdc = credential.authMethod === 'idc'
+  // 仅 social 账号的 provider 是「登录来源」；external_idp 的 provider 存的是 IdP 名称，不可被此处覆盖
+  const isSocial = credential.authMethod === 'social'
+  // 存量账号 provider 可能为空或大小写不固定，统一归一化后再比较，避免无变更时误提交
+  const currentProvider = normalizeLoginSource(credential.provider) ?? ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -159,6 +169,24 @@ export function EditCredentialDialog({ open, onOpenChange, credential }: EditCre
               />
               <p className="text-xs text-muted-foreground">{t('credentials.priorityHint')}</p>
             </div>
+
+            {/* 登录来源（仅 social；IdC 的 BuilderId 由 authMethod 推断、external_idp 的 provider 为 IdP 名称，二者均不可改） */}
+            {isSocial && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('credentials.loginSourceLabel')}</label>
+                <select
+                  value={loginSourceValue}
+                  onChange={(e) => setLoginSourceValue(e.target.value)}
+                  disabled={isPending}
+                  className="h-[31px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-2.5 text-[12px] text-ink outline-none transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">{t('credentials.loginSourceUnspecified')}</option>
+                  <option value="Google">Google</option>
+                  <option value="GitHub">GitHub</option>
+                </select>
+                <p className="text-xs text-muted-foreground">{t('credentials.loginSourceHintEdit')}</p>
+              </div>
+            )}
 
             {/* Region 配置 */}
             <div className="space-y-2">

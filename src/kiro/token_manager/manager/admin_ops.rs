@@ -97,6 +97,9 @@ impl MultiTokenManager {
                     refresh_token_hash: e.credentials.refresh_token.as_deref().map(sha256_hex),
                     email: e.credentials.email.clone(),
                     nickname: e.credentials.nickname.clone(),
+                    provider: e.credentials.provider.clone(),
+                    auth_region: e.credentials.auth_region.clone(),
+                    api_region: e.credentials.api_region.clone(),
                     success_count: e.success_count,
                     last_used_at: e.last_used_at.clone(),
                     refresh_failure_count: e.refresh_failure_count,
@@ -132,6 +135,8 @@ impl MultiTokenManager {
             || update.auth_region.is_some()
             || update.api_region.is_some()
             || update.machine_id.is_some()
+            // 登录来源参与账号身份描述，变更后订阅信息需重新获取
+            || update.provider.is_some()
     }
 
     fn has_same_subscription_identity(
@@ -724,6 +729,13 @@ impl MultiTokenManager {
                 None
             } else {
                 Some(nn.clone())
+            };
+        }
+        if let Some(ref pv) = update.provider {
+            cred.provider = if pv.is_empty() {
+                None
+            } else {
+                Some(pv.clone())
             };
         }
         if let Some(ref pu) = update.proxy_url {

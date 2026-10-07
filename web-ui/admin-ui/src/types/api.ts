@@ -19,6 +19,12 @@ export interface CredentialStatusItem {
   hasProfileArn: boolean
   email?: string
   nickname?: string
+  /** 登录来源 / IdP 标识（social 账号为 Google / GitHub；external_idp 为 AzureAD 等） */
+  provider?: string
+  /** 账号级 Auth Region（未配置时回退全局） */
+  authRegion?: string
+  /** 账号级 API Region（未配置时回退全局） */
+  apiRegion?: string
   refreshTokenHash?: string
   successCount: number
   lastUsedAt: string | null
@@ -92,6 +98,8 @@ export interface AddCredentialRequest {
   proxyUrl?: string
   proxyUsername?: string
   proxyPassword?: string
+  /** 登录来源 / IdP 标识（social 账号：Google / GitHub） */
+  provider?: string
 }
 
 // 更新凭据请求
@@ -109,6 +117,8 @@ export interface UpdateCredentialRequest {
   proxyUrl?: string
   proxyUsername?: string
   proxyPassword?: string
+  /** 登录来源 / IdP 标识（social 账号：Google / GitHub；空串清除该字段） */
+  provider?: string
   /** 账号级 thinking adaptive 注入开关（可选，不传则不更新该字段） */
   thinkingAdaptive?: boolean
 }

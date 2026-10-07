@@ -77,6 +77,10 @@ pub(crate) mod tests {
                 profile_arn: Some("new-profile-arn".to_string()),
                 ..Default::default()
             },
+            crate::admin::types::UpdateCredentialRequest {
+                provider: Some("Google".to_string()),
+                ..Default::default()
+            },
         ];
 
         for update in updates {
@@ -393,5 +397,35 @@ pub(crate) mod tests {
         cred.thinking_adaptive = true;
         MultiTokenManager::apply_update_fields(&mut cred, &update);
         assert!(cred.thinking_adaptive);
+    }
+
+    #[test]
+    fn test_apply_update_fields_provider() {
+        let mut cred = KiroCredentials::default();
+
+        // Some(非空) 写入登录来源
+        let update = crate::admin::types::UpdateCredentialRequest {
+            provider: Some("Google".to_string()),
+            ..Default::default()
+        };
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert_eq!(cred.provider.as_deref(), Some("Google"));
+
+        // 空字符串清除该字段
+        let update = crate::admin::types::UpdateCredentialRequest {
+            provider: Some(String::new()),
+            ..Default::default()
+        };
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert_eq!(cred.provider, None);
+
+        // None 表示不更新该字段
+        cred.provider = Some("GitHub".to_string());
+        let update = crate::admin::types::UpdateCredentialRequest {
+            provider: None,
+            ..Default::default()
+        };
+        MultiTokenManager::apply_update_fields(&mut cred, &update);
+        assert_eq!(cred.provider.as_deref(), Some("GitHub"));
     }
 }

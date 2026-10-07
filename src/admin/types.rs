@@ -45,6 +45,15 @@ pub struct CredentialStatusItem {
     pub email: Option<String>,
     /// 用户昵称/备注名（用于前端显示）
     pub nickname: Option<String>,
+    /// 登录来源 / IdP 标识（social 账号存 Google / GitHub；external_idp 存 AzureAD 等）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// 账号级 Auth Region（用于 Token 刷新；未配置时回退全局）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_region: Option<String>,
+    /// 账号级 API Region（用于 API 请求；未配置时回退全局）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_region: Option<String>,
     pub success_count: u64,
     /// 最后一次 API 调用时间（RFC3339 格式）
     pub last_used_at: Option<String>,
@@ -155,7 +164,60 @@ fn default_auth_method() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::AddCredentialRequest;
+    use super::{AddCredentialRequest, CredentialStatusItem};
+
+    /// 构造仅填充必填字段的状态项，其余用默认值
+    fn sample_status_item() -> CredentialStatusItem {
+        CredentialStatusItem {
+            id: 1,
+            priority: 0,
+            disabled: false,
+            failure_count: 0,
+            is_current: false,
+            expires_at: None,
+            auth_method: Some("social".to_string()),
+            has_profile_arn: true,
+            refresh_token_hash: None,
+            email: None,
+            nickname: None,
+            provider: None,
+            auth_region: None,
+            api_region: None,
+            success_count: 0,
+            last_used_at: None,
+            has_proxy: false,
+            proxy_url: None,
+            thinking_adaptive: true,
+            health_status: crate::kiro::token_manager::HealthStatus::Healthy,
+            throttle_count: 0,
+            disabled_reason: None,
+        }
+    }
+
+    /// 登录来源与区域配置需随状态列表下发，前端弹窗据此展示
+    #[test]
+    fn credential_status_item_serializes_provider_and_regions() {
+        let mut item = sample_status_item();
+        item.provider = Some("Google".to_string());
+        item.auth_region = Some("us-east-1".to_string());
+        item.api_region = Some("us-west-2".to_string());
+
+        let json = serde_json::to_value(&item).unwrap();
+
+        assert_eq!(json["provider"], "Google");
+        assert_eq!(json["authRegion"], "us-east-1");
+        assert_eq!(json["apiRegion"], "us-west-2");
+    }
+
+    /// 未配置时省略字段而非输出 null，保持与结构体既有可选字段一致的下发形状
+    #[test]
+    fn credential_status_item_omits_empty_provider_and_regions() {
+        let json = serde_json::to_value(sample_status_item()).unwrap();
+
+        assert!(json.get("provider").is_none());
+        assert!(json.get("authRegion").is_none());
+        assert!(json.get("apiRegion").is_none());
+    }
 
     #[test]
     fn add_credential_request_defaults_disabled_to_false() {
@@ -229,6 +291,10 @@ pub struct UpdateCredentialRequest {
 
     /// 账号级代理认证密码（可选）
     pub proxy_password: Option<String>,
+
+    /// 登录来源 / IdP 标识（可选；social 账号存 Google / GitHub）
+    /// 传空字符串表示清除该字段
+    pub provider: Option<String>,
 
     /// 账号级 thinking adaptive 注入开关（可选，None 表示不更新该字段）
     pub thinking_adaptive: Option<bool>,

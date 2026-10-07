@@ -16,6 +16,7 @@ import { getCredentialBalance } from '@/api/credentials'
 import { KAM_RELEASES_URL } from '@/lib/constants'
 import { extractErrorMessage } from '@/lib/utils'
 import { sha256Hex } from '@/lib/hash'
+import { normalizeLoginSource } from '@/lib/account-state'
 
 interface BatchImportDialogProps {
   open: boolean
@@ -33,6 +34,8 @@ interface CredentialInput {
   profileArn?: string
   priority?: number
   machineId?: string
+  /** 登录来源（仅 Google / GitHub 会被归一化后写入） */
+  provider?: string
 }
 
 interface VerificationResult {
@@ -90,6 +93,10 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             clientId: a.credentials?.clientId || undefined,
             clientSecret: a.credentials?.clientSecret || undefined,
             profileArn: a.credentials?.profileArn || a.profileArn || undefined,
+            // 登录来源：KAM 在 credentials.provider 与顶层 idp 两处都可能带；
+            // 归一化后仅 Google / GitHub 入库，其余（含 BuilderId）不写入
+            provider:
+              normalizeLoginSource(a.credentials?.provider) ?? normalizeLoginSource(a.idp),
           }))
           .filter((c: CredentialInput) => c.refreshToken)
       } else {
@@ -185,6 +192,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             profileArn: cred.profileArn?.trim() || undefined,
             priority: cred.priority || 0,
             machineId: cred.machineId?.trim() || undefined,
+            provider: cred.provider,
             disabled: true,
           })
           existingTokenHashes.add(tokenHash)

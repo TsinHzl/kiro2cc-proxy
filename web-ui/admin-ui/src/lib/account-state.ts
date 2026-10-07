@@ -15,6 +15,38 @@ export function accountLabel(item: CredentialStatusItem): string {
   return item.nickname || item.email || `#${item.id}`
 }
 
+/** 可识别的登录来源（Google / GitHub）：服务端无法从 token 推断，只能由用户声明 */
+export type LoginSource = 'Google' | 'GitHub'
+
+/**
+ * 登录来源写入侧归一化（KAM 导出 JSON 的 `idp` 取值大小写不固定）。
+ * 白名单之外的取值（含 `BuilderId`、空、未知）一律返回 undefined —— 不写入 provider：
+ * - `BuilderId` 已可由 `authMethod === 'idc'` 推断，写入会与 external_idp 的 IdP 名称语义混淆
+ * - 未知值写入后展示侧也无从解读，不如保持字段原值
+ */
+export function normalizeLoginSource(raw: string | undefined | null): LoginSource | undefined {
+  const value = raw?.trim().toLowerCase()
+  if (value === 'google') return 'Google'
+  if (value === 'github') return 'GitHub'
+  return undefined
+}
+
+/**
+ * 登录来源展示侧派生。判定顺序：
+ *   1. idc（含 BuilderId / IAM，加载时已归一化）→ BuilderId
+ *   2. external_idp → Idp（调用方展示 provider 原值，如 AzureAD）
+ *   3. social 且 provider 命中 Google / GitHub 白名单 → 对应来源
+ *   4. 其余（social 未声明、authMethod 缺失）→ null，由调用方回退「来源未知」
+ *
+ * 注意：`Idp` 不是具体来源标识，只表示「来源在 provider 字段里」，调用方需自行取原值。
+ */
+export function loginSource(item: CredentialStatusItem): LoginSource | 'BuilderId' | 'Idp' | null {
+  if (item.authMethod === 'idc') return 'BuilderId'
+  if (item.authMethod === 'external_idp') return 'Idp'
+  if (item.authMethod !== 'social') return null
+  return normalizeLoginSource(item.provider) ?? null
+}
+
 /**
  * 邮箱脱敏（设计稿 `h∗∗∗∗∗∗∗∗＠gmail.com`）：保留本地部分首字符与完整域名，其余打星。
  * 仅为表格单行紧凑展示，不是安全措施 —— 行内 `title` 仍给出完整值（管理端本就明文可见）。

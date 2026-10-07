@@ -69,16 +69,48 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
         ReleaseNote {
             version: "3.4.13".to_string(),
             is_latest: false,
-            groups: vec![fix_group(vec![
-                Bilingual::new(
-                    "思考文本化收尾时长行 ≥60s 改为分秒格式（如 1m15s），历史剥离兼容新旧两种格式",
-                    "Thinking-as-text duration line now uses minute-second format for ≥60s (e.g. 1m15s), with history stripping supporting both formats",
-                ),
-                Bilingual::new(
-                    "管理台侧边栏语言徽标改为显示当前语言（中文显示「中」，英文显示 EN）",
-                    "Admin sidebar language badge now shows the current language (中 for Chinese, EN for English)",
-                ),
-            ])],
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "余额弹窗重设计：新增账号身份、认证与区域、运行健康三组信息卡片，展示登录来源、认证方式、Auth/API Region、代理与自适应注入状态及调用指标",
+                        "Balance dialog redesigned with identity, auth & region, and runtime health cards showing login source, auth method, Auth/API regions, proxy and adaptive injection status, plus call metrics",
+                    ),
+                    Bilingual::new(
+                        "登录来源支持在新增/编辑账号与批量导入时录入（仅 Google / GitHub，服务端无法从令牌推断）",
+                        "Login source can now be set when adding/editing accounts and during batch import (Google / GitHub only; the server cannot infer it from the token)",
+                    ),
+                    Bilingual::new(
+                        "账号级 thinking adaptive 开关默认开启，存量账号缺失该字段时同样视为开启",
+                        "Per-account thinking adaptive now defaults to on; existing accounts missing the field are also treated as on",
+                    ),
+                    Bilingual::new(
+                        "思考文本化收尾追加「Thought for Ns」时长行，历史剥离同步支持新旧两种格式",
+                        "Thinking-as-text output now appends a \"Thought for Ns\" duration line, with history stripping supporting both old and new formats",
+                    ),
+                ]),
+                improve_group(vec![Bilingual::new(
+                    "思考文本化时长行 ≥60s 改为分秒格式（如 1m15s）",
+                    "Thinking-as-text duration line now uses minute-second format for ≥60s (e.g. 1m15s)",
+                )]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "管理台侧边栏语言徽标改为显示当前语言（中文显示「中」，英文显示 EN）",
+                        "Admin sidebar language badge now shows the current language (中 for Chinese, EN for English)",
+                    ),
+                    Bilingual::new(
+                        "移除设置页重复的侧栏收起开关项，保留侧栏折叠按钮",
+                        "Removed the duplicate sidebar collapse toggle from settings, keeping the sidebar collapse button",
+                    ),
+                    Bilingual::new(
+                        "修改登录来源不再清空账号订阅等级",
+                        "Changing the login source no longer clears the account subscription tier",
+                    ),
+                    Bilingual::new(
+                        "清空账号级代理地址时同步清除代理认证信息，避免残留无地址的凭据",
+                        "Clearing a per-account proxy URL now also clears its credentials, avoiding orphaned auth data",
+                    ),
+                ]),
+            ],
         },
         ReleaseNote {
             version: "3.4.12".to_string(),

@@ -1,0 +1,49 @@
+web-ui/admin-ui/src/components/settings-panel.tsx
+  a0f41112e52437a0 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5646d84b5a6513c3e2c83b6a40e1dc57ecf4c2e0",
+  "prompts": {
+    "6b4682c6965652ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "096210ff-9e9a-47b4-aa13-8722f91c8b82",
+        "model": "deepseek-flash"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 117,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 50,
+      "accepted_lines": 181,
+      "overriden_lines": 0
+    }
+  }
+}

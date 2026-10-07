@@ -675,8 +675,6 @@
     "themeDesc": "Light or dark appearance; the preference is stored in your browser.",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "sidebarCollapsed": "Collapse Sidebar",
-    "sidebarCollapsedDesc": "Immediately collapses the left navigation to icon mode; the preference is stored in your browser.",
     "changelog": "Changelog",
     "changelogDesc": "View version history and release changes.",
     "openChangelog": "View changelog"

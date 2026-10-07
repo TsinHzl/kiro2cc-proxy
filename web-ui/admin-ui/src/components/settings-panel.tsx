@@ -166,20 +166,16 @@ function Sw({ label, on, onToggle, disabled }: { label: string; on: boolean; onT
 }
 
 interface SettingsPanelProps {
-  /** 主题与折叠态由 Dashboard 持有：useTheme() 每实例独立 state，
+  /** 主题由 Dashboard 持有：useTheme() 每实例独立 state，
    *  本页自行调用会与侧栏页脚按钮各持一份而无法同步 */
   theme: Theme
   onToggleTheme: (x?: number, y?: number) => void
-  sidebarCollapsed: boolean
-  onToggleSidebarCollapsed: () => void
   onOpenChangelog: () => void
 }
 
 export function SettingsPanel({
   theme,
   onToggleTheme,
-  sidebarCollapsed,
-  onToggleSidebarCollapsed,
   onOpenChangelog,
 }: SettingsPanelProps) {
   const { t, i18n } = useTranslation()
@@ -497,13 +493,6 @@ export function SettingsPanel({
                 { value: 'dark' as const, label: t('settings.themeDark'), icon: Moon },
               ]}
               onSelect={() => onToggleTheme()}
-            />
-          </Row>
-          <Row label={t('settings.sidebarCollapsed')} desc={t('settings.sidebarCollapsedDesc')}>
-            <Sw
-              label={t('settings.sidebarCollapsed')}
-              on={sidebarCollapsed}
-              onToggle={onToggleSidebarCollapsed}
             />
           </Row>
         </Section>

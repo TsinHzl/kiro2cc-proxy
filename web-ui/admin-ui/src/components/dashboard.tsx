@@ -682,8 +682,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
           <SettingsPanel
             theme={theme}
             onToggleTheme={toggleTheme}
-            sidebarCollapsed={sidebarCollapsed}
-            onToggleSidebarCollapsed={toggleSidebarCollapsed}
             onOpenChangelog={() => {
               setActiveTab('changelog')
               setDetailKeyId(null)

@@ -675,8 +675,6 @@
     "themeDesc": "浅色 / 深色外观，偏好保存在本地浏览器。",
     "themeLight": "浅色",
     "themeDark": "深色",
-    "sidebarCollapsed": "侧栏收起",
-    "sidebarCollapsedDesc": "立即将左侧导航收起为图标态，偏好保存在本地浏览器。",
     "changelog": "更新日志",
     "changelogDesc": "查看版本发布记录与功能变更。",
     "openChangelog": "查看更新日志"

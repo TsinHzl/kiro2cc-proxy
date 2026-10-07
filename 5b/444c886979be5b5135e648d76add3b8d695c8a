@@ -1,0 +1,27 @@
+src/kiro/model/credentials/tests.rs
+  a0f41112e52437a0 519-520,523
+src/kiro/model/credentials/model.rs
+  a0f41112e52437a0 9-13,141,147-150
+src/admin/service.rs
+  a0f41112e52437a0 344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5b444c886979be5b5135e648d76add3b8d695c8a",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 6,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}

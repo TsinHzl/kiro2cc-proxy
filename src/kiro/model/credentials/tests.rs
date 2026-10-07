@@ -516,11 +516,11 @@ mod tests {
     // ============ thinking_adaptive 字段测试 ============
 
     #[test]
-    fn test_thinking_adaptive_default_false_for_legacy_json() {
-        // 旧版本 credentials.json 不含 thinkingAdaptive 字段 → 反序列化为 false
+    fn test_thinking_adaptive_default_true_for_legacy_json() {
+        // 旧版本 credentials.json 不含 thinkingAdaptive 字段 → 反序列化为 true（默认开启）
         let json = r#"{"refreshToken": "test"}"#;
         let creds = KiroCredentials::from_json(json).unwrap();
-        assert!(!creds.thinking_adaptive);
+        assert!(creds.thinking_adaptive);
     }
 
     #[test]
@@ -528,6 +528,14 @@ mod tests {
         let json = r#"{"refreshToken": "test", "thinkingAdaptive": true}"#;
         let creds = KiroCredentials::from_json(json).unwrap();
         assert!(creds.thinking_adaptive);
+    }
+
+    #[test]
+    fn test_thinking_adaptive_explicit_false_is_respected() {
+        // 显式落盘 false 的账号不得被 default_true 覆盖（升级后仍保持关闭）
+        let json = r#"{"refreshToken": "test", "thinkingAdaptive": false}"#;
+        let creds = KiroCredentials::from_json(json).unwrap();
+        assert!(!creds.thinking_adaptive);
     }
 
     #[test]

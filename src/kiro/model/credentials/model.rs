@@ -6,6 +6,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// serde 默认值：字段缺失时取 true（thinking adaptive 默认开启）
+fn default_true() -> bool {
+    true
+}
+
 /// Kiro OAuth 凭证
 #[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -133,13 +138,16 @@ pub struct KiroCredentials {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub endpoint: Option<Vec<crate::kiro::endpoint::EndpointName>>,
 
-    /// 账号级 thinking adaptive 注入开关（默认为 false）
+    /// 账号级 thinking adaptive 注入开关（默认为 true）
     ///
     /// 开启后，当客户端请求携带 `thinking: {"type": "adaptive"}` 且路由到该账号时，
     /// provider 会向 Kiro 上游的 `additionalModelRequestFields` 注入
     /// `thinking: {"type": "adaptive"}`（恢复该账号的 thinking 调度，响应变慢）。
     /// 关闭时与 v3.3.0 以来"不发 thinking 字段"的行为完全一致。
-    #[serde(default)]
+    ///
+    /// 字段缺失时按 [`default_true`] 取 true：仅对**从未落盘过**该字段的账号生效
+    /// —— `persist_credentials()` 一旦执行即把当前值显式写回，此后缺失状态不再存在。
+    #[serde(default = "default_true")]
     pub thinking_adaptive: bool,
 }
 

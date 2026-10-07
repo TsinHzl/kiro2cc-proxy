@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.13".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![
+                Bilingual::new(
+                    "思考文本化收尾时长行 ≥60s 改为分秒格式（如 1m15s），历史剥离兼容新旧两种格式",
+                    "Thinking-as-text duration line now uses minute-second format for ≥60s (e.g. 1m15s), with history stripping supporting both formats",
+                ),
+                Bilingual::new(
+                    "管理台侧边栏语言徽标改为显示当前语言（中文显示「中」，英文显示 EN）",
+                    "Admin sidebar language badge now shows the current language (中 for Chinese, EN for English)",
+                ),
+            ])],
+        },
+        ReleaseNote {
             version: "3.4.12".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

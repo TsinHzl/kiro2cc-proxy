@@ -173,7 +173,7 @@ export function Sidebar({
             <Languages className="h-3.5 w-3.5 shrink-0" />
             {!sidebarContentCollapsed && (
               <span className="rounded-[5px] bg-surface-3 px-1.5 py-0.5 text-[10px] font-semibold text-ink-3">
-                {nextLanguage === 'en' ? 'EN' : '中'}
+                {language === 'en' ? 'EN' : '中'}
               </span>
             )}
           </Button>

@@ -26,8 +26,9 @@ use super::state::SseEvent;
 /// 不带 `> ` 引用前缀（客户端渲染时无竖线）；历史回传仅按此标记行识别并剥离。
 pub(crate) const THOUGHT_HEADER: &str = "💭 Thinking";
 
-/// 思考块收尾追加的时长行前缀（如「💭 Thought for 12s」）。秒数向下取整（截断），
-/// 不足 1s 显示 "Thought for 1s"；历史剥离按前缀识别（strip_rendered_thinking）。
+/// 思考块收尾追加的时长行前缀（如「💭 Thought for 1m15s」）。秒数向下取整（截断），
+/// 不足 1s 显示 "Thought for 1s"；≥60s 格式化为 "XmYs"，<60s 为 "Ns"；
+/// 历史剥离按前缀识别（strip_rendered_thinking）。
 pub(crate) const THOUGHT_DURATION_PREFIX: &str = "💭 Thought for ";
 
 /// ANSI：变暗开始 / 复位（dim 样式，仅包在每行内容两侧，不跨行）
@@ -103,9 +104,9 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
 }
 
 /// 在单个行内容（不含前置 `\n`）中定位时长行段，返回段结束的相对字节偏移
-/// （段起点恒为行首 0）。匹配 [DIM_ON] + 前缀 + 数字 + 's' + [DIM_OFF]；命中
-/// DIM_OFF 时段尾允许后随粘连文本（见 [`strip_rendered_thinking`] 锚定说明），
-/// 否则必须到行尾才认定。
+/// （段起点恒为行首 0）。匹配 [DIM_ON] + 前缀 + 时长（`Ns` 或 `Nm Ys`/`NmYs`，
+/// 与 format_duration 输出一致）+ [DIM_OFF]；命中 DIM_OFF 时段尾允许后随粘连
+/// 文本（见 [`strip_rendered_thinking`] 锚定说明），否则必须到行尾才认定。
 fn find_duration_span(line: &str) -> Option<usize> {
     let mut j = 0;
     if line.starts_with(DIM_ON) {
@@ -115,14 +116,17 @@ fn find_duration_span(line: &str) -> Option<usize> {
         return None;
     }
     let after_prefix = j + THOUGHT_DURATION_PREFIX.len();
-    let digits = line[after_prefix..]
-        .bytes()
-        .take_while(u8::is_ascii_digit)
-        .count();
-    if digits == 0 || line.as_bytes().get(after_prefix + digits) != Some(&b's') {
+    // 时长段：可选分钟部分（`<数字>m`）+ 秒部分（`<数字>s`）
+    let mut k = after_prefix;
+    let mins = line[k..].bytes().take_while(u8::is_ascii_digit).count();
+    if mins > 0 && line.as_bytes().get(k + mins) == Some(&b'm') {
+        k += mins + 1;
+    }
+    let digits = line[k..].bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 || line.as_bytes().get(k + digits) != Some(&b's') {
         return None;
     }
-    let mut end = after_prefix + digits + 1;
+    let mut end = k + digits + 1;
     let has_dim_off = line[end..].starts_with(DIM_OFF);
     if has_dim_off {
         end += DIM_OFF.len();
@@ -245,13 +249,19 @@ impl ThinkingTextRewriter {
                     // （客户端合并相邻 text 块），先换行确保时长行独立成行，尾换行让答案另起一行。
                     if let (Some(started), true) = (self.started_at.remove(&i), had_output) {
                         let secs = started.elapsed().as_secs().max(1);
+                        // ≥60s 格式化为 "XmYs"（如 1m15s），<60s 为 "Ns"
+                        let duration = if secs >= 60 {
+                            format!("{}m{}s", secs / 60, secs % 60)
+                        } else {
+                            format!("{secs}s")
+                        };
                         out.push(SseEvent::new(
                             "content_block_delta",
                             json!({
                                 "type": "content_block_delta",
                                 "index": i,
                                 "delta": {"type": "text_delta", "text": format!(
-                                    "\n{}{}{}s{}\n", DIM_ON, THOUGHT_DURATION_PREFIX, secs, DIM_OFF
+                                    "\n{}{}{}{}\n", DIM_ON, THOUGHT_DURATION_PREFIX, duration, DIM_OFF
                                 )}
                             }),
                         ));
@@ -362,9 +372,12 @@ mod tests {
         // 带尾行「💭 Thought for Ns」时同样剥离，正文保留（尾随换行来自时长行后的换行）
         let with_duration = "💭 Thinking\na\n\nb\n💭 Thought for 12s\n";
         assert_eq!(strip_rendered_thinking(with_duration), "a\n\nb\n");
-        // 客户端把相邻 text 块合并的情形（时长行后粘连答案）
+        // 客户端把相邻 text 块合并的情形（时长行后粘连答案）；含新格式 XmYs
         let merged = "💭 Thinking\na\n\nb\n💭 Thought for 12s\nanswer";
         assert_eq!(strip_rendered_thinking(merged), "a\n\nb\nanswer");
+        // ≥60s 的新格式「XmYs」同样可剥
+        let with_minutes = "💭 Thinking\na\n\n💭 Thought for 1m15s\nanswer";
+        assert_eq!(strip_rendered_thinking(with_minutes), "a\n\nanswer");
         // 旧格式时长行与答案同行粘连且带 DIM_OFF（时长 delta 自带前置 \n）：
         // 仅剥到 DIM_OFF，答案保留
         let legacy = "💭 Thinking\na\n\n💭 Thought for 12s\x1b[0manswer";

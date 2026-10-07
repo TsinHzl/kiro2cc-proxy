@@ -826,6 +826,16 @@ This has been fixed: the AWS SSO OIDC refresh endpoint returns both an `accessTo
 
 Yes. When creating/editing a sub API Key, the limit unit can be set to "USD estimate" or "real credits" (`limitUnit`: usd/credits). With credits, the limit is checked against the real `credits_used` accumulated in usage records (falls back to `estimated_cost × k_ref` for older records without `credits_used`). Defaults to `usd`, fully backward compatible.
 
+**Q: After a long generation of about 4 minutes (~247s) the client reports `Server error mid-response`, and the proxy log shows `Reset(StreamId(1), INTERNAL_ERROR, Remote)`**
+
+The **upstream (Kiro gateway) reset the HTTP/2 stream**; this is not a proxy timeout (the proxy's upstream timeout is 1000s). If some output was already produced when the reset arrives, the proxy immediately sends an `overloaded_error` to the client (it never disguises the interruption as a normal completion), and the client then retries automatically.
+
+The root cause is **not yet confirmed**. One user reported that with thinking adaptive enabled, long generations were reset at a steady ~247s, suggesting an upstream per-stream duration limit; however, in the maintainer's own tests a stream with adaptive enabled ran for 360s+ without being reset, so it is unclear whether it depends on adaptive, the request content, or the account/network path. The `stream_elapsed_secs` field in the proxy log records how long the stream had run when it broke; if it was interrupted after more than 120s, the error message sent to the client includes the elapsed time and a hint about a possible duration limit. If you hit this, please attach that log line to the issue.
+
+If the same request fails after a similar duration every time, retrying as-is will not help. Try splitting long tasks (keep each turn's output small), running `/compact` early, lowering the thinking budget, or turning off `thinkingAdaptive` on the account.
+
+> Note: `agentContinuationId` is a session-stable identifier the proxy derives from the conversationId (used for prompt cache and sticky account routing); it is not an upstream "resume" handle, so the proxy cannot continue the remaining output after a Reset. The proxy already sends a `ping` to the client every 25 seconds, but the Reset originates on the upstream side, so client-side keep-alive cannot prevent it.
+
 **Q: Port already in use**
 
 `run-local-service-mac.sh` automatically kills the process occupying the configured port. If it still fails:

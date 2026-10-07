@@ -162,6 +162,43 @@ pub(crate) fn stream_interrupted_error_event() -> SseEvent {
     )
 }
 
+/// 长时间流被上游中断的耗时阈值（秒）。
+///
+/// 流已持续超过该时长才被上游 Reset/断开时，更可能是上游网关的流时长上限而非偶发抖动
+/// （见 issue #46：thinking adaptive 长生成轮稳定在 ~247s 被 `RST_STREAM(INTERNAL_ERROR)`），
+/// 此时盲目原样重试大概率会再次跑满同样时长后失败，错误信息里附带提示引导用户拆分任务。
+const LONG_STREAM_INTERRUPT_SECS: u64 = 120;
+
+/// 带流持续时长的"流中断"error 事件。
+///
+/// 与 [`stream_interrupted_error_event`] 同为 `overloaded_error`（保持客户端可重试语义，
+/// 因为偶发的上游抖动重试仍然有效），区别是 message 中带上已持续秒数；超过
+/// [`LONG_STREAM_INTERRUPT_SECS`] 时额外提示"可能触达上游单次流时长上限"，
+/// 让用户/客户端日志能区分"偶发断流"与"长生成撞墙"。
+pub(crate) fn stream_interrupted_error_event_after(elapsed: Duration) -> SseEvent {
+    let secs = elapsed.as_secs();
+    let message = if secs >= LONG_STREAM_INTERRUPT_SECS {
+        format!(
+            "Upstream connection was interrupted before the response finished (after {secs}s). \
+             The upstream may enforce a maximum duration per streaming response; if retrying \
+             fails the same way, shorten the task (split long generations, /compact, or lower \
+             thinking budget). Please retry."
+        )
+    } else {
+        format!(
+            "Upstream connection was interrupted before the response finished (after {secs}s). \
+             Please retry."
+        )
+    };
+    SseEvent::new(
+        "error",
+        serde_json::json!({
+            "type": "error",
+            "error": { "type": "overloaded_error", "message": message }
+        }),
+    )
+}
+
 /// /cc 全局 deadline 触发时返回给客户端的 error 事件（两处 deadline 收尾路径共用）
 pub(crate) fn deadline_error_event() -> SseEvent {
     SseEvent::new(
@@ -206,6 +243,8 @@ fn create_sse_stream(
     // stream::pending()（具体类型），与 reqwest bytes_stream 的 opaque type
     // 无法直接统一，借 Box<dyn Stream> 擦除为同一类型。
     let body_stream = response.bytes_stream().boxed();
+    // 流起点（上游响应头已到达）：读流失败时用于诊断/提示"流已持续多久"
+    let stream_started_at = Instant::now();
 
     // bridge_ctx 与 provider Arc 一并放入 unfold 状态元组：闭包为 FnMut + async move，
     // 环境捕获的 Owned 值无法逐次 move 进 future（E0507/E0373），
@@ -213,7 +252,7 @@ fn create_sse_stream(
     // 状态元组第 10 元：进行中的桥接轮（修复③保活用，None = 无轮次执行中）。
     let processing_stream = stream::unfold(
         (body_stream, ctx, EventStreamDecoder::new(), false, interval_at(Instant::now() + Duration::from_secs(PING_INTERVAL_SECS), Duration::from_secs(PING_INTERVAL_SECS)), deadline, bridge, bridge_ctx, provider, None::<InFlightRound>),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline, mut bridge, bridge_ctx, provider, mut round_in_flight)| async move {
+        move |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, deadline, mut bridge, bridge_ctx, provider, mut round_in_flight)| async move {
             if finished {
                 return None;
             }
@@ -339,6 +378,7 @@ fn create_sse_stream(
                                 is_timeout = e.is_timeout(),
                                 is_body = e.is_body(),
                                 is_decode = e.is_decode(),
+                                stream_elapsed_secs = stream_started_at.elapsed().as_secs(),
                                 "读取响应流失败"
                             );
                             let final_events = if ctx.is_empty_response() {
@@ -354,11 +394,13 @@ fn create_sse_stream(
                                     vec![empty_response_error_event(false)]
                                 }
                             } else {
+                                let elapsed = stream_started_at.elapsed();
                                 tracing::warn!(
                                     est_input_tokens = ctx.input_tokens,
+                                    stream_elapsed_secs = elapsed.as_secs(),
                                     "流读取错误但已产生部分内容，补发 error 事件防止伪装成正常完成"
                                 );
-                                vec![stream_interrupted_error_event()]
+                                vec![stream_interrupted_error_event_after(elapsed)]
                             };
                             let bytes: Vec<Result<Bytes, Infallible>> = final_events
                                 .into_iter()

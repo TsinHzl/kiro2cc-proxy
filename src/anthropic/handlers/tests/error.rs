@@ -7,7 +7,9 @@ mod tests {
     use super::super::super::helpers::resolve_thinking_enabled;
 
     use super::super::super::nonstream::build_non_stream_content;
-    use super::super::super::stream::{stream_interrupted_error_event, wait_deadline};
+    use super::super::super::stream::{
+        stream_interrupted_error_event, stream_interrupted_error_event_after, wait_deadline,
+    };
 
     use crate::anthropic::stream::{CLIENT_ASSUMED_CONTEXT_WINDOW, scale_for_client};
 
@@ -34,6 +36,29 @@ mod tests {
                 .contains("interrupted"),
             "错误信息应说明是连接中断导致，而非正常结束"
         );
+    }
+
+    #[test]
+    fn test_stream_interrupted_after_short_stream_has_no_long_hint() {
+        let event = stream_interrupted_error_event_after(Duration::from_secs(30));
+        assert_eq!(event.event, "error");
+        assert_eq!(event.data["error"]["type"], "overloaded_error");
+        let msg = event.data["error"]["message"].as_str().unwrap();
+        assert!(msg.contains("interrupted") && msg.contains("after 30s"));
+        assert!(
+            !msg.contains("maximum duration"),
+            "短流不应附带时长上限提示"
+        );
+    }
+
+    #[test]
+    fn test_stream_interrupted_after_long_stream_hints_duration_limit() {
+        // issue #46：~247s 被上游 Reset，仍须是可重试的 overloaded_error，但带时长提示
+        let event = stream_interrupted_error_event_after(Duration::from_secs(247));
+        assert_eq!(event.data["error"]["type"], "overloaded_error");
+        let msg = event.data["error"]["message"].as_str().unwrap();
+        assert!(msg.contains("after 247s"));
+        assert!(msg.contains("maximum duration"));
     }
 
     async fn response_body_text(resp: Response) -> String {

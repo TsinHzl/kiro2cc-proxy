@@ -847,6 +847,16 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 能。创建/编辑子 API Key 时，额度单位可选「美元估算」或「真实 Credits」（limitUnit：usd/credits）。选择 credits 时，额度按 usage 记录中的真实 credits_used 累加计量（旧记录无 credits_used 字段时按 estimated_cost × k_ref 回退估算）。默认为 usd，向后兼容现有配置。
 
+**Q：长生成轮约 4 分钟（~247s）后报 `Server error mid-response`，代理日志出现 `Reset(StreamId(1), INTERNAL_ERROR, Remote)`**
+
+这是**上游（Kiro 网关）主动重置 HTTP/2 流**，不是代理超时（代理上游超时为 1000s）。代理收到 Reset 时若已有部分输出，会立即向客户端补发 `overloaded_error`（不会伪装成正常完成），客户端随后自动重试。
+
+根因目前**尚未确认**：有用户反馈开启 thinking adaptive 后长生成轮稳定在约 247s 被重置，推测上游对单次流存在时长限制；但维护者的实测中，同样开启 adaptive 的流可持续 360s 以上而未被重置，因此是否与 adaptive、请求内容或账号/网络链路有关尚不明确。代理日志中的 `stream_elapsed_secs` 字段记录了流断开时已持续的时长；超过 120s 才中断时，返回给客户端的错误信息会带上耗时并提示可能的时长限制。如遇到，欢迎在 issue 中附上该日志。
+
+若同一请求每次都跑满相近时长再失败，原样重试无效，可尝试：把长任务分段（单轮输出控制在较小范围）、及时 `/compact`、降低 thinking budget，或在账号上关闭 `thinkingAdaptive`。
+
+> 说明：`agentContinuationId` 是代理从 conversationId 派生的会话稳定标识（用于 prompt cache 与账号粘性路由），并不是上游的"断点续跑"句柄，代理无法在 Reset 后自动续写剩余内容；代理到客户端方向已每 25 秒发送 `ping` 保活，而 Reset 来自上游一侧，客户端侧保活无法避免。
+
 **Q：端口被占用**
 
 `run-local-service-mac.sh` 会自动终止占用端口的进程。如仍报错，手动执行：

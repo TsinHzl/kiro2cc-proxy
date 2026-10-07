@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.14".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "思考文本化时长行追加思考 token 统计（如「Thought for 22s (1.23k tokens)」），历史剥离兼容无后缀的旧格式",
+                    "Thinking-as-text duration line now appends the thinking token count (e.g. \"Thought for 22s (1.23k tokens)\"); history stripping stays compatible with the old suffix-less format",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "上游中断已产出部分内容的流时，日志新增 stream_elapsed_secs；流持续超过 120s 才中断时，返回客户端的错误信息附带耗时并提示可能触达上游单次流时长上限",
+                    "When the upstream interrupts a stream that already produced output, the log now records stream_elapsed_secs; if it was interrupted after more than 120s, the error sent to the client includes the elapsed time and a hint about a possible upstream per-stream duration limit",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.4.13".to_string(),
             is_latest: false,
             groups: vec![

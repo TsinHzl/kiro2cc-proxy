@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.15".to_string(),
+            is_latest: false,
+            groups: vec![
+                improve_group(vec![Bilingual::new(
+                    "请求带 Write 工具时，在系统提示末尾追加分块写入约束：上游生成大块工具参数期间不发送数据，静默约 240s 后会重置流，引导模型把大文件拆成多次较小的写入以避免该重置（对客户端规则遵从度的影响尚未验证）",
+                    "When a request carries a Write tool, a chunked-writing instruction is appended to the end of the system prompt: the upstream sends no data while a large tool argument is being generated and resets the stream after about 240s of silence, so the model is guided to split big files into several smaller writes (impact on adherence to client rules not yet verified)",
+                )]),
+                fix_group(vec![Bilingual::new(
+                    "流中断提示不再断言「上游单次流时长上限」等未证实的原因，仅附带流已持续秒数",
+                    "The stream-interruption message no longer asserts unverified causes such as an upstream per-stream duration limit and only includes the elapsed seconds",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.4.14".to_string(),
             is_latest: false,
             groups: vec![

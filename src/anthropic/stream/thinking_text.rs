@@ -112,6 +112,47 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Borrowed(rest)
 }
 
+/// 剥离历史 assistant 文本里的 dim 样式标记，避免模型把它们当作自己的输出格式模仿。
+///
+/// 背景：文本化思考的正文每行都被 `ESC[2m … ESC[0m` 包裹，并作为普通助手文本由客户端回传。
+/// [`strip_rendered_thinking`] 只剥标记行与时长行，正文行的样式码原样留在上游上下文里，
+/// 模型会把「每行 `[2m…[0m` 包裹的推理文字」当作自己的回复格式继续输出——且模型写不出真正
+/// 的 ESC 字符，写出的是字面 `[2m` / `[0m`，客户端无从渲染而原样显示（并作为已被污染的历史
+/// 继续强化该模式）。
+///
+/// 仅作用于发往上游的历史副本，不影响客户端自己保存与显示的内容，也不影响响应方向
+/// [`ThinkingTextRewriter`] 的 dim 渲染。处理两类：
+/// 1. 真正的 `ESC[2m` / `ESC[0m`（只可能来自本模块的渲染）：直接移除；
+/// 2. 模型模仿产生的、**整行**被字面 `[2m` … `[0m` 包住的行：去掉两端包裹，保留行内内容。
+///    只认整行首尾包裹，行内出现的 `[2m`（如讲解 ANSI 的文档）不受影响。
+///
+/// 无任何标记时原样返回（借用，不分配）。
+pub(crate) fn strip_dim_markers(text: &str) -> std::borrow::Cow<'_, str> {
+    const LIT_ON: &str = "[2m";
+    const LIT_OFF: &str = "[0m";
+    if !text.contains('\x1b') && !text.contains(LIT_ON) {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let no_esc = text.replace(DIM_ON, "").replace(DIM_OFF, "");
+    let mut out = String::with_capacity(no_esc.len());
+    for line in no_esc.split_inclusive('\n') {
+        let (body, nl) = match line.strip_suffix('\n') {
+            Some(b) => (b, "\n"),
+            None => (line, ""),
+        };
+        let unwrapped = body
+            .strip_prefix(LIT_ON)
+            .and_then(|b| b.strip_suffix(LIT_OFF));
+        out.push_str(unwrapped.unwrap_or(body));
+        out.push_str(nl);
+    }
+    if out == text {
+        std::borrow::Cow::Borrowed(text)
+    } else {
+        std::borrow::Cow::Owned(out)
+    }
+}
+
 /// 在单个行内容（不含前置 `\n`）中定位时长行段，返回段结束的相对字节偏移
 /// （段起点恒为行首 0）。匹配 [DIM_ON] + 前缀 + 时长（`Ns` 或 `Nm Ys`/`NmYs`，
 /// 与 format_duration 输出一致）+ 可选 token 后缀（`" (1.23k tokens)"`）+ [DIM_OFF]；
@@ -475,6 +516,58 @@ mod tests {
             strip_rendered_thinking(lookalike),
             "需 💭 Thought for 5s per step\n答案"
         );
+    }
+
+    #[test]
+    fn strip_dim_markers_removes_real_escape_codes() {
+        let t = "\x1b[2m推理一\x1b[0m\n\x1b[2m\x1b[0m\n\x1b[2m推理二\x1b[0m\n答案";
+        assert_eq!(strip_dim_markers(t), "推理一\n\n推理二\n答案");
+    }
+
+    #[test]
+    fn strip_dim_markers_unwraps_model_imitated_literal_lines() {
+        // 截图场景：模型写出的字面包裹行（无 ESC），含空行 `[2m[0m`
+        let t = "[2m修改已成功完成。我需要：[0m\n[2m[0m\n[2m> 引用行[0m\n正常行";
+        assert_eq!(
+            strip_dim_markers(t),
+            "修改已成功完成。我需要：\n\n> 引用行\n正常行"
+        );
+        // 真实 ESC 外层再套字面包裹（先剥 ESC，再剥整行包裹）
+        assert_eq!(strip_dim_markers("\x1b[2m[2m内容[0m\x1b[0m"), "内容");
+    }
+
+    #[test]
+    fn strip_dim_markers_leaves_unrelated_text_untouched() {
+        for t in [
+            "plain",
+            "",
+            "用 `[2m` 设置变暗，`[0m` 复位",
+            "行内 [2m 不是整行包裹 [0m 之后还有字",
+            "[2m只有开头没有结尾",
+            "没有开头只有结尾[0m",
+        ] {
+            let out = strip_dim_markers(t);
+            assert_eq!(out, t);
+            assert!(matches!(out, std::borrow::Cow::Borrowed(_)), "{t}");
+        }
+    }
+
+    #[test]
+    fn rendered_thinking_roundtrip_has_no_markers_after_history_strip() {
+        let mut r = ThinkingTextRewriter::new();
+        let mut out = r.rewrite(vec![start(0, "thinking")]);
+        out.extend(r.rewrite(vec![
+            delta(0, "thinking_delta", "thinking", "想一想\n\n再想想\n"),
+            stop(0),
+        ]));
+        let raw = text_of(&out);
+        assert!(raw.contains('\x1b'), "响应方向仍应带 dim 转义: {raw:?}");
+        let stripped = strip_dim_markers(&strip_rendered_thinking(&raw)).into_owned();
+        assert!(
+            !stripped.contains('\x1b') && !stripped.contains("[2m"),
+            "{stripped:?}"
+        );
+        assert!(stripped.contains("想一想") && stripped.contains("再想想"));
     }
 
     #[test]

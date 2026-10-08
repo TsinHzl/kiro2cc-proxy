@@ -21,6 +21,14 @@ use super::thinking::{
     generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags, is_gpt_model,
 };
 
+/// 历史 assistant 文本回传上游前的净化：先剥思考标记行 / 时长行，再剥 dim 样式码
+/// （含模型模仿产生的字面 `[2m…[0m` 整行包裹），避免上游模型模仿该格式。
+/// 顺序不可颠倒：标记行识别依赖 dim 转义包裹的兼容判断。
+fn sanitize_rendered_history_text(text: &str) -> String {
+    let stripped = crate::anthropic::stream::strip_rendered_thinking(text);
+    crate::anthropic::stream::strip_dim_markers(&stripped).into_owned()
+}
+
 /// 构建历史消息
 ///
 /// # Arguments
@@ -255,7 +263,7 @@ pub(super) fn convert_assistant_message(
 
     match &msg.content {
         serde_json::Value::String(s) => {
-            text_content = crate::anthropic::stream::strip_rendered_thinking(s).to_string();
+            text_content = sanitize_rendered_history_text(s);
         }
         serde_json::Value::Array(arr) => {
             for item in arr {
@@ -270,9 +278,7 @@ pub(super) fn convert_assistant_message(
                                 // thinkingAsText 渲染出的 text 块：仅剥首行「💭 Thinking」标记，
                                 // 思考正文按普通助手文本保留（上下文略增，已确认接受）。
                                 // 注意与上方原生 thinking 的处置差异 —— 前者整块丢弃，后者保留正文。
-                                text_content.push_str(
-                                    &crate::anthropic::stream::strip_rendered_thinking(&text),
-                                );
+                                text_content.push_str(&sanitize_rendered_history_text(&text));
                             }
                         }
                         "tool_use" => {

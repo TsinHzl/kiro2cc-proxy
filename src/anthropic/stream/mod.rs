@@ -21,10 +21,10 @@ pub(crate) use echo_guard::ResponseEchoGuard;
 pub(crate) use helpers::generate_fake_signature;
 pub use state::SseEvent;
 pub(crate) use thinking::split_thinking_and_visible;
-pub(crate) use thinking_text::strip_rendered_thinking;
 pub use thinking_text::{
     ThinkingTextRewriter, is_claude_code_client, set_thinking_as_text, thinking_as_text_enabled,
 };
+pub(crate) use thinking_text::{strip_dim_markers, strip_rendered_thinking};
 
 #[cfg(test)]
 pub(crate) use calib::context_window_for_model;

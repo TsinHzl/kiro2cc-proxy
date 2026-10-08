@@ -490,3 +490,48 @@ fn test_rendered_thinking_header_stripped_from_assistant_history() {
     assert!(!hist.contains("💭 Thinking"), "{hist}");
     assert!(hist.contains("secret reasoning"), "{hist}");
 }
+
+#[test]
+fn test_dim_markers_stripped_from_assistant_history() {
+    // 文本化思考正文每行带 dim 转义，客户端原样回传；模型模仿产生的字面 `[2m…[0m` 整行包裹
+    // 同样不应留在上游上下文里（否则会强化模型继续输出该格式）
+    use crate::anthropic::types::{Message as AnthropicMessage, MessagesRequest};
+    let req = MessagesRequest {
+        model: "claude-sonnet-4-5".to_string(),
+        max_tokens: 2048,
+        messages: vec![
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("q1"),
+            },
+            AnthropicMessage {
+                role: "assistant".to_string(),
+                content: serde_json::json!([
+                    {"type": "text", "text": "\u{1b}[2m💭 Thinking\u{1b}[0m\n\u{1b}[2mreal reasoning\u{1b}[0m\n\n\u{1b}[2m💭 Thought for 2s (9 tokens)\u{1b}[0m\n"},
+                    {"type": "text", "text": "[2mimitated reasoning[0m\n[2m[0m\nvisible answer"}
+                ]),
+            },
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("q2"),
+            },
+        ],
+        stream: false,
+        system: None,
+        tools: None,
+        tool_choice: None,
+        thinking: None,
+        output_config: None,
+        metadata: None,
+    };
+    let r = convert_request(&req).unwrap();
+    let hist = serde_json::to_string(&r.conversation_state.history).unwrap();
+    assert!(
+        !hist.contains("[2m") && !hist.contains("[0m") && !hist.contains("\\u001b"),
+        "{hist}"
+    );
+    assert!(!hist.contains("💭 Thinking"), "{hist}");
+    for kept in ["real reasoning", "imitated reasoning", "visible answer"] {
+        assert!(hist.contains(kept), "{kept}: {hist}");
+    }
+}

@@ -176,6 +176,62 @@ impl KiroProvider {
             fields.remove("thinking");
         }
 
+        // 账号开关关闭 = 不思考：除原生字段外，一并剥离 converter 为 `enabled` 请求
+        // 注入到 history[0] 的 `<thinking_mode>` 文本标签，否则 4.5 代际等走文本标签
+        // 协议的请求会无视开关继续深度思考。
+        if !credentials.thinking_adaptive {
+            Self::strip_text_thinking_tag(&mut value);
+        }
+
         serde_json::to_string(&value).unwrap_or_else(|_| body.to_string())
+    }
+
+    /// 剥离 converter 注入在 history[0] 最前面的 thinking 文本标签。
+    ///
+    /// 仅匹配 converter 生成的精确形态
+    /// `<thinking_mode>enabled</thinking_mode><max_thinking_length>N</max_thinking_length>`：
+    /// - 后跟 `\n` + 系统提示 → 只去掉标签与换行，保留系统提示；
+    /// - 单独成条（无系统消息时 converter 插入的 user + "I will follow these
+    ///   instructions." 配对）→ 整对移除，避免留下空 content（上游会拒绝）。
+    ///
+    /// 其他位置、其他形态的标签（如客户端自带）一律不动。
+    fn strip_text_thinking_tag(value: &mut serde_json::Value) {
+        const OPEN: &str = "<thinking_mode>enabled</thinking_mode><max_thinking_length>";
+        const CLOSE: &str = "</max_thinking_length>";
+
+        let Some(history) = value
+            .pointer_mut("/conversationState/history")
+            .and_then(|h| h.as_array_mut())
+        else {
+            return;
+        };
+        let Some(content) = history
+            .first()
+            .and_then(|m| m.pointer("/userInputMessage/content"))
+            .and_then(|c| c.as_str())
+        else {
+            return;
+        };
+        let Some(rest) = content.strip_prefix(OPEN) else {
+            return;
+        };
+        let digits = rest.chars().take_while(|c| c.is_ascii_digit()).count();
+        if digits == 0 {
+            return;
+        }
+        let Some(rest) = rest[digits..].strip_prefix(CLOSE) else {
+            return;
+        };
+        let remainder = rest.strip_prefix('\n').unwrap_or(rest).to_string();
+
+        if remainder.is_empty() {
+            // 单独成条：移除 user + 紧随其后的 assistant 配对
+            let paired = history
+                .get(1)
+                .is_some_and(|m| m.get("assistantResponseMessage").is_some());
+            history.drain(..if paired { 2 } else { 1 });
+        } else if let Some(c) = history[0].pointer_mut("/userInputMessage/content") {
+            *c = serde_json::Value::String(remainder);
+        }
     }
 }

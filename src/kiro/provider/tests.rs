@@ -253,6 +253,87 @@ mod tests {
         assert!(v.get("additionalModelRequestFields").is_none());
     }
 
+    const TAG: &str =
+        "<thinking_mode>enabled</thinking_mode><max_thinking_length>24576</max_thinking_length>";
+
+    fn body_with_history(history: serde_json::Value) -> String {
+        serde_json::json!({
+            "conversationState": {
+                "history": history,
+                "currentMessage": {"userInputMessage": {"modelId": "claude-sonnet-4.5"}}
+            }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn test_thinking_switch_off_strips_text_tag_keeps_system_prompt() {
+        // enabled 请求（4.5 代际）：标签 + "\n" + 系统提示；开关关闭 → 只去掉标签
+        let body = body_with_history(serde_json::json!([
+            {"userInputMessage": {"content": format!("{TAG}\nSYSTEM RULES")}},
+            {"assistantResponseMessage": {"content": "I will follow these instructions."}}
+        ]));
+        let result = KiroProvider::rewrite_request_body(&body, &KiroCredentials::default(), false);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let h = v["conversationState"]["history"].as_array().unwrap();
+        assert_eq!(h.len(), 2);
+        assert_eq!(h[0]["userInputMessage"]["content"], "SYSTEM RULES");
+    }
+
+    #[test]
+    fn test_thinking_switch_off_removes_standalone_tag_pair() {
+        // 无系统消息时 converter 插入的「仅标签 user + ack assistant」配对 → 整对移除
+        let body = body_with_history(serde_json::json!([
+            {"userInputMessage": {"content": TAG}},
+            {"assistantResponseMessage": {"content": "I will follow these instructions."}},
+            {"userInputMessage": {"content": "earlier question"}},
+            {"assistantResponseMessage": {"content": "earlier answer"}}
+        ]));
+        let result = KiroProvider::rewrite_request_body(&body, &KiroCredentials::default(), false);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let h = v["conversationState"]["history"].as_array().unwrap();
+        assert_eq!(h.len(), 2);
+        assert_eq!(h[0]["userInputMessage"]["content"], "earlier question");
+    }
+
+    #[test]
+    fn test_thinking_switch_on_keeps_text_tag() {
+        let content = format!("{TAG}\nSYSTEM RULES");
+        let body = body_with_history(serde_json::json!([
+            {"userInputMessage": {"content": content}},
+            {"assistantResponseMessage": {"content": "I will follow these instructions."}}
+        ]));
+        let result = KiroProvider::rewrite_request_body(&body, &adaptive_cred(), false);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            v["conversationState"]["history"][0]["userInputMessage"]["content"],
+            serde_json::json!(content)
+        );
+    }
+
+    #[test]
+    fn test_thinking_switch_off_leaves_unrelated_history_untouched() {
+        // 标签不在 history[0] 开头 / 形态不同 / 无 history → 不动
+        for history in [
+            serde_json::json!([{"userInputMessage": {"content": format!("SYS {TAG}")}}]),
+            serde_json::json!([{"userInputMessage": {"content": "<thinking_mode>enabled</thinking_mode>\nx"}}]),
+            serde_json::json!([{"userInputMessage": {"content": "plain system"}}]),
+            serde_json::json!([]),
+        ] {
+            let body = body_with_history(history.clone());
+            let result =
+                KiroProvider::rewrite_request_body(&body, &KiroCredentials::default(), false);
+            let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+            assert_eq!(v["conversationState"]["history"], history);
+        }
+        let no_history =
+            r#"{"conversationState":{"currentMessage":{"userInputMessage":{"modelId":"m"}}}}"#;
+        let result =
+            KiroProvider::rewrite_request_body(no_history, &KiroCredentials::default(), false);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(v["conversationState"].get("history").is_none());
+    }
+
     #[test]
     fn test_rewrite_request_body_invalid_json_passthrough() {
         // JSON 解析失败 → 原样返回（不阻断请求）

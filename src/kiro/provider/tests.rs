@@ -297,6 +297,49 @@ mod tests {
     }
 
     #[test]
+    fn test_thinking_switch_off_keeps_user_authored_tag_with_tool_pairing() {
+        // 用户原文恰为完整标签、后接带 tool_use 的真实 assistant：不得整对删除，
+        // 否则 tool_use 被删而当前 tool_result 残留
+        let history = serde_json::json!([
+            {"userInputMessage": {"content": TAG}},
+            {"assistantResponseMessage": {
+                "content": "reading",
+                "toolUses": [{"toolUseId": "t1", "name": "Read", "input": {}}]
+            }}
+        ]);
+        let body = body_with_history(history.clone());
+        let result = KiroProvider::rewrite_request_body(&body, &KiroCredentials::default(), false);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["conversationState"]["history"], history);
+    }
+
+    #[test]
+    fn test_thinking_switch_off_keeps_tag_when_ack_has_tool_uses_or_differs() {
+        // 确认语相同但带工具调用 / 内容不是确认语：都视为用户原文，不动（含标签+正文形态）
+        for (user, assistant) in [
+            (
+                TAG.to_string(),
+                serde_json::json!({"content": "I will follow these instructions.",
+                    "toolUses": [{"toolUseId": "t1", "name": "Read", "input": {}}]}),
+            ),
+            (
+                format!("{TAG}\nuser text"),
+                serde_json::json!({"content": "something else"}),
+            ),
+        ] {
+            let history = serde_json::json!([
+                {"userInputMessage": {"content": user}},
+                {"assistantResponseMessage": assistant}
+            ]);
+            let body = body_with_history(history.clone());
+            let result =
+                KiroProvider::rewrite_request_body(&body, &KiroCredentials::default(), false);
+            let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+            assert_eq!(v["conversationState"]["history"], history);
+        }
+    }
+
+    #[test]
     fn test_thinking_switch_on_keeps_text_tag() {
         let content = format!("{TAG}\nSYSTEM RULES");
         let body = body_with_history(serde_json::json!([

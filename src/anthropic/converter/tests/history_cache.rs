@@ -535,3 +535,40 @@ fn test_dim_markers_stripped_from_assistant_history() {
         assert!(hist.contains(kept), "{kept}: {hist}");
     }
 }
+
+#[test]
+fn test_code_example_with_literal_dim_line_survives_history() {
+    // 普通回答里讲解 ANSI 的 fenced 代码示例（无任何思考标记）不得被改写
+    use crate::anthropic::types::{Message as AnthropicMessage, MessagesRequest};
+    let answer = "示例：\n```\n[2mhello[0m\n[2mworld[0m\n```\n以上。";
+    let req = MessagesRequest {
+        model: "claude-sonnet-4-5".to_string(),
+        max_tokens: 2048,
+        messages: vec![
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("q1"),
+            },
+            AnthropicMessage {
+                role: "assistant".to_string(),
+                content: serde_json::json!([{"type": "text", "text": answer}]),
+            },
+            AnthropicMessage {
+                role: "user".to_string(),
+                content: serde_json::json!("q2"),
+            },
+        ],
+        stream: false,
+        system: None,
+        tools: None,
+        tool_choice: None,
+        thinking: None,
+        output_config: None,
+        metadata: None,
+    };
+    let r = convert_request(&req).unwrap();
+    let hist = serde_json::to_string(&r.conversation_state.history).unwrap();
+    let expected = serde_json::to_string(answer).unwrap();
+    let expected = &expected[1..expected.len() - 1];
+    assert!(hist.contains(expected), "{hist}");
+}

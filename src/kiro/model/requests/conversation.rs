@@ -304,6 +304,10 @@ pub struct HistoryAssistantMessage {
 }
 
 impl HistoryAssistantMessage {
+    /// converter 为系统提示 / thinking 前缀 / 引导语配对插入的固定确认语。
+    /// provider 层据此识别「converter 注入的配对」，修改需两侧保持一致（统一引用此常量）。
+    pub const SYSTEM_ACK: &'static str = "I will follow these instructions.";
+
     /// 创建新的历史助手消息
     pub fn new(content: impl Into<String>) -> Self {
         Self {

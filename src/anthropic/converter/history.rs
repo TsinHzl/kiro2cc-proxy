@@ -134,14 +134,14 @@ pub(super) fn build_history(
             let user_msg = HistoryUserMessage::new(final_content, model_id);
             history.push(Message::User(user_msg));
 
-            let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+            let assistant_msg = HistoryAssistantMessage::new(HistoryAssistantMessage::SYSTEM_ACK);
             history.push(Message::Assistant(assistant_msg));
         } else if let Some(hint) = anti_pseudo_tag_hint {
             // 无系统消息内容，但仍需为 GPT 系模型注入反伪标签引导语
             let user_msg = HistoryUserMessage::new(hint.to_string(), model_id);
             history.push(Message::User(user_msg));
 
-            let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+            let assistant_msg = HistoryAssistantMessage::new(HistoryAssistantMessage::SYSTEM_ACK);
             history.push(Message::Assistant(assistant_msg));
         }
     } else if let Some(ref prefix) = thinking_prefix {
@@ -149,7 +149,7 @@ pub(super) fn build_history(
         let user_msg = HistoryUserMessage::new(prefix.clone(), model_id);
         history.push(Message::User(user_msg));
 
-        let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+        let assistant_msg = HistoryAssistantMessage::new(HistoryAssistantMessage::SYSTEM_ACK);
         history.push(Message::Assistant(assistant_msg));
     } else if let Some(hint) = anti_pseudo_tag_hint {
         // 没有系统消息、非 Claude thinking 协议模型（GPT 系），但客户端仍请求了
@@ -157,7 +157,7 @@ pub(super) fn build_history(
         let user_msg = HistoryUserMessage::new(hint.to_string(), model_id);
         history.push(Message::User(user_msg));
 
-        let assistant_msg = HistoryAssistantMessage::new("I will follow these instructions.");
+        let assistant_msg = HistoryAssistantMessage::new(HistoryAssistantMessage::SYSTEM_ACK);
         history.push(Message::Assistant(assistant_msg));
     }
 

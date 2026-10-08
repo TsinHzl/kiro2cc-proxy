@@ -124,7 +124,13 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
 /// [`ThinkingTextRewriter`] 的 dim 渲染。处理两类：
 /// 1. 真正的 `ESC[2m` / `ESC[0m`（只可能来自本模块的渲染）：直接移除；
 /// 2. 模型模仿产生的、**整行**被字面 `[2m` … `[0m` 包住的行：去掉两端包裹，保留行内内容。
-///    只认整行首尾包裹，行内出现的 `[2m`（如讲解 ANSI 的文档）不受影响。
+///
+///    为避免误改正常内容，字面包裹的拆除有两道门槛：
+///    1. 跳过 fenced 代码块（``` / ~~~）内部，代码示例原样保留；
+///    2. 同一段文本中符合整行包裹的行数 ≥ [`MIN_IMITATED_WRAPPED_LINES`] 才拆
+///       （模仿污染是整段每行都包，孤立的一行多半是讲解 ANSI 的示例）。
+///
+///    缩进代码块、行内 `[2m`（如文档说明）因要求行首即 `[2m` 而天然不受影响。
 ///
 /// 无任何标记时原样返回（借用，不分配）。
 pub(crate) fn strip_dim_markers(text: &str) -> std::borrow::Cow<'_, str> {
@@ -134,17 +140,45 @@ pub(crate) fn strip_dim_markers(text: &str) -> std::borrow::Cow<'_, str> {
         return std::borrow::Cow::Borrowed(text);
     }
     let no_esc = text.replace(DIM_ON, "").replace(DIM_OFF, "");
+
+    // 逐行拆分，记录哪些行位于 fenced 代码块之外且为整行字面包裹
+    let lines: Vec<&str> = no_esc.split_inclusive('\n').collect();
+    let mut in_fence: Option<char> = None;
+    let mut wrapped = vec![false; lines.len()];
+    for (i, line) in lines.iter().enumerate() {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        let trimmed = body.trim_start();
+        let fence_char = ["```", "~~~"]
+            .iter()
+            .find(|f| trimmed.starts_with(**f))
+            .and_then(|f| f.chars().next());
+        if let Some(c) = fence_char {
+            match in_fence {
+                None => in_fence = Some(c),
+                Some(open) if open == c => in_fence = None,
+                Some(_) => {}
+            }
+            continue;
+        }
+        if in_fence.is_none() && body.starts_with(LIT_ON) && body.ends_with(LIT_OFF) {
+            // 重叠（如恰为 "[2m" 之后紧跟 "[0m" 前缀交叠）需保证两端不共用字符
+            wrapped[i] = body.len() >= LIT_ON.len() + LIT_OFF.len();
+        }
+    }
+    let unwrap_literals = wrapped.iter().filter(|w| **w).count() >= MIN_IMITATED_WRAPPED_LINES;
+
     let mut out = String::with_capacity(no_esc.len());
-    for line in no_esc.split_inclusive('\n') {
-        let (body, nl) = match line.strip_suffix('\n') {
-            Some(b) => (b, "\n"),
-            None => (line, ""),
-        };
-        let unwrapped = body
-            .strip_prefix(LIT_ON)
-            .and_then(|b| b.strip_suffix(LIT_OFF));
-        out.push_str(unwrapped.unwrap_or(body));
-        out.push_str(nl);
+    for (i, line) in lines.iter().enumerate() {
+        if unwrap_literals && wrapped[i] {
+            let (body, nl) = match line.strip_suffix('\n') {
+                Some(b) => (b, "\n"),
+                None => (*line, ""),
+            };
+            out.push_str(&body[LIT_ON.len()..body.len() - LIT_OFF.len()]);
+            out.push_str(nl);
+        } else {
+            out.push_str(line);
+        }
     }
     if out == text {
         std::borrow::Cow::Borrowed(text)
@@ -152,6 +186,9 @@ pub(crate) fn strip_dim_markers(text: &str) -> std::borrow::Cow<'_, str> {
         std::borrow::Cow::Owned(out)
     }
 }
+
+/// 同一段文本中至少有这么多行整行被字面 `[2m…[0m` 包裹，才认定为模型模仿污染并拆除。
+const MIN_IMITATED_WRAPPED_LINES: usize = 2;
 
 /// 在单个行内容（不含前置 `\n`）中定位时长行段，返回段结束的相对字节偏移
 /// （段起点恒为行首 0）。匹配 [DIM_ON] + 前缀 + 时长（`Ns` 或 `Nm Ys`/`NmYs`，
@@ -533,7 +570,23 @@ mod tests {
             "修改已成功完成。我需要：\n\n> 引用行\n正常行"
         );
         // 真实 ESC 外层再套字面包裹（先剥 ESC，再剥整行包裹）
-        assert_eq!(strip_dim_markers("\x1b[2m[2m内容[0m\x1b[0m"), "内容");
+        assert_eq!(
+            strip_dim_markers("\x1b[2m[2m内容一[0m\x1b[0m\n\x1b[2m[2m内容二[0m\x1b[0m"),
+            "内容一\n内容二"
+        );
+    }
+
+    #[test]
+    fn strip_dim_markers_unwraps_imitated_lines_outside_fence_only() {
+        // 围栏外的多行污染被拆，围栏内同形态的行保留
+        let t = "[2m推理一[0m\n[2m推理二[0m\n```\n[2mkeep[0m\n```\n[2m推理三[0m";
+        assert_eq!(
+            strip_dim_markers(t),
+            "推理一\n推理二\n```\n[2mkeep[0m\n```\n推理三"
+        );
+        // 未闭合的围栏：其后内容视为代码，不拆
+        let open = "[2ma[0m\n[2mb[0m\n```\n[2mc[0m\n[2md[0m";
+        assert_eq!(strip_dim_markers(open), "a\nb\n```\n[2mc[0m\n[2md[0m");
     }
 
     #[test]
@@ -545,6 +598,13 @@ mod tests {
             "行内 [2m 不是整行包裹 [0m 之后还有字",
             "[2m只有开头没有结尾",
             "没有开头只有结尾[0m",
+            // 孤立的一行整行包裹（低于门槛）：多半是示例，不动
+            "示例输出：\n[2mhello[0m\n结束",
+            // fenced 代码块内的整行包裹（即使有多行）：代码示例原样保留
+            "```\n[2mhello[0m\n[2mworld[0m\n```",
+            "~~~text\n[2ma[0m\n[2mb[0m\n~~~",
+            // 缩进代码块行首不是 `[2m`
+            "    [2mhello[0m\n    [2mworld[0m",
         ] {
             let out = strip_dim_markers(t);
             assert_eq!(out, t);

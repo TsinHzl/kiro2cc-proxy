@@ -3,6 +3,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::kiro::model::credentials::{KiroCredentials, fallback_profile_arn_value};
+use crate::kiro::model::requests::conversation::HistoryAssistantMessage;
 
 use super::core::KiroProvider;
 
@@ -189,10 +190,13 @@ impl KiroProvider {
     /// 剥离 converter 注入在 history[0] 最前面的 thinking 文本标签。
     ///
     /// 仅匹配 converter 生成的精确形态
-    /// `<thinking_mode>enabled</thinking_mode><max_thinking_length>N</max_thinking_length>`：
-    /// - 后跟 `\n` + 系统提示 → 只去掉标签与换行，保留系统提示；
-    /// - 单独成条（无系统消息时 converter 插入的 user + "I will follow these
-    ///   instructions." 配对）→ 整对移除，避免留下空 content（上游会拒绝）。
+    /// `<thinking_mode>enabled</thinking_mode><max_thinking_length>N</max_thinking_length>`，
+    /// 且要求紧随其后的 history[1] 是 converter 配对插入的固定确认语
+    /// （[`HistoryAssistantMessage::SYSTEM_ACK`]）且不含工具调用——
+    /// 否则视为用户原文，整段历史不动（避免误删真实消息、破坏 tool_use/tool_result 配对）：
+    /// - 标签后跟 `\n` + 系统提示 → 只去掉标签与换行，保留系统提示；
+    /// - 标签单独成条（无系统消息时 converter 插入的 user + ack 配对）→ 整对移除，
+    ///   避免留下空 content（上游会拒绝）。
     ///
     /// 其他位置、其他形态的标签（如客户端自带）一律不动。
     fn strip_text_thinking_tag(value: &mut serde_json::Value) {
@@ -224,12 +228,23 @@ impl KiroProvider {
         };
         let remainder = rest.strip_prefix('\n').unwrap_or(rest).to_string();
 
+        // 来源校验：converter 注入的前缀恒与固定确认语配对；不匹配（或带工具调用）说明
+        // 这条 user 消息是用户原文，不能删也不能改
+        let is_injected_pair = history.get(1).is_some_and(|m| {
+            m.pointer("/assistantResponseMessage/content")
+                .and_then(|c| c.as_str())
+                == Some(HistoryAssistantMessage::SYSTEM_ACK)
+                && m.pointer("/assistantResponseMessage/toolUses")
+                    .and_then(|t| t.as_array())
+                    .is_none_or(|t| t.is_empty())
+        });
+        if !is_injected_pair {
+            return;
+        }
+
         if remainder.is_empty() {
-            // 单独成条：移除 user + 紧随其后的 assistant 配对
-            let paired = history
-                .get(1)
-                .is_some_and(|m| m.get("assistantResponseMessage").is_some());
-            history.drain(..if paired { 2 } else { 1 });
+            // 单独成条：移除 user + 紧随其后的确认语 assistant 配对
+            history.drain(..2);
         } else if let Some(c) = history[0].pointer_mut("/userInputMessage/content") {
             *c = serde_json::Value::String(remainder);
         }

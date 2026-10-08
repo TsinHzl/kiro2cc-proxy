@@ -849,7 +849,7 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 **Q：长生成轮约 4 分钟（~247s）后报 `Server error mid-response`，代理日志出现 `Reset(StreamId(1), INTERNAL_ERROR, Remote)`**
 
-这是**上游（Kiro 网关）主动重置 HTTP/2 流**，不是代理超时（代理上游超时为 1000s）。代理收到 Reset 时若已有部分输出，会立即向客户端补发 `overloaded_error`（不会伪装成正常完成），客户端随后自动重试。
+这是**上游（Kiro 网关）主动重置 HTTP/2 流**，不是代理超时（代理上游超时为 1000s）。代理收到 Reset 时若已有部分输出，会立即向客户端补发 `overloaded_error`（不会伪装成正常完成），客户端随后自动重试。该问题在**不经代理、直接使用 Kiro CLI 时同样复现**，可确认根因在上游一侧，与代理转发链路和客户端无关。
 
 实测定位到一个可复现的触发条件：**模型一次生成很大的工具调用参数（典型是用 `Write` 一次写入上万字的文件）**。上游不会增量流式输出工具参数，生成期间该流没有任何数据，静默约 240s 后上游以 `RST_STREAM(INTERNAL_ERROR)` 重置（实测写入约 8000 字耗时约 215s 可成功，约 20000 字约 240s 必定失败，且与 thinking adaptive 开关无关；原样重试会再次失败；HTTP/2 PING 保活无效）。纯文本流和 thinking 阶段持续输出，实测 794s 仍正常结束。
 

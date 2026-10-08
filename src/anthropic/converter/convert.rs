@@ -18,7 +18,10 @@ use super::session::{
     derive_agent_continuation_id, derive_fallback_conversation_id, extract_session_id,
     is_compact_request,
 };
-use super::tools::{convert_tools, remove_orphaned_tool_uses, validate_tool_pairing};
+use super::tools::{
+    WRITE_CHUNKING_SYSTEM_NOTE, convert_tools, has_write_tool, remove_orphaned_tool_uses,
+    validate_tool_pairing,
+};
 use super::websearch::{
     collect_history_tool_names, create_placeholder_tool, create_web_search_bridge_tool,
     split_web_search_tool,
@@ -143,6 +146,14 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
     // 会让 toolUse 按普通 tool_use 透传给客户端，故跳过注入。
     if web_search_max_uses.is_some_and(|max_uses| max_uses.unwrap_or(5) > 0) {
         tools.push(create_web_search_bridge_tool());
+    }
+
+    // 6c. 带 Write 工具的请求在系统提示末尾追加分块写入约束（issue #46：上游对静默约 240s 的
+    // 大块工具参数生成会 Reset）。放在会话 ID 派生之后，不改变既有会话/缓存标识的计算输入。
+    if has_write_tool(&tools) {
+        system
+            .get_or_insert_with(Vec::new)
+            .push(WRITE_CHUNKING_SYSTEM_NOTE);
     }
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）

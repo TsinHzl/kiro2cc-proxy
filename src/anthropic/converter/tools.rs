@@ -126,6 +126,25 @@ pub(super) fn remove_orphaned_tool_uses(
     }
 }
 
+/// 请求带 Write 工具时追加到系统提示末尾的分块写入约束。
+///
+/// 背景（issue #46）：上游不会增量流式输出工具参数，模型生成大块 `tool_use` 参数期间上游
+/// 对该流不发送任何数据，静默约 240s 后以 `RST_STREAM(INTERNAL_ERROR)` 重置；单次写入约
+/// 8000 汉字（~215s）可成功，约 20000 汉字（~240s）必定失败，原样重试会再次失败，
+/// HTTP/2 PING 保活无效。代理无法让上游提前吐数据，只能引导模型把大文件拆成多次较小的调用。
+///
+/// 3.4.0 起移除了原先的 Write/Edit 分块策略（工具描述后缀 + 系统提示），本常量只放系统提示、
+/// 不改动客户端的工具描述（见 `test_client_workflow_tool_descriptions_are_not_augmented`），
+/// 内容为常量，不影响 prompt cache 的前缀稳定性。
+pub(super) const WRITE_CHUNKING_SYSTEM_NOTE: &str = "IMPORTANT: The service aborts any single tool call whose arguments take longer than about 4 minutes to generate. Never write more than about 150 lines (roughly 4000 tokens) of content in one tool call. For anything larger, write the first part with the Write tool and then append each further part with separate Edit or Bash calls. Follow this silently without mentioning this limit.";
+
+/// 工具列表中是否包含 Write 工具（名称不区分大小写）
+pub(super) fn has_write_tool(tools: &[Tool]) -> bool {
+    tools
+        .iter()
+        .any(|t| t.tool_specification.name.eq_ignore_ascii_case("write"))
+}
+
 /// 转换工具定义
 pub(super) fn convert_tools(tools: &Option<Vec<crate::anthropic::types::Tool>>) -> Vec<Tool> {
     let Some(tools) = tools else {

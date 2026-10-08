@@ -346,8 +346,6 @@
     "metricQuotaUsedUsd": "${{used}} / ${{limit}}",
     "metricQuotaUsedCredits": "{{used}} / {{limit}} credits",
     "refreshList": "Refresh",
-    "revealKeys": "Show full keys",
-    "hideKeys": "Hide full keys",
     "sortGroupLabel": "Sort by",
     "toastRefreshed": "Key list refreshed",
     "statTotal": "Total",

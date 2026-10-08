@@ -346,8 +346,6 @@
     "metricQuotaUsedUsd": "${{used}} / ${{limit}}",
     "metricQuotaUsedCredits": "{{used}} / {{limit}} credits",
     "refreshList": "刷新列表",
-    "revealKeys": "显示完整 Key",
-    "hideKeys": "隐藏完整 Key",
     "sortGroupLabel": "排序方式",
     "toastRefreshed": "已刷新 Key 列表",
     "statTotal": "总数",

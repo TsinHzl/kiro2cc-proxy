@@ -60,7 +60,6 @@ export interface ApiKeyRowProps {
   bound: { label: string; balance: string | null }[]
   selected: boolean
   onToggleSelect: () => void
-  revealed: boolean
   copied: boolean
   createdTitle: string
   onCopy: () => void
@@ -87,7 +86,6 @@ export function ApiKeyRow({
   bound,
   selected,
   onToggleSelect,
-  revealed,
   copied,
   createdTitle,
   onCopy,
@@ -138,11 +136,11 @@ export function ApiKeyRow({
         </div>
       </td>
 
-      {/* KEY（设计稿 .mid）：明文 / 掩码受操作条的「显示完整 Key」控制 */}
+      {/* KEY（设计稿 .mid）：固定掩码展示 */}
       <td className={CELL}>
         <div className="flex items-center gap-1.5">
           <code className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">
-            {revealed ? apiKey.key : `${apiKey.key.slice(0, 7)}...${apiKey.key.slice(-4)}`}
+            {`${apiKey.key.slice(0, 7)}...${apiKey.key.slice(-4)}`}
           </code>
           <button
             type="button"

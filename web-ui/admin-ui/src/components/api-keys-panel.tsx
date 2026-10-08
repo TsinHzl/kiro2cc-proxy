@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Copy, Plus, Check, RotateCw, Link2, FileText, Eye, EyeOff, Eraser, Box } from 'lucide-react'
+import { Copy, Plus, Check, RotateCw, Link2, FileText, Eraser, Box } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
@@ -59,7 +59,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [sortBy, setSortBy] = useState<SortBy>('newest')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<KeyStatusFilter>('all')
-  const [revealAll, setRevealAll] = useState(false)
   /** 跨页保留的勾选集合（与账号管理页一致） */
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
@@ -671,10 +670,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           <RotateCw />
           {t('apiKeys.refreshList')}
         </Button>
-        <Button variant="outline" aria-pressed={revealAll} onClick={() => setRevealAll((v) => !v)}>
-          {revealAll ? <EyeOff /> : <Eye />}
-          {revealAll ? t('apiKeys.hideKeys') : t('apiKeys.revealKeys')}
-        </Button>
         {/* 分隔线随危险按钮一起显隐，无无效 Key 时不留孤立竖线 */}
         {invalidKeys.length > 0 && (
           <>
@@ -755,7 +750,6 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
             bound={boundOf(apiKey)}
             selected={selectedIds.has(apiKey.id)}
             onToggleSelect={() => toggleSelect(apiKey.id)}
-            revealed={revealAll}
             copied={copiedId === apiKey.id}
             createdTitle={t('apiKeys.createdLabel', { date: formatDate(apiKey.createdAt) })}
             onCopy={() =>

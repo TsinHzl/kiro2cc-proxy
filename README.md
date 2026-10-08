@@ -851,9 +851,9 @@ GPT-5.6 系列的 Kiro 后端 schema 不支持 `additionalModelRequestFields`（
 
 这是**上游（Kiro 网关）主动重置 HTTP/2 流**，不是代理超时（代理上游超时为 1000s）。代理收到 Reset 时若已有部分输出，会立即向客户端补发 `overloaded_error`（不会伪装成正常完成），客户端随后自动重试。
 
-根因目前**尚未确认**：有用户反馈开启 thinking adaptive 后长生成轮稳定在约 247s 被重置，推测上游对单次流存在时长限制；但维护者的实测中，同样开启 adaptive 的流可持续 360s 以上而未被重置，因此是否与 adaptive、请求内容或账号/网络链路有关尚不明确。代理日志中的 `stream_elapsed_secs` 字段记录了流断开时已持续的时长；超过 120s 才中断时，返回给客户端的错误信息会带上耗时并提示可能的时长限制。如遇到，欢迎在 issue 中附上该日志。
+根因目前**尚未确认**：有用户反馈开启 thinking adaptive 后长生成轮稳定在约 247s 被重置；但维护者实测中，同样开启 adaptive 的流可持续 361s 以上而未被重置，说明**不存在无条件的单次流总时长上限**。剩余可能性包括：上游 thinking 路径的内部看门狗、不同接入端点的限制差异、请求内容（如 tools / 大上下文）或账号/网络链路相关，均未证实（注：361s 那条流本身没有产出 thinking 块，并不等同于 issue 中的 thinking 长生成场景）。代理日志中的 `stream_elapsed_secs` 字段记录了流断开时已持续的时长，返回给客户端的错误信息也会带上该耗时。如遇到，欢迎在 issue 中附上该日志，并说明 Reset 发生在 thinking 阶段还是输出阶段、请求是否带 tools。
 
-若同一请求每次都跑满相近时长再失败，原样重试无效，可尝试：把长任务分段（单轮输出控制在较小范围）、及时 `/compact`、降低 thinking budget，或在账号上关闭 `thinkingAdaptive`。
+临时缓解（效果未经验证）：及时 `/compact`、降低 thinking budget，或在账号上关闭 `thinkingAdaptive`（反馈称关闭后未再出现 Reset）。
 
 > 说明：`agentContinuationId` 是代理从 conversationId 派生的会话稳定标识（用于 prompt cache 与账号粘性路由），并不是上游的"断点续跑"句柄，代理无法在 Reset 后自动续写剩余内容；代理到客户端方向已每 25 秒发送 `ping` 保活，而 Reset 来自上游一侧，客户端侧保活无法避免。
 

@@ -39,26 +39,21 @@ mod tests {
     }
 
     #[test]
-    fn test_stream_interrupted_after_short_stream_has_no_long_hint() {
-        let event = stream_interrupted_error_event_after(Duration::from_secs(30));
-        assert_eq!(event.event, "error");
-        assert_eq!(event.data["error"]["type"], "overloaded_error");
-        let msg = event.data["error"]["message"].as_str().unwrap();
-        assert!(msg.contains("interrupted") && msg.contains("after 30s"));
-        assert!(
-            !msg.contains("maximum duration"),
-            "短流不应附带时长上限提示"
-        );
-    }
-
-    #[test]
-    fn test_stream_interrupted_after_long_stream_hints_duration_limit() {
-        // issue #46：~247s 被上游 Reset，仍须是可重试的 overloaded_error，但带时长提示
-        let event = stream_interrupted_error_event_after(Duration::from_secs(247));
-        assert_eq!(event.data["error"]["type"], "overloaded_error");
-        let msg = event.data["error"]["message"].as_str().unwrap();
-        assert!(msg.contains("after 247s"));
-        assert!(msg.contains("maximum duration"));
+    fn test_stream_interrupted_after_reports_elapsed_without_asserting_cause() {
+        // 短流/长流（含 issue #46 的 ~247s）一律：可重试的 overloaded_error + 耗时，
+        // 且不断言"时长上限"等未证实的原因
+        for secs in [30u64, 247, 361] {
+            let event = stream_interrupted_error_event_after(Duration::from_secs(secs));
+            assert_eq!(event.event, "error");
+            assert_eq!(event.data["error"]["type"], "overloaded_error");
+            let msg = event.data["error"]["message"].as_str().unwrap();
+            assert!(msg.contains("interrupted"));
+            assert!(msg.contains(&format!("after {secs}s")));
+            assert!(
+                !msg.contains("maximum duration"),
+                "不得断言未证实的时长上限"
+            );
+        }
     }
 
     async fn response_body_text(resp: Response) -> String {

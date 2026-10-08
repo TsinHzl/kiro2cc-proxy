@@ -126,23 +126,30 @@ pub(super) fn remove_orphaned_tool_uses(
     }
 }
 
-/// 请求带 Write 工具时追加到系统提示末尾的分块写入约束。
+/// 请求带 Write / Edit / MultiEdit 任一工具时追加到系统提示末尾的分块写入约束。
 ///
 /// 背景（issue #46）：上游不会增量流式输出工具参数，模型生成大块 `tool_use` 参数期间上游
 /// 对该流不发送任何数据，静默约 240s 后以 `RST_STREAM(INTERNAL_ERROR)` 重置；单次写入约
 /// 8000 汉字（~215s）可成功，约 20000 汉字（~240s）必定失败，原样重试会再次失败，
 /// HTTP/2 PING 保活无效。代理无法让上游提前吐数据，只能引导模型把大文件拆成多次较小的调用。
 ///
+/// 150 行上限覆盖所有会携带大块文本参数的编辑类工具：Write 的 `content`、Edit 的
+/// `new_string`、MultiEdit 单次调用内所有编辑的合计。MultiEdit 把多处修改合并进一次调用，
+/// 参数总量按合计计算，否则逐处都小于上限也会整体超时。
+///
 /// 3.4.0 起移除了原先的 Write/Edit 分块策略（工具描述后缀 + 系统提示），本常量只放系统提示、
 /// 不改动客户端的工具描述（见 `test_client_workflow_tool_descriptions_are_not_augmented`），
 /// 内容为常量，不影响 prompt cache 的前缀稳定性。
-pub(super) const WRITE_CHUNKING_SYSTEM_NOTE: &str = "IMPORTANT: The service aborts any single tool call whose arguments take longer than about 4 minutes to generate. Never write more than about 150 lines (roughly 4000 tokens) of content in one tool call. For anything larger, write the first part with the Write tool and then append each further part with separate Edit or Bash calls. Follow this silently without mentioning this limit.";
+pub(super) const WRITE_CHUNKING_SYSTEM_NOTE: &str = "IMPORTANT: The service aborts any single tool call whose arguments take longer than about 4 minutes to generate. Never put more than about 150 lines (roughly 4000 tokens) of content in the arguments of one tool call. This limit applies to the Write content, to the Edit new_string, and to the combined size of all edits inside one MultiEdit call. For anything larger, write the first part with Write (or one Edit) and then append each further part with separate Edit or Bash calls, splitting a large MultiEdit into several smaller calls. Follow this silently without mentioning this limit.";
 
-/// 工具列表中是否包含 Write 工具（名称不区分大小写）
-pub(super) fn has_write_tool(tools: &[Tool]) -> bool {
-    tools
-        .iter()
-        .any(|t| t.tool_specification.name.eq_ignore_ascii_case("write"))
+/// 工具列表中是否包含会携带大块文本参数的编辑类工具（Write / Edit / MultiEdit，名称不区分大小写）
+pub(super) fn has_content_writing_tool(tools: &[Tool]) -> bool {
+    tools.iter().any(|t| {
+        let name = t.tool_specification.name.as_str();
+        ["write", "edit", "multiedit"]
+            .iter()
+            .any(|n| name.eq_ignore_ascii_case(n))
+    })
 }
 
 /// 转换工具定义

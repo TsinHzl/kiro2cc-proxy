@@ -597,6 +597,24 @@ fn test_write_tool_request_gets_chunking_note_in_system_only() {
 }
 
 #[test]
+fn test_edit_and_multiedit_only_requests_get_chunking_note() {
+    // 只带 Edit / MultiEdit（无 Write）的请求同样受 150 行约束，名称不区分大小写
+    for name in ["Edit", "edit", "MultiEdit", "multiedit"] {
+        let req = request_with_tools(&[name, "Read"], Some("Follow the user request."));
+        let serialized =
+            serde_json::to_string(&convert_request(&req).unwrap().conversation_state).unwrap();
+        assert!(serialized.contains(WRITE_CHUNKING_SYSTEM_NOTE), "{name}");
+    }
+}
+
+#[test]
+fn test_chunking_note_names_all_editing_tools() {
+    for needle in ["150 lines", "Write", "Edit new_string", "MultiEdit"] {
+        assert!(WRITE_CHUNKING_SYSTEM_NOTE.contains(needle), "{needle}");
+    }
+}
+
+#[test]
 fn test_write_tool_request_without_client_system_still_gets_note() {
     let req = request_with_tools(&["Write"], None);
     let serialized =
@@ -605,8 +623,8 @@ fn test_write_tool_request_without_client_system_still_gets_note() {
 }
 
 #[test]
-fn test_request_without_write_tool_has_no_chunking_note() {
-    let req = request_with_tools(&["Read", "Bash", "Edit"], Some("Follow the user request."));
+fn test_request_without_editing_tool_has_no_chunking_note() {
+    let req = request_with_tools(&["Read", "Bash", "Grep"], Some("Follow the user request."));
     let serialized =
         serde_json::to_string(&convert_request(&req).unwrap().conversation_state).unwrap();
     assert!(!serialized.contains(WRITE_CHUNKING_SYSTEM_NOTE));

@@ -19,7 +19,7 @@ use super::session::{
     is_compact_request,
 };
 use super::tools::{
-    WRITE_CHUNKING_SYSTEM_NOTE, convert_tools, has_write_tool, remove_orphaned_tool_uses,
+    WRITE_CHUNKING_SYSTEM_NOTE, convert_tools, has_content_writing_tool, remove_orphaned_tool_uses,
     validate_tool_pairing,
 };
 use super::websearch::{
@@ -148,9 +148,9 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         tools.push(create_web_search_bridge_tool());
     }
 
-    // 6c. 带 Write 工具的请求在系统提示末尾追加分块写入约束（issue #46：上游对静默约 240s 的
+    // 6c. 带 Write / Edit / MultiEdit 工具的请求在系统提示末尾追加分块写入约束（issue #46：上游对静默约 240s 的
     // 大块工具参数生成会 Reset）。放在会话 ID 派生之后，不改变既有会话/缓存标识的计算输入。
-    if has_write_tool(&tools) {
+    if has_content_writing_tool(&tools) {
         system
             .get_or_insert_with(Vec::new)
             .push(WRITE_CHUNKING_SYSTEM_NOTE);

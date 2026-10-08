@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  a0f41112e52437a0 4
+web-ui/admin-ui/src/components/api-key-row.tsx
+  a0f41112e52437a0 139,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "70058091cb0d9052cfa5074f4968b9af46851777",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 15,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

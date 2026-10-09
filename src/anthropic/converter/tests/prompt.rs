@@ -97,7 +97,7 @@ fn test_unrelated_prompt_does_not_append_recent_knowledge_reference() {
     );
 }
 
-// ---- GPT 专属：动态块分流出 history[0]，保持前缀缓存稳定 ----
+// ---- 动态块分流出 history[0]，保持前缀缓存稳定 ----
 
 fn dynamic_split_req(model: &str, system: Vec<&str>, user: &str) -> MessagesRequest {
     use crate::anthropic::types::{Message as AnthropicMessage, SystemMessage};
@@ -191,18 +191,65 @@ fn gpt_all_dynamic_system_keeps_thinking_prefix() {
 }
 
 #[test]
-fn non_gpt_models_keep_dynamic_blocks_in_history0_unchanged() {
-    // 非 GPT 请求与分流逻辑无关：history[0] 为完整 system 按 "\n" 拼接，
-    // 当前消息不被追加任何内容（与改动前逐字节一致）
-    for model in ["claude-sonnet-4-6", "claude-opus-4-6", "deepseek-3.2"] {
+fn claude_dynamic_blocks_leave_history0_and_go_to_current_message() {
+    // issue #47：非 GPT 模型同样需要分流，否则累积的 hook / 通知块使 history[0] 逐轮漂移
+    for model in ["claude-sonnet-4-6", "claude-opus-5-5", "deepseek-3.2"] {
         let (h0, cur) = history0_and_current(&dynamic_split_req(
             model,
             vec![STABLE, HOOK, DEFERRED],
             "hi",
         ));
-        assert_eq!(h0, format!("{STABLE}\n{HOOK}\n{DEFERRED}"), "{model}");
-        assert_eq!(cur, "hi", "{model}");
+        assert_eq!(h0, STABLE, "{model}: history[0] 只应含稳定系统内容");
+        assert!(cur.starts_with("<system-reminder>"), "{model}: {cur}");
+        assert!(cur.ends_with("hi"), "{model}: {cur}");
+        assert!(cur.contains(HOOK) && cur.contains(DEFERRED), "{model}");
     }
+}
+
+#[test]
+fn claude_history0_stable_across_turns_with_accumulating_dynamic_blocks() {
+    let (h0_a, _) = history0_and_current(&dynamic_split_req(
+        "claude-opus-5-5",
+        vec![STABLE, HOOK],
+        "turn1",
+    ));
+    let (h0_b, _) = history0_and_current(&dynamic_split_req(
+        "claude-opus-5-5",
+        vec![STABLE, HOOK, DEFERRED, HOOK, HOOK],
+        "turn2",
+    ));
+    assert_eq!(h0_a, h0_b, "动态块累积不得改变 history[0]");
+}
+
+#[test]
+fn claude_without_dynamic_blocks_keeps_history0_and_current_unchanged() {
+    // 请求不含动态块时与分流逻辑无关：history[0] 为完整 system 按 "\n" 拼接，
+    // 当前消息不被追加任何内容
+    let (h0, cur) = history0_and_current(&dynamic_split_req(
+        "claude-opus-4-6",
+        vec![STABLE, "Second stable block"],
+        "hi",
+    ));
+    assert_eq!(h0, format!("{STABLE}\nSecond stable block"));
+    assert_eq!(cur, "hi");
+}
+
+#[test]
+fn claude_empty_stable_block_with_dynamic_keeps_thinking_prefix() {
+    // CR 回归：稳定块仅剩空文本时，分流后须按"无系统消息"处理，thinking 前缀不能丢
+    use crate::anthropic::types::Thinking;
+    let mut req = dynamic_split_req("claude-opus-5-5", vec!["", HOOK], "hi");
+    req.thinking = Some(Thinking {
+        thinking_type: "enabled".to_string(),
+        budget_tokens: 1000,
+    });
+    let (h0, cur) = history0_and_current(&req);
+    assert!(
+        h0.contains("<thinking_mode>enabled</thinking_mode>"),
+        "{h0}"
+    );
+    assert!(!h0.contains(HOOK));
+    assert!(cur.contains(HOOK));
 }
 
 #[test]

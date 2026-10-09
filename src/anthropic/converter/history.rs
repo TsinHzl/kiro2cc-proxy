@@ -18,7 +18,7 @@ use super::message::process_message_content;
 use super::prompt::{is_dynamic_hook_injection, normalize_billing_header};
 use super::result::ConversionError;
 use super::thinking::{
-    generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags, is_gpt_model,
+    generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags,
 };
 
 /// 历史 assistant 文本回传上游前的净化：先剥思考标记行 / 时长行，再剥 dim 样式码
@@ -51,27 +51,27 @@ pub(super) fn build_history(
     let anti_pseudo_tag_hint = gpt_anti_pseudo_tag_hint(req, model_id);
 
     // 1. 处理系统消息
-    // 仅 GPT 系：CC 中途注入的动态块（hook 输出、工具/MCP 状态通知）逐轮累积，
-    // 留在 history[0] 会使冻结缓存 key 每轮漂移、前缀缓存持续 miss。这里把它们
-    // 从 history[0] 拼接中剔除，并返回给调用方放到当前消息开头——模型仍可见
+    // 所有模型：CC 中途注入的动态块（hook 输出、工具/MCP 状态通知）逐轮累积，
+    // 留在 history[0] 会使冻结缓存 key 每轮漂移、history[0] 之后的整段前缀缓存
+    // 持续 miss（issue #47：claude-opus-5.5 会话 history[0] 每轮 +50~+970 字节）。
+    // 这里把它们从 history[0] 拼接中剔除，并返回给调用方放到当前消息开头——模型仍可见
     // （hook 注入的用户规则不丢失），但不参与缓存 hash。
-    // 非 GPT 模型不分流：stable_system 即完整 system，dynamic 恒为空，
-    // history[0] 与此前逐字节一致。
     let (stable_system, dynamic_system): (Vec<&str>, Vec<&str>) = match system {
-        Some(blocks) if is_gpt_model(model_id) => blocks
+        Some(blocks) => blocks
             .iter()
             .copied()
             .partition(|s| !is_dynamic_hook_injection(s)),
-        Some(blocks) => (blocks.to_vec(), Vec::new()),
         None => (Vec::new(), Vec::new()),
     };
-    // 全部块都被分流（stable 为空）时按"无系统消息"处理，保留 thinking 前缀 / 引导语注入
+    // 全部块都被分流（stable 拼接结果为空，含仅剩空文本块）时按"无系统消息"处理，
+    // 保留 thinking 前缀 / 引导语注入
+    let stable_content = stable_system.join("\n");
     let system_present =
-        system.is_some() && (dynamic_system.is_empty() || !stable_system.is_empty());
+        system.is_some() && (dynamic_system.is_empty() || !stable_content.is_empty());
     let dynamic_content = dynamic_system.join("\n\n");
 
     if system_present {
-        let system_content = stable_system.join("\n");
+        let system_content = stable_content;
 
         if !system_content.is_empty() {
             // 注入thinking标签到系统消息最前面（如果需要且不存在）

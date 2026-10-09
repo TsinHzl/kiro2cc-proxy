@@ -164,7 +164,7 @@ pub fn convert_request(req: &MessagesRequest) -> Result<ConversionResult, Conver
         &model_id,
         &conversation_id,
     )?;
-    // 仅 GPT 系：被分流出 history[0] 的动态块放到当前消息文本**开头**（非 GPT 恒为空，
+    // 被分流出 history[0] 的动态块放到当前消息文本**开头**（请求无动态块时为空，
     // 不改动 text_content）。放开头而非末尾：当前消息末尾通常是 skill / 用户指令正文，
     // 末尾追加 "deferred tools / MCP 连接中" 之类通知会抢走模型对本轮指令的注意力；
     // 当前消息本身不进缓存前缀，放哪里都不影响缓存命中。

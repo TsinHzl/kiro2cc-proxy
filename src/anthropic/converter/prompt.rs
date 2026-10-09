@@ -25,8 +25,8 @@ pub(super) fn normalize_billing_header(content: String) -> String {
 ///
 /// CC 会以 `role:"system"` 的中途消息追加 hook 输出与工具/MCP 状态通知，v3.4.0 起
 /// 这些块被归并进系统区，进而落入 history[0]；它们每轮累积，导致 history[0] 逐轮
-/// 漂移、前缀缓存持续 miss。仅 GPT 请求会据此把它们分流到当前消息末尾
-/// （见 `history::build_history`），其他模型不调用本谓词。
+/// 漂移、前缀缓存持续 miss。所有模型的请求都会据此把它们分流到当前消息开头
+/// （见 `history::build_history`）。
 ///
 /// 识别范围（前缀匹配，忽略前导空白）：
 /// - `<Event> hook ...` 与 `<Event>:<matcher> hook ...`，Event ∈ UserPromptSubmit /

@@ -302,7 +302,7 @@
     "batchImportDialogTitle": "KAM Account Import (Supports Single and Multiple Accounts)",
     "jsonFormatAccountsLabel": "JSON Format Accounts",
     "batchImportPlaceholder": "Paste KAM export JSON or drag a file here\nExample:\n{\n  \"version\": \"1.7.5\",\n  \"exportedAt\": 1767225600000,\n  \"accounts\": [\n    {\n      \"email\": \"demo.user@example.com\",\n      \"userId\": \"d-example-user-id\",\n      \"nickname\": \"demo-user\",\n      \"idp\": \"Google\",\n      \"credentials\": {\n        \"accessToken\": \"example-access-token-not-for-use\",\n        \"csrfToken\": \"\",\n        \"refreshToken\": \"example-refresh-token-not-for-use\",\n        \"clientId\": \"\",\n        \"clientSecret\": \"\",\n        \"region\": \"us-east-1\",\n        \"expiresAt\": 1767229200000,\n        \"authMethod\": \"social\",\n        \"provider\": \"Google\"\n      },\n      \"subscription\": {\n        \"type\": \"Free\",\n        \"title\": \"Kiro Free\",\n        \"rawType\": \"Q_DEVELOPER_STANDALONE\",\n        \"daysRemaining\": 30,\n        \"expiresAt\": 1769817600000,\n        \"managementTarget\": \"MANAGE\",\n        \"upgradeCapability\": \"UPGRADE_CAPABLE\",\n        \"overageCapability\": \"OVERAGE_INCAPABLE\"\n      },\n      \"usage\": {\n        \"current\": 0,\n        \"limit\": 1000,\n        \"percentUsed\": 0,\n        \"lastUpdated\": 1767225600000,\n        \"baseLimit\": 1000,\n        \"baseCurrent\": 0,\n        \"freeTrialLimit\": 0,\n        \"freeTrialCurrent\": 0,\n        \"bonuses\": [],\n        \"nextResetDate\": \"2026-01-02T00:00:00.000Z\"\n      },\n      \"tags\": [],\n      \"status\": \"active\",\n      \"lastUsedAt\": 1767225600000,\n      \"id\": \"00000000-0000-4000-8000-000000000000\",\n      \"machineId\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n      \"createdAt\": 1767225600000\n    },\n    {\n      \"email\": \"demo.account.2@example.com\",\n      \"userId\": \"d-example-user-id-2\",\n      \"nickname\": \"demo-account-2\",\n      \"idp\": \"Google\",\n      \"credentials\": {\n        \"accessToken\": \"example-access-token-2-not-for-use\",\n        \"csrfToken\": \"\",\n        \"refreshToken\": \"example-refresh-token-2-not-for-use\",\n        \"clientId\": \"\",\n        \"clientSecret\": \"\",\n        \"region\": \"us-east-1\",\n        \"expiresAt\": 1767229200000,\n        \"authMethod\": \"social\",\n        \"provider\": \"Google\"\n      },\n      \"subscription\": {\n        \"type\": \"Free\",\n        \"title\": \"Kiro Free\",\n        \"rawType\": \"Q_DEVELOPER_STANDALONE\",\n        \"daysRemaining\": 30,\n        \"expiresAt\": 1769817600000,\n        \"managementTarget\": \"MANAGE\",\n        \"upgradeCapability\": \"UPGRADE_CAPABLE\",\n        \"overageCapability\": \"OVERAGE_INCAPABLE\"\n      },\n      \"usage\": {\n        \"current\": 0,\n        \"limit\": 1000,\n        \"percentUsed\": 0,\n        \"lastUpdated\": 1767225600000,\n        \"baseLimit\": 1000,\n        \"baseCurrent\": 0,\n        \"freeTrialLimit\": 0,\n        \"freeTrialCurrent\": 0,\n        \"bonuses\": [],\n        \"nextResetDate\": \"2026-01-02T00:00:00.000Z\"\n      },\n      \"tags\": [],\n      \"status\": \"active\",\n      \"lastUsedAt\": 1767225600000,\n      \"id\": \"00000000-0000-4000-8000-000000000002\",\n      \"machineId\": \"0000000000000000000000000000000000000000000000000000000000000002\",\n      \"createdAt\": 1767225600000\n    }\n  ],\n  \"groups\": [],\n  \"tags\": []\n}\nThe region field is automatically mapped to authRegion",
-    "batchImportHint": "💡 Imported accounts are created disabled and enabled only after successful quota verification; failed verification leaves the account retained and disabled",
+    "batchImportHint": "Imported accounts are created disabled and enabled only after successful quota verification; failed verification leaves the account retained and disabled",
     "verifyingProgressLabel": "Verifying",
     "verifyCompleteLabel": "Verification Complete",
     "statSuccessLabel": "Succeeded",
@@ -321,7 +321,19 @@
     "errorLabel": "Error: {{error}}",
     "verifyBackgroundHint": "💡 Requests are spaced 2 seconds apart during verification to avoid bans. You can close this window; verification will continue in the background.",
     "runInBackgroundButton": "Run in Background",
-    "cancelVerifyButton": "Cancel Verification"
+    "cancelVerifyButton": "Cancel Verification",
+    "importBadge": "Single / Batch import",
+    "importToolbarSample": "Fill sample",
+    "importToolbarFormat": "Format",
+    "importToolbarClear": "Clear",
+    "importDropOverlay": "Release to import the file",
+    "importSelectFile": "Choose local file",
+    "importStatusIdle": "Waiting for input",
+    "importStatusValid": "Valid · {count} account(s) detected",
+    "importStatusInvalid": "Syntax error: {message}",
+    "importFileTypeError": "Only .json files are supported",
+    "importFileSizeError": "File size exceeds the 2MB limit",
+    "importFileReadError": "Failed to read the file, please retry"
   },
   "apiKeys": {
     "serviceInfo": "Service Connection Info",
@@ -692,7 +704,6 @@
     "proxyUrl": "Upstream Proxy URL",
     "proxyUrlDesc": "Proxy for upstream requests (http/https/socks5); leave empty for direct connection. Saved to config.json; takes effect after restart.",
     "runtimeConfigSaveHint": "port and proxyUrl changes take effect after restart",
-
     "priorityMode": "Priority Mode",
     "balancedMode": "Balanced Load",
     "switchedTo": "Switched to {{mode}}",

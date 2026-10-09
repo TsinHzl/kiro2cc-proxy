@@ -1,8 +1,17 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+import {
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  ClipboardList,
+  Braces,
+  Eraser,
+  Download,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -55,6 +64,47 @@ interface VerificationResult {
   credentialId?: number
 }
 
+type JsonStatus =
+  | { state: 'idle' }
+  | { state: 'valid'; count: number }
+  | { state: 'invalid'; error: string }
+
+/** 「填入示例」使用的 KAM 导出格式示例（结构与 batchImportPlaceholder 一致） */
+const SAMPLE_JSON = JSON.stringify(
+  {
+    version: 1,
+    accounts: [
+      {
+        email: 'user@example.com',
+        machineId: 'b8f1e2c3-4a5b-6c7d-8e9f-0a1b2c3d4e5f',
+        credentials: {
+          refreshToken: 'us-east-1_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          region: 'us-east-1',
+          authMethod: 'social',
+          provider: 'GoogleIdp',
+        },
+      },
+    ],
+  },
+  null,
+  2
+)
+
+const MAX_FILE_SIZE = 2 * 1024 * 1024
+
+/** 按现有解析规则统计账号数：数组 → length；KAM 导出 accounts → length；单对象 → 1 */
+const countAccounts = (parsed: unknown): number => {
+  if (Array.isArray(parsed)) return parsed.length
+  if (
+    parsed
+    && typeof parsed === 'object'
+    && Array.isArray((parsed as Record<string, unknown>).accounts)
+  ) {
+    return ((parsed as { accounts: unknown[] }).accounts).length
+  }
+  return 1
+}
+
 export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps) {
   const { t } = useTranslation()
   const [jsonInput, setJsonInput] = useState('')
@@ -62,16 +112,41 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [currentProcessing, setCurrentProcessing] = useState<string>('')
   const [results, setResults] = useState<VerificationResult[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const [jsonStatus, setJsonStatus] = useState<JsonStatus>({ state: 'idle' })
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const codeBoxRef = useRef<HTMLDivElement>(null)
 
   const { data: existingCredentials } = useCredentials()
   const { mutateAsync: addCredential } = useAddCredential()
   const { mutateAsync: setDisabled } = useSetDisabled()
+
+  // 实时 JSON 健康度校验（300ms 防抖）
+  useEffect(() => {
+    if (!jsonInput.trim()) {
+      setJsonStatus({ state: 'idle' })
+      return
+    }
+    const timer = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(jsonInput)
+        setJsonStatus({ state: 'valid', count: countAccounts(parsed) })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setJsonStatus({ state: 'invalid', error: message })
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [jsonInput])
 
   const resetForm = () => {
     setJsonInput('')
     setProgress({ current: 0, total: 0 })
     setCurrentProcessing('')
     setResults([])
+    setDragActive(false)
+    setJsonStatus({ state: 'idle' })
   }
 
   const handleBatchImport = async () => {
@@ -332,6 +407,98 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     }
   }
 
+  const handleFillSample = () => {
+    setJsonInput(SAMPLE_JSON)
+  }
+
+  const handleFormat = () => {
+    try {
+      setJsonInput(JSON.stringify(JSON.parse(jsonInput), null, 2))
+    } catch {
+      // 格式化失败时保持原文，由状态条展示语法错误
+    }
+  }
+
+  const handleClear = () => {
+    setJsonInput('')
+  }
+
+  const readUploadedFile = (file: File) => {
+    const isJson = file.name.endsWith('.json') || file.type === 'application/json'
+    if (!isJson) {
+      toast.error(t('credentials.importFileTypeError'))
+      return
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(t('credentials.importFileSizeError'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setJsonInput(String(reader.result ?? ''))
+    }
+    reader.onerror = () => {
+      toast.error(t('credentials.importFileReadError'))
+    }
+    reader.readAsText(file)
+  }
+
+  const handleSelectFile = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) readUploadedFile(file)
+    e.target.value = ''
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (importing) return
+    setDragActive(true)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (importing) return
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    // 仅当离开整个容器（而非进入内部子元素）时取消高亮
+    if (!codeBoxRef.current?.contains(e.relatedTarget as Node)) {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragActive(false)
+    if (importing) return
+    const file = e.dataTransfer.files?.[0]
+    if (file) readUploadedFile(file)
+  }
+
+  const statusDotClass
+    = jsonStatus.state === 'valid'
+      ? 'bg-ok'
+      : jsonStatus.state === 'invalid'
+        ? 'bg-danger'
+        : 'bg-track'
+
+  const statusText = (() => {
+    if (jsonStatus.state === 'valid') {
+      return t('credentials.importStatusValid', { count: jsonStatus.count })
+    }
+    if (jsonStatus.state === 'invalid') {
+      const short = jsonStatus.error.length > 25 ? `${jsonStatus.error.slice(0, 25)}…` : jsonStatus.error
+      return t('credentials.importStatusInvalid', { message: short })
+    }
+    return t('credentials.importStatusIdle')
+  })()
+
   return (
     <Dialog
       open={open}
@@ -345,24 +512,128 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     >
       <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{t('credentials.batchImportDialogTitle')}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2.5">
+            {t('credentials.batchImportDialogTitle')}
+            <span className="rounded-full border border-hairline-2 bg-surface-2 px-2 py-0.5 text-[10.5px] font-normal text-ink-2">
+              {t('credentials.importBadge')}
+            </span>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pb-4">
           <div className="space-y-2">
-            <label className="text-[11.5px] font-medium text-ink-2">
-              {t('credentials.jsonFormatAccountsLabel')}
-            </label>
-            <textarea
-              placeholder={t('credentials.batchImportPlaceholder')}
-              value={jsonInput}
-              onChange={(e) => setJsonInput(e.target.value)}
-              disabled={importing}
-              className="min-h-[200px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-2.5 py-2 font-mono text-[12px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <p className="text-[11px] leading-[1.55] text-ink-3">
-              {t('credentials.batchImportHint')}
-            </p>
+            {/* 快捷工具栏 */}
+            <div className="flex items-center justify-between">
+              <label className="text-[11.5px] font-medium text-ink-2">
+                {t('credentials.jsonFormatAccountsLabel')}
+              </label>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-[11.5px] text-ink-2"
+                  onClick={handleFillSample}
+                  disabled={importing}
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  {t('credentials.importToolbarSample')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-[11.5px] text-ink-2"
+                  onClick={handleFormat}
+                  disabled={importing || !jsonInput.trim()}
+                >
+                  <Braces className="h-3.5 w-3.5" />
+                  {t('credentials.importToolbarFormat')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-[11.5px] text-ink-2"
+                  onClick={handleClear}
+                  disabled={importing || !jsonInput.trim()}
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  {t('credentials.importToolbarClear')}
+                </Button>
+              </div>
+            </div>
+
+            {/* Dropzone：输入区容器，支持拖拽 .json 文件 */}
+            <div
+              ref={codeBoxRef}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`relative rounded-[8px] border bg-surface-2 transition-colors focus-within:border-brand ${
+                dragActive ? 'border-brand' : 'border-hairline-2'
+              }`}
+            >
+              <textarea
+                placeholder={t('credentials.batchImportPlaceholder')}
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                disabled={importing}
+                spellCheck={false}
+                className="h-[250px] w-full resize-none rounded-[8px] bg-transparent px-3 py-2.5 font-mono text-[12px] leading-[1.6] text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+
+              {/* 拖拽悬停覆盖层 */}
+              {dragActive && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[8px] border-2 border-dashed border-brand bg-brand/5">
+                  <div className="flex flex-col items-center gap-2">
+                    <Download className="h-6 w-6 animate-bounce text-brand" />
+                    <span className="text-[13px] font-medium text-brand">
+                      {t('credentials.importDropOverlay')}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 输入区底部状态条：左状态 / 右选择文件 */}
+              <div className="flex items-center justify-between border-t border-hairline px-3 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+                  <span
+                    className={`text-[11px] ${
+                      jsonStatus.state === 'invalid' ? 'text-danger' : 'text-ink-3'
+                    }`}
+                  >
+                    {statusText}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSelectFile}
+                  disabled={importing}
+                  className="text-[11px] text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t('credentials.importSelectFile')}
+                </button>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={importing}
+              />
+            </div>
+
+            {/* 琥珀色验活规则提示卡片 */}
+            <div className="rounded-[8px] border border-warn/20 bg-warn/5 px-3 py-2.5">
+              <p className="text-[11px] leading-[1.55] text-warn">
+                {t('credentials.batchImportHint')}
+              </p>
+            </div>
           </div>
 
           {(importing || results.length > 0) && (
@@ -465,6 +736,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                 onClick={handleBatchImport}
                 disabled={importing || !jsonInput.trim()}
               >
+                {importing && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t('credentials.startImportVerifyButton')}
               </Button>
             )}

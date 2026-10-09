@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,10 +7,11 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
-  ClipboardList,
   Braces,
   Eraser,
   Download,
+  FolderOpen,
+  Lightbulb,
 } from 'lucide-react'
 import {
   Dialog,
@@ -64,46 +65,7 @@ interface VerificationResult {
   credentialId?: number
 }
 
-type JsonStatus =
-  | { state: 'idle' }
-  | { state: 'valid'; count: number }
-  | { state: 'invalid'; error: string }
-
-/** 「填入示例」使用的 KAM 导出格式示例（结构与 batchImportPlaceholder 一致） */
-const SAMPLE_JSON = JSON.stringify(
-  {
-    version: 1,
-    accounts: [
-      {
-        email: 'user@example.com',
-        machineId: 'b8f1e2c3-4a5b-6c7d-8e9f-0a1b2c3d4e5f',
-        credentials: {
-          refreshToken: 'us-east-1_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-          region: 'us-east-1',
-          authMethod: 'social',
-          provider: 'GoogleIdp',
-        },
-      },
-    ],
-  },
-  null,
-  2
-)
-
 const MAX_FILE_SIZE = 2 * 1024 * 1024
-
-/** 按现有解析规则统计账号数：数组 → length；KAM 导出 accounts → length；单对象 → 1 */
-const countAccounts = (parsed: unknown): number => {
-  if (Array.isArray(parsed)) return parsed.length
-  if (
-    parsed
-    && typeof parsed === 'object'
-    && Array.isArray((parsed as Record<string, unknown>).accounts)
-  ) {
-    return ((parsed as { accounts: unknown[] }).accounts).length
-  }
-  return 1
-}
 
 export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps) {
   const { t } = useTranslation()
@@ -113,7 +75,6 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
   const [currentProcessing, setCurrentProcessing] = useState<string>('')
   const [results, setResults] = useState<VerificationResult[]>([])
   const [dragActive, setDragActive] = useState(false)
-  const [jsonStatus, setJsonStatus] = useState<JsonStatus>({ state: 'idle' })
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const codeBoxRef = useRef<HTMLDivElement>(null)
@@ -122,31 +83,12 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
   const { mutateAsync: addCredential } = useAddCredential()
   const { mutateAsync: setDisabled } = useSetDisabled()
 
-  // 实时 JSON 健康度校验（300ms 防抖）
-  useEffect(() => {
-    if (!jsonInput.trim()) {
-      setJsonStatus({ state: 'idle' })
-      return
-    }
-    const timer = setTimeout(() => {
-      try {
-        const parsed = JSON.parse(jsonInput)
-        setJsonStatus({ state: 'valid', count: countAccounts(parsed) })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        setJsonStatus({ state: 'invalid', error: message })
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [jsonInput])
-
   const resetForm = () => {
     setJsonInput('')
     setProgress({ current: 0, total: 0 })
     setCurrentProcessing('')
     setResults([])
     setDragActive(false)
-    setJsonStatus({ state: 'idle' })
   }
 
   const handleBatchImport = async () => {
@@ -407,15 +349,12 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     }
   }
 
-  const handleFillSample = () => {
-    setJsonInput(SAMPLE_JSON)
-  }
-
   const handleFormat = () => {
     try {
       setJsonInput(JSON.stringify(JSON.parse(jsonInput), null, 2))
-    } catch {
-      // 格式化失败时保持原文，由状态条展示语法错误
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      toast.error(t('credentials.toastJsonError', { message }))
     }
   }
 
@@ -481,24 +420,6 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     if (file) readUploadedFile(file)
   }
 
-  const statusDotClass
-    = jsonStatus.state === 'valid'
-      ? 'bg-ok'
-      : jsonStatus.state === 'invalid'
-        ? 'bg-danger'
-        : 'bg-track'
-
-  const statusText = (() => {
-    if (jsonStatus.state === 'valid') {
-      return t('credentials.importStatusValid', { count: jsonStatus.count })
-    }
-    if (jsonStatus.state === 'invalid') {
-      const short = jsonStatus.error.length > 25 ? `${jsonStatus.error.slice(0, 25)}…` : jsonStatus.error
-      return t('credentials.importStatusInvalid', { message: short })
-    }
-    return t('credentials.importStatusIdle')
-  })()
-
   return (
     <Dialog
       open={open}
@@ -514,7 +435,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2.5">
             {t('credentials.batchImportDialogTitle')}
-            <span className="rounded-full border border-hairline-2 bg-surface-2 px-2 py-0.5 text-[10.5px] font-normal text-ink-2">
+            <span className="rounded-[8px] border border-sky-100 bg-sky-100 px-3 py-2 text-[11px] font-medium tracking-[0.2px] text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-400">
               {t('credentials.importBadge')}
             </span>
           </DialogTitle>
@@ -533,11 +454,11 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                   variant="ghost"
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-[11.5px] text-ink-2"
-                  onClick={handleFillSample}
+                  onClick={handleSelectFile}
                   disabled={importing}
                 >
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  {t('credentials.importToolbarSample')}
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  {t('credentials.importSelectFile')}
                 </Button>
                 <Button
                   type="button"
@@ -596,28 +517,6 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
                 </div>
               )}
 
-              {/* 输入区底部状态条：左状态 / 右选择文件 */}
-              <div className="flex items-center justify-between border-t border-hairline px-3 py-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
-                  <span
-                    className={`text-[11px] ${
-                      jsonStatus.state === 'invalid' ? 'text-danger' : 'text-ink-3'
-                    }`}
-                  >
-                    {statusText}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSelectFile}
-                  disabled={importing}
-                  className="text-[11px] text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {t('credentials.importSelectFile')}
-                </button>
-              </div>
-
               <input
                 ref={fileInputRef}
                 type="file"
@@ -629,8 +528,9 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
             </div>
 
             {/* 琥珀色验活规则提示卡片 */}
-            <div className="rounded-[8px] border border-warn/20 bg-warn/5 px-3 py-2.5">
-              <p className="text-[11px] leading-[1.55] text-warn">
+            <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/60 dark:bg-amber-950/40">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
+              <p className="text-[11px] font-medium leading-[1.55] text-amber-600 dark:text-amber-500/80">
                 {t('credentials.batchImportHint')}
               </p>
             </div>

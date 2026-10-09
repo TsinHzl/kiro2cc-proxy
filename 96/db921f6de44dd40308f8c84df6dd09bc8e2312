@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/batch-import-dialog.tsx
+  3df26b70b27a0ec9 2,6-14,67-105,115-116,118-119,125-141,148-149,410-472,475-500,515-520,525-636,739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "96db921f6de44dd40308f8c84df6dd09bc8e2312",
+  "prompts": {
+    "3df26b70b27a0ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97803921-097d-4c7e-8e7b-492e93dbf84f",
+        "model": "gemini-3.8-flash-high"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 354,
+      "total_deletions": 25,
+      "accepted_lines": 345,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -299,10 +299,10 @@
     "statusActivationUnknown": "已验活但启用状态未知",
     "statusDuplicate": "重复账号",
     "statusFailedNotCreated": "验活失败（未创建）",
-    "batchImportDialogTitle": "KAM导入账号(同时支持单账号和多个账号导入)",
+    "batchImportDialogTitle": "KAM 导入账号",
     "jsonFormatAccountsLabel": "JSON 格式账号",
     "batchImportPlaceholder": "粘贴 KAM 导出 JSON 或将文件拖拽到此处\n例如：\n{\n  \"version\": \"1.7.5\",\n  \"exportedAt\": 1767225600000,\n  \"accounts\": [\n    {\n      \"email\": \"demo.user@example.com\",\n      \"userId\": \"d-example-user-id\",\n      \"nickname\": \"demo-user\",\n      \"idp\": \"Google\",\n      \"credentials\": {\n        \"accessToken\": \"example-access-token-not-for-use\",\n        \"csrfToken\": \"\",\n        \"refreshToken\": \"example-refresh-token-not-for-use\",\n        \"clientId\": \"\",\n        \"clientSecret\": \"\",\n        \"region\": \"us-east-1\",\n        \"expiresAt\": 1767229200000,\n        \"authMethod\": \"social\",\n        \"provider\": \"Google\"\n      },\n      \"subscription\": {\n        \"type\": \"Free\",\n        \"title\": \"Kiro Free\",\n        \"rawType\": \"Q_DEVELOPER_STANDALONE\",\n        \"daysRemaining\": 30,\n        \"expiresAt\": 1769817600000,\n        \"managementTarget\": \"MANAGE\",\n        \"upgradeCapability\": \"UPGRADE_CAPABLE\",\n        \"overageCapability\": \"OVERAGE_INCAPABLE\"\n      },\n      \"usage\": {\n        \"current\": 0,\n        \"limit\": 1000,\n        \"percentUsed\": 0,\n        \"lastUpdated\": 1767225600000,\n        \"baseLimit\": 1000,\n        \"baseCurrent\": 0,\n        \"freeTrialLimit\": 0,\n        \"freeTrialCurrent\": 0,\n        \"bonuses\": [],\n        \"nextResetDate\": \"2026-01-02T00:00:00.000Z\"\n      },\n      \"tags\": [],\n      \"status\": \"active\",\n      \"lastUsedAt\": 1767225600000,\n      \"id\": \"00000000-0000-4000-8000-000000000000\",\n      \"machineId\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n      \"createdAt\": 1767225600000\n    },\n    {\n      \"email\": \"demo.account.2@example.com\",\n      \"userId\": \"d-example-user-id-2\",\n      \"nickname\": \"demo-account-2\",\n      \"idp\": \"Google\",\n      \"credentials\": {\n        \"accessToken\": \"example-access-token-2-not-for-use\",\n        \"csrfToken\": \"\",\n        \"refreshToken\": \"example-refresh-token-2-not-for-use\",\n        \"clientId\": \"\",\n        \"clientSecret\": \"\",\n        \"region\": \"us-east-1\",\n        \"expiresAt\": 1767229200000,\n        \"authMethod\": \"social\",\n        \"provider\": \"Google\"\n      },\n      \"subscription\": {\n        \"type\": \"Free\",\n        \"title\": \"Kiro Free\",\n        \"rawType\": \"Q_DEVELOPER_STANDALONE\",\n        \"daysRemaining\": 30,\n        \"expiresAt\": 1769817600000,\n        \"managementTarget\": \"MANAGE\",\n        \"upgradeCapability\": \"UPGRADE_CAPABLE\",\n        \"overageCapability\": \"OVERAGE_INCAPABLE\"\n      },\n      \"usage\": {\n        \"current\": 0,\n        \"limit\": 1000,\n        \"percentUsed\": 0,\n        \"lastUpdated\": 1767225600000,\n        \"baseLimit\": 1000,\n        \"baseCurrent\": 0,\n        \"freeTrialLimit\": 0,\n        \"freeTrialCurrent\": 0,\n        \"bonuses\": [],\n        \"nextResetDate\": \"2026-01-02T00:00:00.000Z\"\n      },\n      \"tags\": [],\n      \"status\": \"active\",\n      \"lastUsedAt\": 1767225600000,\n      \"id\": \"00000000-0000-4000-8000-000000000002\",\n      \"machineId\": \"0000000000000000000000000000000000000000000000000000000000000002\",\n      \"createdAt\": 1767225600000\n    }\n  ],\n  \"groups\": [],\n  \"tags\": []\n}\n支持 region 字段自动映射为 authRegion",
-    "batchImportHint": "💡 导入账号先以禁用状态创建，仅在额度验活成功后启用；验活失败时会保留并保持禁用",
+    "batchImportHint": "导入账号先以禁用状态创建，仅在额度验活成功后启用；验活失败时会保留并保持禁用",
     "verifyingProgressLabel": "验活进度",
     "verifyCompleteLabel": "验活完成",
     "statSuccessLabel": "成功",
@@ -321,7 +321,15 @@
     "errorLabel": "错误: {{error}}",
     "verifyBackgroundHint": "💡 验活过程中每次请求间隔 2 秒，防止被封号。你可以关闭此窗口，验活会在后台继续进行。",
     "runInBackgroundButton": "后台运行",
-    "cancelVerifyButton": "取消验活"
+    "cancelVerifyButton": "取消验活",
+    "importBadge": "同时支持单账号 / 批量导入",
+    "importToolbarFormat": "格式化",
+    "importToolbarClear": "清空",
+    "importDropOverlay": "松开鼠标即可导入该文件",
+    "importSelectFile": "选择本地文件",
+    "importFileTypeError": "仅支持 .json 文件",
+    "importFileSizeError": "文件大小超过 2MB 上限",
+    "importFileReadError": "文件读取失败，请重试"
   },
   "apiKeys": {
     "serviceInfo": "服务连接信息",
@@ -692,7 +700,6 @@
     "proxyUrl": "上游代理地址",
     "proxyUrlDesc": "转发上游请求使用的代理（支持 http/https/socks5），留空 = 不使用代理。保存后写入 config.json，重启后生效。",
     "runtimeConfigSaveHint": "port 与 proxyUrl 修改将在重启后生效",
-
     "priorityMode": "优先级模式",
     "balancedMode": "均衡负载",
     "switchedTo": "已切换为{{mode}}",

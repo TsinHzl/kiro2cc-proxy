@@ -759,12 +759,8 @@ mod native_tests {
     fn test_suppressed_drops_thinking_but_keeps_text_and_tools() {
         let native = json!({"type": "thinking", "thinking": "推理", "signature": "sig"});
         let tool = json!({"type": "tool_use", "id": "t1", "name": "Bash", "input": {}});
-        let (mut content, _) = build_non_stream_content_with_native(
-            vec![native],
-            "",
-            "答案",
-            vec![tool.clone()],
-        );
+        let (mut content, _) =
+            build_non_stream_content_with_native(vec![native], "", "答案", vec![tool.clone()]);
         drop_thinking_blocks(&mut content);
         assert_eq!(content, vec![json!({"type": "text", "text": "答案"}), tool]);
     }

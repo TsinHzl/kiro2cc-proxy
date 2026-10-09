@@ -17,9 +17,7 @@ use super::cache::{CacheEntry, PREV_H0, evict_oldest_if_full};
 use super::message::process_message_content;
 use super::prompt::{is_dynamic_hook_injection, normalize_billing_header};
 use super::result::ConversionError;
-use super::thinking::{
-    generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags,
-};
+use super::thinking::{generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags};
 
 /// 历史 assistant 文本回传上游前的净化：先整块剥离文本化思考（标记行 + 正文 + 时长行），
 /// 再剥 dim 样式码（含模型模仿产生的字面 `[2m…[0m` 整行包裹），避免上游模型模仿该格式。

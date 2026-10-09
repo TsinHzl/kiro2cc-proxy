@@ -544,7 +544,10 @@ fn test_rendered_thinking_block_fully_dropped_from_assistant_history() {
     let r = convert_request(&req).unwrap();
     let hist = serde_json::to_string(&r.conversation_state.history).unwrap();
     assert!(!hist.contains("secret reasoning"), "{hist}");
-    assert!(!hist.contains("Thinking") && !hist.contains("Thought for"), "{hist}");
+    assert!(
+        !hist.contains("Thinking") && !hist.contains("Thought for"),
+        "{hist}"
+    );
     assert!(hist.contains("visible answer"), "{hist}");
     // 仅含思考块 + tool_use 的 assistant 消息：content 为占位符，不为空
     for m in &r.conversation_state.history {

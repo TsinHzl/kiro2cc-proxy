@@ -67,6 +67,34 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.17".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "账号级深度思考开关升级为最终裁决：关闭时剥离请求中的 thinking 控制与响应中的推理内容（强制关），开启时对支持的模型强制注入 thinking 配置（强制开），故障转移切换账号后按实际生效账号重新计算",
+                    "The account-level deep-thinking switch becomes the final arbiter: off strips thinking controls from requests and reasoning from responses (forced off), on force-injects thinking config for supported models (forced on), recomputed after account failover based on the effective account",
+                )]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复 issue #47：CC 注入的动态系统块（hook 输出、工具/MCP 通知）逐轮累积导致 history[0] 冻结缓存 key 漂移、前缀缓存持续失效——现分流到当前消息开头的 <system-reminder>，模型仍可见但不参与缓存哈希，对全部模型生效",
+                        "Fixes issue #47: dynamic system blocks injected by CC (hook outputs, tool/MCP notices) accumulated per turn, drifting the history[0] freeze-cache key and continuously invalidating the prefix cache — they are now split into a leading <system-reminder> of the current message, visible to the model but excluded from the cache hash, for all models",
+                    ),
+                    Bilingual::new(
+                        "thinkingAsText 渲染的文本化思考块回传上游时整块丢弃（标记行 + 思考正文 + 时长行），上游上下文不再含思考内容；流中断缺时长行时保守降级为只剥标记行",
+                        "Thinking-as-text blocks are dropped entirely when sent upstream (marker line + thinking body + duration line), so the upstream context no longer contains thinking; conservatively falls back to stripping only the marker line when the duration line is missing due to a stream interruption",
+                    ),
+                    Bilingual::new(
+                        "原生思考支持收紧为仅 claude-* 模型，修复 minimax-m2.1 / auto 等非 Claude 模型被强制注入 thinking 配置导致上游 400",
+                        "Native thinking support is tightened to claude-* models only, fixing upstream 400s caused by force-injecting thinking config into non-Claude models such as minimax-m2.1 / auto",
+                    ),
+                    Bilingual::new(
+                        "连续纯思考 assistant 消息合并后 content 为空违反 Kiro 非空约束的问题补占位符修复",
+                        "Adds placeholder fix for empty content after merging consecutive thinking-only assistant messages, which violated Kiro's non-empty constraint",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "3.4.16".to_string(),
             is_latest: false,
             groups: vec![feat_group(vec![Bilingual::new(

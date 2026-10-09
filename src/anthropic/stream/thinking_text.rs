@@ -12,9 +12,11 @@
 //! token 数为该思考块正文的 cl100k_base 计数），
 //! 不带 markdown 引用前缀（客户端不显示竖线）。
 //!
-//! 代价：这些文本块会被客户端当作 assistant 正文存入对话历史并随后续请求回传。
-//! 回传时由 `converter::history::convert_assistant_message` 识别 [`THOUGHT_HEADER`]
-//! 并剥离标记行，思考正文按普通助手文本保留回传（上下文略增，已确认接受）。
+//! 代价：这些文本块会被客户端当作 assistant 正文存入对话历史并随后续请求回传
+//! （客户端侧上下文因此包含思考文本）。回传上游时由
+//! `converter::history::convert_assistant_message` 识别 [`THOUGHT_HEADER`]，
+//! 整块剥离「标记行 + 思考正文 + 时长行」，上游上下文不含思考内容
+//! （与关闭文本化时原生 thinking 块整块丢弃的语义一致）。
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -68,12 +70,17 @@ pub fn is_claude_code_client(headers: &axum::http::HeaderMap) -> bool {
         .is_some_and(|ua| ua.starts_with("claude-cli") || ua.starts_with("claude-code"))
 }
 
-/// 剥离历史 text 块中由本模块渲染的思考**标记行**（思考正文保留回传上游）。
+/// 剥离历史 text 块中由本模块渲染的整个思考块（标记行 + 思考正文 + 时长行），
+/// 上游上下文不再包含思考内容。
 ///
-/// 仅当文本首行是 [`THOUGHT_HEADER`]（允许被 dim 转义包裹）时处理：移除该标记行，
-/// 并移除流中追加的「💭 Thought for Ns (N tokens)」时长行（含其前置 `\n` 与 dim 包裹；
-/// 该行可能与后续答案文本同段粘连，故按 前缀+时长+可选 token 后缀 模式定位后整体剥除；
-/// 无 token 后缀的旧格式时长行同样兼容）。
+/// 仅当文本首行是 [`THOUGHT_HEADER`]（允许被 dim 转义包裹）时处理：定位流中追加的
+/// 「💭 Thought for Ns (N tokens)」时长行（含其前置 `\n` 与 dim 包裹；该行可能与后续
+/// 答案文本同段粘连，故按 前缀+时长+可选 token 后缀 模式定位；无 token 后缀的旧格式
+/// 时长行同样兼容），丢弃从标记行到时长行（含）的全部内容，仅保留其后粘连的文本。
+///
+/// 时长行是思考块结束的唯一可靠边界。找不到时长行（流被中断、或首行恰为标记行的
+/// 普通文本）时无法判定思考正文的范围，保守降级为只剥标记行、正文保留——宁可多留
+/// 一段思考，也不误删可能是答案的内容。
 /// 无标记时原样返回 —— 故对非文本化思考的普通文本是幂等的。
 pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
     // 首行不是思考标记行：原样返回（普通文本幂等）
@@ -94,29 +101,30 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
             // 仅对当前行匹配，行尾锚定以换行为界；span_end 停在时长行末尾，
             // 其后的粘连文本（旧格式时长行无尾 \n 时与答案同行）原样保留
             if let Some(span_end) = find_duration_span(&rest[start + 1..start + 1 + nl2]) {
-                let end = start + 1 + span_end;
-                let mut out = String::with_capacity(rest.len() - (end - start));
-                out.push_str(&rest[..start]);
-                out.push_str(&rest[end..]);
-                return std::borrow::Cow::Owned(out);
+                return std::borrow::Cow::Owned(after_thinking_block(
+                    &rest[start + 1 + span_end..],
+                ));
             }
         } else if let Some(span_end) = find_duration_span(&rest[start + 1..]) {
-            // 最后一行（无换行结尾）：剥除到时长行末尾，其后粘连文本保留
-            let mut out = String::with_capacity(rest.len() - (start + 1 + span_end));
-            out.push_str(&rest[..start]);
-            out.push_str(&rest[start + 1 + span_end..]);
-            return std::borrow::Cow::Owned(out);
+            // 最后一行（无换行结尾）：丢弃到时长行末尾，其后粘连文本保留
+            return std::borrow::Cow::Owned(after_thinking_block(&rest[start + 1 + span_end..]));
         }
         i = start + 1;
     }
     std::borrow::Cow::Borrowed(rest)
 }
 
+/// 思考块（到时长行末尾）之后的剩余文本：去掉时长行后渲染器补的那个换行
+/// （它只用于让答案在客户端另起一行，丢弃思考块后留着会成为无意义的前导空行）。
+fn after_thinking_block(tail: &str) -> String {
+    tail.strip_prefix('\n').unwrap_or(tail).to_string()
+}
+
 /// 剥离历史 assistant 文本里的 dim 样式标记，避免模型把它们当作自己的输出格式模仿。
 ///
 /// 背景：文本化思考的正文每行都被 `ESC[2m … ESC[0m` 包裹，并作为普通助手文本由客户端回传。
-/// [`strip_rendered_thinking`] 只剥标记行与时长行，正文行的样式码原样留在上游上下文里，
-/// 模型会把「每行 `[2m…[0m` 包裹的推理文字」当作自己的回复格式继续输出——且模型写不出真正
+/// [`strip_rendered_thinking`] 无法判定范围而降级保留正文时（见其文档），正文行的样式码
+/// 会留在上游上下文里，模型会把「每行 `[2m…[0m` 包裹的推理文字」当作自己的回复格式继续输出——且模型写不出真正
 /// 的 ESC 字符，写出的是字面 `[2m` / `[0m`，客户端无从渲染而原样显示（并作为已被污染的历史
 /// 继续强化该模式）。
 ///
@@ -510,49 +518,53 @@ mod tests {
     }
 
     #[test]
-    fn strip_removes_only_header_and_keeps_thinking_body() {
-        // 仅剥「💭 Thinking」标记行与尾行时长标记，思考正文保留（作为普通助手文本回传上游）
+    fn strip_drops_whole_thinking_block_up_to_duration_line() {
+        // 找到时长行：标记行 + 思考正文 + 时长行整块丢弃，上游上下文不含思考内容
+        let with_duration = "💭 Thinking\na\n\nb\n💭 Thought for 12s\n";
+        assert_eq!(strip_rendered_thinking(with_duration), "");
+        // 带 token 统计后缀的新格式
+        let with_tokens = "💭 Thinking\na\n\nb\n💭 Thought for 12s (1.23k tokens)\n";
+        assert_eq!(strip_rendered_thinking(with_tokens), "");
+        // M 档后缀同样可识别
+        let with_mega = "💭 Thinking\na\n\n💭 Thought for 12s (1.23M tokens)\n";
+        assert_eq!(strip_rendered_thinking(with_mega), "");
+        // 带 token 后缀且与答案同行粘连（有 DIM_OFF）：只保留答案
+        let with_tokens_merged = "💭 Thinking\na\n\n💭 Thought for 12s (999 tokens)\x1b[0manswer";
+        assert_eq!(strip_rendered_thinking(with_tokens_merged), "answer");
+        // 客户端把相邻 text 块合并的情形（时长行后换行再接答案）：去掉渲染器补的那个换行
+        let merged = "💭 Thinking\na\n\nb\n💭 Thought for 12s\nanswer";
+        assert_eq!(strip_rendered_thinking(merged), "answer");
+        // ≥60s 的新格式「XmYs」同样可识别
+        let with_minutes = "💭 Thinking\na\n\n💭 Thought for 1m15s\nanswer";
+        assert_eq!(strip_rendered_thinking(with_minutes), "answer");
+        // 旧格式时长行与答案同行粘连且带 DIM_OFF：只保留答案
+        let legacy = "💭 Thinking\na\n\n💭 Thought for 12s\x1b[0manswer";
+        assert_eq!(strip_rendered_thinking(legacy), "answer");
+        // 思考块后答案自带多段内容：原样保留（仅去掉紧随时长行的一个换行）
+        let multi = "💭 Thinking\na\n💭 Thought for 3s\n第一段\n\n第二段";
+        assert_eq!(strip_rendered_thinking(multi), "第一段\n\n第二段");
+    }
+
+    #[test]
+    fn strip_falls_back_to_header_only_when_duration_line_missing() {
+        // 无时长行（流被中断等）：无法判定思考正文范围，保守降级为只剥标记行、正文保留
         let rendered = "💭 Thinking\na\n\nb\n";
         assert_eq!(strip_rendered_thinking(rendered), "a\n\nb\n");
-        // 带尾行「💭 Thought for Ns」时同样剥离，正文保留（尾随换行来自时长行后的换行）
-        let with_duration = "💭 Thinking\na\n\nb\n💭 Thought for 12s\n";
-        assert_eq!(strip_rendered_thinking(with_duration), "a\n\nb\n");
-        // 带 token 统计后缀的新格式：整行（含后缀）一并剥除
-        let with_tokens = "💭 Thinking\na\n\nb\n💭 Thought for 12s (1.23k tokens)\n";
-        assert_eq!(strip_rendered_thinking(with_tokens), "a\n\nb\n");
-        // 带 token 后缀且与答案同行粘连（有 DIM_OFF）：仅剥到 DIM_OFF，答案保留
-        let with_tokens_merged = "💭 Thinking\na\n\n💭 Thought for 12s (999 tokens)\x1b[0manswer";
-        assert_eq!(strip_rendered_thinking(with_tokens_merged), "a\nanswer");
-        // M 档后缀同样可剥
-        let with_mega = "💭 Thinking\na\n\n💭 Thought for 12s (1.23M tokens)\n";
-        assert_eq!(strip_rendered_thinking(with_mega), "a\n\n");
-        // 客户端把相邻 text 块合并的情形（时长行后粘连答案）；含新格式 XmYs
-        let merged = "💭 Thinking\na\n\nb\n💭 Thought for 12s\nanswer";
-        assert_eq!(strip_rendered_thinking(merged), "a\n\nb\nanswer");
-        // ≥60s 的新格式「XmYs」同样可剥
-        let with_minutes = "💭 Thinking\na\n\n💭 Thought for 1m15s\nanswer";
-        assert_eq!(strip_rendered_thinking(with_minutes), "a\n\nanswer");
-        // 旧格式时长行与答案同行粘连且带 DIM_OFF（时长 delta 自带前置 \n）：
-        // 仅剥到 DIM_OFF，答案保留
-        let legacy = "💭 Thinking\na\n\n💭 Thought for 12s\x1b[0manswer";
-        assert_eq!(strip_rendered_thinking(legacy), "a\nanswer");
-        // 行首即前缀但行尾锚定失败（无 DIM_OFF 且行尾有余文）：不剥。
-        // 已知取舍：客户端剥离全部 ANSI 后与答案同行粘连的旧格式时长行同样不剥
-        //（历史多一行噪声，但不丢答案正文）
+        // 行首即前缀但行尾锚定失败（无 DIM_OFF 且行尾有余文）：不认定为时长行
         let anchored = "💭 Thinking\n💭 Thought for 5s per step\n答案";
         assert_eq!(
             strip_rendered_thinking(anchored),
             "💭 Thought for 5s per step\n答案"
         );
-        // 普通文本（含普通引用）不受影响
-        assert_eq!(strip_rendered_thinking("> quote\nx"), "> quote\nx");
-        assert_eq!(strip_rendered_thinking("plain"), "plain");
-        // 思考正文恰含相似句子但不带 DIM_OFF、未到行尾：不被误剥（首行标记正常剥除）
+        // 思考正文恰含相似句子但不带 DIM_OFF、未到行尾：不被误认（首行标记正常剥除）
         let lookalike = "💭 Thinking\n需 💭 Thought for 5s per step\n答案";
         assert_eq!(
             strip_rendered_thinking(lookalike),
             "需 💭 Thought for 5s per step\n答案"
         );
+        // 普通文本（含普通引用）不受影响
+        assert_eq!(strip_rendered_thinking("> quote\nx"), "> quote\nx");
+        assert_eq!(strip_rendered_thinking("plain"), "plain");
     }
 
     #[test]
@@ -613,7 +625,8 @@ mod tests {
     }
 
     #[test]
-    fn rendered_thinking_roundtrip_has_no_markers_after_history_strip() {
+    fn rendered_thinking_roundtrip_is_fully_dropped_from_history() {
+        // 真实渲染产物（含 dim 转义、时长行、token 后缀）经历史剥离后不留任何思考内容
         let mut r = ThinkingTextRewriter::new();
         let mut out = r.rewrite(vec![start(0, "thinking")]);
         out.extend(r.rewrite(vec![
@@ -623,15 +636,17 @@ mod tests {
         let raw = text_of(&out);
         assert!(raw.contains('\x1b'), "响应方向仍应带 dim 转义: {raw:?}");
         let stripped = strip_dim_markers(&strip_rendered_thinking(&raw)).into_owned();
-        assert!(
-            !stripped.contains('\x1b') && !stripped.contains("[2m"),
-            "{stripped:?}"
-        );
-        assert!(stripped.contains("想一想") && stripped.contains("再想想"));
+        assert_eq!(stripped, "", "{stripped:?}");
+
+        // 与答案 text 块被客户端合并拼接的形态同样只留答案
+        let merged = format!("{raw}最终答案");
+        let stripped = strip_dim_markers(&strip_rendered_thinking(&merged)).into_owned();
+        assert_eq!(stripped, "最终答案");
     }
 
     #[test]
-    fn rendered_thinking_body_survives_history_strip() {
+    fn rendered_thinking_body_dropped_even_without_ansi() {
+        // 客户端剥离全部 ANSI 后回传的形态（plain）也能整块识别
         let mut r = ThinkingTextRewriter::new();
         let mut out = r.rewrite(vec![start(0, "thinking")]);
         out.extend(r.rewrite(vec![
@@ -639,12 +654,7 @@ mod tests {
             stop(0),
         ]));
         let rendered = plain(&text_of(&out));
-        let stripped = strip_rendered_thinking(&rendered);
-        // 尾行时长标记被剥掉，思考正文（含尾部换行与中间空行）原样保留；
-        // 正文本身以 \n 结尾，时长行剥除后留一个空行，无害
-        assert_eq!(stripped, "想一想\n\n再想想\n\n");
-        assert!(stripped.ends_with('\n'));
-        assert_eq!(stripped.lines().count(), 4);
+        assert_eq!(strip_rendered_thinking(&rendered), "");
     }
 
     #[test]
@@ -685,12 +695,9 @@ mod tests {
                 .collect();
             if enabled {
                 assert!(!has_thinking, "开启后不应再出现 thinking 块/delta");
-                // 历史剥离后时长行不回传，答案与思考正文间保留时长行位置的换行（不粘连）
+                // 历史剥离后思考块整块不回传，只剩答案
                 let rendered = plain(&all_text);
-                assert_eq!(
-                    strip_rendered_thinking(&rendered),
-                    "第一行\n第二行\n最终答案"
-                );
+                assert_eq!(strip_rendered_thinking(&rendered), "最终答案");
             } else {
                 assert!(has_thinking, "关闭时保持原生 thinking 块");
                 assert_eq!(all_text, "最终答案");
@@ -718,14 +725,9 @@ mod tests {
         );
         // 行中结束 → 末尾补复位；stop 事件仍在最后
         assert_eq!(out.last().unwrap().event, "content_block_stop");
-        // dim 渲染的内容同样能被历史剥离识别（仅剥标记行与时长行，正文保留；
-        // 正文 "cd" 后残留时长行原本所在的空行，无害）
-        let stripped = strip_rendered_thinking(&text);
-        assert_eq!(plain(&stripped), "ab\n\ncd\n");
-        assert_eq!(
-            strip_rendered_thinking(&format!("{text}answer")),
-            format!("{stripped}answer")
-        );
+        // dim 渲染的内容同样能被历史剥离识别（整个思考块丢弃，仅留粘连的答案）
+        assert_eq!(strip_rendered_thinking(&text), "");
+        assert_eq!(strip_rendered_thinking(&format!("{text}answer")), "answer");
     }
 
     #[test]

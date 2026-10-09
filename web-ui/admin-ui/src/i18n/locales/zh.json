@@ -683,7 +683,7 @@
     "suggestionModeDesc": "控制是否放行客户端每轮对话后自动发起的下一条输入预测请求。开启后终端将实时展示 AI 建议，但每发送一条消息均会额外增加一次全量上下文计费请求（CC 客户端默认机制）；关闭（默认）则由服务端直接拦截并返回空响应，不产生任何 Token 消耗。",
     "clientTokenPassthrough": "客户端 token 直通",
     "thinkingAsText": "思考内容文本化展示",
-    "thinkingAsTextDesc": "仅对 Claude Code 生效。开启后，深度思考内容会以变暗（灰色）的引用文本逐行流式显示（类似 Kiro CLI），解决 Claude Code 默认折叠 thinking、长推理期间界面像卡住的问题；默认开启；关闭则保持原生 thinking 块。两种模式下 Claude Code 自身上下文都包含思考内容，差异在上游：关闭时回传历史中的原生 thinking 块被整块丢弃，上游完全看不到；开启时思考正文按普通助手文本回传上游（仅剥标记行），上游上下文因此略增。热切换，仅对之后的新请求生效。",
+    "thinkingAsTextDesc": "仅对 Claude Code 生效。开启后，深度思考内容会以变暗（灰色）的引用文本逐行流式显示（类似 Kiro CLI），解决 Claude Code 默认折叠 thinking、长推理期间界面像卡住的问题；默认开启；关闭则保持原生 thinking 块。两种模式下 Claude Code 自身上下文都包含思考内容，但回传上游时都会整块丢弃（关闭：原生 thinking 块；开启：标记行、思考正文与时长行），上游上下文不含思考内容。热切换，仅对之后的新请求生效。",
     "clientTokenPassthroughDesc": "控制接口 usage 字段是否 1:1 上报真实 Token 消耗。开启后透传实际数值，适配按返回用量统计上下文占用的第三方客户端；关闭（默认）则乘以 0.6657 系数缩放展示。无论开关状态如何，Claude Code 的 auto-compact 自动压缩触发时机均保持不变。",
     "maxRpmPerCredential": "每账号 RPM 上限",
     "maxRpmPerCredentialDesc": "单个账号每分钟最大请求数，保存后立即热生效（0 = 不限）。",

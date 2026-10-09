@@ -506,7 +506,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 | `maxRpmPerCredential` | 否 | `0` | 单个账号每分钟最大请求数；`0` 表示不限。设置页保存后立即热生效并写入 `config.json` |
 | `forwardSuggestionMode` | 否 | `false` | Suggestion Mode 输入建议请求放行开关。`false`（默认）时服务端拦截 Claude Code 每轮对话后自动发起的全量上下文预测请求并返回空响应，不产生 Token 消耗；`true` 时正常转发上游，以展示输入建议，但每轮会额外产生一次全量上下文计费请求。可用环境变量 `FORWARD_SUGGESTION_MODE` 覆盖 |
 | `clientTokenPassthrough` | 否 | `false` | 客户端 token 直通：`true` 时返回给客户端的 `usage` 字段 1:1 上报真实值；`false`（默认）时按 `0.6657` 系数缩放展示。适用于按返回用量统计上下文占用的第三方客户端；无论开关状态如何，Claude Code 的 auto-compact 触发时机保持不变。可用环境变量 `CLIENT_TOKEN_PASSTHROUGH` 覆盖 |
-| `thinkingAsText` | 否 | `false` | 思考内容文本化（仅 Claude Code 客户端）：`true` 时把 thinking 块改写为 markdown 引用文本、以 ANSI 变暗（灰色）样式逐行流式展示（类似 Kiro CLI），解决 CC 默认折叠/隐藏 thinking 导致长推理期间像卡住的问题。两种模式下客户端上下文都包含思考内容，差异在上游：关闭时回传历史中的原生 thinking 块被整块丢弃，上游完全看不到；开启时思考正文按普通助手文本回传上游（仅剥标记行），上游上下文因此略增。可用环境变量 `THINKING_AS_TEXT` 覆盖 |
+| `thinkingAsText` | 否 | `false` | 思考内容文本化（仅 Claude Code 客户端）：`true` 时把 thinking 块改写为 markdown 引用文本、以 ANSI 变暗（灰色）样式逐行流式展示（类似 Kiro CLI），解决 CC 默认折叠/隐藏 thinking 导致长推理期间像卡住的问题。两种模式下客户端（Claude Code）上下文都包含思考内容，但回传上游时都会整块丢弃：关闭时丢弃原生 thinking 块，开启时丢弃「💭 Thinking」标记行、思考正文与时长行，上游上下文不含思考内容（仅当流被中断、缺少时长行时，保守降级为只剥标记行）。可用环境变量 `THINKING_AS_TEXT` 覆盖 |
 
 > **TLS 说明**：如遇到 Token 刷新失败或请求报错，尝试将 `tlsBackend` 改为 `native-tls`。
 

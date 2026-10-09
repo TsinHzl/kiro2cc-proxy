@@ -21,8 +21,8 @@ use super::thinking::{
     generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags,
 };
 
-/// 历史 assistant 文本回传上游前的净化：先剥思考标记行 / 时长行，再剥 dim 样式码
-/// （含模型模仿产生的字面 `[2m…[0m` 整行包裹），避免上游模型模仿该格式。
+/// 历史 assistant 文本回传上游前的净化：先整块剥离文本化思考（标记行 + 正文 + 时长行），
+/// 再剥 dim 样式码（含模型模仿产生的字面 `[2m…[0m` 整行包裹），避免上游模型模仿该格式。
 /// 顺序不可颠倒：标记行识别依赖 dim 转义包裹的兼容判断。
 fn sanitize_rendered_history_text(text: &str) -> String {
     let stripped = crate::anthropic::stream::strip_rendered_thinking(text);
@@ -275,9 +275,9 @@ pub(super) fn convert_assistant_message(
                         "thinking" => {}
                         "text" => {
                             if let Some(text) = block.text {
-                                // thinkingAsText 渲染出的 text 块：仅剥首行「💭 Thinking」标记，
-                                // 思考正文按普通助手文本保留（上下文略增，已确认接受）。
-                                // 注意与上方原生 thinking 的处置差异 —— 前者整块丢弃，后者保留正文。
+                                // thinkingAsText 渲染出的 text 块：与上方原生 thinking 一致整块
+                                // 丢弃（标记行 + 思考正文 + 时长行），上游上下文不含思考内容；
+                                // 仅在找不到时长行（流被中断）时降级为只剥标记行。
                                 text_content.push_str(&sanitize_rendered_history_text(&text));
                             }
                         }
@@ -298,11 +298,12 @@ pub(super) fn convert_assistant_message(
         _ => {}
     }
 
-    // Kiro API 要求 content 字段不能为空，当只有 tool_use 时需要占位符。
+    // Kiro API 要求 content 字段不能为空：只有 tool_use，或文本全是被丢弃的思考块
+    // （thinking / 文本化思考）而清空时，都需要占位符。
     // 注意：此处与 user 侧（convert_request / merge_user_messages）的 "(tool result above)"
     // 策略不同 —— assistant 侧是"模型自己历史的 tool_use 调用"，仅需占位无需语义引导；
     // 而 user 侧需明示"上方为工具结果"以避免模型误读为"用户让我继续"。
-    let final_content = if text_content.is_empty() && !tool_uses.is_empty() {
+    let final_content = if text_content.is_empty() {
         " ".to_string()
     } else {
         text_content
@@ -376,7 +377,9 @@ pub(super) fn merge_assistant_messages(
         }
     }
 
-    let content = if content_parts.is_empty() && !all_tool_uses.is_empty() {
+    // 各条的占位符 " " 已被上面的 trim 过滤；全部为空（只有 tool_use，或全是被丢弃的
+    // 思考块）时必须重新补占位符，与 convert_assistant_message 的非空约束保持一致
+    let content = if content_parts.is_empty() {
         " ".to_string()
     } else {
         content_parts.join("\n\n")

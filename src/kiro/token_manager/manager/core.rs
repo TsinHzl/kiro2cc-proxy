@@ -206,6 +206,15 @@ impl MultiTokenManager {
             .unwrap_or_default()
     }
 
+    /// 查询指定账号的 thinking adaptive 开关；账号不存在（如请求期间被删除）返回 `None`。
+    pub fn thinking_adaptive_of(&self, id: u64) -> Option<bool> {
+        self.entries
+            .lock()
+            .iter()
+            .find(|e| e.id == id)
+            .map(|e| e.credentials.thinking_adaptive)
+    }
+
     /// 获取账号总数
     pub fn total_count(&self) -> usize {
         self.entries.lock().len()

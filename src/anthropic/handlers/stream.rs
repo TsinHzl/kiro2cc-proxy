@@ -47,8 +47,9 @@ pub(crate) async fn handle_stream_request(
     bridge_ctx: Option<BridgeContext>,
     // 请求的 effort 级别（output_config 存在时取值，否则 None），随 usage 记录入库
     effort: Option<String>,
-    // 思考文本化：thinking 块改写为 text 块逐行展示（配置开启且客户端为 Claude Code）
-    thinking_as_text: bool,
+    // 思考文本化是否允许（配置开启且客户端为 Claude Code）；是否实际生效还取决于
+    // 选中账号后的最终 thinking 状态
+    thinking_as_text_allowed: bool,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -63,6 +64,24 @@ pub(crate) async fn handle_stream_request(
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
+
+    // 账号级 thinking 开关是最终裁决（开 = 强制思考，关 = 禁止思考），必须在选中账号后
+    // 才能确定；故障转移后的账号即 credential_id 对应账号
+    let client_thinking_enabled = thinking_enabled;
+    let thinking_enabled = super::helpers::effective_thinking_enabled(
+        &provider,
+        credential_id,
+        model,
+        client_thinking_enabled,
+    );
+    tracing::info!(
+        model = %model,
+        credential_id,
+        client_request = client_thinking_enabled,
+        effective = thinking_enabled,
+        "[THINKING] 账号开关裁决后的深度思考状态"
+    );
+    let thinking_as_text = thinking_as_text_allowed && thinking_enabled;
 
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)

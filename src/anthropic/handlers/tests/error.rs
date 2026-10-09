@@ -278,6 +278,22 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_effective_thinking_account_switch_is_final() {
+        use super::super::super::helpers::resolve_effective_thinking as r;
+        // 开关关闭：即使客户端请求了 thinking 也关闭
+        assert!(!r(Some(false), true, true));
+        assert!(!r(Some(false), false, true));
+        // 开关开启 + 模型支持原生字段：即使客户端未请求也开启
+        assert!(r(Some(true), true, false));
+        // 开关开启 + 模型不支持强制：退回客户端请求
+        assert!(r(Some(true), false, true));
+        assert!(!r(Some(true), false, false));
+        // 账号不存在：退回客户端请求
+        assert!(r(None, true, true));
+        assert!(!r(None, true, false));
+    }
+
+    #[test]
     fn test_resolve_thinking_enabled_luna_forced_off_even_when_requested() {
         // 收窄后的核心断言：只有 gpt-5.6-luna 即使客户端显式请求了 thinking，也必须
         // 强制返回 false —— 该模型上游恒返回 thinking=0（已知限制），若仍按请求启用，

@@ -238,8 +238,7 @@ pub async fn post_messages_cc(
     let effort = payload.output_config.as_ref().map(|c| c.effort.clone());
 
     // 思考文本化仅对 Claude Code 客户端生效
-    let thinking_as_text = thinking_enabled
-        && crate::anthropic::stream::thinking_as_text_enabled()
+    let thinking_as_text = crate::anthropic::stream::thinking_as_text_enabled()
         && crate::anthropic::stream::is_claude_code_client(&headers);
 
     if payload.stream {

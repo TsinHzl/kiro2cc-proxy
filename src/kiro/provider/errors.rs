@@ -2,6 +2,7 @@
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::anthropic::converter::native_thinking_supported;
 use crate::kiro::model::credentials::{KiroCredentials, fallback_profile_arn_value};
 use crate::kiro::model::requests::conversation::HistoryAssistantMessage;
 
@@ -132,10 +133,12 @@ impl KiroProvider {
     ///
     /// - JSON 解析失败 → 原样返回，不阻断请求
     /// - `thinking_adaptive_requested`：客户端请求了 adaptive thinking（与 converter
-    ///   注入层判定一致，enabled 不计入），当前未被本函数消费（剥离仅由账号开关
-    ///   决定），保留参数以避免 retry.rs 透传链联动改动
-    /// - MCP 路径复用（`rewrite_profile_arn`）传 false；该 flag 不影响剥离判定，
-    ///   thinking 字段的保留与否仅由账号开关 `thinkingAdaptive` 决定
+    ///   注入层判定一致，enabled 不计入），当前未被本函数消费（thinking 是否生效仅由
+    ///   账号开关决定），保留参数以避免 retry.rs 透传链联动改动
+    /// - MCP 路径复用（`rewrite_profile_arn`）传 false；MCP 请求体无 `modelId`，
+    ///   不会触发 thinking 注入
+    /// - 账号开关 `thinkingAdaptive` 是 thinking 的最终裁决：关闭 = 剥离（即使客户端
+    ///   请求了）；开启 = 对支持的模型强制注入（即使客户端未请求）
     pub(crate) fn rewrite_request_body(
         body: &str,
         credentials: &KiroCredentials,
@@ -177,14 +180,58 @@ impl KiroProvider {
             fields.remove("thinking");
         }
 
-        // 账号开关关闭 = 不思考：除原生字段外，一并剥离 converter 为 `enabled` 请求
-        // 注入到 history[0] 的 `<thinking_mode>` 文本标签，否则 4.5 代际等走文本标签
-        // 协议的请求会无视开关继续深度思考。
+        // 账号开关是 thinking 的最终裁决，与客户端是否请求无关：
+        // - 关闭：除原生字段外，一并剥离 converter 为 `enabled` 请求注入到 history[0]
+        //   的 `<thinking_mode>` 文本标签，否则 4.5 代际等走文本标签协议的请求会无视
+        //   开关继续深度思考；响应侧同步丢弃上游推理内容（见 handlers）。
+        // - 开启：客户端未请求 thinking 时，对支持原生字段的模型强制注入 adaptive。
         if !credentials.thinking_adaptive {
             Self::strip_text_thinking_tag(&mut value);
+        } else {
+            Self::inject_native_thinking(&mut value);
         }
 
         serde_json::to_string(&value).unwrap_or_else(|_| body.to_string())
+    }
+
+    /// 账号开关开启时强制注入原生 `thinking: {"type": "adaptive"}`。
+    ///
+    /// 仅在同时满足以下条件时注入，其余情形原样返回：
+    /// - 请求体 `modelId` 属于支持该字段的模型（[`native_thinking_supported`]；
+    ///   GPT 系 / "4.5" 代际 / 第三方模型会被上游 400 拒绝，不能注入）；
+    /// - `additionalModelRequestFields` 尚无 `thinking`（客户端已请求 adaptive 时
+    ///   converter 已注入，不重复）；
+    /// - history[0] 不含 converter 注入的 `<thinking_mode>` 文本标签前缀（`enabled` 请求已由文本标签协议
+    ///   控制 thinking，再叠加原生字段会出现两套互相独立的控制信号，v3.4.1 曾因此
+    ///   导致客户端规则遵从性回退）。
+    fn inject_native_thinking(value: &mut serde_json::Value) {
+        let supported = value
+            .pointer("/conversationState/currentMessage/userInputMessage/modelId")
+            .and_then(|m| m.as_str())
+            .is_some_and(native_thinking_supported);
+        if !supported {
+            return;
+        }
+        // 仅识别 converter 注入的精确前缀（与剥离共用判定），普通正文里引用标签字面量
+        // 不算——否则账号开启却既无文本标签也无原生字段，控制信号全部丢失
+        let has_text_tag = value
+            .pointer("/conversationState/history")
+            .and_then(|h| h.as_array())
+            .is_some_and(|h| Self::injected_text_tag_remainder(h).is_some());
+        if has_text_tag {
+            return;
+        }
+        let Some(obj) = value.as_object_mut() else {
+            return;
+        };
+        let fields = obj
+            .entry("additionalModelRequestFields")
+            .or_insert_with(|| serde_json::json!({}));
+        if let Some(fields) = fields.as_object_mut() {
+            fields
+                .entry("thinking")
+                .or_insert_with(|| serde_json::json!({ "type": "adaptive" }));
+        }
     }
 
     /// 剥离 converter 注入在 history[0] 最前面的 thinking 文本标签。
@@ -199,33 +246,24 @@ impl KiroProvider {
     ///   避免留下空 content（上游会拒绝）。
     ///
     /// 其他位置、其他形态的标签（如客户端自带）一律不动。
-    fn strip_text_thinking_tag(value: &mut serde_json::Value) {
+    /// 识别 converter 注入在 history[0] 的 thinking 文本标签前缀。
+    ///
+    /// 命中（精确形态 + history[1] 为配对确认语且无工具调用）时返回去掉标签（及其后
+    /// 一个换行）后的剩余内容；否则返回 `None`，视为用户原文。
+    fn injected_text_tag_remainder(history: &[serde_json::Value]) -> Option<String> {
         const OPEN: &str = "<thinking_mode>enabled</thinking_mode><max_thinking_length>";
         const CLOSE: &str = "</max_thinking_length>";
 
-        let Some(history) = value
-            .pointer_mut("/conversationState/history")
-            .and_then(|h| h.as_array_mut())
-        else {
-            return;
-        };
-        let Some(content) = history
-            .first()
-            .and_then(|m| m.pointer("/userInputMessage/content"))
-            .and_then(|c| c.as_str())
-        else {
-            return;
-        };
-        let Some(rest) = content.strip_prefix(OPEN) else {
-            return;
-        };
+        let content = history
+            .first()?
+            .pointer("/userInputMessage/content")?
+            .as_str()?;
+        let rest = content.strip_prefix(OPEN)?;
         let digits = rest.chars().take_while(|c| c.is_ascii_digit()).count();
         if digits == 0 {
-            return;
+            return None;
         }
-        let Some(rest) = rest[digits..].strip_prefix(CLOSE) else {
-            return;
-        };
+        let rest = rest[digits..].strip_prefix(CLOSE)?;
         let remainder = rest.strip_prefix('\n').unwrap_or(rest).to_string();
 
         // 来源校验：converter 注入的前缀恒与固定确认语配对；不匹配（或带工具调用）说明
@@ -238,9 +276,19 @@ impl KiroProvider {
                     .and_then(|t| t.as_array())
                     .is_none_or(|t| t.is_empty())
         });
-        if !is_injected_pair {
+        is_injected_pair.then_some(remainder)
+    }
+
+    fn strip_text_thinking_tag(value: &mut serde_json::Value) {
+        let Some(history) = value
+            .pointer_mut("/conversationState/history")
+            .and_then(|h| h.as_array_mut())
+        else {
             return;
-        }
+        };
+        let Some(remainder) = Self::injected_text_tag_remainder(history) else {
+            return;
+        };
 
         if remainder.is_empty() {
             // 单独成条：移除 user + 紧随其后的确认语 assistant 配对

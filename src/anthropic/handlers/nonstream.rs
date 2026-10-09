@@ -63,6 +63,11 @@ pub(crate) fn build_non_stream_content(
     (content, thinking_only)
 }
 
+/// 剔除响应内容中的 thinking 块（账号关闭 thinking 时调用，须在构建内容之后）
+fn drop_thinking_blocks(content: &mut Vec<serde_json::Value>) {
+    content.retain(|b| b["type"] != "thinking");
+}
+
 fn flush_native_reasoning(
     pending: &mut ReasoningContentEvent,
     blocks: &mut Vec<serde_json::Value>,
@@ -215,6 +220,11 @@ pub(crate) async fn handle_non_stream_request(
         Ok(resp) => resp,
         Err(e) => return map_provider_error_with_context(e, model, input_tokens),
     };
+
+    // 账号级 thinking 开关关闭 = 禁止思考：上游若仍返回推理内容，响应侧丢弃
+    // （开启时非流式本就无条件输出推理块，无需额外处理）
+    let thinking_suppressed =
+        provider.token_manager().thinking_adaptive_of(credential_id) == Some(false);
 
     // 读取响应体
     let body_bytes = match response.bytes().await {
@@ -521,6 +531,12 @@ pub(crate) async fn handle_non_stream_request(
         tool_uses,
     );
 
+    // 账号关闭 thinking：构建完成后再剔除推理块。必须在构建之后——纯推理响应的占位
+    // 正文与 max_tokens 兜底依赖"收到过推理"的判定，先清空会变成 content=[] 的空成功响应
+    if thinking_suppressed {
+        drop_thinking_blocks(&mut content);
+    }
+
     // 估算输出 tokens——必须先于可见性块拼接（H2）：server_tool_use /
     // web_search_tool_result 是桥接可见性元数据，不代表模型真实输出量。
     // 截获的 web_search input 单独叠加（S2，对齐流式 output_chars_other 口径）：
@@ -718,5 +734,38 @@ mod native_tests {
         let (thinking, text) = split_non_stream_thinking(body, false);
         assert_eq!(thinking.trim(), "正文中的标签示例");
         assert_eq!(text.trim(), "答案");
+    }
+
+    #[test]
+    fn test_suppressed_thinking_only_response_keeps_placeholder_and_max_tokens_flag() {
+        // 账号关闭 thinking + 上游只返回推理：过滤发生在构建之后，
+        // 必须保留占位正文与 thinking_only 兜底标志，而不是变成 content=[]
+        let native = json!({"type": "thinking", "thinking": "推理", "signature": "sig"});
+        let (mut content, thinking_only) =
+            build_non_stream_content_with_native(vec![native], "", "", Vec::new());
+        drop_thinking_blocks(&mut content);
+        assert!(thinking_only);
+        assert_eq!(content, vec![json!({"type": "text", "text": " "})]);
+
+        // 旧文本标签协议同理
+        let (mut content, thinking_only) =
+            build_non_stream_content_with_native(Vec::new(), "推理", "", Vec::new());
+        drop_thinking_blocks(&mut content);
+        assert!(thinking_only);
+        assert_eq!(content, vec![json!({"type": "text", "text": " "})]);
+    }
+
+    #[test]
+    fn test_suppressed_drops_thinking_but_keeps_text_and_tools() {
+        let native = json!({"type": "thinking", "thinking": "推理", "signature": "sig"});
+        let tool = json!({"type": "tool_use", "id": "t1", "name": "Bash", "input": {}});
+        let (mut content, _) = build_non_stream_content_with_native(
+            vec![native],
+            "",
+            "答案",
+            vec![tool.clone()],
+        );
+        drop_thinking_blocks(&mut content);
+        assert_eq!(content, vec![json!({"type": "text", "text": "答案"}), tool]);
     }
 }

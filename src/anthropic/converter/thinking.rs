@@ -34,6 +34,17 @@ pub(crate) fn additional_fields_skipped(model_id: &str) -> bool {
     )
 }
 
+/// 模型是否支持向 `additionalModelRequestFields` 注入原生 `thinking: {type: adaptive}`。
+///
+/// 即模型 ID 以 `claude-` 开头且未被 [`additional_fields_skipped`] 整体跳过的模型。
+/// 必须显式限定 Claude 前缀：黑名单之外的 `minimax-m2.1`（实测只证明接受
+/// output_config / max_tokens，未证明接受 thinking）、`auto` 等并非 Claude 系。账号级 thinking 开关开启时，仅这类模型会在
+/// 客户端未请求 thinking 的情况下被强制注入；其余模型开关只能"关闭"，不能"强制开启"。
+/// 入参为 Kiro 规范模型 ID（`map_model` 的输出 / 请求体里的 `modelId`）。
+pub(crate) fn native_thinking_supported(model_id: &str) -> bool {
+    model_id.starts_with("claude-") && !additional_fields_skipped(model_id)
+}
+
 /// 判断是否为 `gpt-5.6-luna`。
 ///
 /// **注意范围**：与 `is_gpt_model`（匹配全部 gpt-* 系列）不同，这里专指 luna 一个

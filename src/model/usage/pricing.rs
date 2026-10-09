@@ -6,6 +6,21 @@ pub(crate) struct ModelPricing {
     output_per_mtok: f64,
 }
 
+/// 判断模型名是否属于 haiku 5.5（5.5 代际）。
+///
+/// 与 `crate::anthropic::converter::model::is_haiku_55` 保持同一判定口径
+/// （同一模型族在映射层与定价层必须一致，否则会出现「映射到 5.5 但按 4.5 计价」）。
+/// 不跨层引用是为避免 `model` 层反向依赖 `anthropic` 层。
+fn is_haiku_55(model_lower: &str) -> bool {
+    model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
+}
+
+/// Haiku 5.5 长上下文阈值（tokens）。
+///
+/// 官方口径：单次请求 prompt 超过 100K 时，**整个请求**按 5 倍高档计费
+/// （非超出部分累进）。低档 $0.10/$0.50，高档 $0.50/$2.50。
+const HAIKU_55_LONG_CONTEXT_THRESHOLD: i32 = 100_000;
+
 /// 根据模型名获取定价
 pub(crate) fn get_model_pricing(model: &str) -> ModelPricing {
     let model_lower = model.to_lowercase();
@@ -15,6 +30,13 @@ pub(crate) fn get_model_pricing(model: &str) -> ModelPricing {
         ModelPricing {
             input_per_mtok: 5.0,
             output_per_mtok: 25.0,
+        }
+    } else if is_haiku_55(&model_lower) {
+        // Haiku 5.5: $0.10 / $0.50（≤100K 低档，官方称覆盖约 90% 请求量）。
+        // >100K 的高档由 calculate_cost 按整档跳价处理（本函数不持有 token 数）。
+        ModelPricing {
+            input_per_mtok: 0.10,
+            output_per_mtok: 0.50,
         }
     } else if model_lower.contains("haiku") {
         // Haiku 4.5: $1 / $5
@@ -62,14 +84,30 @@ pub(crate) fn get_k_ref(model: &str) -> f64 {
         // claude-sonnet-5: Rate = 1.3 Credit，与 sonnet-4.5/4.6 同档（实测确认）
         1.43
     } else {
-        // sonnet 系列 / haiku 默认
+        // sonnet 系列 / haiku（含 haiku 5.5）默认
         1.43
     }
 }
 
 /// 计算单次请求的估算费用
+///
+/// Haiku 5.5 按官方「整档跳价」口径：输入超 100K 时整个请求走高档
+/// （见 HAIKU_55_LONG_CONTEXT_THRESHOLD）。
+///
+/// 已知偏差：`input_tokens` 为**不含 cache token** 的净输入
+/// （cache_read / cache_creation 单独字段存储，未参与定价计算），
+/// 故阈值按净输入判定，与官方「prompt 总长度」口径存在系统性低估，
+/// 带长缓存前缀的会话可能被判入低档。
 pub(crate) fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32) -> f64 {
-    let pricing = get_model_pricing(model);
+    let model_lower = model.to_lowercase();
+    let pricing = if is_haiku_55(&model_lower) && input_tokens > HAIKU_55_LONG_CONTEXT_THRESHOLD {
+        ModelPricing {
+            input_per_mtok: 0.50,
+            output_per_mtok: 2.50,
+        }
+    } else {
+        get_model_pricing(model)
+    };
     let input_cost = (input_tokens as f64 / 1_000_000.0) * pricing.input_per_mtok;
     let output_cost = (output_tokens as f64 / 1_000_000.0) * pricing.output_per_mtok;
     input_cost + output_cost

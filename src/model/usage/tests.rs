@@ -193,6 +193,61 @@ mod tests {
         assert_eq!(get_k_ref("claude-haiku-4.5"), 1.43);
     }
 
+    #[test]
+    fn test_get_k_ref_haiku_5_5() {
+        // haiku 5.5 沿用 haiku 默认档（暂无 credits 实测系数）
+        assert_eq!(get_k_ref("claude-haiku-5.5"), 1.43);
+        assert_eq!(get_k_ref("claude-haiku-5-5"), 1.43);
+        assert_eq!(get_k_ref("claude-haiku-5-5-thinking"), 1.43);
+    }
+
+    #[test]
+    fn test_pricing_haiku_5_5() {
+        // 低档（≤100K）：1M output 单独不触发跳档（阈值只判 input）
+        assert!((calculate_cost("claude-haiku-5.5", 0, 1_000_000) - 0.50).abs() < 1e-9);
+
+        // 回归：haiku 4.5 定价不变（1 + 5 = 6.0）
+        assert!((calculate_cost("claude-haiku-4.5", 1_000_000, 1_000_000) - 6.0).abs() < 1e-9);
+
+        // 回归：连字符别名与映射层口径一致（曾按 4.5 定价高估 10 倍）
+        // 取 50K 输入以留在低档，避免与跳档测试混淆
+        assert!((calculate_cost("claude-haiku-5-5", 50_000, 0) - 0.005).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_pricing_haiku_5_5_long_context_tier() {
+        // 整档跳价：超 100K 时**整个请求**按高档，非超出部分累进
+        // 200_000 input + 1_000 output = 0.5*0.2 + 2.5*0.001 = 0.1025
+        assert!(
+            (calculate_cost("claude-haiku-5.5", 200_000, 1_000) - 0.1025).abs() < 1e-9,
+            "超阈值应整档跳价至 $0.50/$2.50"
+        );
+
+        // 边界：100_000 走低档，100_001 跳高档
+        assert!(
+            (calculate_cost("claude-haiku-5.5", 100_000, 0) - 0.01).abs() < 1e-9,
+            "恰好 100K 仍属低档"
+        );
+        assert!(
+            (calculate_cost("claude-haiku-5.5", 100_001, 0) - 0.0500005).abs() < 1e-9,
+            "超过 100K 即整档跳价"
+        );
+
+        // 别名口径一致
+        assert!(
+            (calculate_cost("Claude Haiku 5.5", 200_000, 0) - 0.10).abs() < 1e-9,
+            "空格别名同样跳档"
+        );
+        // 点号变体（回归：谓词改写曾丢失点号写法，会回退 4.5 定价高估 10 倍）
+        assert!(
+            (calculate_cost("claude-haiku.5.5", 200_000, 0) - 0.10).abs() < 1e-9,
+            "点号别名同样跳档"
+        );
+
+        // 回归：haiku 4.5 无分档，1M 输入仍按低档单档计价
+        assert!((calculate_cost("claude-haiku-4.5", 1_000_000, 0) - 1.0).abs() < 1e-9);
+    }
+
     /// 回归：明细超过 MAX_RECORDS_PER_KEY 被裁剪后，total_requests 仍持续增长
     /// （历史缺陷：直接数现存记录条数导致请求数封顶 10,000）
     #[tokio::test]

@@ -1,6 +1,20 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! Anthropic 模型名 → Kiro 模型 ID 映射
 
+/// 判断模型名是否属于 haiku 5.5（5.5 代际）。
+///
+/// 单一真源：`map_model`、`model_max_output_tokens`、`get_model_pricing`
+/// 三处共用（三者入参均为客户端原始模型名），避免判定口径漂移导致
+/// 「映射到 5.5 但按 4.5 定价」的错配。
+///
+/// 先把 `.` / 空格归一为 `-` 再匹配版本号，覆盖全部分隔符变体
+/// （与 opus 分支的 `opus-5` / `opus.5` / `opus 5` 惯例一致）：
+/// `haiku-5.5` / `haiku-5-5` / `haiku.5.5` / `haiku.5-5` / `haiku 5.5` 等；
+/// 同时不误命中 `claude-haiku-5.0` / `5.6` / `50`（原先只判主版本前缀会命中）。
+pub(crate) fn is_haiku_55(model_lower: &str) -> bool {
+    model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
+}
+
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
@@ -11,7 +25,8 @@
 /// - opus 5/5 → claude-opus-5
 /// - opus 4.5/4-5 → claude-opus-4.5
 /// - 其他 opus → claude-opus-4.6
-/// - 所有 haiku → claude-haiku-4.5
+/// - haiku 5.5/5-5 → claude-haiku-5.5
+/// - 其他 haiku → claude-haiku-4.5
 pub fn map_model(model: &str) -> Option<String> {
     let model_lower = model.to_lowercase();
 
@@ -53,7 +68,12 @@ pub fn map_model(model: &str) -> Option<String> {
             Some("claude-opus-4.6".to_string())
         }
     } else if model_lower.contains("haiku") {
-        Some("claude-haiku-4.5".to_string())
+        if is_haiku_55(&model_lower) {
+            // claude-haiku-5.5：5.5 代际，Max Input 1M / Max Output 128K
+            Some("claude-haiku-5.5".to_string())
+        } else {
+            Some("claude-haiku-4.5".to_string())
+        }
     } else if model_lower == "auto" {
         Some("auto".to_string())
     } else if model_lower.contains("deepseek") {

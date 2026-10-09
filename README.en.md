@@ -752,6 +752,7 @@ Any model name containing the following keywords is automatically mapped to the 
 | `*opus*` (including 4.8/4-8) | `claude-opus-4.8` |
 | `*opus*` (others) | `claude-opus-4.6` |
 | `*fable*` | `claude-fable-5` |
+| `*haiku*` (including 5.5/5-5) | `claude-haiku-5.5` |
 | `*haiku*` | `claude-haiku-4.5` |
 | `*deepseek*` | `deepseek-3.2` |
 | `*glm*` | `glm-5` |

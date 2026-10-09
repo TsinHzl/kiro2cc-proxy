@@ -3,6 +3,7 @@
 
 use crate::anthropic::types::MessagesRequest;
 
+use super::model::is_haiku_55;
 use super::thinking::{additional_fields_skipped, is_gpt_model};
 
 /// claude-opus-5 / claude-opus-4.7 / claude-opus-4.8 Max Output = 128K（1M 窗口代际）
@@ -24,6 +25,8 @@ pub(super) fn model_max_output_tokens(model: &str) -> i32 {
         || m.contains("opus-5")
         || m.contains("opus.5")
         || m.contains("opus 5")
+        // haiku 5.5：与 5.5 代际同档 128K（1M 窗口代际）
+        || is_haiku_55(&m)
     {
         MAX_OUTPUT_TOKENS_LARGE_WINDOW
     } else {

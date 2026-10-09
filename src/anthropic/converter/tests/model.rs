@@ -44,6 +44,42 @@ fn test_map_model_haiku() {
 }
 
 #[test]
+fn test_map_model_haiku_5_5_aliases() {
+    // haiku 5.5 映射（上游 ID 与 sonnet/opus 5.5 同为点号格式）
+    assert_eq!(map_model("claude-haiku-5.5").unwrap(), "claude-haiku-5.5");
+    assert_eq!(map_model("claude-haiku-5-5").unwrap(), "claude-haiku-5.5");
+    assert_eq!(
+        map_model("claude-haiku-5.5-thinking").unwrap(),
+        "claude-haiku-5.5"
+    );
+    assert_eq!(
+        map_model("claude-haiku-5-5-20261007").unwrap(),
+        "claude-haiku-5.5"
+    );
+    assert_eq!(map_model("Claude Haiku 5.5").unwrap(), "claude-haiku-5.5");
+
+    // 点号变体（与 opus.5 / sonnet.5 惯例一致，回归：谓词改写曾丢失点号写法）
+    assert_eq!(map_model("claude-haiku.5.5").unwrap(), "claude-haiku-5.5");
+    assert_eq!(map_model("claude-haiku.5-5").unwrap(), "claude-haiku-5.5");
+
+    // 回归：4.x / 3.x haiku 不被 5.5 分支误命中
+    assert_eq!(map_model("claude-haiku-4-5").unwrap(), "claude-haiku-4.5");
+    assert_eq!(
+        map_model("claude-haiku-4-20250514").unwrap(),
+        "claude-haiku-4.5"
+    );
+    assert_eq!(
+        map_model("claude-3-5-haiku-20241022").unwrap(),
+        "claude-haiku-4.5"
+    );
+
+    // 回归：非 5.5 的 haiku-5.x 不被误命中（原谓词只判主版本前缀会命中）
+    assert_eq!(map_model("claude-haiku-5.0").unwrap(), "claude-haiku-4.5");
+    assert_eq!(map_model("claude-haiku-5.6").unwrap(), "claude-haiku-4.5");
+    assert_eq!(map_model("claude-haiku-50").unwrap(), "claude-haiku-4.5");
+}
+
+#[test]
 fn test_map_model_passthrough_unknown() {
     // 开放透传：未命中内置规则的非空模型 ID 原样透传
     assert_eq!(map_model("gpt-4").unwrap(), "gpt-4");

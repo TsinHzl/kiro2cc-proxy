@@ -16,6 +16,18 @@ fn test_model_max_output_tokens_opus_5() {
     assert_eq!(model_max_output_tokens("Claude-Opus-5"), 128000);
     assert_eq!(model_max_output_tokens("Claude Opus 5"), 128000);
 
+    // haiku 5.5：1M 窗口代际，与 opus 5 同档 128K
+    assert_eq!(model_max_output_tokens("claude-haiku-5.5"), 128000);
+    assert_eq!(model_max_output_tokens("claude-haiku-5.5-thinking"), 128000);
+    // 空格分隔别名与映射层口径一致
+    assert_eq!(model_max_output_tokens("Claude Haiku 5.5"), 128000);
+    // 点号变体
+    assert_eq!(model_max_output_tokens("claude-haiku.5.5"), 128000);
+
+    // 回归：非 5.5 的 haiku-5.x 走标准 64K 档
+    assert_eq!(model_max_output_tokens("claude-haiku-5.0"), 64000);
+    assert_eq!(model_max_output_tokens("claude-haiku-5.6"), 64000);
+
     // 回归：其他档位不变
     assert_eq!(model_max_output_tokens("claude-opus-4.6"), 64000);
     assert_eq!(model_max_output_tokens("claude-opus-4.5"), 64000);

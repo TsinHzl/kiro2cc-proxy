@@ -773,6 +773,7 @@ Authorization: Bearer your-api-key
 | `*opus*`（含 4.8/4-8） | `claude-opus-4.8` |
 | `*opus*`（其他） | `claude-opus-4.6` |
 | `*fable*` | `claude-fable-5` |
+| `*haiku*`（含 5.5/5-5） | `claude-haiku-5.5` |
 | `*haiku*` | `claude-haiku-4.5` |
 | `*deepseek*` | `deepseek-3.2` |
 | `*glm*` | `glm-5` |

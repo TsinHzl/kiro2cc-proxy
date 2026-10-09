@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.16".to_string(),
+            is_latest: false,
+            groups: vec![feat_group(vec![Bilingual::new(
+                "支持 claude-haiku-5.5 模型映射：1M 窗口 / 128K max output，定价 $0.10/$0.50，输入超 100K 整档跳价 $0.50/$2.50（不加入 /v1/models 模型列表）",
+                "Adds claude-haiku-5.5 model mapping: 1M context / 128K max output, priced at $0.10/$0.50, tiering up to $0.50/$2.50 when input exceeds 100K (not listed in /v1/models)",
+            )])],
+        },
+        ReleaseNote {
             version: "3.4.15".to_string(),
             is_latest: false,
             groups: vec![

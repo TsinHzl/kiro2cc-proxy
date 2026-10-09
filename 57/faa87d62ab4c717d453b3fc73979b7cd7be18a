@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "57faa87d62ab4c717d453b3fc73979b7cd7be18a",
+  "prompts": {
+    "67c49c602e88977f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8cce8f5-bd44-4491-8b6e-326cedad3812",
+        "model": "gpt-6-astra"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 151,
+      "overriden_lines": 0
+    }
+  }
+}

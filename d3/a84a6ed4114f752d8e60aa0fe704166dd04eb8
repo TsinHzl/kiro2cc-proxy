@@ -1,0 +1,25 @@
+README.en.md
+  a0f41112e52437a0 13
+README.md
+  a0f41112e52437a0 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d3a84a6ed4114f752d8e60aa0fe704166dd04eb8",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

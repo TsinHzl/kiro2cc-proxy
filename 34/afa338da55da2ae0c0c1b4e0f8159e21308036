@@ -1,0 +1,38 @@
+src/admin/changelog_data.rs
+  a0f41112e52437a0 70-76
+Cargo.toml
+  a0f41112e52437a0 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "34afa338da55da2ae0c0c1b4e0f8159e21308036",
+  "prompts": {
+    "07eee6396deb63c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa80ae23-5f60-4f53-a662-a491fcd298ca",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 1,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

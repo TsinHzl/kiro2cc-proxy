@@ -1,0 +1,31 @@
+src/anthropic/handlers/helpers.rs
+  f6545800781f3d97 157-172,440-465
+src/anthropic/handlers/post_messages_cc/mod.rs
+  f6545800781f3d97 287
+src/anthropic/handlers/stream.rs
+  f6545800781f3d97 86-89
+src/anthropic/handlers/post_messages.rs
+  f6545800781f3d97 323
+src/anthropic/handlers/nonstream.rs
+  f6545800781f3d97 209-211,231-237,239-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a294ed5217802f43320743c9d1ce294a2ff396fe",
+  "prompts": {
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 73,
+      "total_deletions": 14,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    }
+  }
+}

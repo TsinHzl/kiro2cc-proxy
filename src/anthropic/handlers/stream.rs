@@ -83,6 +83,9 @@ pub(crate) async fn handle_stream_request(
     );
     let thinking_as_text = thinking_as_text_allowed && thinking_enabled;
 
+    // effort 入库口径与 thinking 裁决联动（口径说明见 resolve_recorded_effort 文档）
+    let effort = super::helpers::resolve_recorded_effort(thinking_enabled, effort);
+
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
         .with_usage_tracking(usage_tracker, api_key_id, Some(credential_id), client_ip)

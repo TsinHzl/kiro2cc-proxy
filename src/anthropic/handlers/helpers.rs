@@ -154,6 +154,24 @@ pub(crate) fn resolve_effective_thinking(
     }
 }
 
+/// effort 入库口径（与 thinking 裁决结果联动，纯函数便于测试）：
+/// - thinking 生效：保留客户端携带值；未携带时补记 "high"——与 `types.rs`
+///   `default_effort()`（output_config 存在但未写 effort 时的 serde 默认）同口径，
+///   仅作徽章展示约定。注意与 `converter/fields.rs` 注入上游的兜底值 "low"
+///   （issue #40 TTFB 实测下调）是两个不同口径：wire 上无 effort 字段的模型
+///   （如 4.5 代际走文本标签协议）徽章值不回传上游，互不影响；
+/// - thinking 未生效（账号开关关闭 / 客户端未请求 / luna）：一律丢弃，徽章不展示。
+pub(crate) fn resolve_recorded_effort(
+    thinking_effective: bool,
+    effort: Option<String>,
+) -> Option<String> {
+    if thinking_effective {
+        Some(effort.unwrap_or_else(|| "high".to_string()))
+    } else {
+        None
+    }
+}
+
 /// 按实际选中的账号计算响应侧 thinking 是否启用（见 [`resolve_effective_thinking`]）。
 ///
 /// `model` 为客户端原始模型名，内部经 `map_model` 归一化后判定是否支持原生字段。
@@ -420,5 +438,31 @@ mod tests {
             ]),
         );
         assert!(!is_suggestion_mode_request(&p));
+    }
+
+    #[test]
+    fn recorded_effort_kept_when_thinking_effective() {
+        assert_eq!(
+            resolve_recorded_effort(true, Some("low".to_string())),
+            Some("low".to_string())
+        );
+    }
+
+    #[test]
+    fn recorded_effort_defaults_high_when_thinking_effective_without_value() {
+        assert_eq!(
+            resolve_recorded_effort(true, None),
+            Some("high".to_string())
+        );
+    }
+
+    #[test]
+    fn recorded_effort_dropped_when_thinking_disabled() {
+        // 账号开关关闭 / 客户端未请求 thinking：即使请求携带 effort 也不入库
+        assert_eq!(
+            resolve_recorded_effort(false, Some("high".to_string())),
+            None
+        );
+        assert_eq!(resolve_recorded_effort(false, None), None);
     }
 }

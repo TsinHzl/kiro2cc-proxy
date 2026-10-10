@@ -320,6 +320,7 @@ pub async fn post_messages(
             thinking_adaptive_requested,
             bridge_ctx,
             effort,
+            thinking_enabled,
         )
         .await
     }

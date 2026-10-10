@@ -206,6 +206,9 @@ pub(crate) async fn handle_non_stream_request(
     bridge_ctx: Option<BridgeContext>,
     // 请求的 effort 级别（output_config 存在时取值，否则 None），随 usage 记录入库
     effort: Option<String>,
+    // 客户端侧 thinking 请求状态（resolve_thinking_enabled 的结果，与流式分支同源）；
+    // 与账号开关在下方合成最终裁决，供 effort 入库口径与流式路径保持一致
+    thinking_client_enabled: bool,
 ) -> Response {
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
@@ -225,6 +228,16 @@ pub(crate) async fn handle_non_stream_request(
     // （开启时非流式本就无条件输出推理块，无需额外处理）
     let thinking_suppressed =
         provider.token_manager().thinking_adaptive_of(credential_id) == Some(false);
+    // 与流式路径同口径：账号开关 + 客户端请求 + 模型支持度合成最终裁决
+    let thinking_enabled = super::helpers::effective_thinking_enabled(
+        &provider,
+        credential_id,
+        model,
+        thinking_client_enabled,
+    );
+
+    // effort 入库口径与 thinking 裁决联动（口径说明见 resolve_recorded_effort 文档）
+    let effort = super::helpers::resolve_recorded_effort(thinking_enabled, effort);
 
     // 读取响应体
     let body_bytes = match response.bytes().await {

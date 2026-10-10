@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.19".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "修复 issue #47 残留漂移：CC 每轮追加的 <total_tokens>N tokens left</total_tokens> token 预算提示导致 history[0] 冻结 key 仍逐轮 +50 字节漂移——新增 is_token_budget_reminder 谓词整块识别该消息，与 hook 动态块同样分流到当前消息开头的 <system-reminder>，模型仍可见但不参与缓存哈希",
+                "Fixes the residual drift of issue #47: the per-turn <total_tokens>N tokens left</total_tokens> token budget reminder appended by CC still drifted the history[0] freeze key by 50 bytes per turn — a new is_token_budget_reminder predicate now recognizes it whole-block and, like hook dynamic blocks, splits it into a leading <system-reminder> of the current message, visible to the model but excluded from the cache hash",
+            )])],
+        },
+        ReleaseNote {
             version: "3.4.18".to_string(),
             is_latest: false,
             groups: vec![

@@ -1,0 +1,36 @@
+web-ui/admin-ui/src/components/usage-log-table.tsx
+  a0f41112e52437a0 52-63,144,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c016cd480461afe1b3ed0e416eb76422c867aa73",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 4,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    },
+    "e150051ad6703b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4ef91913-46e1-4077-a6f4-631808e1eb72",
+        "model": "deepseek-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 191,
+      "overriden_lines": 0
+    }
+  }
+}

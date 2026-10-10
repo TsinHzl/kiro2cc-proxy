@@ -15,7 +15,9 @@ use crate::kiro::model::requests::tool::ToolUseEntry;
 
 use super::cache::{CacheEntry, PREV_H0, evict_oldest_if_full};
 use super::message::process_message_content;
-use super::prompt::{is_dynamic_hook_injection, normalize_billing_header};
+use super::prompt::{
+    is_dynamic_hook_injection, is_token_budget_reminder, normalize_billing_header,
+};
 use super::result::ConversionError;
 use super::thinking::{generate_thinking_prefix, gpt_anti_pseudo_tag_hint, has_thinking_tags};
 
@@ -58,7 +60,7 @@ pub(super) fn build_history(
         Some(blocks) => blocks
             .iter()
             .copied()
-            .partition(|s| !is_dynamic_hook_injection(s)),
+            .partition(|s| !is_dynamic_hook_injection(s) && !is_token_budget_reminder(s)),
         None => (Vec::new(), Vec::new()),
     };
     // 全部块都被分流（stable 拼接结果为空，含仅剩空文本块）时按"无系统消息"处理，

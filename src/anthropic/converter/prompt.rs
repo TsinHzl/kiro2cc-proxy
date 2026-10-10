@@ -61,6 +61,28 @@ pub(super) fn is_dynamic_hook_injection(s: &str) -> bool {
     })
 }
 
+/// 判断系统区文本块是否为 Claude Code 逐轮追加的「剩余 token 预算」提示，
+/// 形如 `<total_tokens>15000000 tokens left</total_tokens>`。
+///
+/// 该消息由 Claude Code 自己在每轮 `messages` 末尾以 `role:"system"` 追加（并随会话历史
+/// 累积，旧版本客户端的数值还逐轮递减），并非本代理生成。若放任它并进 history[0]，
+/// history[0] 会每轮多出一段而逐轮漂移，前缀缓存持续 miss（issue #47 的残留漂移源）。
+/// 与 hook 块同样处理：归为动态块，从 history[0] 剔除并改放到当前消息开头的
+/// `<system-reminder>` 中（见 `history::build_history`）——模型仍可见，但不参与缓存哈希。
+///
+/// 只认「整段恰为单个 `<total_tokens>…</total_tokens>` 块、且内部不含其他标签」的文本，
+/// 避免误分流恰好以该标签开头、但还带有其他内容的真实系统提示。
+pub(super) fn is_token_budget_reminder(s: &str) -> bool {
+    let Some(inner) = s
+        .trim()
+        .strip_prefix("<total_tokens>")
+        .and_then(|rest| rest.strip_suffix("</total_tokens>"))
+    else {
+        return false;
+    };
+    !inner.contains('<') && !inner.contains('>')
+}
+
 /// 将 Anthropic 的 JSON Schema 输出约束转换为 Kiro 可理解的提示约束。
 pub(super) fn append_output_format_instruction(
     mut text_content: String,

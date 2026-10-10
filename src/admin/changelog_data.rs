@@ -67,6 +67,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.20".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "effort 徽章与深度思考状态联动入库：修复已关闭深度思考的账号用量记录仍展示 effort 徽章的问题；修复 sonnet-4.5 等走文本标签协议的模型开启深度思考后不展示 effort 的问题（thinking 生效时未携带 effort 自动补记，未生效一律丢弃）",
+                "Effort badges in usage records now follow the effective thinking decision: fixed accounts with thinking disabled still showing effort badges, and fixed text-label-protocol models like sonnet-4.5 not showing any effort badge even with thinking enabled (effort is now backfilled when thinking is effective and dropped otherwise)",
+            )])],
+        },
+        ReleaseNote {
             version: "3.4.19".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

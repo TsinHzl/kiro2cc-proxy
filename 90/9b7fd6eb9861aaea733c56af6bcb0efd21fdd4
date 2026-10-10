@@ -1,0 +1,53 @@
+web-ui/admin-ui/src/components/account-row.tsx
+  a0f41112e52437a0 370,378
+web-ui/admin-ui/src/i18n/locales/en.json
+  a0f41112e52437a0 41-42
+src/model/usage/tests.rs
+  a0f41112e52437a0 44,57,79,102,115,138,160,173,188-295,387,440
+src/model/usage/pagination.rs
+  a0f41112e52437a0 83,143-145,219
+web-ui/admin-ui/src/components/usage-log-table.tsx
+  a0f41112e52437a0 52-63,144-149,180,182-185,187-204
+src/anthropic/handlers/nonstream.rs
+  a0f41112e52437a0 209-211,227-238,642-643,645-646,654
+src/anthropic/stream/context/mod.rs
+  a0f41112e52437a0 906
+src/model/usage/mod.rs
+  a0f41112e52437a0 58-60,343,361
+src/anthropic/handlers/tests/thinking_usage.rs
+  a0f41112e52437a0 1-194
+src/anthropic/handlers/helpers.rs
+  a0f41112e52437a0 174-244
+src/anthropic/handlers/post_messages_cc/mod.rs
+  a0f41112e52437a0 208-211,255,289
+web-ui/admin-ui/src/i18n/locales/zh.json
+  a0f41112e52437a0 41-42
+web-ui/admin-ui/src/types/api.ts
+  a0f41112e52437a0 252-253
+src/anthropic/handlers/post_messages.rs
+  a0f41112e52437a0 211-214,291,325
+src/anthropic/handlers/tests/mod.rs
+  a0f41112e52437a0 7
+src/model/usage/daily.rs
+  a0f41112e52437a0 197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "909b7fd6eb9861aaea733c56af6bcb0efd21fdd4",
+  "prompts": {
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 4,
+      "accepted_lines": 477,
+      "overriden_lines": 0
+    }
+  }
+}

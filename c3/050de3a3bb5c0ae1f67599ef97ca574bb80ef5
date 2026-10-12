@@ -1,0 +1,38 @@
+src/kiro/token_manager/manager/admin_ops.rs
+  f6545800781f3d97 596
+src/kiro/token_manager/tests/refresh.rs
+  f6545800781f3d97 377-379,394-395,397,402,404-405,408-418,421-422,424-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c3050de3a3bb5c0ae1f67599ef97ca574bb80ef5",
+  "prompts": {
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 33,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    },
+    "f965bdacb6f9f9b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e237f58e-0197-4510-b0dc-90f6bc253a53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 0,
+      "accepted_lines": 138,
+      "overriden_lines": 0
+    }
+  }
+}

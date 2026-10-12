@@ -1,0 +1,39 @@
+src/admin/mod.rs
+  f6545800781f3d97 28
+src/admin/service.rs
+  f6545800781f3d97 45,56,772
+web-ui/admin-ui/src/types/api.ts
+  f6545800781f3d97 200-201
+web-ui/admin-ui/src/components/model-list-page.tsx
+  f6545800781f3d97 33-56,385-392
+src/admin/types.rs
+  f6545800781f3d97 593-594
+web-ui/admin-ui/src/i18n/locales/en.json
+  f6545800781f3d97 659
+src/admin/model_release.rs
+  f6545800781f3d97 1-56
+web-ui/admin-ui/src/i18n/locales/zh.json
+  f6545800781f3d97 659
+web-ui/admin-ui/src/index.css
+  f6545800781f3d97 49-57,127-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "aeab04584807948c0adf50812d06215911b40f32",
+  "prompts": {
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 115,
+      "overriden_lines": 0
+    }
+  }
+}

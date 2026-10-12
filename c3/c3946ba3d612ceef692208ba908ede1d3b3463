@@ -1,0 +1,33 @@
+src/admin/mod.rs
+  f6545800781f3d97 28
+src/admin/types.rs
+  f6545800781f3d97 593-594
+src/admin/service.rs
+  f6545800781f3d97 45,56,772
+src/admin/model_release.rs
+  f6545800781f3d97 1-56
+web-ui/admin-ui/src/components/model-list-page.tsx
+  f6545800781f3d97 33-43,372-382
+web-ui/admin-ui/src/types/api.ts
+  f6545800781f3d97 200-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c3c3946ba3d612ceef692208ba908ede1d3b3463",
+  "prompts": {
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 129,
+      "total_deletions": 44,
+      "accepted_lines": 86,
+      "overriden_lines": 0
+    }
+  }
+}

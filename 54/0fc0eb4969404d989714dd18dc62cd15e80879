@@ -1,0 +1,260 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "540fc0eb4969404d989714dd18dc62cd15e80879",
+  "prompts": {
+    "3a6833c4f30003d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "860907c7-f6f2-441e-a714-7fae83d71ed3",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "<command-message>code-review-single</command-message>\n<command-name>/code-review-single</command-name>\n<command-args>cr最近一次提交</command-args>",
+          "timestamp": "2026-10-13T09:21:34.243Z"
+        },
+        {
+          "type": "user",
+          "text": "Base directory for this skill: /Users/MacBook/.claude/skills/code-review-single\n\n# 单仓库 Code Review\n\n## 输入参数\n\n`cr最近一次提交` 支持五种模式（优先级：未提交改动 > commit hash > 时间范围 > commit 数量 > 源分支全量）：\n\n- 未提交改动：用户明确要求审查\"未提交的代码 / 工作区改动 / 还没 commit 的改动\"\n- 组件路径：`@组件名/`\n- commit hash：7-40 位十六进制（diff 该 commit 到 HEAD 的累积变更）\n- commit 数量：自然语言数字（如\"最近两次commit\"→2，取最近 N 次 first-parent 提交的累积 diff）\n- 时间范围：自然语言时间描述（如\"今天内的提交\"、\"最近三天\"）\n\n### 五参数提取规则\n\n| 参数 | 提取方式 |\n|---|---|\n| `PARAM` | `@组件名/` 格式，无则留空 |\n| `COMMIT_COUNT_RAW` | 自然语言数字，如\"最近两次\"→`2`，无则留空 |\n| `COMMIT_HASH_RAW` | 7-40 位十六进制，无则留空 |\n| `DATE_SINCE` | 见下方时间范围解析规则；无时间范围时传空字符串 `\"\"` |\n| `WORKING_TREE_RAW` | 用户明确提到\"未提交\"\"工作区\"\"还没 commit\"等即传 `1`，无则留空 |\n\n`WORKING_TREE_RAW` 模式下会审查工作区当前所有未提交的改动，包括已 `git add`（staged）与未 `add`（unstaged）的修改，以及新增的未跟踪文件；可与 `@组件名/` 组合使用以限定审查范围到某个子目录。\n\n### 时间范围解析规则（DATE_SINCE）\n\n| 用户输入示例 | 传入 DATE_SINCE |\n|---|---|\n| 今天内 / 今天的提交 | `midnight` |\n| 最近 N 天 / 近 N 天 | `N days ago` |\n| 最近一周 / 最近两周 | `1 week ago` / `2 weeks ago` |\n| 最近两小时 / 最近一小时 | `2 hours ago` / `1 hour ago` |\n\n**数字转换：** 中文数字须先转为阿拉伯数字（\"三\" → 3，\"两\" → 2，\"一\" → 1），再拼接时间单位。\n\n**Fallback：** 若用户输入无法映射到以上格式（如\"上周五之后\"、\"本月初\"），**立即停止**，向用户提出澄清问题：\"请确认时间范围，例如：今天内、最近 3 天、1 周前至今。\"不得猜测。\n\n## Workflow\n\n### Step 1: 环境解析与 Diff 提取\n\n按上述规则提取五参数后，**单次 Bash 调用**：\n\n```bash\nbash \"${HOME}/.claude/skills/code-review-single/scripts/code-review-single-env.sh\" \"<PARAM>\" \"<COMMIT_COUNT_RAW>\" \"<COMMIT_HASH_RAW>\" \"<DATE_SINCE>\" \"<WORKING_TREE_RAW>\"\n```\n\n### Step 2: 深度审查与输出报告\n\n- Step 1 输出含 `BLOCK:` → 简述阻断原因结束\n- 否则读取 header `SHARDS` 字段决定分支：\n  - **SHARDS == 1** → 顺序流程：\n    1. Read [references/review-rules.md](references/review-rules.md) 计算变更统计 + 执行六维扫描\n    2. Read [references/report-template.md](references/report-template.md) 套模板\n    3. 报告文件命名：目标文件名为 `cr-result.md`；若 `<工作目录>` 下已存在，则依次尝试 `cr-result-1.md`、`cr-result-2.md`……确定第一个不存在的文件名后调用 Write 写入 `<工作目录>/<文件名>`\n  - **SHARDS > 1** → Read [references/workflow-sharded.md](references/workflow-sharded.md) 执行并行流程\n\n## Constraints\n\n- 强制中文输出\n- 仅报告 diff 中明确存在的问题\n- 同类别内按文件名字母序、行号升序\n- 每个独立代码位置对应一条意见，不合并、不拆分\n- **空类别整段省略**（含标题与计数），不输出\"本次未发现此类问题\"占位句\n- 时间范围模式下，变更概述需注明 merge/cherry-pick 非线性历史的 diff 边界限制\n- 未提交改动模式下，变更概述需注明该模式仅反映执行审查那一刻的工作区快照（staged + unstaged + 未跟踪新文件），若审查过程中用户又修改了文件，结果不会自动刷新\n- 报告文件写入：文件名固定为 `cr-result.md`，若已存在则追加序号（`cr-result-1.md`、`cr-result-2.md`……取第一个不存在的编号）写入 `<工作目录>`。如希望跳过 AskUserQuestion 确认，可在 `~/.claude/settings.json` 的 `allowedTools` 字段预授权 `Write` 工具\n",
+          "timestamp": "2026-10-13T09:21:34.243Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\u001b[2m💭 Thinking\u001b[0m\n\u001b[2mThe user invoked /code-review-single with args \"cr最近一次提交\". Step 1: run env script.\u001b[0m\n\u001b[2m💭 Thought for 14s\u001b[0m",
+          "timestamp": "2026-10-13T09:21:48.708Z"
+        },
+        {
+          "type": "assistant",
+          "text": "正在解析参数并提取最近一次提交的 diff。",
+          "timestamp": "2026-10-13T09:21:48.709Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "bash \"${HOME}/.claude/skills/code-review-single/scripts/code-review-single-env.sh\" \"\" \"\" \"\" \"\" \"\"",
+            "description": "提取最近一次提交的 diff 环境信息"
+          },
+          "timestamp": "2026-10-13T09:21:48.741Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\u001b[2m💭 Thinking\u001b[0m\n\u001b[2mParam was \"最近一次提交\" — commit count 1.\u001b[0m\n\u001b[2m💭 Thought for 7s\u001b[0m",
+          "timestamp": "2026-10-13T09:21:58.140Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "bash \"${HOME}/.claude/skills/code-review-single/scripts/code-review-single-env.sh\" \"\" \"1\" \"\" \"\" \"\"",
+            "description": "提取最近 1 次提交的 diff 环境信息"
+          },
+          "timestamp": "2026-10-13T09:21:58.611Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/MacBook/.claude/skills/code-review-single/references/review-rules.md"
+          },
+          "timestamp": "2026-10-13T09:22:03.381Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/MacBook/.claude/skills/code-review-single/references/report-template.md"
+          },
+          "timestamp": "2026-10-13T09:22:03.383Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Agent",
+          "input": {
+            "description": "CR 最近一次提交 diff",
+            "prompt": "请对以下 Rust 代码变更（kiro2cc-proxy 仓库最近 1 次提交 b4ecd83 的完整 diff）进行六维扫描审查（安全漏洞 / 崩溃与异常 / 逻辑错误与边界遗漏 / 性能 / 代码规范与可读性 / 重构机会）。\n\n约束：\n- 仅报告 diff 中明确存在的问题，不得臆测 diff 外的问题。\n- 每个独立代码位置一条意见，不合并不拆分。\n- 如需上下文，仅可 Read 下方涉及的两个改动文件（src/admin/model_release.rs、src/admin/service.rs）的当前完整内容，禁止读取其他文件，禁止执行 git 命令。\n- 所有输出必须使用简体中文。\n- 你的最终文本就是审查报告数据本身，直接返回。\n\n背景：该提交将模型发布日期从编译期硬编码清单改为运行时自检——AdminService 启动时从 token_manager.cache_dir() 加载 kiro_model_seen.json，每次成功拉到实时模型列表时，把「之前没见过的模型 ID」连同当天日期写入该文件（首次建立基线记 null 不算新增，先写 .tmp 再 rename 原子落盘），手动覆盖清单 MODEL_RELEASE_DATES 优先。单账号视图只查询不登记。\n\n输出格式（严格遵守，空类别整段省略）：\n\n## 变更统计\n涉及文件数 / 新增行数 / 删除行数 / 净变更行数（从 diff 提取）\n\n## 🚫 严重问题 (Critical) - 共 N 个\n**序号、**\n* **问题描述**：\n* **潜在影响**：\n* **位置**：文件 + 行号范围\n* **修复对比**：```rust // ❌ 原始代码 ... // ✅ 修复代码 ```\n* **修复重点**：\n\n## ⚠️ 改进建议 (Standard) - 共 N 个\n**序号、** 一句话建议\n* **位置**：\n* **修复对比**：```rust ❌/✅ ```\n\n## 💡 优雅重构 (Refactoring) - 共 N 个\n**序号、** 行号 — 一句话建议\n```rust ❌/✅ ```\n\n完整 diff 如下：\n\n+++ BEGIN DIFF +++\ndiff --git a/src/admin/model_release.rs b/src/admin/model_release.rs\nindex 7a4c36a..97bf07b 100644\n--- a/src/admin/model_release.rs\n+++ b/src/admin/model_release.rs\n@@ -1,56 +1,266 @@\n // Copyright (c) 2026 Harllan He. Licensed under MIT.\n-//! 模型发布日期清单\n+//! 模型「首次出现」日期自检\n //!\n-//! 与 `changelog_data.rs`、`build_model_list()` 同模式：编译期硬编码，\n-//! 随代码发布同步维护。上游 `ListAvailableModels` 不提供发布时间字段，\n-//! 故新增模型时在 `MODEL_RELEASE_DATES` 顶部追加一条（模型 ID，发布日期）。\n+//! 上游 `ListAvailableModels` 不提供发布时间字段。这里改为由服务自己记录：\n+//! 每次成功拉到实时模型列表，就把「之前没见过的模型 ID」连同当天日期写入\n+//! `kiro_model_seen.json`（与 credentials.json 同目录）。后续新增的模型因此无需改代码\n+//! 即可带上 `released_at`，前端据此在窗口期内展示 NEW 徽章。\n //!\n-//! 仅负责下发日期，「是否最近新增」由前端按当前时间实时判定\n-//! （避免页面长时间停留后徽章不消失），窗口天数见\n-//! `web-ui/admin-ui/src/components/model-list-page.tsx` 的 `RECENT_WINDOW_DAYS`。\n+//! 「是否最近新增」仍由前端按当前时间实时判定（避免页面长时间停留后徽章不消失），\n+//! 窗口天数见 `web-ui/admin-ui/src/components/model-list-page.tsx` 的 `RECENT_WINDOW_DAYS`。\n+//!\n+//! # 首次运行的基线\n+//! 记录文件不存在（首次升级到本版本，或文件被删/损坏）时，当前已有的全部模型只登记为\n+//! 「基线」（日期为 `null`），不算新增，否则升级当天整张表都会亮 NEW。\n+//! 基线之后才出现的模型才记当天日期。\n+//!\n+//! # 手动覆盖\n+//! `MODEL_RELEASE_DATES` 仍保留，用于：升级前已手动登记、需要保持徽章的模型，\n+//! 或想把日期改成实际上线日。覆盖优先于自检记录。\n+//!\n+//! # 局限\n+//! 记录的是「本代理第一次看到该模型的日期」，不是官方发布日期；\n+//! 新增账号若带来了其他账号没有的模型，也会被当作新增。\n+\n+use std::collections::BTreeMap;\n+use std::path::PathBuf;\n \n-/// 模型发布日期清单（模型 ID → `YYYY-MM-DD`）\n+use chrono::NaiveDate;\n+use parking_lot::Mutex;\n+use serde::{Deserialize, Serialize};\n+\n+/// 记录文件名（位于 credentials.json 同目录）\n+pub(crate) const SEEN_FILE_NAME: &str = \"kiro_model_seen.json\";\n+\n+/// 手动覆盖的发布日期（模型 ID → `YYYY-MM-DD`），优先于自检记录\n ///\n /// 日期取该模型在本代理中「可调用」的日期（上线日），非官方发布日期。\n+/// 一般无需再追加；新增模型由自检自动记录。\n const MODEL_RELEASE_DATES: &[(&str, &str)] = &[\n     (\"claude-opus-5.5\", \"2026-10-12\"),\n     (\"claude-sonnet-5.5\", \"2026-10-12\"),\n ];\n \n-/// 查询模型发布日期（未登记返回 `None`）\n-pub(crate) fn release_date(model_id: &str) -> Option<&'static str> {\n+/// 查询手动覆盖的发布日期（未登记返回 `None`）\n+fn override_date(model_id: &str) -> Option<&'static str> {\n     MODEL_RELEASE_DATES\n         .iter()\n         .find(|(id, _)| *id == model_id)\n         .map(|(_, date)| *date)\n }\n \n+/// 持久化内容：模型 ID → 首次出现日期（`None` 表示基线，不算新增）\n+#[derive(Debug, Default, Serialize, Deserialize)]\n+struct SeenState {\n+    models: BTreeMap<String, Option<String>>,\n+}\n+\n+impl SeenState {\n+    /// 登记本次看到的模型，返回是否有变化（需要落盘）\n+    ///\n+    /// `baseline` 为 true 时，新模型登记为 `None`（不算新增）。\n+    fn observe(&mut self, ids: &[&str], today: NaiveDate, baseline: bool) -> bool {\n+        let today = today.format(\"%Y-%m-%d\").to_string();\n+        let mut changed = false;\n+        for id in ids {\n+            if id.is_empty() || self.models.contains_key(*id) {\n+                continue;\n+            }\n+            let first_seen = if baseline { None } else { Some(today.clone()) };\n+            self.models.insert((*id).to_string(), first_seen);\n+            changed = true;\n+        }\n+        changed\n+    }\n+}\n+\n+/// 模型发布日期追踪器\n+pub(crate) struct ModelReleaseTracker {\n+    path: Option<PathBuf>,\n+    /// `None` 表示尚未建立基线\n+    state: Mutex<Option<SeenState>>,\n+}\n+\n+impl ModelReleaseTracker {\n+    /// 从 `path` 加载记录；文件不存在或损坏时视为尚未建立基线\n+    pub(crate) fn load(path: Option<PathBuf>) -> Self {\n+        let state = path.as_ref().and_then(|p| {\n+            let content = std::fs::read_to_string(p).ok()?;\n+            match serde_json::from_str::<SeenState>(&content) {\n+                Ok(s) => Some(s),\n+                Err(e) => {\n+                    tracing::warn!(\"解析模型首次出现记录失败，将重新建立基线: {}\", e);\n+                    None\n+                }\n+            }\n+        });\n+        Self {\n+            path,\n+            state: Mutex::new(state),\n+        }\n+    }\n+\n+    /// 仅内存、不落盘（测试用）\n+    #[cfg(test)]\n+    pub(crate) fn in_memory() -> Self {\n+        Self::load(None)\n+    }\n+\n+    /// 登记一次成功拉取到的实时模型列表\n+    ///\n+    /// 只应在上游实时响应成功时调用；列表为空时忽略，避免异常空响应建立出空基线，\n+    /// 导致之后所有模型都被当成新增。\n+    pub(crate) fn observe(&self, ids: &[&str]) {\n+        self.observe_on(ids, chrono::Utc::now().date_naive());\n+    }\n+\n+    fn observe_on(&self, ids: &[&str], today: NaiveDate) {\n+        if ids.is_empty() {\n+            return;\n+        }\n+        let mut guard = self.state.lock();\n+        let baseline = guard.is_none();\n+        let state = guard.get_or_insert_with(SeenState::default);\n+        // 建立基线时即使没有任何新条目也要落盘（ids 非空，必有变化）\n+        if state.observe(ids, today, baseline) {\n+            self.save(state);\n+        }\n+    }\n+\n+    /// 查询模型发布日期：手动覆盖优先，其次自检记录；基线或未见过返回 `None`\n+    pub(crate) fn release_date(&self, model_id: &str) -> Option<String> {\n+        if let Some(date) = override_date(model_id) {\n+            return Some(date.to_string());\n+        }\n+        self.state\n+            .lock()\n+            .as_ref()\n+            .and_then(|s| s.models.get(model_id))\n+            .and_then(|d| d.clone())\n+    }\n+\n+    /// 先写临时文件再重命名，避免写到一半崩溃留下损坏的记录\n+    fn save(&self, state: &SeenState) {\n+        let Some(path) = &self.path else { return };\n+        let json = match serde_json::to_string_pretty(state) {\n+            Ok(j) => j,\n+            Err(e) => {\n+                tracing::warn!(\"序列化模型首次出现记录失败: {}\", e);\n+                return;\n+            }\n+        };\n+        let tmp = path.with_extension(\"json.tmp\");\n+        if let Err(e) = std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, path)) {\n+            tracing::warn!(\"保存模型首次出现记录失败: {}\", e);\n+        }\n+    }\n+}\n+\n #[cfg(test)]\n mod tests {\n     use super::*;\n \n-    #[test]\n-    fn release_date_returns_registered_date() {\n-        assert_eq!(release_date(\"claude-opus-5.5\"), Some(\"2026-10-12\"));\n-        assert_eq!(release_date(\"claude-sonnet-5.5\"), Some(\"2026-10-12\"));\n+    fn day(s: &str) -> NaiveDate {\n+        NaiveDate::parse_from_str(s, \"%Y-%m-%d\").unwrap()\n     }\n \n     #[test]\n-    fn release_date_none_for_unregistered() {\n-        assert_eq!(release_date(\"claude-opus-5\"), None);\n-        assert_eq!(release_date(\"auto\"), None);\n-        assert_eq!(release_date(\"\"), None);\n+    fn override_date_returns_registered_date() {\n+        assert_eq!(override_date(\"claude-opus-5.5\"), Some(\"2026-10-12\"));\n+        assert_eq!(override_date(\"claude-sonnet-5.5\"), Some(\"2026-10-12\"));\n+        assert_eq!(override_date(\"claude-opus-5\"), None);\n+        assert_eq!(override_date(\"\"), None);\n     }\n \n     #[test]\n-    fn all_entries_use_iso_date_format() {\n+    fn all_overrides_use_iso_date_format() {\n         // 前端 Date.parse 依赖 `YYYY-MM-DD`，格式错误会静默失效\n         for (id, date) in MODEL_RELEASE_DATES {\n             assert_eq!(date.len(), 10, \"模型 {id} 的日期格式非法: {date}\");\n             assert!(\n-                chrono::NaiveDate::parse_from_str(date, \"%Y-%m-%d\").is_ok(),\n+                NaiveDate::parse_from_str(date, \"%Y-%m-%d\").is_ok(),\n                 \"模型 {id} 的日期无法解析: {date}\"\n             );\n         }\n     }\n+\n+    #[test]\n+    fn first_observation_is_baseline_not_new() {\n+        let t = ModelReleaseTracker::in_memory();\n+        t.observe_on(&[\"a\", \"b\"], day(\"2026-10-13\"));\n+        assert_eq!(t.release_date(\"a\"), None);\n+        assert_eq!(t.release_date(\"b\"), None);\n+    }\n+\n+    #[test]\n+    fn model_appearing_after_baseline_gets_first_seen_date() {\n+        let t = ModelReleaseTracker::in_memory();\n+        t.observe_on(&[\"a\", \"b\"], day(\"2026-10-13\"));\n+        t.observe_on(&[\"a\", \"b\", \"c\"], day(\"2026-10-20\"));\n+        assert_eq!(t.release_date(\"a\"), None);\n+        assert_eq!(t.release_date(\"c\").as_deref(), Some(\"2026-10-20\"));\n+    }\n+\n+    #[test]\n+    fn first_seen_date_is_not_overwritten() {\n+        let t = ModelReleaseTracker::in_memory();\n+        t.observe_on(&[\"a\"], day(\"2026-10-13\"));\n+        t.observe_on(&[\"a\", \"c\"], day(\"2026-10-20\"));\n+        t.observe_on(&[\"a\", \"c\"], day(\"2026-11-30\"));\n+        assert_eq!(t.release_date(\"c\").as_deref(), Some(\"2026-10-20\"));\n+    }\n+\n+    #[test]\n+    fn empty_list_does_not_establish_baseline() {\n+        let t = ModelReleaseTracker::in_memory();\n+        t.observe_on(&[], day(\"2026-10-13\"));\n+        // 空响应之后的第一次真实列表仍应作为基线，而不是全部算新增\n+        t.observe_on(&[\"a\"], day(\"2026-10-14\"));\n+        assert_eq!(t.release_date(\"a\"), None);\n+    }\n+\n+    #[test]\n+    fn override_takes_priority_over_recorded_baseline() {\n+        let t = ModelReleaseTracker::in_memory();\n+        t.observe_on(&[\"claude-opus-5.5\"], day(\"2026-10-13\"));\n+        assert_eq!(\n+            t.release_date(\"claude-opus-5.5\").as_deref(),\n+            Some(\"2026-10-12\")\n+        );\n+    }\n+\n+    #[test]\n+    fn persists_and_reloads_across_restarts() {\n+        let dir = std::env::temp_dir().join(format!(\"kiro_model_seen_{}\", std::process::id()));\n+        std::fs::create_dir_all(&dir).unwrap();\n+        let path = dir.join(SEEN_FILE_NAME);\n+        let _ = std::fs::remove_file(&path);\n+\n+        let t = ModelReleaseTracker::load(Some(path.clone()));\n+        t.observe_on(&[\"a\"], day(\"2026-10-13\"));\n+        t.observe_on(&[\"a\", \"c\"], day(\"2026-10-20\"));\n+\n+        // 重启后：不再重建基线，c 的日期保留，新出现的 d 记当天\n+        let t2 = ModelReleaseTracker::load(Some(path.clone()));\n+        assert_eq!(t2.release_date(\"c\").as_deref(), Some(\"2026-10-20\"));\n+        t2.observe_on(&[\"a\", \"c\", \"d\"], day(\"2026-10-25\"));\n+        assert_eq!(t2.release_date(\"a\"), None);\n+        assert_eq!(t2.release_date(\"d\").as_deref(), Some(\"2026-10-25\"));\n+\n+        assert!(!path.with_extension(\"json.tmp\").exists());\n+        std::fs::remove_dir_all(&dir).unwrap();\n+    }\n+\n+    #[test]\n+    fn corrupted_file_falls_back_to_new_baseline() {\n+        let dir = std::env::temp_dir().join(format!(\"kiro_model_seen_bad_{}\", std::process::id()));\n+        std::fs::create_dir_all(&dir).unwrap();\n+        let path = dir.join(SEEN_FILE_NAME);\n+        std::fs::write(&path, \"not json\").unwrap();\n+\n+        let t = ModelReleaseTracker::load(Some(path));\n+        t.observe_on(&[\"a\"], day(\"2026-10-13\"));\n+        assert_eq!(t.release_date(\"a\"), None);\n+        std::fs::remove_dir_all(&dir).unwrap();\n+    }\n }\ndiff --git a/src/admin/service.rs b/src/admin/service.rs\nindex b71d30e..3d630a2 100644\n--- a/src/admin/service.rs\n+++ b/src/admin/service.rs\n@@ -38,11 +38,12 @@ struct CachedBalance {\n /// 复用 `handlers::available_model_to_model` 完成 `Model` 映射，附加 Admin 专属的费率倍率。\n fn live_model_to_admin_item(\n     info: &crate::kiro::model::available_models::AvailableModelInfo,\n+    release: &super::model_release::ModelReleaseTracker,\n ) -> super::types::AdminModelItem {\n     super::types::AdminModelItem {\n         model: crate::anthropic::handlers::available_model_to_model(info),\n         rate_multiplier: info.rate_multiplier,\n-        released_at: super::model_release::release_date(&info.model_id).map(str::to_string),\n+        released_at: release.release_date(&info.model_id),\n     }\n }\n \n@@ -51,9 +52,10 @@ fn live_model_to_admin_item(\n /// 纯函数，不涉及网络调用，可直接用 fake `Model` 单测。\n fn fallback_model_to_admin_item(\n     model: crate::anthropic::types::Model,\n+    release: &super::model_release::ModelReleaseTracker,\n ) -> super::types::AdminModelItem {\n     super::types::AdminModelItem {\n-        released_at: super::model_release::release_date(&model.id).map(str::to_string),\n+        released_at: release.release_date(&model.id),\n         model,\n         rate_multiplier: None,\n     }\n@@ -90,6 +92,8 @@ pub struct AdminService {\n     balance_cache: Mutex<HashMap<u64, CachedBalance>>,\n     cache_path: Option<PathBuf>,\n     throttle_log_store: Option<Arc<ThrottleLogStore>>,\n+    /// 模型首次出现日期自检（驱动模型页 NEW 徽章）\n+    model_release: super::model_release::ModelReleaseTracker,\n }\n \n impl AdminService {\n@@ -99,12 +103,18 @@ impl AdminService {\n             .map(|d| d.join(\"kiro_balance_cache.json\"));\n \n         let balance_cache = Self::load_balance_cache_from(&cache_path);\n+        let model_release = super::model_release::ModelReleaseTracker::load(\n+            token_manager\n+                .cache_dir()\n+                .map(|d| d.join(super::model_release::SEEN_FILE_NAME)),\n+        );\n \n         Self {\n             token_manager,\n             balance_cache: Mutex::new(balance_cache),\n             cache_path,\n             throttle_log_store: None,\n+            model_release,\n         }\n     }\n \n@@ -280,12 +290,20 @@ impl AdminService {\n     /// 反序列化失败）时记录日志并回退到本地静态模型表（`rate_multiplier` 全为 `None`）。\n     pub async fn list_admin_models(&self) -> Vec<super::types::AdminModelItem> {\n         let items = match self.token_manager.list_available_models().await {\n-            Ok(resp) => resp.models.iter().map(live_model_to_admin_item).collect(),\n+            Ok(resp) => {\n+                // 仅在上游实时响应成功时登记：首次建立基线，之后新出现的模型记当天日期\n+                let ids: Vec<&str> = resp.models.iter().map(|m| m.model_id.as_str()).collect();\n+                self.model_release.observe(&ids);\n+                resp.models\n+                    .iter()\n+                    .map(|m| live_model_to_admin_item(m, &self.model_release))\n+                    .collect()\n+            }\n             Err(e) => {\n                 tracing::warn!(\"获取实时支持模型列表失败，回退到本地静态模型表: {}\", e);\n                 crate::anthropic::handlers::build_model_list()\n                     .into_iter()\n-                    .map(fallback_model_to_admin_item)\n+                    .map(|m| fallback_model_to_admin_item(m, &self.model_release))\n                     .collect()\n             }\n         };\n@@ -305,7 +323,12 @@ impl AdminService {\n             .list_available_models_for(id)\n             .await\n             .map_err(|e| self.classify_balance_error(e, id))?;\n-        let items: Vec<AdminModelItem> = resp.models.iter().map(live_model_to_admin_item).collect();\n+        // 单账号视图只查询、不登记：账号间模型集合可能不同，不应据此判定「新增」\n+        let items: Vec<AdminModelItem> = resp\n+            .models\n+            .iter()\n+            .map(|m| live_model_to_admin_item(m, &self.model_release))\n+            .collect();\n         Ok(AdminModelsResponse {\n             object: \"list\".to_string(),\n             data: group_models_by_family(items),\n@@ -653,6 +676,7 @@ impl AdminService {\n #[cfg(test)]\n mod tests {\n     use super::*;\n+    use crate::admin::model_release::ModelReleaseTracker;\n     use crate::admin::types::AdminModelItem;\n     use crate::anthropic::types::Model;\n     use crate::kiro::model::available_models::{\n@@ -690,7 +714,7 @@ mod tests {\n             1_000_000,\n             64_000,\n         );\n-        let item = live_model_to_admin_item(&info);\n+        let item = live_model_to_admin_item(&info, &ModelReleaseTracker::in_memory());\n         assert_eq!(item.model.id, \"claude-sonnet-4.6\");\n         assert_eq!(item.model.display_name, \"Claude Sonnet 4.6\");\n         assert_eq!(item.model.max_tokens, 64_000);\n@@ -698,7 +722,7 @@ mod tests {\n         assert_eq!(unknown_item.rate_multiplier, None);\n \n         let unknown = fake_info(\"foo-model\", \"Foo Model\", None, 100, 50);\n-        let unknown_item = live_model_to_admin_item(&unknown);\n+        let unknown_item = live_model_to_admin_item(&unknown, &ModelReleaseTracker::in_memory());\n         assert_eq!(unknown_item.model.owned_by, \"unknown\");\n         assert_eq!(unknown_item.rate_multiplier, None);\n     }\n@@ -715,7 +739,7 @@ mod tests {\n             max_tokens: 8192,\n         };\n         let expected_id = model.id.clone();\n-        let item = fallback_model_to_admin_item(model);\n+        let item = fallback_model_to_admin_item(model, &ModelReleaseTracker::in_memory());\n         assert_eq!(item.model.id, expected_id);\n         assert_eq!(item.rate_multiplier, None);\n     }\n+++ END DIFF +++",
+            "run_in_background": false,
+            "subagent_type": "code-reviewer"
+          },
+          "timestamp": "2026-10-13T09:22:51.446Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\u001b[2m💭 Thinking\u001b[0m\n\u001b[2mHook reminder, but the agent already returned. Write the report file. Skill says write cr-result.md (with sequence if exists). Just write it.\u001b[0m\n\u001b[2m💭 Thought for 4s\u001b[0m",
+          "timestamp": "2026-10-13T09:24:14.175Z"
+        },
+        {
+          "type": "assistant",
+          "text": "已完成 sub-agent 审查，正在生成报告文件。",
+          "timestamp": "2026-10-13T09:24:14.210Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "i=0; f=\"/Users/MacBook/My Files/Code/sourcetree/kiro2cc-proxy/cr-result.md\"; while [ -e \"$f\" ]; do i=$((i+1)); f=\"/Users/MacBook/My Files/Code/sourcetree/kiro2cc-proxy/cr-result-$i.md\"; done; echo \"$f\"",
+            "description": "确定第一个不存在的报告文件名"
+          },
+          "timestamp": "2026-10-13T09:24:15.156Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "# 📦 仓库名称：kiro2cc-proxy\n\n**分支对比**：`最近 1 次提交（52ced5f..HEAD，b4ecd83）` -> `master`\n\n## 🏁 总结评述\n\n* **整体评价**：9.1 分（严重×0，改进×3，重构×1）\n* **核心风险**：无严重问题；3 条改进建议（锁内磁盘 I/O、UTC 日期口径、落盘无 fsync）均为低风险取舍，可自行裁量。\n\n## 📊 变更统计\n\n| 指标 | 数值 |\n|------|------|\n| 涉及文件数 | 2 个（已由 env 脚本剔除自动生成文件） |\n| 新增行数 | +226 |\n| 删除行数 | -24 |\n| 净变更行数 | +202 |\n| 涉及提交数 | 1 个 |\n\n**主要变更文件：**\n\n| 文件路径 | 新增 | 删除 | 变更类型 |\n|---------|------|------|----------|\n| `src/admin/model_release.rs` | +210 | -18 | 修改 |\n| `src/admin/service.rs` | +16 | -6 | 修改 |\n\n**一句话摘要：** 本次改动 2 个文件，主要涉及模型发布日期从编译期硬编码清单改为运行时自检（`kiro_model_seen.json` 记录「首次出现」日期，驱动模型页 NEW 徽章）。\n\n## 📝 变更概述\n\n- `src/admin/model_release.rs`：删除原先编译期硬编码的 `release_date()` 全局函数，改为 `ModelReleaseTracker` 运行时追踪器——启动时从 `token_manager.cache_dir()` 加载 `kiro_model_seen.json`（文件不存在或损坏时视为尚未建立基线）；每次上游实时模型列表成功返回后调用 `observe()`，首次建立基线（全部记 `null`，不算新增），之后新出现的模型记当天日期。落盘采用先写 `.tmp` 再 `rename` 的原子写。手动覆盖清单 `MODEL_RELEASE_DATES` 保留且优先于自检记录。\n- `src/admin/service.rs`：`AdminService` 持有 `model_release` 追踪器；`live_model_to_admin_item` / `fallback_model_to_admin_item` 增加追踪器参数；仅在 `list_admin_models` 全账号实时响应成功时登记，单账号视图（`list_admin_models_for`）只查询不登记（避免账号间模型集合差异误判为「新增」）。\n- 测试：新增基线、新增日期记录、日期不覆盖、空列表不建基线、覆盖优先、跨重启持久化、损坏文件回退重建基线等 7 个单测，并适配原有测试签名。\n\n## 🚨 深度审查意见\n\n### ⚠️ 改进建议 (Standard) - 共 3 个\n\n**1、** 在 async 调用链 `list_admin_models` 中，`observe_on` 持有 `parking_lot::Mutex` 锁的同时执行 `std::fs::write` + `std::fs::rename` 同步阻塞 I/O，会阻塞 tokio worker 线程；文件很小、频率低，影响有限，建议将落盘移出锁外（锁内 clone 状态并标记 changed，锁释放后再写文件），或至少注明可接受的取舍。\n\n* **位置**：`src/admin/model_release.rs:143-152`（`observe_on` / `save`）\n* **修复对比**：\n\n  ```rust\n  // ❌ 原始代码：锁内做磁盘 I/O\n  let mut guard = self.state.lock();\n  let state = guard.get_or_insert_with(SeenState::default);\n  if state.observe(ids, today, baseline) {\n      self.save(state);   // 持锁写盘 + rename\n  }\n\n  // ✅ 修复代码：锁内只改内存，锁外落盘\n  let snapshot = {\n      let mut guard = self.state.lock();\n      let baseline = guard.is_none();\n      let state = guard.get_or_insert_with(SeenState::default);\n      if state.observe(ids, today, baseline) { Some(state.clone()) } else { None }\n  };\n  if let Some(s) = snapshot {\n      self.save(&s);\n  }\n  ```\n\n**2、** `observe` 使用 `chrono::Utc::now().date_naive()` 取「当天日期」，与用户本地时区的自然日可能相差一天（如 UTC 时间的 10-13 晚间对应本地 10-14），导致 NEW 徽章窗口期起算日偏移；建议改用 `Local::now().date_naive()`（需确认 `chrono` 已启用 `clock` 特性即默认支持）。\n\n* **位置**：`src/admin/model_release.rs:156-158`（`observe`）\n* **修复对比**：\n\n  ```rust\n  // ❌ 原始代码\n  pub(crate) fn observe(&self, ids: &[&str]) {\n      self.observe_on(ids, chrono::Utc::now().date_naive());\n  }\n  // ✅ 修复代码\n  pub(crate) fn observe(&self, ids: &[&str]) {\n      self.observe_on(ids, chrono::Local::now().date_naive());\n  }\n  ```\n\n**3、** `save` 中 `std::fs::write` + `rename` 之间没有 `fsync`，进程在 rename 前崩溃时 tmp 文件残留、正式文件仍为旧内容；由于「损坏/缺失即重建基线」的兜底已使后果可接受，仅需确认这是有意取舍；若要更严谨可在 write 后对文件 `sync_all()` 再 rename。\n\n* **位置**：`src/admin/model_release.rs:206-211`（`save`）\n* **修复对比**：\n\n  ```rust\n  // ✅ 更严谨的写法\n  let res = std::fs::write(&tmp, json)\n      .and_then(|_| {\n          let f = std::fs::File::open(&tmp)?;\n          f.sync_all()\n      })\n      .and_then(|_| std::fs::rename(&tmp, path));\n  ```\n\n### 💡 优雅重构 (Refactoring) - 共 1 个\n\n**1、** `src/admin/model_release.rs:156-158` — `observe` 与 `observe_on` 仅差日期来源，`ids.is_empty()` 守卫同时存在于 `observe_on` 与 `SeenState::observe` 的循环语义中，二者职责可再收敛为一处（可选微调，现状已足够清晰，不建议强改）。\n\n  ```rust\n  // ✅ 现状已可接受，仅提示守卫逻辑可收敛到单一位置\n  ```\n",
+            "file_path": "/Users/MacBook/My Files/Code/sourcetree/kiro2cc-proxy/cr-result.md"
+          },
+          "timestamp": "2026-10-13T09:24:43.574Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\u001b[2m💭 Thinking\u001b[0m\n\u001b[2mReport to user in Chinese, brief summary.\u001b[0m\n\u001b[2m💭 Thought for 5s\u001b[0m",
+          "timestamp": "2026-10-13T09:24:50.215Z"
+        },
+        {
+          "type": "assistant",
+          "text": "已完成最近一次提交（b4ecd83）的独立 CR，报告写入 `cr-result.md`。\n\n**结论：WARNING（9.1 分）** — 无严重问题。核心逻辑（基线判定、原子落盘、覆盖优先、单账号视图不登记）正确，测试覆盖充分。\n\n| 级别 | 数量 | 要点 |\n|---|---|---|\n| 🚫 严重 | 0 | — |\n| ⚠️ 改进 | 3 | ① `observe_on` 持 `parking_lot::Mutex` 锁内做磁盘 I/O（`src/admin/model_release.rs:143`），可改为锁内 clone、锁外落盘；② `observe` 用 `Utc::now()` 取日期，与本地时区自然日可能差一天，建议 `Local::now()`（`src/admin/model_release.rs:156`）；③ 落盘无 `fsync`，崩溃可残留 tmp 文件，已有「损坏即重建基线」兜底，属可接受取舍（`src/admin/model_release.rs:206`） |\n| 💡 重构 | 1 | 空列表守卫在 `observe_on` 与 `SeenState::observe` 两处重复，可收敛（可选） |\n\n三条改进均为低风险取舍，是否修复由你裁量。",
+          "timestamp": "2026-10-13T09:24:54.423Z"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "4046efd29aebbd59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca4e0493-92f1-4886-8389-3172c9f70024",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "4790dc844e21d4bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1249539-c7b0-4dbe-818d-f2d6dc5999cc",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "4c54eaee9b4997d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c40d8214-eb03-4df3-a6b3-7f29e824d9e9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 288,
+      "total_deletions": 145,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "6d397e37405688cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0987f668-2183-4b8b-9a61-e9790ce93f9f",
+        "model": "deepseek-flash"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 475,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "a0f41112e52437a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "428ab838-a228-4f86-9738-3e1d382b26f0",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 4,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "c07d101c573a05c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f281232d-347a-4846-b4ca-6030491c7738",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 119,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "cdb97b48cabe0217": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d77b89a6-d218-4adb-8780-76f629b3bd6f",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 415,
+      "total_deletions": 183,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "ddb716745b32bc34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad162987-c25c-46f7-9db0-4b11ce9abbf1",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 50,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "ebfeed8ef2c300b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5babdb6f-bafb-4b7f-b935-68166ca8cbfc",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 221,
+      "overriden_lines": 0
+    },
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2518,
+      "total_deletions": 575,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

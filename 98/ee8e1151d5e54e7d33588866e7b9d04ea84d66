@@ -1,0 +1,37 @@
+web-ui/admin-ui/src/hooks/use-theme.ts
+  818c3223ad1a95d6 4,6-8,11-14,16-51,54-59,72-74,77-78,80-104,106-122,124-134,136-146,149-159,161
+web-ui/admin-ui/src/index.css
+  818c3223ad1a95d6 5-7
+web-ui/admin-ui/src/components/dashboard.tsx
+  818c3223ad1a95d6 3,23,50,657,683-684,687-692
+web-ui/admin-ui/src/theme-definitions.ts
+  818c3223ad1a95d6 1-766
+web-ui/admin-ui/src/themes.css
+  818c3223ad1a95d6 15
+web-ui/admin-ui/src/components/theme-settings-page.tsx
+  818c3223ad1a95d6 1-577
+web-ui/admin-ui/src/components/dashboard/use-balance-fetcher.ts
+  818c3223ad1a95d6 8
+web-ui/admin-ui/src/components/settings-panel.tsx
+  818c3223ad1a95d6 5,168,173,520-523
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "98ee8e1151d5e54e7d33588866e7b9d04ea84d66",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1589,
+      "total_deletions": 112,
+      "accepted_lines": 1564,
+      "overriden_lines": 0
+    }
+  }
+}

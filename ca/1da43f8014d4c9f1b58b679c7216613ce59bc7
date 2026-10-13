@@ -1,0 +1,65 @@
+src/anthropic/handlers/nonstream.rs
+  f6545800781f3d97 654-655
+openspec/changes/usage-log-token-tooltip/tasks.md
+  68c9e1654dd6ac5f 1-15
+src/model/usage/tests.rs
+  f6545800781f3d97 43-44,57-58,80-81,104-105,118-119,142-143,165-166,179-180,286-287,313-314,367-368
+  68c9e1654dd6ac5f 324-349
+src/model/usage/pagination.rs
+  68c9e1654dd6ac5f 127-130
+  f6545800781f3d97 78-79,216-217
+web-ui/user-ui/src/components/usage-log-page.tsx
+  68c9e1654dd6ac5f 4,221-278
+src/model/usage/mod.rs
+  68c9e1654dd6ac5f 339,341
+  f6545800781f3d97 340,342
+src/model/usage/daily.rs
+  f6545800781f3d97 192-193
+web-ui/admin-ui/src/i18n/locales/zh.json
+  68c9e1654dd6ac5f 40-42
+web-ui/admin-ui/src/i18n/locales/en.json
+  68c9e1654dd6ac5f 40-42
+web-ui/user-ui/src/types/api.ts
+  68c9e1654dd6ac5f 51-52
+openspec/changes/usage-log-token-tooltip/proposal.md
+  68c9e1654dd6ac5f 1-33
+web-ui/admin-ui/src/types/api.ts
+  68c9e1654dd6ac5f 249-250
+src/anthropic/stream/context/mod.rs
+  68c9e1654dd6ac5f 908-910
+web-ui/admin-ui/src/components/usage-log-table.tsx
+  68c9e1654dd6ac5f 3-4,172-179,181-183,185-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ca1da43f8014d4c9f1b58b679c7216613ce59bc7",
+  "prompts": {
+    "68c9e1654dd6ac5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c6ce3797-4411-4503-b959-647542ffa87b",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 446,
+      "total_deletions": 199,
+      "accepted_lines": 411,
+      "overriden_lines": 0
+    },
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2518,
+      "total_deletions": 575,
+      "accepted_lines": 1779,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,51 @@
+web-ui/admin-ui/src/components/ui/dropdown-menu.tsx
+  818c3223ad1a95d6 20
+web-ui/admin-ui/src/components/api-key-table.tsx
+  818c3223ad1a95d6 54,97
+web-ui/admin-ui/src/components/ui/button.tsx
+  818c3223ad1a95d6 9,18,21
+web-ui/admin-ui/src/components/metrics.tsx
+  818c3223ad1a95d6 18
+web-ui/admin-ui/src/components/table-kit.tsx
+  818c3223ad1a95d6 7
+web-ui/admin-ui/src/components/settings-panel.tsx
+  818c3223ad1a95d6 35
+web-ui/admin-ui/src/components/account-table.tsx
+  818c3223ad1a95d6 64,133
+web-ui/admin-ui/src/components/toolbar.tsx
+  818c3223ad1a95d6 76,100
+web-ui/admin-ui/src/components/api-key-row.tsx
+  818c3223ad1a95d6 40-43,47,127,170,187
+web-ui/admin-ui/src/components/ui/sonner.tsx
+  818c3223ad1a95d6 12
+web-ui/admin-ui/src/components/ui/badge.tsx
+  818c3223ad1a95d6 12,14,16,19,21
+web-ui/admin-ui/src/components/ui/card.tsx
+  818c3223ad1a95d6 13
+web-ui/admin-ui/src/components/account-row.tsx
+  818c3223ad1a95d6 203,218,226,248
+web-ui/admin-ui/src/components/ui/dialog.tsx
+  818c3223ad1a95d6 43
+web-ui/admin-ui/src/components/theme-settings-page.tsx
+  818c3223ad1a95d6 58-59,78-79,150,333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "199c3791780128946d0b7ead89767f96e8a4dc7a",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 40,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}

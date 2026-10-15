@@ -1,0 +1,70 @@
+src/anthropic/handlers/stream.rs
+  818c3223ad1a95d6 364-373,375-376
+src/anthropic/stream/tests/context.rs
+  818c3223ad1a95d6 132-133,141,143,148-149,161-165,179-187,189-194
+web-ui/admin-ui/src/components/usage-log-table.tsx
+  818c3223ad1a95d6 92-94
+src/anthropic/stream/context/mod.rs
+  818c3223ad1a95d6 148,154-155,919-921
+src/model/usage/tests.rs
+  818c3223ad1a95d6 183-196,198,207-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b09317e661e189b489d833608b6f3a1562996abe",
+  "prompts": {
+    "0a4087af0d299db4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d66b96c9-5ad5-4ae9-81fa-d8bbad012a8c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 129,
+      "total_deletions": 44,
+      "accepted_lines": 129,
+      "overriden_lines": 0
+    },
+    "29c2f6c662d7c829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93cc16af-a9b4-47c4-8952-0bd4b257eb12",
+        "model": "deepseek-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 239,
+      "total_deletions": 0,
+      "accepted_lines": 239,
+      "overriden_lines": 0
+    },
+    "62c00946e954d1d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2337d6ed-d828-4be6-82d6-98915ac63ad2",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 93,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 43,
+      "accepted_lines": 76,
+      "overriden_lines": 0
+    }
+  }
+}

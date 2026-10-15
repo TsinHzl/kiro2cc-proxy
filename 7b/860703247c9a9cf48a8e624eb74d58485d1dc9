@@ -1,0 +1,47 @@
+web-ui/admin-ui/src/components/dashboard/sidebar.tsx
+  818c3223ad1a95d6 133
+src/model/usage/mod.rs
+  818c3223ad1a95d6 58-63,346-347,365-366
+web-ui/admin-ui/src/components/usage-log-table.tsx
+  818c3223ad1a95d6 82-134,141,248-250
+src/anthropic/handlers/stream.rs
+  818c3223ad1a95d6 54-57,99-100,365-376
+web-ui/admin-ui/src/types/api.ts
+  818c3223ad1a95d6 254-255
+web-ui/admin-ui/src/i18n/locales/en.json
+  818c3223ad1a95d6 37-39
+src/anthropic/stream/context/mod.rs
+  818c3223ad1a95d6 4,96-99,143-157,918-927,939-940
+src/model/usage/daily.rs
+  818c3223ad1a95d6 223-224
+src/model/usage/tests.rs
+  818c3223ad1a95d6 44-45,59,82,106,120,144,166-167,181,193-196,200-238,332-333,387-388,444,458-459
+src/anthropic/stream/tests/context.rs
+  818c3223ad1a95d6 129-183
+web-ui/admin-ui/src/i18n/locales/zh.json
+  818c3223ad1a95d6 37-39
+src/anthropic/handlers/nonstream.rs
+  818c3223ad1a95d6 213-214,657-658
+src/model/usage/pagination.rs
+  818c3223ad1a95d6 83-84,144-149,223-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7b860703247c9a9cf48a8e624eb74d58485d1dc9",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 472,
+      "total_deletions": 73,
+      "accepted_lines": 407,
+      "overriden_lines": 0
+    }
+  }
+}

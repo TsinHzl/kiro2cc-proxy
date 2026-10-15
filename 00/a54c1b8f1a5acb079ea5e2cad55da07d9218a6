@@ -1,0 +1,38 @@
+web-ui/admin-ui/src/components/dashboard/sidebar.tsx
+  818c3223ad1a95d6 67,71,165,192
+web-ui/admin-ui/src/components/batch-import-dialog.tsx
+  818c3223ad1a95d6 496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "00a54c1b8f1a5acb079ea5e2cad55da07d9218a6",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "ffe9a2d7805f7796": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "765e3511-eedf-4055-81ce-947af6f21a84",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 161,
+      "overriden_lines": 0
+    }
+  }
+}

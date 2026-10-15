@@ -1,0 +1,70 @@
+web-ui/admin-ui/src/components/dashboard/head-metrics.tsx
+  818c3223ad1a95d6 23-24,47,94
+web-ui/admin-ui/src/api/credentials.ts
+  818c3223ad1a95d6 183-194
+src/anthropic/handlers/post_messages.rs
+  818c3223ad1a95d6 182-183,330-350,355-357,363-385,390,404-411,413-424,426-430
+src/main.rs
+  818c3223ad1a95d6 39-51,55,62-97,99-112,119-124
+web-ui/admin-ui/src/components/account-metrics.tsx
+  818c3223ad1a95d6 48-49,92,106,212-213,219-225
+web-ui/admin-ui/src/i18n/locales/zh.json
+  818c3223ad1a95d6 736-737
+web-ui/admin-ui/src/components/dashboard.tsx
+  818c3223ad1a95d6 168-171,763
+src/admin/router.rs
+  818c3223ad1a95d6 19,22-23,74-76
+src/anthropic/handlers/mod.rs
+  818c3223ad1a95d6 24,26
+src/admin/handlers.rs
+  818c3223ad1a95d6 332-381,648-667
+src/model/usage/daily.rs
+  818c3223ad1a95d6 18-21,37-38,56,77-78,93,105,121-124,129,135-136
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  818c3223ad1a95d6 19-20,250-268
+src/model/config.rs
+  818c3223ad1a95d6 194-212,295-296,356-358,409-416,532-605
+src/admin/types.rs
+  818c3223ad1a95d6 391-406
+web-ui/admin-ui/src/types/api.ts
+  818c3223ad1a95d6 272-273
+src/anthropic/mod.rs
+  818c3223ad1a95d6 37-38
+web-ui/admin-ui/src/i18n/locales/en.json
+  818c3223ad1a95d6 736-737
+web-ui/admin-ui/src/components/settings-panel.tsx
+  818c3223ad1a95d6 14,180,182,184,186-187,342,346,355,359,368,372,381-393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "bba4bfbe43a7bc5e9ce846769e54893bc2a0ec17",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 688,
+      "total_deletions": 114,
+      "accepted_lines": 635,
+      "overriden_lines": 0
+    },
+    "9e0b19d6b8c778e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a63208a-43ed-4b43-8c34-ae9f0ae5b898",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 76,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,35 @@
+src/anthropic/handlers/tests/models.rs
+  818c3223ad1a95d6 32,205-216
+src/anthropic/converter/model.rs
+  818c3223ad1a95d6 91-93
+src/anthropic/converter/tests/fields.rs
+  818c3223ad1a95d6 429-431
+src/anthropic/handlers/models.rs
+  818c3223ad1a95d6 415-422,473-474
+src/anthropic/converter/tests/model.rs
+  818c3223ad1a95d6 127-133
+src/anthropic/converter/thinking.rs
+  818c3223ad1a95d6 14-17,31-32,35
+src/anthropic/handlers/post_messages_cc/tests/models.rs
+  818c3223ad1a95d6 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6221c48696f4efc31dbb7e06f27839e8bd864277",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 6,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}

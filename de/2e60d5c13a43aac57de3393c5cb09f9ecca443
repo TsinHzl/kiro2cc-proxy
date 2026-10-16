@@ -1,0 +1,38 @@
+src/model/usage/mod.rs
+  818c3223ad1a95d6 79
+src/anthropic/handlers/helpers.rs
+  818c3223ad1a95d6 67,71-73,75-78,82,528-551
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "de2e60d5c13a43aac57de3393c5cb09f9ecca443",
+  "prompts": {
+    "03a696bf25525392": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0e1b16c-101a-4669-adef-bc4ac0287999",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 143,
+      "total_deletions": 0,
+      "accepted_lines": 143,
+      "overriden_lines": 0
+    },
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 10,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

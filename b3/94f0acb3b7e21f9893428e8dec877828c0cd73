@@ -1,0 +1,58 @@
+openspec/changes/usage-log-time-range-tabs/proposal.md
+  818c3223ad1a95d6 1-56
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  818c3223ad1a95d6 7-13,18-21,23,32-39,112,114-116,120-123,140,142-143,172-180,183,187,196-200,210-216,274,438-589,593-823
+openspec/specs/admin-usage-log/spec.md
+  818c3223ad1a95d6 1-87
+src/admin/api_keys.rs
+  818c3223ad1a95d6 315-362,470-634
+openspec/changes/usage-log-time-range-tabs/design.md
+  818c3223ad1a95d6 1-75
+openspec/changes/usage-log-time-range-tabs/tasks.md
+  818c3223ad1a95d6 1-23
+src/model/usage/daily.rs
+  818c3223ad1a95d6 8-13,159,167-207,216-217,220-221,229
+openspec/changes/usage-log-time-range-tabs/specs/admin-usage-log/spec.md
+  818c3223ad1a95d6 1-84
+src/model/usage/tests.rs
+  818c3223ad1a95d6 317-540
+src/admin/router.rs
+  818c3223ad1a95d6 14-15,96
+web-ui/admin-ui/src/api/credentials.ts
+  818c3223ad1a95d6 343-355
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  818c3223ad1a95d6 39,494-506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b394f0acb3b7e21f9893428e8dec877828c0cd73",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1395,
+      "total_deletions": 130,
+      "accepted_lines": 1286,
+      "overriden_lines": 0
+    },
+    "a00ee7ff8c15dbab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46965db5-79b8-4208-8f91-c4e3c5c9ccdf",
+        "model": "glm-5.3"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 142,
+      "overriden_lines": 0
+    }
+  }
+}

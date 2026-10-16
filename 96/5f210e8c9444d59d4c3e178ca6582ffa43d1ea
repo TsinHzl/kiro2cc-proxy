@@ -1,0 +1,29 @@
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  818c3223ad1a95d6 755
+web-ui/admin-ui/src/i18n/locales/zh.json
+  818c3223ad1a95d6 447
+web-ui/admin-ui/src/i18n/locales/en.json
+  818c3223ad1a95d6 447
+web-ui/admin-ui/src/components/api-key-row.tsx
+  818c3223ad1a95d6 148-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "965f210e8c9444d59d4c3e178ca6582ffa43d1ea",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 17,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,38 @@
+web-ui/admin-ui/src/lib/model-family.ts
+  818c3223ad1a95d6 32-52
+web-ui/admin-ui/src/components/model-list-page.tsx
+  818c3223ad1a95d6 18,21,25,115-120,219,221,224,232,235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5cfd82aff0da5b68ec46f14c2a66682709c89fc1",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 62,
+      "total_deletions": 34,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    },
+    "f6545800781f3d97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563ce044-23ab-498a-9dab-c08f76e50db8",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2518,
+      "total_deletions": 575,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}

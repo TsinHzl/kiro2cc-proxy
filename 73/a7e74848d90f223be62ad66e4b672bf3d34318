@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "73a7e74848d90f223be62ad66e4b672bf3d34318",
+  "prompts": {
+    "a00ee7ff8c15dbab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46965db5-79b8-4208-8f91-c4e3c5c9ccdf",
+        "model": "glm-5.3"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 142,
+      "overriden_lines": 0
+    }
+  }
+}

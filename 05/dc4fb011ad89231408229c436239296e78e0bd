@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/dashboard/credential-action-bar.tsx
+  818c3223ad1a95d6 4,51,54,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "05dc4fb011ad89231408229c436239296e78e0bd",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 24,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

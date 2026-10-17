@@ -1,0 +1,42 @@
+.gitignore
+  818c3223ad1a95d6 46-49
+openspec/specs/quick-deploy/spec.md
+  818c3223ad1a95d6 1-85
+quick-deploy.sh
+  818c3223ad1a95d6 1-239
+README.md
+  818c3223ad1a95d6 279-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7cfe9db22e31b8c3ded42813c4f67a269173ed09",
+  "prompts": {
+    "730e7b28593c37ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f55276f9-cbd2-4439-af1f-c330cd16d501",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 142,
+      "overriden_lines": 0
+    },
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 706,
+      "total_deletions": 149,
+      "accepted_lines": 557,
+      "overriden_lines": 0
+    }
+  }
+}

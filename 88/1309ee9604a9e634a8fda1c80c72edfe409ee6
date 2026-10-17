@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/i18n/locales/en.json
+  818c3223ad1a95d6 117,125
+web-ui/admin-ui/src/i18n/locales/zh.json
+  818c3223ad1a95d6 117,125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "881309ee9604a9e634a8fda1c80c72edfe409ee6",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

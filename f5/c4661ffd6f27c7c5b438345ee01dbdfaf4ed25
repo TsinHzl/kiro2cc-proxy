@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  818c3223ad1a95d6 131,204
+web-ui/admin-ui/src/index.css
+  818c3223ad1a95d6 194-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f5c4661ffd6f27c7c5b438345ee01dbdfaf4ed25",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 1,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

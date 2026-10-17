@@ -1,0 +1,25 @@
+web-ui/admin-ui/index.html
+  818c3223ad1a95d6 11-15,18-21
+web-ui/admin-ui/src/hooks/use-theme.ts
+  818c3223ad1a95d6 17-18,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c6027e8ef22021bba11ad262c9237585f9ba69d0",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 10,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}

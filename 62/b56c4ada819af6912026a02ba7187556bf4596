@@ -1,0 +1,27 @@
+web-ui/admin-ui/src/components/daily-detail-page.tsx
+  a307694c14898840 8,130-132
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  a307694c14898840 10,250-252,376-378
+web-ui/admin-ui/src/components/model-agg-panel.tsx
+  a307694c14898840 47-49,52-54,57-60,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "62b56c4ada819af6912026a02ba7187556bf4596",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 4,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}

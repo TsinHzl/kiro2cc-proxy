@@ -1,0 +1,33 @@
+build-and-run-windows.ps1
+  a307694c14898840 1-12
+build-and-run-mac.sh
+  a307694c14898840 1-12
+setup_shell_aliases.ps1
+  a307694c14898840 3,29,61
+README.en.md
+  a307694c14898840 96,106-108,201,211-213,878,906-907
+setup_shell_aliases.sh
+  a307694c14898840 3,21,46
+README.md
+  a307694c14898840 96,106-108,203,213-215,899,927-928
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a3d899bbdecc8bb68798d1378cf399e73d9a5221",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}

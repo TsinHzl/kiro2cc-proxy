@@ -1,0 +1,25 @@
+run-local-service-mac.sh
+  a307694c14898840 145-146,148-159
+run-local-service-windows.ps1
+  a307694c14898840 121,125-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "25895d772bca005d9e6764cb5cda7442825aca54",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 230,
+      "total_deletions": 122,
+      "accepted_lines": 219,
+      "overriden_lines": 0
+    }
+  }
+}

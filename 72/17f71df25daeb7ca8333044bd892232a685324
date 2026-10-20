@@ -1,0 +1,33 @@
+web-ui/admin-ui/src/components/docs/docs.css
+  a307694c14898840 2,38
+web-ui/admin-ui/src/components/docs-page.tsx
+  a307694c14898840 2,17,115-116,124
+web-ui/admin-ui/src/i18n/locales/zh.json
+  a307694c14898840 956
+web-ui/admin-ui/src/i18n/locales/en.json
+  a307694c14898840 956
+web-ui/admin-ui/src/components/docs/docsNavigation.ts
+  a307694c14898840 2
+web-ui/admin-ui/src/components/dashboard.tsx
+  a307694c14898840 665
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7217f71df25daeb7ca8333044bd892232a685324",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 219,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

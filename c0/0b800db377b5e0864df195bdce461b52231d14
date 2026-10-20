@@ -1,0 +1,38 @@
+src/anthropic/handlers/stream.rs
+  a307694c14898840 437-441,599-603
+src/anthropic/stream/context/mod.rs
+  a307694c14898840 107-108,157,237-277,872-876,990-995,1090-1166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c00b800db377b5e0864df195bdce461b52231d14",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 148,
+      "total_deletions": 8,
+      "accepted_lines": 920,
+      "overriden_lines": 0
+    },
+    "ebbd6d29d6b32bc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e83c9fb1-5ea1-42c6-b96c-23bef8163ece",
+        "model": "gemini-3.8-flash-high"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 108,
+      "overriden_lines": 0
+    }
+  }
+}

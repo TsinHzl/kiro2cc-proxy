@@ -1,0 +1,27 @@
+web-ui/admin-ui/src/components/docs-page.tsx
+  a307694c14898840 219-227,270-298
+web-ui/admin-ui/src/components/docs/docs.css
+  a307694c14898840 51,69-70
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  a307694c14898840 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6f8d5e1f09e07894ca0387214355316539623e8e",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 40,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  }
+}

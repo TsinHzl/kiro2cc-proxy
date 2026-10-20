@@ -1,0 +1,49 @@
+web-ui/admin-ui/src/components/docs/docsNavigation.ts
+  a307694c14898840 1-40
+web-ui/admin-ui/src/components/docs/EndpointDoc.tsx
+  a307694c14898840 1-158
+web-ui/admin-ui/src/components/dashboard.tsx
+  a307694c14898840 3,18,53,670,699-700
+README.en.md
+  a307694c14898840 792
+README.md
+  a307694c14898840 813
+web-ui/admin-ui/src/components/docs/docsContent.ts
+  a307694c14898840 1-268
+web-ui/admin-ui/src/components/docs/docs.css
+  a307694c14898840 1-374
+web-ui/admin-ui/src/i18n/locales/en.json
+  a307694c14898840 143-144,911-962
+web-ui/admin-ui/src/components/docs/DocsTOC.tsx
+  a307694c14898840 1-58
+web-ui/admin-ui/src/components/docs/docsGuides.ts
+  a307694c14898840 1-223
+web-ui/admin-ui/src/i18n/locales/zh.json
+  a307694c14898840 143-144,911-962
+web-ui/admin-ui/src/lib/ccswitch.ts
+  a307694c14898840 57-58,63
+web-ui/admin-ui/src/components/docs-page.tsx
+  a307694c14898840 1-501
+web-ui/admin-ui/src/components/dashboard/use-balance-fetcher.ts
+  a307694c14898840 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c7f5066709840e81557a4ca42545ecbc9fa8fbd3",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1948,
+      "total_deletions": 100,
+      "accepted_lines": 1854,
+      "overriden_lines": 0
+    }
+  }
+}

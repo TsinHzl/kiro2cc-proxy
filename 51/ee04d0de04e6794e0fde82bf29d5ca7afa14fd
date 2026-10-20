@@ -1,0 +1,44 @@
+src/model/usage/tests.rs
+  a307694c14898840 6-8,209-210,260-261,346-347,748-822
+src/admin/api_keys.rs
+  a307694c14898840 536-537
+src/anthropic/handlers/nonstream.rs
+  a307694c14898840 700-701
+src/anthropic/stream/context/mod.rs
+  a307694c14898840 997-998
+src/model/usage/mod.rs
+  a307694c14898840 18-26,84-89,111-112,402-403,405-409,430-432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "51ee04d0de04e6794e0fde82bf29d5ca7afa14fd",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 895,
+      "total_deletions": 2,
+      "accepted_lines": 895,
+      "overriden_lines": 0
+    },
+    "ebbd6d29d6b32bc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e83c9fb1-5ea1-42c6-b96c-23bef8163ece",
+        "model": "gemini-3.8-flash-high"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 108,
+      "overriden_lines": 0
+    }
+  }
+}

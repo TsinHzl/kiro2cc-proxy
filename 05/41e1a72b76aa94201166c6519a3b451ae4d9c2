@@ -1,0 +1,42 @@
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  a307694c14898840 4
+web-ui/admin-ui/src/components/docs/docs.css
+  a307694c14898840 51,69-70
+web-ui/admin-ui/src/components/docs-page.tsx
+  a307694c14898840 219-227,270-298
+web-ui/admin-ui/src/components/dashboard/head-metrics.tsx
+  a307694c14898840 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0541e1a72b76aa94201166c6519a3b451ae4d9c2",
+  "prompts": {
+    "818c3223ad1a95d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1993965-6ff1-4d83-b36b-a9e2380cfa14",
+        "model": "glm_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 706,
+      "total_deletions": 149,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 56,
+      "accepted_lines": 708,
+      "overriden_lines": 0
+    }
+  }
+}

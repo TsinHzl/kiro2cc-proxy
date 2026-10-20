@@ -1,0 +1,42 @@
+src/anthropic/handlers/nonstream.rs
+  a307694c14898840 247-259
+src/anthropic/handlers/tests/error.rs
+  a307694c14898840 7,135-141,146-157,166-168
+src/anthropic/handlers/error.rs
+  a307694c14898840 120-161
+src/anthropic/handlers/stream.rs
+  a307694c14898840 73-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "37679e067099584e45fb958cf117a41a364182d0",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 3,
+      "accepted_lines": 869,
+      "overriden_lines": 0
+    },
+    "ebbd6d29d6b32bc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e83c9fb1-5ea1-42c6-b96c-23bef8163ece",
+        "model": "gemini-3.8-flash-high"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 108,
+      "overriden_lines": 0
+    }
+  }
+}

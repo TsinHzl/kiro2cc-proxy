@@ -1,0 +1,40 @@
+src/model/usage/tests.rs
+  a307694c14898840 823-848
+src/model/usage/pagination.rs
+  a307694c14898840 88-89,164-169,248-249
+src/model/usage/daily.rs
+  a307694c14898840 276-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b32bd0ac2dd601dc6372a181b718c9cff8f8e70b",
+  "prompts": {
+    "a307694c14898840": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b68232a-acfa-40ca-abfe-cb880b975e4c",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 0,
+      "accepted_lines": 816,
+      "overriden_lines": 0
+    },
+    "ebbd6d29d6b32bc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e83c9fb1-5ea1-42c6-b96c-23bef8163ece",
+        "model": "gemini-3.8-flash-high"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 108,
+      "overriden_lines": 0
+    }
+  }
+}

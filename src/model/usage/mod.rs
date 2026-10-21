@@ -407,7 +407,9 @@ impl UsageTracker {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::write(&path, content)?;
+            // 原子写：滚动发布期间新旧 pod 可能短暂共享同一 RWX 卷，
+            // 普通 fs::write 截断+写入会与另一实例交错产生损坏 JSON。
+            atomic_write(&path, content.as_bytes())?;
             Ok(())
         })
         .await??;

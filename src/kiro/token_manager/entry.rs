@@ -55,6 +55,12 @@ pub enum DisabledReason {
     ProfileArnMissing,
     /// Token 刷新连续失败达到阈值后自动禁用
     TooManyRefreshFailures,
+    /// 配置不完整，无法使用（如 authMethod=api_key 但缺少 kiroApiKey）
+    ///
+    /// 与运行时自动判定的禁用不同，此原因由启动时的配置校验得出，
+    /// 因此不参与自愈（自愈只处理 TooManyFailures/TooManyRefreshFailures），
+    /// 也不写入 stats 持久化（每次启动重新按配置推导，改对配置后自然恢复）。
+    InvalidConfig,
 }
 
 impl DisabledReason {
@@ -69,6 +75,9 @@ impl DisabledReason {
                 "缺少 profileArn，无法发起对话请求，需在账号配置中补充"
             }
             DisabledReason::TooManyRefreshFailures => "因连续 Token 刷新失败被自动禁用",
+            DisabledReason::InvalidConfig => {
+                "配置不完整（authMethod=api_key 但缺少 kiroApiKey）"
+            }
         }
     }
 }

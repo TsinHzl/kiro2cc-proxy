@@ -170,11 +170,12 @@ impl KiroProvider {
                 }
             };
             tracing::debug!(
-                "[ENDPOINT] credential={} attempt={} selected={:?} host={}",
+                "[ENDPOINT] credential={} attempt={} selected={:?} host={} token_type={:?}",
                 ctx.id,
                 attempt + 1,
                 endpoint.name,
-                endpoint.host
+                endpoint.host,
+                ctx.credentials.token_type_header()
             );
 
             let url = self.base_url_for(&ctx.credentials, &endpoint);

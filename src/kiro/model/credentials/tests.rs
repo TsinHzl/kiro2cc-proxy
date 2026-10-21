@@ -327,6 +327,7 @@ mod tests {
             auth_method: Some("social".to_string()),
             client_id: None,
             client_secret: None,
+            kiro_api_key: None,
             provider: None,
             token_endpoint: None,
             scopes: None,
@@ -453,6 +454,7 @@ mod tests {
             auth_method: None,
             client_id: None,
             client_secret: None,
+            kiro_api_key: None,
             provider: None,
             token_endpoint: None,
             scopes: None,
@@ -491,6 +493,7 @@ mod tests {
             auth_method: None,
             client_id: None,
             client_secret: None,
+            kiro_api_key: None,
             provider: None,
             token_endpoint: None,
             scopes: None,
@@ -611,6 +614,7 @@ mod tests {
             auth_method: Some("social".to_string()),
             client_id: None,
             client_secret: None,
+            kiro_api_key: None,
             provider: None,
             token_endpoint: None,
             scopes: None,
@@ -1102,5 +1106,207 @@ mod tests {
         };
         let json = creds.to_pretty_json().unwrap();
         assert!(!json.contains("endpoint"));
+    }
+
+    // -------- Kiro API Key 凭据（ksk_...） --------
+
+    #[test]
+    fn test_api_key_credential_detected_by_field_or_auth_method() {
+        // 只填 kiroApiKey（未声明 authMethod）也算 API Key 凭据
+        let mut only_field = KiroCredentials::default();
+        only_field.kiro_api_key = Some("ksk_abc".to_string());
+        assert!(only_field.is_api_key_credential());
+
+        // 只声明 authMethod（缺 key）同样命中，便于启动校验报错
+        let mut only_method = KiroCredentials::default();
+        only_method.auth_method = Some("api_key".to_string());
+        assert!(only_method.is_api_key_credential());
+
+        // apikey 别名
+        let mut alias = KiroCredentials::default();
+        alias.auth_method = Some("apikey".to_string());
+        assert!(alias.is_api_key_credential());
+
+        // social 凭据不应命中
+        let mut social = KiroCredentials::default();
+        social.auth_method = Some("social".to_string());
+        social.refresh_token = Some("rt".to_string());
+        assert!(!social.is_api_key_credential());
+    }
+
+    #[test]
+    fn test_canonicalize_api_key_aliases() {
+        assert_eq!(canonicalize_auth_method_value("apikey"), "api_key");
+        assert_eq!(canonicalize_auth_method_value("API_KEY"), "api_key");
+        assert_eq!(canonicalize_auth_method_value("api_key"), "api_key");
+
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("apikey".to_string());
+        cred.canonicalize_auth_method();
+        assert_eq!(cred.auth_method.as_deref(), Some("api_key"));
+    }
+
+    #[test]
+    fn test_masked_api_key_shows_head_and_tail() {
+        let mut c = KiroCredentials::default();
+        c.kiro_api_key = Some("ksk_abcdefghijklmnop1234".to_string());
+        assert_eq!(c.masked_api_key().as_deref(), Some("ksk_...1234"));
+
+        // 非 API Key 凭据无值
+        let plain = KiroCredentials::default();
+        assert_eq!(plain.masked_api_key(), None);
+    }
+
+    #[test]
+    fn test_masked_api_key_falls_back_for_short_and_non_ascii() {
+        // 短 key 保留首尾会暴露过高比例，回退 ***
+        let mut short = KiroCredentials::default();
+        short.kiro_api_key = Some("ksk_short".to_string());
+        assert_eq!(short.masked_api_key().as_deref(), Some("***"));
+
+        // 恰好 16 字节（边界）仍回退
+        let mut boundary = KiroCredentials::default();
+        boundary.kiro_api_key = Some("0123456789abcdef".to_string());
+        assert_eq!(boundary.masked_api_key().as_deref(), Some("***"));
+
+        // 非 ASCII：按字节切片可能落在 UTF-8 边界内导致 panic，必须回退
+        let mut cjk = KiroCredentials::default();
+        cjk.kiro_api_key = Some("密钥密钥密钥密钥密钥".to_string());
+        assert_eq!(
+            cjk.masked_api_key().as_deref(),
+            Some("***"),
+            "非 ASCII key 必须回退，否则字节切片会 panic"
+        );
+    }
+
+    #[test]
+    fn test_token_type_header_api_key_takes_precedence() {
+        // API Key → API_KEY
+        let mut api = KiroCredentials::default();
+        api.kiro_api_key = Some("ksk_abc".to_string());
+        assert_eq!(api.token_type_header(), Some("API_KEY"));
+
+        // external_idp → EXTERNAL_IDP（含别名）
+        let mut idp = KiroCredentials::default();
+        idp.auth_method = Some("AzureAD".to_string());
+        assert_eq!(idp.token_type_header(), Some("EXTERNAL_IDP"));
+        assert!(idp.is_external_idp_credential());
+
+        // social / idc 不带该头
+        let mut social = KiroCredentials::default();
+        social.auth_method = Some("social".to_string());
+        assert_eq!(social.token_type_header(), None);
+        let mut idc = KiroCredentials::default();
+        idc.auth_method = Some("idc".to_string());
+        assert_eq!(idc.token_type_header(), None);
+
+        // 两者同时命中时按 API Key 处理：实际发出的 Bearer 来自 kiroApiKey
+        let mut both = KiroCredentials::default();
+        both.auth_method = Some("external_idp".to_string());
+        both.kiro_api_key = Some("ksk_abc".to_string());
+        assert_eq!(both.token_type_header(), Some("API_KEY"));
+    }
+
+    #[test]
+    fn test_api_key_bearer_token_uses_verbatim_key() {
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("api_key".to_string());
+        cred.kiro_api_key = Some("ksk_verbatim".to_string());
+        assert_eq!(cred.api_key_bearer_token(), Some("ksk_verbatim"));
+
+        // 空白 key 视为无效
+        let mut blank = KiroCredentials::default();
+        blank.kiro_api_key = Some("   ".to_string());
+        assert_eq!(blank.api_key_bearer_token(), None);
+
+        // 非 API Key 凭据不提供该 token（由 OAuth 刷新流程负责）
+        let mut social = KiroCredentials::default();
+        social.auth_method = Some("social".to_string());
+        social.refresh_token = Some("rt".to_string());
+        assert_eq!(social.api_key_bearer_token(), None);
+    }
+
+    #[test]
+    fn test_kiro_api_key_serialization_roundtrip() {
+        let json = r#"{"kiroApiKey":"ksk_abc123","authMethod":"api_key"}"#;
+        let cred = KiroCredentials::from_json(json).unwrap();
+        assert_eq!(cred.kiro_api_key.as_deref(), Some("ksk_abc123"));
+        assert!(cred.is_api_key_credential());
+
+        // 往返一致
+        let out = cred.to_pretty_json().unwrap();
+        assert!(out.contains("kiroApiKey"));
+        let back = KiroCredentials::from_json(&out).unwrap();
+        assert_eq!(back.kiro_api_key.as_deref(), Some("ksk_abc123"));
+
+        // 未设置时不序列化该字段（旧配置文件不会凭空多出字段）
+        let plain = KiroCredentials {
+            refresh_token: Some("rt".to_string()),
+            ..Default::default()
+        };
+        assert!(!plain.to_pretty_json().unwrap().contains("kiroApiKey"));
+    }
+
+    #[test]
+    fn test_debug_redacts_kiro_api_key() {
+        let mut cred = KiroCredentials::default();
+        cred.kiro_api_key = Some("ksk_super_secret".to_string());
+        let dbg = format!("{:?}", cred);
+        assert!(!dbg.contains("ksk_super_secret"), "API Key 不得出现在日志里");
+        assert!(dbg.contains("kiro_api_key"));
+    }
+
+    #[test]
+    fn test_api_key_credential_never_gets_profile_arn() {
+        // fallback_profile_arn_value 对 API Key 凭据恒为 None
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("api_key".to_string());
+        cred.kiro_api_key = Some("ksk_abc".to_string());
+        assert_eq!(fallback_profile_arn_value(&cred), None);
+        assert!(!cred.fill_missing_profile_arn());
+        assert_eq!(cred.profile_arn, None);
+
+        // 即便显式配置了 profileArn，数据面也会移除（见 provider tests），
+        // 但 fill_missing_profile_arn 不应覆盖/清空用户显式值
+        let mut with_arn = KiroCredentials::default();
+        with_arn.auth_method = Some("api_key".to_string());
+        with_arn.kiro_api_key = Some("ksk_abc".to_string());
+        with_arn.profile_arn = Some("arn:aws:codewhisperer:us-east-1:1:profile/X".to_string());
+        assert!(!with_arn.fill_missing_profile_arn());
+    }
+
+    #[test]
+    fn test_effective_endpoints_api_key_keeps_full_rotation() {
+        // 参考实现（fork）不为 API Key 凭据钉死 runtime 端点：仍走 4 端点轮询，
+        // 只通过 TokenType: API_KEY 标识凭据类型。
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("api_key".to_string());
+        cred.kiro_api_key = Some("ksk_abc".to_string());
+
+        let eps = cred.effective_endpoints("us-east-1");
+        assert_eq!(
+            eps.iter().map(|e| e.name).collect::<Vec<_>>(),
+            vec![
+                EndpointName::Ide,
+                EndpointName::Runtime,
+                EndpointName::Codewhisperer,
+                EndpointName::Amazonq,
+            ],
+            "API Key 凭据默认端点顺序应与 OAuth 一致"
+        );
+
+        // 账号级 endpoint 偏好同样生效（首选在前 + 其余默认序追加）
+        let mut preferred = cred.clone();
+        preferred.endpoint = Some(vec![EndpointName::Runtime]);
+        let eps = preferred.effective_endpoints("us-east-1");
+        assert_eq!(
+            eps.iter().map(|e| e.name).collect::<Vec<_>>(),
+            vec![
+                EndpointName::Runtime,
+                EndpointName::Ide,
+                EndpointName::Codewhisperer,
+                EndpointName::Amazonq,
+            ]
+        );
     }
 }

@@ -4,13 +4,10 @@ use anyhow::Context;
 use super::super::entry::{CredentialEntry, DisabledReason};
 use super::super::refresh::{
     UsageLimitsUnsupportedError, get_usage_limits, get_usage_limits_without_profile_arn,
-    is_token_expired, is_token_expiring_soon, is_transient_usage_limits_error,
-    list_available_models, list_available_profiles, pick_profile_arn, refresh_token, sha256_hex,
-    validate_refresh_token,
+    is_transient_usage_limits_error, list_available_models, list_available_profiles,
+    pick_profile_arn, refresh_token, sha256_hex, validate_refresh_token,
 };
-use super::super::types::{
-    CredentialEntrySnapshot, ManagerSnapshot, MultiTokenManager, TOKEN_REFRESH_COOLDOWN,
-};
+use super::super::types::{CredentialEntrySnapshot, ManagerSnapshot, MultiTokenManager};
 use crate::kiro::model::available_models::AvailableModelsResponse;
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::model::credentials::canonicalize_auth_method_value;
@@ -115,6 +112,7 @@ impl MultiTokenManager {
                     disabled_reason: e.disabled_reason,
                     thinking_adaptive: e.credentials.thinking_adaptive,
                     created_at: e.credentials.created_at.clone(),
+                    masked_api_key: e.credentials.masked_api_key(),
                 })
                 .collect(),
             current_id,
@@ -134,6 +132,7 @@ impl MultiTokenManager {
         update: &crate::admin::types::UpdateCredentialRequest,
     ) -> bool {
         update.refresh_token.is_some()
+            || update.kiro_api_key.is_some()
             || update.auth_method.is_some()
             || update.client_id.is_some()
             || update.client_secret.is_some()
@@ -221,6 +220,7 @@ impl MultiTokenManager {
         queried: &KiroCredentials,
     ) -> bool {
         current.refresh_token == queried.refresh_token
+            && current.kiro_api_key == queried.kiro_api_key
             && current.auth_method == queried.auth_method
             && current.client_id == queried.client_id
             && current.client_secret == queried.client_secret
@@ -297,14 +297,22 @@ impl MultiTokenManager {
 
     /// 确保账号进入可用池前已获取订阅等级
     async fn ensure_subscription_before_enable(&self, id: u64) -> anyhow::Result<()> {
-        let needs_lookup = {
+        let (needs_lookup, is_api_key) = {
             let entries = self.entries.lock();
             let entry = entries
                 .iter()
                 .find(|e| e.id == id)
                 .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?;
-            !Self::has_known_subscription(&entry.credentials)
+            (
+                !Self::has_known_subscription(&entry.credentials),
+                entry.credentials.is_api_key_credential(),
+            )
         };
+
+        // API Key 凭据没有订阅等级概念，也不查额度：跳过查询与订阅校验，允许直接启用
+        if is_api_key {
+            return Ok(());
+        }
 
         if !needs_lookup {
             return Ok(());
@@ -409,8 +417,10 @@ impl MultiTokenManager {
 
     /// 按账号 id 取最新 credentials 与有效 access_token
     ///
-    /// 封装 token 刷新逻辑（含冷却期、double-check、持久化），供 get_usage_limits_for
-    /// 与 list_available_models_for 复用，消除按 id 查询时的刷新逻辑重复。
+    /// 统一委托 `try_ensure_token`：它已处理 API Key 短路、双重检查锁、
+    /// 刷新冷却与刷新后回写。此前这里复制了一份刷新逻辑，漏掉 API Key 短路分支——
+    /// API Key 凭据没有 expires_at，is_token_expired 会 unwrap_or(true)，
+    /// 于是每次额度/模型查询都必然走刷新、撞上 refresh_token 的拒绝守卫而 100% 失败。
     async fn acquire_token_for_id(&self, id: u64) -> anyhow::Result<(KiroCredentials, String)> {
         let credentials = {
             let entries = self.entries.lock();
@@ -421,66 +431,7 @@ impl MultiTokenManager {
                 .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?
         };
 
-        // 检查是否需要刷新 token
-        let needs_refresh = is_token_expired(&credentials) || is_token_expiring_soon(&credentials);
-
-        let token = if needs_refresh {
-            let _guard = self.refresh_lock.lock().await;
-            let _identity_guard = self.credential_identity_lock.lock().await;
-            let current_creds = {
-                let entries = self.entries.lock();
-                entries
-                    .iter()
-                    .find(|e| e.id == id)
-                    .map(|e| e.credentials.clone())
-                    .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?
-            };
-
-            if is_token_expired(&current_creds) || is_token_expiring_soon(&current_creds) {
-                // 冷却期检查：仅对"即将过期"生效，已过期必须立即刷新
-                let skip_for_cooldown = !is_token_expired(&current_creds) && {
-                    let entries = self.entries.lock();
-                    entries
-                        .iter()
-                        .find(|e| e.id == id)
-                        .and_then(|e| e.last_refreshed_at)
-                        .map(|t| t.elapsed() < TOKEN_REFRESH_COOLDOWN)
-                        .unwrap_or(false)
-                };
-                if skip_for_cooldown {
-                    tracing::debug!("Token 即将过期但在冷却期内（30s），跳过刷新");
-                    current_creds
-                        .access_token
-                        .clone()
-                        .ok_or_else(|| anyhow::anyhow!("冷却期内无 access_token"))?
-                } else {
-                    let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
-                    let refreshed_creds =
-                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref())
-                            .await?;
-                    let committed_creds = self.commit_refreshed_credentials_if_identity_matches(
-                        id,
-                        &current_creds,
-                        &refreshed_creds,
-                    )?;
-                    // 持久化失败只记录警告，不影响本次请求
-                    if let Err(e) = self.persist_credentials() {
-                        tracing::warn!("Token 刷新后持久化失败（不影响本次请求）: {}", e);
-                    }
-                    committed_creds
-                        .access_token
-                        .ok_or_else(|| anyhow::anyhow!("刷新后无 access_token"))?
-                }
-            } else {
-                current_creds
-                    .access_token
-                    .ok_or_else(|| anyhow::anyhow!("账号无 access_token"))?
-            }
-        } else {
-            credentials
-                .access_token
-                .ok_or_else(|| anyhow::anyhow!("账号无 access_token"))?
-        };
+        let token = self.try_ensure_token(id, &credentials).await?.token;
 
         // 返回最新 credentials（刷新后从 entries 重新取，保证 subscription_title 等字段最新）
         let credentials = {
@@ -496,6 +447,10 @@ impl MultiTokenManager {
     }
 
     /// 获取指定账号的使用额度（Admin API）
+    ///
+    /// API Key 凭据同样支持查询：控制面 `/getUsageLimits` 接受 ksk_ 静态 Bearer，
+    /// 但必须带 `TokenType: API_KEY`（见 `send_usage_limits_request`）。额度/订阅
+    /// 只读查询，不消耗请求额度。
     pub async fn get_usage_limits_for(&self, id: u64) -> anyhow::Result<UsageLimitsResponse> {
         let (mut credentials, token) = self.acquire_token_for_id(id).await?;
 
@@ -699,36 +654,50 @@ impl MultiTokenManager {
     pub async fn add_credential(&self, new_cred: KiroCredentials) -> anyhow::Result<u64> {
         let _operation_guard = self.credential_admin_lock.lock().await;
 
-        // 1. 基本验证
+        // 1. 基本验证（API Key 凭据在此改校验 kiroApiKey 非空）
         validate_refresh_token(&new_cred)?;
         let initially_disabled = new_cred.disabled;
+        let is_api_key = new_cred.is_api_key_credential();
 
-        // 2. 基于 refreshToken 的 SHA-256 哈希检测重复
-        let new_refresh_token = new_cred
-            .refresh_token
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("缺少 refreshToken"))?;
-        let new_refresh_token_hash = sha256_hex(new_refresh_token);
+        // 2. 检测重复：API Key 凭据按 kiroApiKey 哈希比对，OAuth 凭据按 refreshToken
+        let (new_secret_hash, dup_field) = if is_api_key {
+            let key = new_cred
+                .kiro_api_key
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("缺少 kiroApiKey"))?;
+            (sha256_hex(key), "kiroApiKey")
+        } else {
+            let rt = new_cred
+                .refresh_token
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("缺少 refreshToken"))?;
+            (sha256_hex(rt), "refreshToken")
+        };
         let duplicate_exists = {
             let entries = self.entries.lock();
             entries.iter().any(|entry| {
-                entry
-                    .credentials
-                    .refresh_token
-                    .as_deref()
-                    .map(sha256_hex)
-                    .as_deref()
-                    == Some(new_refresh_token_hash.as_str())
+                let existing = if is_api_key {
+                    entry.credentials.kiro_api_key.as_deref()
+                } else {
+                    entry.credentials.refresh_token.as_deref()
+                };
+                existing.map(sha256_hex).as_deref() == Some(new_secret_hash.as_str())
             })
         };
         if duplicate_exists {
-            anyhow::bail!("账号已存在（refreshToken 重复）");
+            anyhow::bail!("账号已存在（{} 重复）", dup_field);
         }
 
-        // 3. 尝试刷新 Token 验证账号有效性
-        let effective_proxy = new_cred.effective_proxy(self.proxy.as_ref());
-        let mut validated_cred =
-            refresh_token(&new_cred, &self.config, effective_proxy.as_ref()).await?;
+        // 3. 验证账号有效性
+        //
+        // API Key 凭据无刷新流程可用于验证，直接接受配置（有效性在首次真实
+        // 调用时由上游判定）；OAuth 凭据仍走一次刷新以尽早发现无效 token。
+        let mut validated_cred = if is_api_key {
+            new_cred.clone()
+        } else {
+            let effective_proxy = new_cred.effective_proxy(self.proxy.as_ref());
+            refresh_token(&new_cred, &self.config, effective_proxy.as_ref()).await?
+        };
 
         // 4. 分配新 ID
         //
@@ -738,9 +707,12 @@ impl MultiTokenManager {
 
         // 5. 设置 ID 并保留用户输入的元数据
         validated_cred.id = Some(new_id);
-        // 用户显式填写的 profileArn 优先；否则保留刷新响应中自动获取到的值
-        // （企业版 IdC 刷新通常不返回 profileArn，必须由用户手动提供）
-        if new_cred.profile_arn.is_some() {
+        if validated_cred.is_api_key_credential() {
+            // API Key 凭据（Kiro CLI 语义）不携带 profileArn，显式填写也清掉
+            validated_cred.profile_arn = None;
+        } else if new_cred.profile_arn.is_some() {
+            // 用户显式填写的 profileArn 优先；否则保留刷新响应中自动获取到的值
+            // （企业版 IdC 刷新通常不返回 profileArn，必须由用户手动提供）
             validated_cred.profile_arn = new_cred.profile_arn;
         }
         validated_cred.priority = new_cred.priority;
@@ -749,6 +721,7 @@ impl MultiTokenManager {
             .map(|m| canonicalize_auth_method_value(&m).to_string());
         validated_cred.client_id = new_cred.client_id;
         validated_cred.client_secret = new_cred.client_secret;
+        validated_cred.kiro_api_key = new_cred.kiro_api_key.clone();
         validated_cred.region = new_cred.region;
         validated_cred.auth_region = new_cred.auth_region;
         validated_cred.api_region = new_cred.api_region;
@@ -858,8 +831,12 @@ impl MultiTokenManager {
             Self::apply_update_fields(&mut cred, &update);
             cred
         };
-        // refreshToken / clientId / IdC 的 clientSecret 变更，需要先试刷新验证，失败则不写入
-        let needs_revalidation = Self::update_requires_revalidation(&update, &temp_cred);
+        // refreshToken / clientId / IdC 的 clientSecret 变更，需要先试刷新验证，失败则不写入。
+        // 但 API Key 凭据不存在刷新语义：更新后若仍是 API Key 凭据（本次带了 kiroApiKey，
+        // 或账号原本就是 API Key 且未被清空），必须跳过重新验证，否则会走到
+        // refresh_token() 的拒绝守卫上直接报错。
+        let needs_revalidation = Self::update_requires_revalidation(&update, &temp_cred)
+            && !temp_cred.is_api_key_credential();
 
         if needs_revalidation {
             let effective_proxy = temp_cred.effective_proxy(self.proxy.as_ref());
@@ -924,6 +901,13 @@ impl MultiTokenManager {
                 None
             } else {
                 Some(ci.clone())
+            };
+        }
+        if let Some(ref ak) = update.kiro_api_key {
+            cred.kiro_api_key = if ak.trim().is_empty() {
+                None
+            } else {
+                Some(ak.clone())
             };
         }
         if let Some(ref pa) = update.profile_arn {
@@ -1005,6 +989,11 @@ impl MultiTokenManager {
         }
         if let Some(ta) = update.thinking_adaptive {
             cred.thinking_adaptive = ta;
+        }
+        // API Key 凭据不携带 profileArn：无论本次更新带没带 profileArn 都清空
+        // （与 kiro-go NormalizeAPIKeyAccount 的 ProfileArn = "" 一致）
+        if cred.is_api_key_credential() {
+            cred.profile_arn = None;
         }
         if identity_updated {
             cred.subscription_title = None;

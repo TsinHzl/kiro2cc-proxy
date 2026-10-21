@@ -40,6 +40,15 @@ pub struct KiroCredentials {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
 
+    /// Kiro API Key（可选，`authMethod: "api_key"` 时必填）
+    ///
+    /// API Key 凭据直接把该值作为 Bearer Token 使用，**不需要** `refreshToken`，
+    /// 也不参与 token 刷新流程（API Key 本身不过期）。
+    /// 调用上游时会额外携带 `TokenType: API_KEY` 头，且只使用 runtime 端点、
+    /// 不携带 profileArn（对齐 kiro-go 的 API Key 语义）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kiro_api_key: Option<String>,
+
     /// Profile ARN
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_arn: Option<String>,
@@ -184,6 +193,7 @@ impl std::fmt::Debug for KiroCredentials {
             .field("auth_method", &self.auth_method)
             .field("client_id", &self.client_id)
             .field("client_secret", &redact(&self.client_secret))
+            .field("kiro_api_key", &redact(&self.kiro_api_key))
             .field("priority", &self.priority)
             .field("region", &self.region)
             .field("auth_region", &self.auth_region)
@@ -215,6 +225,8 @@ pub(crate) fn canonicalize_auth_method_value(value: &str) -> &str {
         "idc"
     } else if value.eq_ignore_ascii_case("azuread") || value.eq_ignore_ascii_case("entraid") {
         "external_idp"
+    } else if value.eq_ignore_ascii_case("api_key") || value.eq_ignore_ascii_case("apikey") {
+        "api_key"
     } else {
         value
     }
@@ -252,6 +264,13 @@ pub(crate) const ENTERPRISE_FALLBACK_PROFILE_ARN_EU: &str =
 /// - external_idp（企业 IdC）及未知/未归一化值（含空字符串，视为未知类型）
 ///   → None：真实 ARN 因租户而异
 pub(crate) fn fallback_profile_arn_value(credentials: &KiroCredentials) -> Option<&'static str> {
+    // API Key 凭据（Kiro CLI 语义）不携带任何 profileArn/IDE profile 语义：
+    // 上游按 Bearer Token 自身身份鉴权，附带 ARN 反而会让请求畸形。
+    // 这里提前返回 None，使 `fill_missing_profile_arn` 不补全、数据面
+    // `rewrite_request_body` 也走"移除字段"分支。
+    if credentials.is_api_key_credential() {
+        return None;
+    }
     if credentials
         .provider
         .as_deref()

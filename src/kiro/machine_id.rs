@@ -61,6 +61,27 @@ pub fn generate_from_credentials(credentials: &KiroCredentials, config: &Config)
         return normalized;
     }
 
+    // 按凭据类型派生。两条路径互斥、不互相回落：
+    // API Key 凭据没有 refreshToken，OAuth 凭据没有 kiroApiKey，
+    // 若允许回落会让同一账号在不同调用间产生不同 machineId。
+    if credentials.is_api_key_credential() {
+        if let Some(ref api_key) = credentials.kiro_api_key
+            && !api_key.is_empty()
+        {
+            // 与 kiro-go `config.MachineIdFromAPIKey` 完全一致：
+            // sha256 hex of "KiroAPIKey/<api_key>"（Kiro CLI/API-key 客户端设备指纹）
+            return sha256_hex(&format!("KiroAPIKey/{}", api_key));
+        }
+        // 声明 api_key 但 key 为空：不得回落到 refreshToken 派生，否则同一账号在
+        // 配置修好前后会得到不同 machineId。启动时该账号已按 InvalidConfig 自动禁用，
+        // 这里只兜底生成进程内稳定的随机值，避免整条请求硬失败。
+        tracing::warn!(
+            credential_id = ?credentials.id,
+            "API Key 凭据缺少 kiroApiKey，不回落到 refreshToken 派生 machineId"
+        );
+        return fallback_machine_id(credentials);
+    }
+
     // 使用 refreshToken 生成
     if let Some(ref refresh_token) = credentials.refresh_token
         && !refresh_token.is_empty()
@@ -148,6 +169,54 @@ mod tests {
 
         let result = generate_from_credentials(&credentials, &config);
         assert_eq!(result.len(), 64);
+    }
+
+    #[test]
+    fn test_generate_from_api_key_uses_kiro_go_seed() {
+        // 与 kiro-go config.MachineIdFromAPIKey 对齐：sha256 hex of "KiroAPIKey/<key>"
+        let mut credentials = KiroCredentials::default();
+        credentials.auth_method = Some("api_key".to_string());
+        credentials.kiro_api_key = Some("ksk_test".to_string());
+        let config = Config::default();
+
+        let derived = generate_from_credentials(&credentials, &config);
+        let expected = sha256_hex("KiroAPIKey/ksk_test");
+        assert_eq!(derived, expected);
+        assert_eq!(derived.len(), 64);
+        // 稳定性：同一 key 多次派生一致
+        assert_eq!(generate_from_credentials(&credentials, &config), derived);
+    }
+
+    #[test]
+    fn test_generate_from_api_key_differs_from_refresh_token_seed() {
+        let mut api = KiroCredentials::default();
+        api.kiro_api_key = Some("ksk_test".to_string());
+        let mut oauth = KiroCredentials::default();
+        oauth.refresh_token = Some("ksk_test".to_string());
+        let config = Config::default();
+
+        assert_ne!(
+            generate_from_credentials(&api, &config),
+            generate_from_credentials(&oauth, &config),
+            "API Key 与 refreshToken 派生必须使用不同种子"
+        );
+    }
+
+    #[test]
+    fn test_api_key_credential_does_not_fall_back_to_refresh_token() {
+        // 两条路径互斥：声明 api_key 但 key 为空时，不得回落到 refreshToken 派生，
+        // 否则同一账号在配置修好前后会得到不同 machineId
+        let mut cred = KiroCredentials::default();
+        cred.id = Some(u64::MAX - 30);
+        cred.auth_method = Some("api_key".to_string());
+        cred.refresh_token = Some("a".repeat(150));
+        let config = Config::default();
+
+        let first = generate_from_credentials(&cred, &config);
+        assert_eq!(first.len(), 64);
+        assert_ne!(first, sha256_hex(&format!("KotlinNativeAPI/{}", "a".repeat(150))));
+        // 兜底值进程内稳定
+        assert_eq!(first, generate_from_credentials(&cred, &config));
     }
 
     #[test]

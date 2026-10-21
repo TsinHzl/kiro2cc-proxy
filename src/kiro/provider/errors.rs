@@ -123,6 +123,7 @@ impl KiroProvider {
     /// - 账号有 profile_arn → 设置 / 覆盖字段
     /// - 账号无 profile_arn → 按账号类型注入固定 ARN（见 [`Self::fallback_profile_arn`]）：
     ///   上游数据面对所有账号都要求该字段存在，缺失会 400 "profileArn is required"
+    /// - API Key 凭据 → 一律移除该字段（kiro-go 对 API Key 账号不发 profileArn）
     /// - JSON 解析失败 → 原样返回，不阻断请求
     pub(crate) fn rewrite_profile_arn(body: &str, credentials: &KiroCredentials) -> String {
         Self::rewrite_request_body(body, credentials, false)
@@ -151,9 +152,15 @@ impl KiroProvider {
             Some(o) => o,
             None => return body.to_string(),
         };
-        let arn = match &credentials.profile_arn {
-            Some(arn) => Some(arn.as_str()),
-            None => Self::fallback_profile_arn(credentials),
+        let arn = if credentials.is_api_key_credential() {
+            // API Key 凭据（Kiro CLI 语义）不携带 profileArn：即使账号上残留了
+            // 该字段也要移除，上游要求字段缺失而非携带他人的 profile。
+            None
+        } else {
+            match &credentials.profile_arn {
+                Some(arn) => Some(arn.as_str()),
+                None => Self::fallback_profile_arn(credentials),
+            }
         };
         match arn {
             Some(arn) => {

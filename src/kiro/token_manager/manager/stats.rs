@@ -198,10 +198,15 @@ impl MultiTokenManager {
                 }
                 // 恢复自动判定的禁用态。credentials.json 只承载手动禁用，因此
                 // 额度耗尽/连续失败的状态由此处接管；手动禁用优先，不被覆盖。
+                // InvalidConfig 与 Manual 同样不可被 stats 覆盖：它由本次启动的
+                // 配置校验得出，代表该账号当前根本不可用，覆盖成历史的
+                // QuotaExceeded/TooManyFailures 会让真因在面板上消失。
                 // quota_exhausted_at 随 disabled_reason 一起恢复，避免 Manual 账号
                 // 残留一个语义不符的历史耗尽时间戳。
-                if entry.disabled_reason != Some(DisabledReason::Manual)
-                    && let Some(reason) = s.disabled_reason
+                if !matches!(
+                    entry.disabled_reason,
+                    Some(DisabledReason::Manual) | Some(DisabledReason::InvalidConfig)
+                ) && let Some(reason) = s.disabled_reason
                 {
                     entry.disabled = true;
                     entry.disabled_reason = Some(reason);

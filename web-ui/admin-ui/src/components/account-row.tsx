@@ -102,7 +102,12 @@ export function AccountRow({
   const state = deriveAccountState(credential, balance !== null)
   const visual = ACCOUNT_STATE_VISUAL[state]
   const label = accountLabel(credential)
-  const displayName = credential.nickname || t('credentials.accountFallbackName', { id: credential.id })
+  // 昵称为空时退回邮箱：API Key 账号（ksk_...）往往没有昵称，只显示「账号 #N」
+  // 无法区分同一批账号。accountLabel() 早已是 nickname || email || #id，这里保持一致。
+  const displayName =
+    credential.nickname ||
+    credential.email ||
+    t('credentials.accountFallbackName', { id: credential.id })
   // 首字符按码点取，避免 emoji / 代理对昵称被截半
   const initial = [...label][0] ?? '#'
   // 消费百分比：支持超额显示真实比例

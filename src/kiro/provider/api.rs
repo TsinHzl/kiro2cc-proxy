@@ -136,6 +136,13 @@ impl KiroProvider {
             let _cred_permit = self.semaphore_for(ctx.id).acquire_owned().await?;
 
             let url = self.mcp_url_for(&ctx.credentials);
+            // 端点/host 可见性：MCP 固定 q.* 域（不走多端点 LB），便于线上联调核对
+            tracing::debug!(
+                "[ENDPOINT] credential={} attempt={} selected=mcp host={}",
+                ctx.id,
+                attempt + 1,
+                url
+            );
             let headers = match self.build_mcp_headers(&ctx, attempt) {
                 Ok(h) => h,
                 Err(e) => {

@@ -70,6 +70,12 @@ impl MultiTokenManager {
             .into_iter()
             .map(|mut cred| {
                 cred.canonicalize_auth_method();
+                // API Key 凭据不携带 profileArn（kiro-go 的 NormalizeAPIKeyAccount 同样清空），
+                // 存量/迁移文件里的残留值在此清除并标记写回，避免后续请求误带。
+                if cred.is_api_key_credential() && cred.profile_arn.is_some() {
+                    cred.profile_arn = None;
+                    has_new_profile_arns = true;
+                }
                 let id = cred.id.unwrap_or_else(|| {
                     let id = next_id;
                     next_id = next_id
@@ -120,6 +126,40 @@ impl MultiTokenManager {
                 }
             })
             .collect();
+
+        // 校验 API Key 凭据配置完整性：声明了 authMethod=api_key 却没给 kiroApiKey
+        // 时自动禁用，避免每次请求都走到 try_ensure_token 里失败一遍。
+        // 用 InvalidConfig 原因标记，加载 stats 时不会被历史的自动判定原因覆盖。
+        let mut entries = entries;
+        for entry in entries.iter_mut() {
+            if entry.credentials.is_api_key_credential()
+                && entry
+                    .credentials
+                    .kiro_api_key
+                    .as_deref()
+                    .map(|k| k.trim().is_empty())
+                    .unwrap_or(true)
+                && !entry.disabled
+            {
+                tracing::warn!(
+                    "账号 #{} 声明了 authMethod=api_key 但缺少 kiroApiKey，已自动禁用",
+                    entry.id
+                );
+                entry.disabled = true;
+                entry.disabled_reason = Some(DisabledReason::InvalidConfig);
+            }
+        }
+
+        let api_key_count = entries
+            .iter()
+            .filter(|e| e.credentials.is_api_key_credential())
+            .count();
+        if api_key_count > 0 {
+            tracing::info!(
+                "检测到 {} 个 API Key 凭据（静态 Bearer + TokenType: API_KEY，不参与 token 刷新，额度可查）",
+                api_key_count
+            );
+        }
 
         // 检测重复 ID
         let mut seen_ids = std::collections::HashSet::new();
@@ -806,11 +846,24 @@ impl MultiTokenManager {
     /// # Arguments
     /// * `id` - 账号 ID，用于更新正确的条目
     /// * `credentials` - 账号信息
-    async fn try_ensure_token(
+    pub(crate) async fn try_ensure_token(
         &self,
         id: u64,
         credentials: &KiroCredentials,
     ) -> anyhow::Result<CallContext> {
+        // API Key 凭据短路：kiroApiKey 直接作为 Bearer Token，本身不过期，
+        // 不进刷新流程（没有 refreshToken 可用，走下面的分支必然失败）。
+        if credentials.is_api_key_credential() {
+            let api_key = credentials.api_key_bearer_token().ok_or_else(|| {
+                anyhow::anyhow!("账号 #{} 声明了 authMethod=api_key 但缺少 kiroApiKey", id)
+            })?;
+            return Ok(CallContext {
+                id,
+                token: api_key.to_string(),
+                credentials: credentials.clone(),
+            });
+        }
+
         // 第一次检查（无锁）：快速判断是否需要刷新
         let needs_refresh = is_token_expired(credentials) || is_token_expiring_soon(credentials);
 

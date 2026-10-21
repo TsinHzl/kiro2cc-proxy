@@ -42,6 +42,18 @@ pub(crate) fn sha256_hex(input: &str) -> String {
 
 /// 验证 refreshToken 的基本有效性
 pub(crate) fn validate_refresh_token(credentials: &KiroCredentials) -> anyhow::Result<()> {
+    // API Key 凭据不使用 refreshToken，改校验 kiroApiKey 非空后直接放行
+    if credentials.is_api_key_credential() {
+        let api_key = credentials
+            .kiro_api_key
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("authMethod=api_key 时必须提供 kiroApiKey"))?;
+        if api_key.trim().is_empty() {
+            bail!("kiroApiKey 为空");
+        }
+        return Ok(());
+    }
+
     let refresh_token = credentials
         .refresh_token
         .as_ref()
@@ -167,6 +179,13 @@ pub(crate) async fn refresh_token(
     proxy: Option<&ProxyConfig>,
 ) -> anyhow::Result<KiroCredentials> {
     validate_refresh_token(credentials)?;
+
+    // API Key 凭据不存在"刷新"语义。调用方应走 try_ensure_token 的短路分支；
+    // 走到这里说明有路径把 API Key 凭据误当 OAuth 凭据处理，明确报错而不是
+    // 悄悄退化成 social 刷新（那会用 kiroApiKey 当 refreshToken 发出去）。
+    if credentials.is_api_key_credential() {
+        bail!("API Key 凭据无需且不支持 token 刷新");
+    }
 
     // 根据 auth_method 选择刷新方式
     // 如果未指定 auth_method，根据是否有 clientId/clientSecret 自动判断
@@ -594,6 +613,17 @@ pub(crate) fn with_kiro_ide_headers(
         .header("amz-sdk-request", AMZ_SDK_REQUEST_SINGLE_ATTEMPT)
 }
 
+/// 额度查询需要携带的 `TokenType` 头（与数据面一致）。
+///
+/// API Key 凭据必须显式声明 `TokenType: API_KEY`：控制面 `/getUsageLimits` 缺少该头时
+/// 会按 social 凭据校验这个 Bearer Token，返回 403 Invalid token（实测）；企业 SSO 同理
+/// 需要 `EXTERNAL_IDP`。与 kiro-go 的共享请求头逻辑保持一致。
+pub(crate) fn usage_limits_token_type_header(
+    credentials: &KiroCredentials,
+) -> Option<(&'static str, &'static str)> {
+    credentials.token_type_header().map(|t| ("TokenType", t))
+}
+
 /// 额度查询的共用发送逻辑：Kiro IDE 风格请求头 + 状态码分类。
 async fn send_usage_limits_request(
     credentials: &KiroCredentials,
@@ -613,12 +643,15 @@ async fn send_usage_limits_request(
     // 避免复用 idToken 导致 403 Invalid token（见 issue #31）。非 IdC 账号保持原逻辑不变。
     let effective_token = select_usage_limits_token(credentials, token);
 
-    let response = with_kiro_ide_headers(client.get(url), &agents)
+    let mut request = with_kiro_ide_headers(client.get(url), &agents)
         .header("host", host)
         .header("Authorization", format!("Bearer {}", effective_token))
-        .header("Connection", "close")
-        .send()
-        .await?;
+        .header("Connection", "close");
+    if let Some((name, value)) = usage_limits_token_type_header(credentials) {
+        request = request.header(name, value);
+    }
+
+    let response = request.send().await?;
 
     let status = response.status();
     if !status.is_success() {
@@ -707,17 +740,21 @@ pub(crate) async fn list_available_models(
 
     let client = build_client(proxy, LIST_MODELS_TIMEOUT_SECS, config.tls_backend)?;
 
-    let response = client
+    let mut req = client
         .post(&url)
         .header("content-type", "application/x-amz-json-1.0")
         .header(
             "x-amz-target",
             "AmazonCodeWhispererService.ListAvailableModels",
         )
-        .header("Authorization", format!("Bearer {}", token))
-        .json(&body)
-        .send()
-        .await?;
+        .header("Authorization", format!("Bearer {}", token));
+    // API Key 凭据会经 MultiTokenManager 走到模型发现（/v1/models、模型路由探测），
+    // 缺此头时上游按 social 凭据校验该 Bearer Token。只对 API Key 补，
+    // 既有 social/idc/external_idp 行为保持不变。
+    if credentials.is_api_key_credential() {
+        req = req.header("TokenType", "API_KEY");
+    }
+    let response = req.json(&body).send().await?;
 
     let status = response.status();
     if !status.is_success() {

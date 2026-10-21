@@ -84,6 +84,9 @@ pub struct CredentialStatusItem {
     /// 账号添加时间（RFC3339 格式；旧账号首次加载时补写，为近似值）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+    /// 脱敏后的 API Key（仅 API Key 凭据有值，用于卡片上辨认账号）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub masked_api_key: Option<String>,
 }
 
 // ============ 操作请求 ============
@@ -108,8 +111,15 @@ pub struct SetPriorityRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddCredentialRequest {
-    /// 刷新令牌（必填）
-    pub refresh_token: String,
+    /// 刷新令牌（OAuth 凭据必填；`authMethod: api_key` 时改填 `kiroApiKey`）
+    pub refresh_token: Option<String>,
+
+    /// Kiro API Key（`authMethod: api_key` 时必填，形如 `ksk_...`）
+    ///
+    /// 与 `refreshToken` 二者其一必填。填了它即视为 API Key 凭据，
+    /// 无需 `refreshToken`，也不参与 token 刷新。
+    #[serde(default)]
+    pub kiro_api_key: Option<String>,
 
     /// 认证方式（可选，默认 social）
     #[serde(default = "default_auth_method")]
@@ -212,6 +222,7 @@ mod tests {
             throttle_count: 0,
             disabled_reason: None,
             created_at: None,
+            masked_api_key: None,
         }
     }
 
@@ -370,6 +381,11 @@ pub struct AddCredentialResponse {
 pub struct UpdateCredentialRequest {
     /// 刷新令牌（可选，更新后会重新验证）
     pub refresh_token: Option<String>,
+
+    /// Kiro API Key（可选；传空字符串表示清除该字段并退回 OAuth 凭据
+    /// —— 仅当账号同时提供 refreshToken 时才有意义）
+    #[serde(default)]
+    pub kiro_api_key: Option<String>,
 
     /// 认证方式（可选）
     pub auth_method: Option<String>,

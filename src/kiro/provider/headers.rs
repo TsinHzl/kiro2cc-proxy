@@ -92,13 +92,10 @@ impl KiroProvider {
             headers.insert("x-amz-target", HeaderValue::from_static(target));
         }
 
-        if ctx
-            .credentials
-            .auth_method
-            .as_deref()
-            .is_some_and(|m| m.eq_ignore_ascii_case("external_idp"))
-        {
-            headers.insert("TokenType", HeaderValue::from_static("EXTERNAL_IDP"));
+        // API Key → API_KEY；企业 SSO → EXTERNAL_IDP；social / idc 不带该头。
+        // （Kiro 要求 API Key 与企业 IdP token 显式标识类型，否则按 social 校验必失败）
+        if let Some(token_type) = ctx.credentials.token_type_header() {
+            headers.insert("TokenType", HeaderValue::from_static(token_type));
         }
 
         Ok(headers)
@@ -170,6 +167,12 @@ impl KiroProvider {
             "Authorization",
             HeaderValue::from_str(&format!("Bearer {}", ctx.token)).unwrap(),
         );
+        // API Key 凭据的 MCP（WebSearch）调用同样需要 `TokenType: API_KEY`，
+        // 否则上游会按 social 凭据校验该 Bearer Token 并失败。
+        // 仅对 API Key 生效：不改变既有 social / idc / external_idp 的 MCP 行为。
+        if ctx.credentials.is_api_key_credential() {
+            headers.insert("TokenType", HeaderValue::from_static("API_KEY"));
+        }
         Ok(headers)
     }
 }

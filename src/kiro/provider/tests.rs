@@ -706,4 +706,152 @@ mod tests {
         assert!(headers.get("x-amz-target").is_none());
         assert_eq!(headers.get("host").unwrap(), "q.us-east-1.amazonaws.com");
     }
+
+    // -------- Kiro API Key 凭据: TokenType 头 / profileArn 移除 --------
+
+    #[test]
+    fn test_build_headers_injects_token_type_api_key() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(7);
+        creds.auth_method = Some("api_key".to_string());
+        creds.kiro_api_key = Some("ksk_abc".to_string());
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 7,
+            credentials: creds,
+            token: "ksk_abc".to_string(),
+        };
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
+
+        assert_eq!(headers.get("TokenType").unwrap(), "API_KEY");
+        // API Key 直接作为 Bearer Token 发出
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer ksk_abc");
+    }
+
+    #[test]
+    fn test_build_headers_token_type_absent_for_social() {
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(8);
+        creds.auth_method = Some("social".to_string());
+        creds.refresh_token = Some("a".repeat(150));
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 8,
+            credentials: creds,
+            token: "tok".to_string(),
+        };
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
+
+        assert!(
+            headers.get("TokenType").is_none(),
+            "social 凭据不应带 TokenType 头"
+        );
+    }
+
+    #[test]
+    fn test_build_headers_keeps_external_idp_token_type() {
+        // 既有 OAuth 行为不变：企业 IdP 凭据仍带 EXTERNAL_IDP
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(10);
+        creds.auth_method = Some("external_idp".to_string());
+        creds.refresh_token = Some("short".to_string());
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 10,
+            credentials: creds,
+            token: "tok".to_string(),
+        };
+        let endpoint = Endpoint::by_name(EndpointName::Ide, "us-east-1");
+        let headers = provider.build_headers(&ctx, "{}", 0, &endpoint).unwrap();
+
+        assert_eq!(headers.get("TokenType").unwrap(), "EXTERNAL_IDP");
+    }
+
+    #[test]
+    fn test_build_mcp_headers_injects_token_type_for_api_key() {
+        // 回归：build_mcp_headers 此前从不设置 TokenType，导致 API Key 凭据的
+        // MCP（WebSearch）调用被上游按 social 凭据校验而失败
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(9);
+        creds.auth_method = Some("api_key".to_string());
+        creds.kiro_api_key = Some("ksk_mcp".to_string());
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 9,
+            credentials: creds,
+            token: "ksk_mcp".to_string(),
+        };
+        let headers = provider.build_mcp_headers(&ctx, 0).unwrap();
+
+        assert_eq!(headers.get("TokenType").unwrap(), "API_KEY");
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer ksk_mcp");
+    }
+
+    #[test]
+    fn test_build_mcp_headers_omits_token_type_for_social() {
+        // OAuth（social/idc）MCP 行为保持不变：不带 TokenType 头
+        let mut config = Config::default();
+        config.region = "us-east-1".to_string();
+        let mut creds = KiroCredentials::default();
+        creds.id = Some(11);
+        creds.auth_method = Some("external_idp".to_string());
+        creds.refresh_token = Some("short".to_string());
+
+        let provider = create_test_provider(config, creds.clone());
+        let ctx = CallContext {
+            id: 11,
+            credentials: creds,
+            token: "tok".to_string(),
+        };
+        let headers = provider.build_mcp_headers(&ctx, 0).unwrap();
+
+        assert!(
+            headers.get("TokenType").is_none(),
+            "external_idp 的 MCP 行为不得改变（此前也不带头）"
+        );
+    }
+
+    #[test]
+    fn test_rewrite_request_body_removes_profile_arn_for_api_key() {
+        // API Key 凭据（Kiro CLI 语义）不发送 profileArn：即便请求体或凭据里带着也要移除
+        let mut cred = KiroCredentials::default();
+        cred.auth_method = Some("api_key".to_string());
+        cred.kiro_api_key = Some("ksk_abc".to_string());
+
+        // 请求体中已存在的字段被移除
+        let body = r#"{"conversationState":{},"profileArn":"old-arn"}"#;
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(
+            v.get("profileArn").is_none(),
+            "API Key 凭据必须移除 profileArn，实际: {}",
+            result
+        );
+
+        // 账号上残留 profileArn 时也移除
+        cred.profile_arn = Some("arn:aws:codewhisperer:us-east-1:1:profile/X".to_string());
+        let result = KiroProvider::rewrite_profile_arn(body, &cred);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(v.get("profileArn").is_none(), "实际: {}", result);
+
+        // 无 profileArn 的请求体不会被注入 fallback ARN
+        let body2 = r#"{"conversationState":{}}"#;
+        let result2 = KiroProvider::rewrite_profile_arn(body2, &cred);
+        let v2: serde_json::Value = serde_json::from_str(&result2).unwrap();
+        assert!(v2.get("profileArn").is_none(), "实际: {}", result2);
+    }
 }

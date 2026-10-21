@@ -82,6 +82,12 @@ pub struct CredentialEntrySnapshot {
     /// 账号添加时间（RFC3339 格式，前端展示「添加日期」）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+    /// 脱敏后的 API Key（仅 API Key 凭据有值；`ksk_...` 前 4 + 后 4）
+    ///
+    /// API Key 账号没有邮箱/昵称时卡片只能显示"账号 #N"，多个此类账号无法辨认，
+    /// 故由后端下发该展示值（绝不回传完整 key）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub masked_api_key: Option<String>,
 }
 
 /// 账号管理器状态快照

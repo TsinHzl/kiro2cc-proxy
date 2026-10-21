@@ -56,9 +56,13 @@ pub fn build_client(
         .pool_idle_timeout(Duration::from_secs(90))
         .tcp_keepalive(Duration::from_secs(30));
 
-    if tls_backend == TlsBackend::Rustls {
-        builder = builder.use_rustls_tls();
+    // 本构建刻意关闭 reqwest 默认 TLS（default-tls = native-tls/openssl），
+    // 以便静态交叉编译到 x86_64-unknown-linux-musl；因此 NativeTls 后端在运行时
+    // 实际不可用，显式回退到 rustls 并告警（保留枚举变体以兼容既有 config.json）。
+    if tls_backend == TlsBackend::NativeTls {
+        tracing::warn!("native-tls 后端未编译进本构建（musl 交叉编译需要），回退使用 rustls");
     }
+    builder = builder.use_rustls_tls();
 
     if let Some(proxy_config) = proxy {
         let mut proxy = Proxy::all(&proxy_config.url)?;

@@ -1,0 +1,39 @@
+src/model/usage/tests.rs
+  1c516faa71b58f44 538-545,752,778,780-781,801-839
+src/model/usage/daily.rs
+  1c516faa71b58f44 26,120,140,154
+web-ui/admin-ui/src/i18n/locales/zh.json
+  1c516faa71b58f44 546-547,550-558
+web-ui/admin-ui/src/i18n/locales/en.json
+  1c516faa71b58f44 546-548,550-558
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  1c516faa71b58f44 8,13,17,46,48,87-95,135-136,145,147-152,154-159,161,178-184,198,220-230,273-278,307-317
+web-ui/admin-ui/src/components/metrics.tsx
+  1c516faa71b58f44 2,12,14-15,18-21,23-30,46-47,52,102-104,108,112,120-125
+web-ui/admin-ui/src/types/api.ts
+  1c516faa71b58f44 278
+web-ui/admin-ui/src/components/daily-shared.tsx
+  1c516faa71b58f44 2,12-15,26-162
+web-ui/admin-ui/src/components/daily-detail-page.tsx
+  1c516faa71b58f44 7,11-12,15,38-39,52-64,76-77,83-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b75482e27df144898e7c4985a8d2d287744a248c",
+  "prompts": {
+    "1c516faa71b58f44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8077307b-5cf3-4945-81ea-777ffa5ab68b",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 828,
+      "total_deletions": 465,
+      "accepted_lines": 703,
+      "overriden_lines": 0
+    }
+  }
+}

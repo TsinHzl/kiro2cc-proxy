@@ -1,0 +1,33 @@
+web-ui/admin-ui/src/components/add-credential-dialog.tsx
+  1c516faa71b58f44 10,13,19,115-121,127,136,155-160,162-182,203,272
+web-ui/admin-ui/src/components/ui/input.tsx
+  1c516faa71b58f44 12,15-17,21-22,31,38
+web-ui/admin-ui/src/i18n/locales/en.json
+  1c516faa71b58f44 246
+web-ui/admin-ui/src/components/credential-form-kit.tsx
+  1c516faa71b58f44 3,11-12,19-20,71-79,83-86
+web-ui/admin-ui/src/i18n/locales/zh.json
+  1c516faa71b58f44 246
+web-ui/admin-ui/src/components/edit-credential-dialog.tsx
+  1c516faa71b58f44 10,13,137-144,150,193,254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0eb095d46ae94237485e1aaddab5e5b43e8e761f",
+  "prompts": {
+    "1c516faa71b58f44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8077307b-5cf3-4945-81ea-777ffa5ab68b",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 171,
+      "total_deletions": 40,
+      "accepted_lines": 163,
+      "overriden_lines": 0
+    }
+  }
+}

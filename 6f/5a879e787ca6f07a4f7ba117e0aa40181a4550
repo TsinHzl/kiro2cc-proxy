@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/credential-form-kit.tsx
+  1c516faa71b58f44 5-6,39-41,51-52,63
+web-ui/admin-ui/src/components/edit-credential-dialog.tsx
+  1c516faa71b58f44 59-60,116-118,185-189,191-192,194,245-251,259-267,368-372,374-375,377
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6f5a879e787ca6f07a4f7ba117e0aa40181a4550",
+  "prompts": {
+    "1c516faa71b58f44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8077307b-5cf3-4945-81ea-777ffa5ab68b",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 96,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    }
+  }
+}

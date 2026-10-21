@@ -1,0 +1,39 @@
+web-ui/admin-ui/src/components/edit-credential-dialog.tsx
+  1c516faa71b58f44 2,17,51-61,64-78,81,83-84,89,103-105,107-111,113-115,117-118,125-127,154-167,187-189,191,193-203,205-207,209,211-217,219,222-249,254-264,266-309,312,315-317,319-320,322-332,346-348,350-351,353-367,372,391-393,395-396,398-399,401-404,407-419,421-424,427-445
+web-ui/admin-ui/src/components/credential-form-kit.tsx
+  1c516faa71b58f44 37-70
+src/kiro/token_manager/types.rs
+  1c516faa71b58f44 35-43
+src/admin/service.rs
+  1c516faa71b58f44 144-146
+web-ui/admin-ui/src/types/api.ts
+  1c516faa71b58f44 20-25
+web-ui/admin-ui/src/i18n/locales/zh.json
+  1c516faa71b58f44 248
+src/kiro/token_manager/manager/admin_ops.rs
+  1c516faa71b58f44 98-100
+web-ui/admin-ui/src/i18n/locales/en.json
+  1c516faa71b58f44 248
+src/admin/types.rs
+  1c516faa71b58f44 42-50,189-191,224-243,252-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "509ae7b28c18dff5927a3fd6b3c54e56dae947c1",
+  "prompts": {
+    "1c516faa71b58f44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8077307b-5cf3-4945-81ea-777ffa5ab68b",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 349,
+      "overriden_lines": 0
+    }
+  }
+}

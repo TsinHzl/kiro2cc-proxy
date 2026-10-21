@@ -1,0 +1,39 @@
+web-ui/admin-ui/src/api/credentials.ts
+  1c516faa71b58f44 21,287-296
+web-ui/admin-ui/src/components/metrics.tsx
+  1c516faa71b58f44 13,15,19-24,27-36,124
+web-ui/admin-ui/src/components/credential-detail-page.tsx
+  1c516faa71b58f44 12-16,21,30-35,46-50,71-79,81-84,122,126-152
+web-ui/admin-ui/src/types/api.ts
+  1c516faa71b58f44 288-299
+src/admin/api_keys.rs
+  1c516faa71b58f44 220-232
+src/model/usage/daily.rs
+  1c516faa71b58f44 48-66,68-109
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  1c516faa71b58f44 38,385-394
+src/model/usage/tests.rs
+  1c516faa71b58f44 351-383,873-960
+src/admin/router.rs
+  1c516faa71b58f44 12-15,56-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "814ed8d30c3726062c0ef80e08c44adfea3b9a8f",
+  "prompts": {
+    "1c516faa71b58f44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8077307b-5cf3-4945-81ea-777ffa5ab68b",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 404,
+      "total_deletions": 91,
+      "accepted_lines": 332,
+      "overriden_lines": 0
+    }
+  }
+}

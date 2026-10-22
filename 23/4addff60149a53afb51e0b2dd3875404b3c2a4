@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/i18n/locales/en.json
+  71e025b026875121 114,118,156,167,181,200,386,389-390,399-400,413,435,484,496,538,540,633,635,643-645,689,758
+web-ui/admin-ui/src/i18n/locales/zh.json
+  71e025b026875121 386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "234addff60149a53afb51e0b2dd3875404b3c2a4",
+  "prompts": {
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 25,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    }
+  }
+}

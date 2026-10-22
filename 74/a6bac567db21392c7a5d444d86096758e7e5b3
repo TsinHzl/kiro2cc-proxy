@@ -1,0 +1,25 @@
+Cargo.toml
+  71e025b026875121 3
+src/admin/changelog_data.rs
+  71e025b026875121 70-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "74a6bac567db21392c7a5d444d86096758e7e5b3",
+  "prompts": {
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 1,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}

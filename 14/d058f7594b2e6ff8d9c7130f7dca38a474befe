@@ -1,0 +1,37 @@
+src/anthropic/handlers/tests/models.rs
+  71e025b026875121 149
+src/anthropic/handlers/post_messages_cc/tests/models.rs
+  71e025b026875121 166
+web-ui/admin-ui/src/components/model-list-page.tsx
+  71e025b026875121 405-409
+src/kiro/token_manager/tests/model_routing.rs
+  71e025b026875121 215
+web-ui/admin-ui/src/types/api.ts
+  71e025b026875121 208-209
+src/admin/types.rs
+  71e025b026875121 662-663
+src/admin/service.rs
+  71e025b026875121 47,62,704,737-749,765,818,965-968
+src/kiro/model/available_models.rs
+  71e025b026875121 25-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "14d058f7594b2e6ff8d9c7130f7dca38a474befe",
+  "prompts": {
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 0,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    }
+  }
+}

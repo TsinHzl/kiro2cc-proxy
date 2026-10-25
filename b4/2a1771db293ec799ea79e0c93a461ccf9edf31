@@ -1,0 +1,41 @@
+src/anthropic/handlers/nonstream.rs
+  71e025b026875121 261-262,663-674
+src/anthropic/handlers/post_messages.rs
+  71e025b026875121 159-161,325,351
+src/anthropic/handlers/post_messages_cc/mod.rs
+  71e025b026875121 162-164,286,312
+src/cache/cache_miss_diag.rs
+  71e025b026875121 1-292
+src/anthropic/handlers/stream.rs
+  71e025b026875121 57-58,111
+src/anthropic/stream/context/mod.rs
+  71e025b026875121 109-110,160,170-175,975-990
+src/anthropic/stream/tests/context.rs
+  71e025b026875121 7-37,244,273-284
+src/cache/mod.rs
+  71e025b026875121 13
+src/model/usage/pricing.rs
+  71e025b026875121 28
+src/model/usage/mod.rs
+  71e025b026875121 636-637
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b42a1771db293ec799ea79e0c93a461ccf9edf31",
+  "prompts": {
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 419,
+      "total_deletions": 29,
+      "accepted_lines": 392,
+      "overriden_lines": 0
+    }
+  }
+}

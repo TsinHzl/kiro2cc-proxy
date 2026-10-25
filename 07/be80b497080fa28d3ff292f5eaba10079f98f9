@@ -1,0 +1,47 @@
+src/model/usage/pricing.rs
+  71e025b026875121 24-44,47-48,50,52-53,77-78,80,83-86,138-224
+src/anthropic/handlers/nonstream.rs
+  71e025b026875121 71-73,88-115,334,537,600-607,648-660,894-960
+openspec/changes/infer-cache-read-from-credits/specs/cache/spec.md
+  71e025b026875121 1-69
+openspec/changes/infer-cache-read-from-credits/proposal.md
+  71e025b026875121 1-44
+openspec/changes/infer-cache-read-from-credits/tasks.md
+  71e025b026875121 1-17
+src/model/usage/tests.rs
+  71e025b026875121 6-9,1106-1217
+src/anthropic/stream/context/mod.rs
+  71e025b026875121 84-85,148,188-191,250-258,273-283,299,958,960-962,964,987,1014
+src/anthropic/stream/tests/context.rs
+  71e025b026875121 202-332
+src/anthropic/stream/tests/state.rs
+  71e025b026875121 178
+src/model/usage/mod.rs
+  71e025b026875121 636-637
+openspec/changes/infer-cache-read-from-credits/design.md
+  71e025b026875121 1-50
+src/anthropic/handlers/tests/websearch.rs
+  71e025b026875121 108-113,122-125
+src/anthropic/handlers/bridge.rs
+  71e025b026875121 505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "07be80b497080fa28d3ff292f5eaba10079f98f9",
+  "prompts": {
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 895,
+      "total_deletions": 230,
+      "accepted_lines": 717,
+      "overriden_lines": 0
+    }
+  }
+}

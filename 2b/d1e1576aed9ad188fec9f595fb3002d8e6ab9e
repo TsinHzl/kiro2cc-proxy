@@ -1,0 +1,38 @@
+src/anthropic/converter/drift_diag.rs
+  71e025b026875121 15,17,202-203,319,324-327,331,401-427
+src/anthropic/stream/tests/context.rs
+  71e025b026875121 210,215,244-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2bd1e1576aed9ad188fec9f595fb3002d8e6ab9e",
+  "prompts": {
+    "36f461fb0472e7a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92013418-6c2e-4bf0-8642-6042d5029f3d",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 229,
+      "total_deletions": 0,
+      "accepted_lines": 229,
+      "overriden_lines": 0
+    },
+    "71e025b026875121": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "732ae36a-3e5f-473d-94b4-17ff443f1b37",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 59,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}

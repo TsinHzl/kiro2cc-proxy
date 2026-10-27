@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/metrics.tsx
+  8966cca4694ec46e 62,121
+web-ui/admin-ui/src/components/credential-detail-page.tsx
+  8966cca4694ec46e 152-153,173-174,184-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f1102a2cad94d3dfd4aeb6a1dcc87497a0021258",
+  "prompts": {
+    "8966cca4694ec46e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c5237f5b-9d38-4dbf-8e14-da69d02f96d0",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 11,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}

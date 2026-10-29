@@ -186,6 +186,7 @@ impl MultiTokenManager {
             proxy_password,
             provider,
             thinking_adaptive,
+            kiro_api_key,
         } = update;
         [
             ("refreshToken", refresh_token.is_some()),
@@ -203,6 +204,7 @@ impl MultiTokenManager {
             ("proxyPassword", proxy_password.is_some()),
             ("provider", provider.is_some()),
             ("thinkingAdaptive", thinking_adaptive.is_some()),
+            ("kiroApiKey", kiro_api_key.is_some()),
         ]
         .into_iter()
         .filter_map(|(name, present)| present.then_some(name))

@@ -64,21 +64,23 @@ export function ModelAggPanel({ records }: { records: UsageRecord[] }) {
 
   return (
     <div className="mt-[15px]">
-      {/* 标题行整行可点击折叠；保留 panel-title 视觉，chevron 指示折叠方向 */}
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        aria-controls={bodyId}
-        className="mb-[7px] flex w-full items-center gap-[5px] text-left text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
-        <ChevronDown
-          className={`size-[13px] flex-none transition-transform ${open ? '' : '-rotate-90'}`}
-          strokeWidth={1.8}
-          aria-hidden="true"
-        />
-        {t('credentials.groupByModel')}
-      </button>
+      {/* 仅箭头 + 文字可点击折叠（外层 flex 让按钮收缩到内容宽度）；保留 panel-title 视觉 */}
+      <div className="mb-[7px] flex">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          className="flex items-center gap-[5px] text-left text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          <ChevronDown
+            className={`size-[13px] flex-none transition-transform ${open ? '' : '-rotate-90'}`}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+          {t('credentials.groupByModel')}
+        </button>
+      </div>
       {open && (
         <section id={bodyId} aria-label={t('credentials.groupByModel')} className={PANEL}>
           <div className="max-h-[42vh] overflow-y-auto">

@@ -236,7 +236,7 @@ function TodayRecordsView({ daily, dailyLoading, dailyError }: DailyTotalsProps)
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative min-h-0 flex-1 overflow-y-auto">
             {isError ? (
               <div className="px-4 py-12 text-center text-[12.5px] text-ink-3">
                 {t('common.loadFailed')}
@@ -332,7 +332,7 @@ function CustomRangeRecordsView({
           </div>
         </div>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative min-h-0 flex-1 overflow-y-auto">
             {isError ? (
               <div className="px-4 py-12 text-center text-[12.5px] text-ink-3">
                 {t('common.loadFailed')}

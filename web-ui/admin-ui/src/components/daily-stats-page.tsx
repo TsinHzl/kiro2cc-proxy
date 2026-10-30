@@ -94,7 +94,7 @@ export function DailyStatsPage({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex h-[calc(100vh-56px)] min-h-[480px] flex-col">
       <PageHead
         crumb={[t('dashboard.navMain'), t('dailyStats.pageTitle')]}
         title={t('dailyStats.pageTitle')}
@@ -216,7 +216,7 @@ function TodayRecordsView({ daily, dailyLoading, dailyError }: DailyTotalsProps)
   const geoMap = useIpGeo(pageIps)
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <UsageMetricsBar
         daily={daily}
         from={todayCst}
@@ -303,7 +303,7 @@ function CustomRangeRecordsView({
   const geoMap = useIpGeo(pageIps)
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <UsageMetricsBar
         daily={daily}
         from={range.from}

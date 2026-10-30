@@ -175,7 +175,7 @@ export function ModelListPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-[calc(100vh-56px)] min-h-[480px] flex-col">
       <PageHead
         crumb={[t('dashboard.navMain'), t('models.pageTitle')]}
         title={t('models.pageTitle')}

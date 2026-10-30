@@ -1,0 +1,25 @@
+src/admin/changelog_data.rs
+  f39c547dbf48596d 70-84
+Cargo.toml
+  f39c547dbf48596d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f2850a9e547a33e6a71bb8db97d3d6d04e71dc74",
+  "prompts": {
+    "f39c547dbf48596d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4916eaa6-909c-4e41-9d29-97d9b327985a",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 1,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}

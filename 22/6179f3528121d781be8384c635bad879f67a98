@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  7eb9cc0a3a6c823a 239,335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "226179f3528121d781be8384c635bad879f67a98",
+  "prompts": {
+    "7eb9cc0a3a6c823a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8ff5ffd-f665-4d69-a2b3-0ff1e148eba2",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

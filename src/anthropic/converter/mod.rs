@@ -8,6 +8,7 @@
 //! - `baseline`: 会话系统块基线（会话中途新增的系统块分流出 history[0]）
 //! - `prompt`: 计费头规范化、输出格式与近期知识提示注入
 //! - `drift_diag`: history[0] 漂移诊断（DEBUG 日志，列出新增/消失的系统块）
+//! - `prefix_diag`: history[1..] 与 tools 的前缀漂移诊断（INFO 日志，指出第一处变化的消息序号）
 //! - `model`: Anthropic 模型名 → Kiro 模型 ID 映射
 //! - `result`: ConversionResult / ConversionError
 //! - `session`: 会话 ID 提取/派生、compact 压缩请求检测
@@ -30,6 +31,7 @@ mod history;
 mod message;
 mod model;
 mod pdf;
+mod prefix_diag;
 mod prompt;
 mod result;
 mod schema;

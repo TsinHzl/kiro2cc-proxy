@@ -246,6 +246,10 @@ pub(super) fn convert_request_with_chunking(
         }
     }
 
+    // 10b. 前缀漂移诊断：此时 tools 与 history 已是最终发往上游的内容，
+    // 与同会话上一次请求比较，history[1..] / tools 变化会在这里留下 INFO 日志
+    super::prefix_diag::observe(&conversation_id, &tools, &history);
+
     // 11b. 构建 UserInputMessageContext —— tools 完整定义直接写入 context.tools（与 Kiro 官方 CLI 一致）
     let mut context = UserInputMessageContext::new();
     if !tools.is_empty() {

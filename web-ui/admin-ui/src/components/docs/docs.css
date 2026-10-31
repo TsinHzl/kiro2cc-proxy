@@ -82,7 +82,7 @@
 .docs-tabs a[aria-current='page'],
 .docs-tabs button[aria-pressed='true'] {
   background: var(--brand-soft);
-  color: var(--brand);
+  color: var(--brand-ink);
 }
 
 /* —— 分区标题 —— */
@@ -216,5 +216,5 @@
 }
 .docs-callout a {
   font-weight: 600;
-  color: var(--brand);
+  color: var(--brand-ink);
 }

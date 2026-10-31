@@ -675,7 +675,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
-            <div className="text-red-500 mb-4">{t('common.loadFailed')}</div>
+            <div className="text-danger mb-4">{t('common.loadFailed')}</div>
             <p className="text-muted-foreground mb-4">{(error as Error).message}</p>
             <div className="space-x-2">
               <Button onClick={() => refetch()}>{t('common.retry')}</Button>

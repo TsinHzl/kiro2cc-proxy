@@ -244,11 +244,11 @@ export function ApiKeyRow({
             output: (usage?.totalOutputTokens ?? 0).toLocaleString(localeTag()),
           })}
         >
-          <span className="font-medium text-blue-600 dark:text-blue-400">
+          <span className="font-medium text-blue-700 dark:text-blue-300">
             ↑{formatCompactToken(usage?.totalInputTokens ?? 0)}
           </span>
           <span className="opacity-40">/</span>
-          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="font-medium text-ok">
             ↓{formatCompactToken(usage?.totalOutputTokens ?? 0)}
           </span>
         </div>

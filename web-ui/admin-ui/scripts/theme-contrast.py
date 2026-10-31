@@ -72,6 +72,9 @@ _LEGACY_PAIRS = [
 ]
 LEGACY_MATRIX = [([f], [b]) for f, b in _LEGACY_PAIRS]
 
+# 个别半透明背景在页面里还会直接叠在 background / surface-3 上（文档页 tabs、callout，状态徽章）
+EXTRA_BASES = {"brand-soft": ["background", "surface-3"], "ok-soft": ["background"]}
+
 FILL_TEXT = {"brand-fg", "primary-foreground", "destructive-foreground"}
 FIX_ORDER = [
     "foreground", "card-foreground", "popover-foreground", "secondary-foreground",
@@ -262,6 +265,8 @@ def selftest() -> None:
     )
     _expect("--ink: #000; /* --ink: #222; */" in wb, "write_block 应改活动声明而不是注释")
     _expect("--ink-3: #444;\n    --brand-ink: #00f;" in wb, "write_block 应为缺分号的末项补分号")
+    _expect(_bases("brand-soft", ["surface"], EXTRA_BASES) == ["surface", "background", "surface-3"]
+            and _bases("ink", ["surface"], EXTRA_BASES) == ["surface"], "per-bg 叠加底色去重与默认值错误")
     _selftest_fix()
     print("selftest OK")
 
@@ -323,14 +328,18 @@ def pair_ratio(tokens, fg, bg, base_name):
     return contrast(f, b)
 
 
-def check_variant(tokens, matrix, bases, hierarchy):
+def _bases(bg, bases, per_bg):
+    return bases + [b for b in (per_bg or {}).get(bg, ()) if b not in bases]
+
+
+def check_variant(tokens, matrix, bases, hierarchy, per_bg=None):
     fails, checks = [], 0
     for fgs, bgs in matrix:
         for fg in fgs:
             for bg in bgs:
                 checks += 1
                 try:
-                    r = min(pair_ratio(tokens, fg, bg, b) for b in bases)
+                    r = min(pair_ratio(tokens, fg, bg, b) for b in _bases(bg, bases, per_bg))
                 except (KeyError, ValueError) as e:
                     fails.append((fg, bg, None, f"令牌缺失或无法解析: {e}"))
                     continue
@@ -354,7 +363,7 @@ def run_check(args):
     failing, total = [], 0
     variants = load_variants(args.file, args.base_only)
     for name, mode, tokens in variants:
-        fails, n = check_variant(tokens, matrix, bases, not legacy)
+        fails, n = check_variant(tokens, matrix, bases, not legacy, None if legacy else EXTRA_BASES)
         total += n
         failing += [(name, mode) + f for f in fails]
     if args.verbose:
@@ -418,14 +427,14 @@ def _hier(t):
     return gap >= 0.2
 
 
-def solve(tokens, name, bgs, bases, extra=None):
+def solve(tokens, name, bgs, bases, extra=None, per_bg=None):
     cur = tokens.get("--" + name) or (tokens["--brand"] if name == "brand-ink" else None)
     if cur is None:
         return None
 
     def ok(c):
         t = {**tokens, "--" + name: c}
-        good = all(min(pair_ratio(t, name, bg, b) for b in bases) >= MIN_RATIO for bg in bgs)
+        good = all(min(pair_ratio(t, name, bg, b) for b in _bases(bg, bases, per_bg)) >= MIN_RATIO for bg in bgs)
         return good and (extra is None or extra(t))
 
     if ok(cur):
@@ -472,7 +481,7 @@ def fix_variant(tokens: Tokens, bases: List[str], label: str) -> Tokens:
     for name in FIX_ORDER:
         try:
             bgs = [b for b in bgs_of(name) if "--" + b in t]
-            new = solve(t, name, bgs, bases, _hier if name == "ink-2" else None)
+            new = solve(t, name, bgs, bases, _hier if name == "ink-2" else None, EXTRA_BASES)
             if new is None and name == "brand-fg":
                 res = fix_brand_fg_with_hover(t)
                 if res:
@@ -588,7 +597,7 @@ def run_fix(args):
     for name, mode, tokens in load_variants(tmp, False):
         if name in ("base", "default"):
             continue
-        for fg, bg, *_ in check_variant(tokens, FULL_MATRIX, bases, True)[0]:
+        for fg, bg, *_ in check_variant(tokens, FULL_MATRIX, bases, True, EXTRA_BASES)[0]:
             print(f"写回后仍失败 {name}/{mode}: {fg} on {bg}")
             bad += 1
     if bad:

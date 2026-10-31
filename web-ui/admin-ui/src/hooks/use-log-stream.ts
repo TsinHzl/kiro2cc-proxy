@@ -18,6 +18,13 @@ export const MAX_FRONT_LOGS = 2000
 const logKey = (e: LogEntry) => `${e.timestamp}|${e.level}|${e.target}|${e.message}`
 
 /**
+ * 上次离开日志页时的显示内容，模块级保留到浏览器刷新为止。日志页每次进入都会重新挂载并
+ * 重新取快照，远程部署时这一个往返约 1 秒；先展示上次内容，首份快照 / history 到达后整体切换。
+ * 不与缓存合并：缓存可能早于快照窗口，mergeHistory 会把旧条目排到新条目之后
+ */
+let lastLogs: LogEntry[] = []
+
+/**
  * 把历史快照并入已有日志：快照在前，已有但快照里没有的条目（更新的实时日志）追加在后。
  * 快照 / SSE history / 实时推送三路来源互相重叠，按内容去重，谁先到都不丢不重。
  */
@@ -35,6 +42,9 @@ export function useLogStream(enabled: boolean): {
   clear: () => void
 } {
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [initialLogs] = useState(() => lastLogs)
+  /** 是否已收到首份快照 / history；收到前对外展示 initialLogs */
+  const [synced, setSynced] = useState(false)
   const [connected, setConnected] = useState(false)
   const esRef = useRef<EventSource | null>(null)
   const mountedRef = useRef(true)
@@ -68,6 +78,7 @@ export function useLogStream(enabled: boolean): {
       flushTimerRef.current = null
     }
     setLogs([])
+    setSynced(true)
   }, [])
 
   const connect = useCallback(() => {
@@ -82,6 +93,7 @@ export function useLogStream(enabled: boolean): {
       .then((entries: LogEntry[]) => {
         if (mountedRef.current && Array.isArray(entries)) {
           setLogs((prev) => mergeHistory(prev, entries))
+          setSynced(true)
         }
       })
       .catch(() => {})
@@ -101,6 +113,7 @@ export function useLogStream(enabled: boolean): {
         const entries: LogEntry[] = JSON.parse(e.data)
         if (Array.isArray(entries)) {
           setLogs((prev) => mergeHistory(prev, entries))
+          setSynced(true)
         }
       } catch {
         // ignore malformed history payload
@@ -165,5 +178,9 @@ export function useLogStream(enabled: boolean): {
     }
   }, [enabled, connect])
 
-  return { logs, connected, clear }
+  useEffect(() => {
+    if (synced) lastLogs = logs
+  }, [logs, synced])
+
+  return { logs: synced ? logs : initialLogs, connected, clear }
 }

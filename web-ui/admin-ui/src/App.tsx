@@ -32,7 +32,7 @@ function App() {
         <LoginPage onLogin={handleLogin} />
       )}
       <ConfirmDialogHost />
-      <Toaster position="top-right" />
+      <Toaster position="top-right" duration={2000} />
     </>
   )
 }

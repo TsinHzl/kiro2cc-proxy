@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useTheme, type ThemeMode } from '@/hooks/use-theme'
+import { readableText, secondaryText } from '@/lib/preview-contrast'
 import {
   COLOR_THEMES,
   THEME_GROUP_ORDER,
@@ -171,6 +172,15 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
   const { t } = useTranslation()
   const [scene, setScene] = useState<PreviewScene>('workbench')
   const swatch = getThemePreviewSwatch(item, mode)
+  const sidebarBg = swatch.sidebar ?? swatch.surface
+  const primaryOnBg = readableText(swatch.primary, swatch.bg)
+  const primaryOnSurface = readableText(swatch.primary, swatch.surface)
+  const primaryOnSidebar = readableText(swatch.primary, sidebarBg)
+  const primaryOnMuted = readableText(swatch.primary, swatch.muted)
+  const onPrimary = readableText(swatch.bg, swatch.primary)
+  const mutedOnBg = secondaryText(swatch.bg)
+  const mutedOnSurface = secondaryText(swatch.surface)
+  const mutedOnSidebar = secondaryText(sidebarBg)
 
   const scenes: { id: PreviewScene; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'workbench', label: t('themeSettings.sceneWorkbench'), icon: LayoutDashboard },
@@ -220,10 +230,10 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
               <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
             ))}
           </span>
-          <span className="ml-1.5 text-[10px] font-medium" style={{ color: swatch.primary }}>
+          <span className="ml-1.5 text-[10px] font-medium" style={{ color: primaryOnSurface }}>
             kiro2cc
           </span>
-          <span className="text-[10px]" style={{ color: swatch.muted }}>
+          <span className="text-[10px]" style={{ color: mutedOnSurface }}>
             · {scenes.find((s) => s.id === scene)?.label} · {t('themeSettings.demoLabel')}
           </span>
         </div>
@@ -231,7 +241,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
         {scene === 'workbench' ? (
           <div className="flex min-h-[168px]">
             <div className="w-28 shrink-0 space-y-1.5 border-r p-2.5" style={{ background: swatch.sidebar ?? swatch.surface, borderColor: swatch.muted }}>
-              <p className="text-[10px] font-semibold" style={{ color: swatch.primary }}>
+              <p className="text-[10px] font-semibold" style={{ color: primaryOnSidebar }}>
                 kiro2cc
               </p>
               {['overview', 'accounts', 'keys', 'usage'].map((k, i) => (
@@ -240,7 +250,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
                   className="rounded px-1.5 py-0.5 text-[9.5px]"
                   style={{
                     background: i === 0 ? swatch.primary : 'transparent',
-                    color: i === 0 ? swatch.bg : swatch.muted,
+                    color: i === 0 ? onPrimary : mutedOnSidebar,
                   }}
                 >
                   {t(`themeSettings.demo.${k}`)}
@@ -250,22 +260,22 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
             <div className="flex-1 space-y-2 p-3">
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
-                  <p className="text-[8.5px]" style={{ color: swatch.muted }}>{t('themeSettings.demo.requests')}</p>
-                  <p className="text-[12px] font-semibold" style={{ color: swatch.primary }}>24,680</p>
+                  <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.requests')}</p>
+                  <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>24,680</p>
                 </div>
                 <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
-                  <p className="text-[8.5px]" style={{ color: swatch.muted }}>{t('themeSettings.demo.successRate')}</p>
-                  <p className="text-[12px] font-semibold" style={{ color: swatch.primary }}>99.9%</p>
+                  <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.successRate')}</p>
+                  <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>99.9%</p>
                 </div>
                 <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
-                  <p className="text-[8.5px]" style={{ color: swatch.muted }}>{t('themeSettings.demo.latency')}</p>
-                  <p className="text-[12px] font-semibold" style={{ color: swatch.primary }}>128ms</p>
+                  <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.latency')}</p>
+                  <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>128ms</p>
                 </div>
               </div>
               <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
                 <div className="mb-1 flex items-center justify-between">
-                  <p className="text-[9px]" style={{ color: swatch.muted }}>{t('themeSettings.demo.traffic')} · {t('themeSettings.demo.week')}</p>
-                  <p className="text-[8.5px]" style={{ color: swatch.muted }}>00:00 – 24:00</p>
+                  <p className="text-[9px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.traffic')} · {t('themeSettings.demo.week')}</p>
+                  <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>00:00 – 24:00</p>
                 </div>
                 <div className="flex h-12 items-end gap-[2px]">
                   {BARS.map((h, i) => (
@@ -273,38 +283,38 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
                   ))}
                 </div>
               </div>
-              <p className="text-[9px]" style={{ color: swatch.muted }}>
+              <p className="text-[9px]" style={{ color: mutedOnBg }}>
                 POST /v1/messages · 200 OK
               </p>
             </div>
           </div>
         ) : (
           <div className="space-y-2.5 p-3">
-            <p className="text-[10px] font-medium" style={{ color: swatch.primary }}>{t('themeSettings.demo.componentsTitle')}</p>
+            <p className="text-[10px] font-medium" style={{ color: primaryOnBg }}>{t('themeSettings.demo.componentsTitle')}</p>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md px-2 py-1 text-[9px] font-medium" style={{ background: swatch.primary, color: swatch.bg }}>
+              <span className="rounded-md px-2 py-1 text-[9px] font-medium" style={{ background: swatch.primary, color: onPrimary }}>
                 {t('themeSettings.demo.primary')}
               </span>
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ borderColor: swatch.muted, color: swatch.primary }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ borderColor: swatch.muted, color: primaryOnBg }}>
                 {t('themeSettings.demo.secondary')}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: swatch.muted }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: mutedOnSurface }}>
                 {t('themeSettings.demo.input')}
               </span>
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: swatch.muted }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: mutedOnSurface }}>
                 {t('themeSettings.demo.selection')}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.primary, color: swatch.bg }}>
+              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.primary, color: onPrimary }}>
                 {t('themeSettings.demo.enabled')}
               </span>
-              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.muted, color: swatch.primary }}>
+              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.muted, color: primaryOnMuted }}>
                 {t('themeSettings.demo.pending')}
               </span>
-              <span className="rounded-full border px-1.5 py-0.5 text-[8.5px]" style={{ borderColor: swatch.primary, color: swatch.primary }}>
+              <span className="rounded-full border px-1.5 py-0.5 text-[8.5px]" style={{ borderColor: swatch.primary, color: primaryOnBg }}>
                 {t('themeSettings.demo.error')}
               </span>
             </div>
@@ -312,9 +322,9 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
               <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: swatch.muted }}>
                 <div className="h-full rounded-full" style={{ width: '68%', background: swatch.primary }} />
               </div>
-              <span className="text-[8.5px]" style={{ color: swatch.muted }}>68%</span>
+              <span className="text-[8.5px]" style={{ color: mutedOnBg }}>68%</span>
             </div>
-            <p className="rounded-md px-2 py-1.5 text-[9px]" style={{ background: swatch.muted, color: swatch.primary }}>
+            <p className="rounded-md px-2 py-1.5 text-[9px]" style={{ background: swatch.muted, color: primaryOnMuted }}>
               {t('themeSettings.demo.notice')}
             </p>
           </div>

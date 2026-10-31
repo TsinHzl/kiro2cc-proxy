@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/App.tsx
+  42b4f72021b55a65 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "53119957e467037097a7aff7b8d1c72bededfe0e",
+  "prompts": {
+    "42b4f72021b55a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d1ec2b-a1e4-45fe-b652-56bb85bac601",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

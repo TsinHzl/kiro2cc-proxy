@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/account-row.tsx
+  5961d230e7470398 6-7,29,32,132-134,158-172,264,467-469
+src/admin/handlers.rs
+  5961d230e7470398 25-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5024075c69a57b6d0acce0962810207460e93d07",
+  "prompts": {
+    "5961d230e7470398": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "840c60f1-2c18-41e8-979d-23440f2985c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 1,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}

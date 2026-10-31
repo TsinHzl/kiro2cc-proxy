@@ -1,0 +1,65 @@
+src/model/config.rs
+  5961d230e7470398 161-162,304,500-505,507-511,584-589,736-762
+web-ui/admin-ui/src/App.tsx
+  5961d230e7470398 3-5,14,23-28,46
+src/admin/auth_throttle.rs
+  5961d230e7470398 6,27,37,39,46,50-59,62-66,158-164,169-171,175,289-337
+src/anthropic/handlers/ping.rs
+  5961d230e7470398 25,31-37,90-100
+src/admin/service.rs
+  5961d230e7470398 372-373,379,752,1123
+src/main.rs
+  5961d230e7470398 358-367,462,464-466,468,470-474,492-494
+src/kiro/provider/retry.rs
+  5961d230e7470398 252-253
+web-ui/admin-ui/src/components/api-keys/panel-constants.ts
+  5961d230e7470398 21,24
+src/model/usage/tests.rs
+  5961d230e7470398 6-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1e89bc8dc73b2caf27baa9ff2a5d0575eb42b2bc",
+  "prompts": {
+    "5961d230e7470398": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "840c60f1-2c18-41e8-979d-23440f2985c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 234,
+      "total_deletions": 66,
+      "accepted_lines": 213,
+      "overriden_lines": 0
+    },
+    "a466e9b9f7db90fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecf82449-c46e-48ac-a71a-f48c03c1bc58",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 367,
+      "total_deletions": 0,
+      "accepted_lines": 367,
+      "overriden_lines": 0
+    },
+    "d9b1472e48618524": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c5ab135-ee8d-4c08-8db1-72338e3f7e2a",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 498,
+      "total_deletions": 3,
+      "accepted_lines": 495,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -107,6 +107,8 @@ pub struct StreamContext {
     credits_footer: Option<crate::anthropic::stream::CreditsFooterRequest>,
     /// 本请求的 credits 是否已计入会话累计（重复收尾不得重复记账、重复追加汇总行）
     credits_recorded: bool,
+    /// 本请求是子代理请求：credits 计入主对话 turn，但不输出汇总行
+    credits_is_sub: bool,
 }
 
 impl StreamContext {
@@ -157,6 +159,7 @@ impl StreamContext {
             conversation_id: None,
             credits_footer: None,
             credits_recorded: false,
+            credits_is_sub: false,
         }
     }
 
@@ -180,7 +183,8 @@ impl StreamContext {
         started_at: Instant,
     ) -> Self {
         if let (Some(req), Some(conv)) = (request, self.conversation_id.as_deref()) {
-            crate::anthropic::stream::begin_request(conv, req.new_turn, started_at);
+            self.credits_is_sub =
+                crate::anthropic::stream::begin_request(conv, req.chain, req.new_turn, started_at);
             self.credits_footer = Some(req);
         }
         self
@@ -715,6 +719,7 @@ impl StreamContext {
     ///
     /// - 每个带 metering 的请求都计入 turn / session 累计，包括以 tool_use 结束的中间请求；
     ///   只有 end_turn 且已有可见正文时才输出汇总行
+    /// - 子代理请求（主对话 turn 进行中的陌生请求链）只记账，不输出汇总行，也不结束主对话的 turn
     /// - 汇总行不计入 `visible_full_text`：它不是模型输出，不能进入 output_tokens 上报与计费口径
     fn credits_footer_events(&mut self) -> Vec<SseEvent> {
         let (Some(footer), Some(conv), Some(credits)) = (
@@ -730,7 +735,11 @@ impl StreamContext {
         }
         self.credits_recorded = true;
         let snapshot = crate::anthropic::stream::record_credits(conv, credits);
-        if self.state_manager.get_stop_reason() != "end_turn" || self.visible_full_text.is_empty() {
+        let end_turn = self.state_manager.get_stop_reason() == "end_turn";
+        if end_turn && !self.credits_is_sub {
+            crate::anthropic::stream::finish_turn(conv);
+        }
+        if self.credits_is_sub || !end_turn || self.visible_full_text.is_empty() {
             return Vec::new();
         }
         let text = crate::anthropic::stream::render_footer(

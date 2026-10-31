@@ -7,7 +7,8 @@
 //! ▸ Credits: turn 0.86 • session 8.73 | Time: 12s
 //! ```
 //!
-//! - `turn`：同一次用户提问下所有上游请求（含工具调用往返）的 credits 之和
+//! - `turn`：从用户最近一次发送消息起到本轮回复结束，所有上游请求（含工具调用往返、
+//!   期间子代理发起的请求）的 credits 之和
 //! - `session`：同一 conversationId 下自开启以来所有请求的 credits 之和
 //! - `Time`：本轮从第一个请求发起到当前响应结束的墙钟时间（含工具执行耗时）
 //!
@@ -18,7 +19,8 @@
 //! `converter::history` 调用 [`strip_credits_footer`] 剥离，上游上下文不含该行
 //! （同时保持历史逐字节稳定，不破坏 prompt cache）。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -41,6 +43,8 @@ const DIM_ITALIC_ON: &str = "\x1b[2;3m";
 const MAX_SESSIONS: usize = 2000;
 /// 会话闲置超过此时长即可被淘汰
 const SESSION_TTL: Duration = Duration::from_secs(24 * 3600);
+/// 主对话 turn 超过此时长没有任何请求，就不再把陌生请求链当作子代理（用户中断后重新提问的兜底）
+const TURN_IDLE_LIMIT: Duration = Duration::from_secs(600);
 
 static SHOW_SESSION_CREDITS: AtomicBool = AtomicBool::new(false);
 
@@ -61,6 +65,8 @@ pub struct CreditsFooterRequest {
     pub style: ThinkingTextStyle,
     /// 本请求是否开启新的一轮（即不是工具结果回传的续轮）
     pub new_turn: bool,
+    /// 请求链标识：首条消息文本的哈希。主对话与每个子代理的首条消息各不相同，据此区分
+    pub chain: u64,
 }
 
 /// 判断本请求是否需要追加汇总行；不需要返回 `None`。
@@ -80,7 +86,25 @@ pub fn credits_footer_request(
     Some(CreditsFooterRequest {
         style,
         new_turn: !is_tool_result_continuation(messages),
+        chain: chain_key(messages),
     })
+}
+
+fn chain_key(messages: &[Message]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    match messages.first().map(|m| &m.content) {
+        Some(serde_json::Value::String(s)) => s.hash(&mut hasher),
+        Some(serde_json::Value::Array(blocks)) => {
+            for text in blocks
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+            {
+                text.hash(&mut hasher);
+            }
+        }
+        _ => {}
+    }
+    hasher.finish()
 }
 
 /// 最后一条消息是否携带工具结果（同一轮内的续请求）。
@@ -105,6 +129,26 @@ struct SessionEntry {
     turn_total: f64,
     turn_started: Instant,
     touched: Instant,
+    /// 当前 turn 主对话的请求链标识
+    main_chain: u64,
+    /// 主对话的 turn 是否进行中（end_turn 后关闭）
+    turn_open: bool,
+    /// 当前 turn 内识别出的子代理请求链
+    sub_chains: HashSet<u64>,
+}
+
+impl SessionEntry {
+    fn new(now: Instant) -> Self {
+        Self {
+            session_total: 0.0,
+            turn_total: 0.0,
+            turn_started: now,
+            touched: now,
+            main_chain: 0,
+            turn_open: false,
+            sub_chains: HashSet::new(),
+        }
+    }
 }
 
 static SESSIONS: Mutex<Option<HashMap<String, SessionEntry>>> = Mutex::new(None);
@@ -120,23 +164,52 @@ pub struct CreditsSnapshot {
 /// 登记请求开始：新一轮则清零 turn 累计并重置计时起点。
 ///
 /// `started_at` 是请求发起时刻（含上游建连），新一轮以它作为 Time 的起点。
-pub fn begin_request(conversation_id: &str, new_turn: bool, started_at: Instant) {
+///
+/// 返回本请求是否为子代理请求：主对话 turn 进行中出现的陌生请求链。子代理的 credits
+/// 计入主对话当前 turn，但不清零 turn、不输出汇总行。
+pub fn begin_request(
+    conversation_id: &str,
+    chain: u64,
+    new_turn: bool,
+    started_at: Instant,
+) -> bool {
     let mut guard = SESSIONS.lock().unwrap_or_else(|e| e.into_inner());
     let map = guard.get_or_insert_with(HashMap::new);
     evict_if_full(map);
     let entry = map
         .entry(conversation_id.to_string())
-        .or_insert_with(|| SessionEntry {
-            session_total: 0.0,
-            turn_total: 0.0,
-            turn_started: started_at,
-            touched: started_at,
-        });
-    if new_turn {
-        entry.turn_total = 0.0;
-        entry.turn_started = started_at;
+        .or_insert_with(|| SessionEntry::new(started_at));
+    let now = Instant::now();
+    let open = entry.turn_open && now.saturating_duration_since(entry.touched) < TURN_IDLE_LIMIT;
+    let is_sub = if new_turn {
+        if open && chain != entry.main_chain {
+            entry.sub_chains.insert(chain);
+            true
+        } else {
+            entry.main_chain = chain;
+            entry.sub_chains.clear();
+            entry.turn_total = 0.0;
+            entry.turn_started = started_at;
+            entry.turn_open = true;
+            false
+        }
+    } else {
+        entry.sub_chains.contains(&chain)
+    };
+    if !is_sub && !entry.turn_open {
+        entry.main_chain = chain;
+        entry.turn_open = true;
     }
-    entry.touched = Instant::now();
+    entry.touched = now;
+    is_sub
+}
+
+/// 主对话以 end_turn 结束：关闭当前 turn，之后出现的陌生请求链不再被当作子代理
+pub fn finish_turn(conversation_id: &str) {
+    let mut guard = SESSIONS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(entry) = guard.as_mut().and_then(|m| m.get_mut(conversation_id)) {
+        entry.turn_open = false;
+    }
 }
 
 /// 登记请求结束并计入本次 credits，返回累计快照
@@ -146,12 +219,7 @@ pub fn record_credits(conversation_id: &str, credits: f64) -> CreditsSnapshot {
     let now = Instant::now();
     let entry = map
         .entry(conversation_id.to_string())
-        .or_insert_with(|| SessionEntry {
-            session_total: 0.0,
-            turn_total: 0.0,
-            turn_started: now,
-            touched: now,
-        });
+        .or_insert_with(|| SessionEntry::new(now));
     entry.session_total += credits;
     entry.turn_total += credits;
     entry.touched = now;
@@ -391,26 +459,68 @@ mod tests {
         let conv = "test-conv-accumulate";
         let t0 = Instant::now();
 
-        begin_request(conv, true, t0);
+        begin_request(conv, 1, true, t0);
         let a = record_credits(conv, 0.5);
         assert_eq!((a.turn, a.session), (0.5, 0.5));
 
         // 同一轮的续请求（工具回传）：turn 与 session 同步累加
-        begin_request(conv, false, Instant::now());
+        begin_request(conv, 1, false, Instant::now());
         let b = record_credits(conv, 0.25);
         assert_eq!((b.turn, b.session), (0.75, 0.75));
 
         // 新一轮：turn 清零，session 保留
-        begin_request(conv, true, Instant::now());
+        begin_request(conv, 1, true, Instant::now());
         let c = record_credits(conv, 1.0);
         assert_eq!((c.turn, c.session), (1.0, 1.75));
     }
 
     #[test]
+    fn subagent_requests_merge_into_main_turn() {
+        let conv = "test-conv-subagent";
+        assert!(!begin_request(conv, 1, true, Instant::now()));
+        record_credits(conv, 0.5);
+        // 子代理首个请求：陌生请求链，不清零 turn
+        assert!(begin_request(conv, 2, true, Instant::now()));
+        record_credits(conv, 0.25);
+        // 子代理工具回传
+        assert!(begin_request(conv, 2, false, Instant::now()));
+        record_credits(conv, 0.25);
+        // 主对话续请求
+        assert!(!begin_request(conv, 1, false, Instant::now()));
+        let s = record_credits(conv, 1.0);
+        assert_eq!((s.turn, s.session), (2.0, 2.0));
+
+        // 主对话 end_turn 后，陌生请求链是新一轮
+        finish_turn(conv);
+        assert!(!begin_request(conv, 3, true, Instant::now()));
+        let n = record_credits(conv, 0.5);
+        assert_eq!((n.turn, n.session), (0.5, 2.5));
+    }
+
+    #[test]
+    fn same_chain_new_turn_resets_when_previous_turn_never_ended() {
+        let conv = "test-conv-interrupted";
+        begin_request(conv, 1, true, Instant::now());
+        record_credits(conv, 0.5);
+        // 上一轮未 end_turn（用户中断后重新提问）：同一请求链的新消息仍清零 turn
+        assert!(!begin_request(conv, 1, true, Instant::now()));
+        let s = record_credits(conv, 0.25);
+        assert_eq!((s.turn, s.session), (0.25, 0.75));
+    }
+
+    #[test]
+    fn chain_key_follows_first_message_text() {
+        let m = |t: &str| msg("user", json!(t));
+        let a = chain_key(&[m("A"), m("后续1")]);
+        assert_eq!(a, chain_key(&[m("A"), m("后续2")]));
+        assert_ne!(a, chain_key(&[m("B")]));
+    }
+
+    #[test]
     fn sessions_are_isolated_by_conversation() {
         let t0 = Instant::now();
-        begin_request("test-conv-iso-a", true, t0);
-        begin_request("test-conv-iso-b", true, t0);
+        begin_request("test-conv-iso-a", 1, true, t0);
+        begin_request("test-conv-iso-b", 1, true, t0);
         record_credits("test-conv-iso-a", 2.0);
         let b = record_credits("test-conv-iso-b", 3.0);
         assert_eq!((b.turn, b.session), (3.0, 3.0));
@@ -420,7 +530,7 @@ mod tests {
     fn new_turn_time_starts_at_request_start() {
         let conv = "test-conv-time";
         let started = Instant::now() - Duration::from_secs(7);
-        begin_request(conv, true, started);
+        begin_request(conv, 1, true, started);
         let s = record_credits(conv, 0.1);
         assert!(s.elapsed >= Duration::from_secs(7));
         assert!(s.elapsed < Duration::from_secs(10));
@@ -431,15 +541,7 @@ mod tests {
         let mut map: HashMap<String, SessionEntry> = HashMap::new();
         let now = Instant::now();
         for i in 0..MAX_SESSIONS {
-            map.insert(
-                format!("k{i}"),
-                SessionEntry {
-                    session_total: 0.0,
-                    turn_total: 0.0,
-                    turn_started: now,
-                    touched: now,
-                },
-            );
+            map.insert(format!("k{i}"), SessionEntry::new(now));
         }
         evict_if_full(&mut map);
         assert!(map.len() < MAX_SESSIONS);

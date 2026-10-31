@@ -438,6 +438,7 @@ mod tests {
         Some(CreditsFooterRequest {
             style: ThinkingTextStyle::Ansi,
             new_turn,
+            chain: 1,
         })
     }
 
@@ -539,12 +540,55 @@ mod tests {
     }
 
     #[test]
+    fn test_credits_footer_subagent_merges_into_main_turn_without_footer() {
+        let conv = "ctx-footer-subagent";
+        let chain = |new_turn: bool, chain: u64| {
+            Some(CreditsFooterRequest {
+                style: ThinkingTextStyle::Ansi,
+                new_turn,
+                chain,
+            })
+        };
+
+        // 主对话先以 tool_use 结束（调用 Task 工具）
+        let mut main1 = make_ctx(conv, chain(true, 1));
+        main1.process_kiro_event(&text_event("派个子代理"));
+        main1.process_tool_use(&ToolUseEvent {
+            name: "Task".to_string(),
+            tool_use_id: "toolu_1".to_string(),
+            input: "{}".to_string(),
+            stop: true,
+        });
+        main1.process_kiro_event(&metering_event(0.25));
+        let _ = main1.generate_final_events();
+
+        // 子代理以 end_turn 结束：记账但不输出汇总行
+        let mut sub = make_ctx(conv, chain(true, 2));
+        let mut out = sub.process_kiro_event(&text_event("子代理结果"));
+        sub.process_kiro_event(&metering_event(0.5));
+        out.extend(sub.generate_final_events());
+        assert_eq!(collect_text(&out), "子代理结果");
+
+        // 主对话收到工具结果后 end_turn：turn 含子代理的消耗
+        let mut main2 = make_ctx(conv, chain(false, 1));
+        let mut out = main2.process_kiro_event(&text_event("汇总完毕"));
+        main2.process_kiro_event(&metering_event(0.25));
+        out.extend(main2.generate_final_events());
+        assert!(
+            collect_text(&out).contains("turn 1.00 • session 1.00"),
+            "text={:?}",
+            collect_text(&out)
+        );
+    }
+
+    #[test]
     fn test_credits_footer_plain_style_has_no_escape_codes() {
         let mut ctx = make_ctx(
             "ctx-footer-plain",
             Some(CreditsFooterRequest {
                 style: ThinkingTextStyle::Plain,
                 new_turn: true,
+                chain: 1,
             }),
         );
         let mut out = ctx.process_kiro_event(&text_event("done"));

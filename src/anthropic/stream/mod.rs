@@ -23,8 +23,8 @@ pub use calib::{
 pub use context::StreamContext;
 pub(crate) use credits_footer::strip_credits_footer;
 pub use credits_footer::{
-    CreditsFooterRequest, begin_request, credits_footer_request, record_credits, render_footer,
-    set_show_session_credits, show_session_credits_enabled,
+    CreditsFooterRequest, begin_request, credits_footer_request, finish_turn, record_credits,
+    render_footer, set_show_session_credits, show_session_credits_enabled,
 };
 pub(crate) use echo_guard::ResponseEchoGuard;
 pub(crate) use helpers::generate_fake_signature;

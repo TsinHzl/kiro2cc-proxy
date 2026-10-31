@@ -1,6 +1,6 @@
 # 任务清单：fix-theme-color-contrast
 
-## 状态：DONE
+## 状态：ARCHIVED
 
 > 提交拆分（各自走 CR，避免单次净变更超过 500 行）：第 1 次提交 = 任务 2–5（审计脚本与 `package.json` 入口；任务 1 为只读调研，无提交）；第 2 次提交 = 任务 6–11（`index.css` / `themes.css` 令牌改写、`tailwind.config.js` 映射、CSS 直引与组件调整）；第 3 次提交 = 任务 12（预览区 `preview-contrast.ts` 与 `theme-settings-page.tsx`）。任务 13–14 为验证，不产生提交。
 

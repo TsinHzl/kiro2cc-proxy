@@ -11,7 +11,7 @@ The system SHALL 保证管理后台每一个色彩主题的浅色与深色变体
 - 填充上的文字：`brand-fg` 对 `brand` 与 `brand-hover`，`primary-foreground` 对 `primary`，`destructive-foreground` 对 `destructive`。
 - 用量进度四档徽章文字对各自徽章底色；NEW 徽章文字 `badge-new-fg` 对其渐变两端。
 
-半透明背景（如 `-soft`、徽章底色）分别叠加在 `surface` 与 `surface-2` 上，取对比度较低的合成结果计算。
+半透明背景（如 `-soft`、徽章底色）分别叠加在 `surface` 与 `surface-2` 上；`brand-soft` 另叠 `background`、`surface-3`，`ok-soft` 另叠 `background`；取对比度较低的合成结果计算。
 
 #### Scenario: 全部主题变体通过对比度审计
 - **GIVEN** `index.css` 基准令牌与 `themes.css` 中全部 36 个主题的浅色、深色变体

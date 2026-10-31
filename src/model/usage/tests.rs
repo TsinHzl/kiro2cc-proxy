@@ -1215,4 +1215,50 @@ mod tests {
             Some(0)
         );
     }
+
+    #[test]
+    fn test_pricing_infer_cache_read_sonnet_55_uses_calibrated_rates() {
+        // 2026-10-31 日志实测样本（[usage] 入库行）：热续请求按通用 sonnet 派生费率
+        // 反推为 0（回归点），按实测费率应接近满命中
+        for model in ["claude-sonnet-5-5", "claude-sonnet-5.5"] {
+            // 23:00:56 热请求：I=113615 O=85 credits=0.4630，上一轮 4 秒前
+            let warm = infer_cache_read_from_credits(model, 113_615, 85, 0.463_0).unwrap();
+            assert!(
+                warm > 100_000,
+                "{model} 热请求应判为大部分命中，实际 {warm}"
+            );
+            assert_eq!(
+                refine_prefix_cache_read(model, 113_500, 113_615, 85, Some(0.463_0)),
+                113_500,
+                "{model} 命中值受静态前缀上界约束"
+            );
+            // 21:53:41 冷启动（新基线首个请求）：I=13069 O=19 credits=0.1659
+            assert_eq!(
+                infer_cache_read_from_credits(model, 13_069, 19, 0.165_9),
+                Some(0),
+                "{model} 冷启动应判为未命中"
+            );
+            // 22:27:47 冷启动长上下文：I=112025 O=193 credits=1.3200
+            assert_eq!(
+                infer_cache_read_from_credits(model, 112_025, 193, 1.320_0),
+                Some(0)
+            );
+        }
+        // 公式自洽：按标定参数构造 30% 命中，反推应还原
+        let (r_miss, r_out, s) = (10.8, 290.0, 0.55);
+        let credits = (r_miss * 100_000.0 + r_out * 200.0 - s * r_miss * 30_000.0) / 1e6;
+        assert_eq!(
+            infer_cache_read_from_credits("claude-sonnet-5-5", 100_000, 200, credits),
+            Some(30_000)
+        );
+        // sonnet 5 / 4.6 仍走通用派生费率，不受影响
+        let generic = (4.29 * 50_000.0 + 21.45 * 500.0 - 0.90 * 4.29 * 20_000.0) / 1e6;
+        for model in ["claude-sonnet-5", "claude-sonnet-4-6"] {
+            assert_eq!(
+                infer_cache_read_from_credits(model, 50_000, 500, generic),
+                Some(20_000),
+                "{model}"
+            );
+        }
+    }
 }

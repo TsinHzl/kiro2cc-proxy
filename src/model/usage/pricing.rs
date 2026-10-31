@@ -15,6 +15,11 @@ fn is_haiku_55(model_lower: &str) -> bool {
     model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
 }
 
+/// 判断模型名是否属于 sonnet 5.5（与 `is_haiku_55` 同口径，兼容 `5-5` / `5.5`）。
+fn is_sonnet_55(model_lower: &str) -> bool {
+    model_lower.replace(['.', ' '], "-").contains("sonnet-5-5")
+}
+
 /// Haiku 5.5 长上下文阈值（tokens）。
 ///
 /// 官方口径：单次请求 prompt 超过 100K 时，**整个请求**按 5 倍高档计费
@@ -35,6 +40,20 @@ const HAIKU_55_CREDIT_RATES_STANDARD: (f64, f64) = (1.6978, 19.1873);
 
 /// Haiku 5.5 长上下文档（> 100K）实测 credits/MTok 费率：(r_miss, r_out)。
 const HAIKU_55_CREDIT_RATES_LONG_CONTEXT: (f64, f64) = (6.7830, 93.9200);
+
+/// Sonnet 5.5 实测 credits/MTok 费率：(r_miss, r_out)。
+///
+/// 按通用 sonnet 派生值（4.29 / 21.45）反推时，热请求的实际 credits ≈ 4.3/MTok
+/// 恰好等于派生的 r_miss，于是 94% 的请求被判为「完全未命中」、缓存读取落库为 0。
+/// 2026-10-31 单账号 457 个样本（55 个冷启动 + 402 个 4 分钟内的热续请求，
+/// 输入 8K–168K、thinking adaptive）联合回归：未缓存 ≈ 10.8、已缓存 ≈ 4.9。
+/// `r_out` 按可见输出 token 计（≈ 290），远高于定价派生值，因为上游不回传
+/// Sonnet 5.5 的思考内容、但照常计费，隐藏的思考成本只能摊到可见输出上。
+/// 未覆盖 >200K 输入，也未单独标定不开 thinking 的请求。
+const SONNET_55_CREDIT_RATES: (f64, f64) = (10.8, 290.0);
+
+/// Sonnet 5.5 缓存读取的节省比例：已缓存 ≈ 4.9 / 未缓存 ≈ 10.8，约省 55%（不是 90%）。
+const SONNET_55_CACHE_READ_SAVINGS_RATIO: f64 = 0.55;
 
 /// Opus 4.5+ 定价：$5 / $25。fable 仅在反推路径沿用此档。
 const OPUS_PRICING: ModelPricing = ModelPricing {
@@ -147,22 +166,28 @@ fn is_claude_model(model_lower: &str) -> bool {
         || model_lower.contains("fable")
 }
 
-/// 获取 Claude 模型的 `(r_miss, r_out)`（单位：credits / MTok）。
+/// 获取 Claude 模型的 `(r_miss, r_out, read_savings)`：前两项单位 credits / MTok，
+/// 第三项为缓存读取相对未命中单价的节省比例。
 ///
 /// - `claude-haiku-5-5` 使用实测标定的 `<= 100K` / `> 100K` 双档参数；
+/// - `claude-sonnet-5-5` 使用实测标定参数（见 `SONNET_55_CREDIT_RATES`）；
 /// - 其余 Claude 模型沿用定价与历史 k_ref 派生，属于尚未实测标定的费率假设；
 /// - 非 Claude 模型返回 `None`（跳过反推）。
-fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<(f64, f64)> {
+fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<(f64, f64, f64)> {
     let model_lower = model.to_lowercase();
     if !is_claude_model(&model_lower) {
         return None;
     }
     if is_haiku_55(&model_lower) {
-        if input_tokens > HAIKU_55_LONG_CONTEXT_THRESHOLD {
-            Some(HAIKU_55_CREDIT_RATES_LONG_CONTEXT)
+        let (r_miss, r_out) = if input_tokens > HAIKU_55_LONG_CONTEXT_THRESHOLD {
+            HAIKU_55_CREDIT_RATES_LONG_CONTEXT
         } else {
-            Some(HAIKU_55_CREDIT_RATES_STANDARD)
-        }
+            HAIKU_55_CREDIT_RATES_STANDARD
+        };
+        Some((r_miss, r_out, CACHE_READ_SAVINGS_RATIO))
+    } else if is_sonnet_55(&model_lower) {
+        let (r_miss, r_out) = SONNET_55_CREDIT_RATES;
+        Some((r_miss, r_out, SONNET_55_CACHE_READ_SAVINGS_RATIO))
     } else {
         // fable 仅反推路径按 opus 价，calculate_cost 口径保持不变
         let pricing = if model_lower.contains("fable") {
@@ -174,13 +199,15 @@ fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<(f64, f64)>
         Some((
             pricing.input_per_mtok * k_ref,
             pricing.output_per_mtok * k_ref,
+            CACHE_READ_SAVINGS_RATIO,
         ))
     }
 }
 
 /// 由上游 `meteringEvent.usage`（`credits_used`）反推缓存读取 token 数。
 ///
-/// 公式：`clamp(round((r_miss * I + r_out * O_billed - credits_used * 1e6) / (0.90 * r_miss)), 0, I)`。
+/// 公式：`clamp(round((r_miss * I + r_out * O_billed - credits_used * 1e6) / (s * r_miss)), 0, I)`，
+/// `s` 为缓存读取节省比例（默认 0.90，Sonnet 5.5 为实测 0.55）。
 /// 仅对 Claude 系列模型且 `input_tokens >= 4096`、`credits_used > 0` 生效。
 pub(crate) fn infer_cache_read_from_credits(
     model: &str,
@@ -191,13 +218,13 @@ pub(crate) fn infer_cache_read_from_credits(
     if input_tokens < MIN_INFER_INPUT_TOKENS || !credits_used.is_finite() || credits_used <= 0.0 {
         return None;
     }
-    let (r_miss, r_out) = get_claude_credit_rates(model, input_tokens)?;
+    let (r_miss, r_out, read_savings) = get_claude_credit_rates(model, input_tokens)?;
     let input = input_tokens as f64;
     let output = billed_output_tokens.max(0) as f64;
     let expected_no_cache_micro = r_miss * input + r_out * output;
     let actual_micro = credits_used * 1_000_000.0;
     let saved_micro = expected_no_cache_micro - actual_micro;
-    let raw_read = (saved_micro / (CACHE_READ_SAVINGS_RATIO * r_miss)).round() as i64;
+    let raw_read = (saved_micro / (read_savings * r_miss)).round() as i64;
     Some(raw_read.clamp(0, input_tokens as i64) as i32)
 }
 

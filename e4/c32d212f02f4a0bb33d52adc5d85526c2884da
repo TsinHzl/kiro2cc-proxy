@@ -1,0 +1,29 @@
+src/anthropic/stream/tests/context.rs
+  42b4f72021b55a65 441,543-583,591
+src/anthropic/stream/context/mod.rs
+  42b4f72021b55a65 110-111,162,186-187,722,738-742
+src/anthropic/stream/credits_footer.rs
+  42b4f72021b55a65 10-11,22-23,46-47,68-69,89,93-107,132-151,167-175,181-201,203-211,222,462,467,472,477-516,522-523,533,544
+src/anthropic/stream/mod.rs
+  42b4f72021b55a65 26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e4c32d212f02f4a0bb33d52adc5d85526c2884da",
+  "prompts": {
+    "42b4f72021b55a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d1ec2b-a1e4-45fe-b652-56bb85bac601",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 193,
+      "total_deletions": 38,
+      "accepted_lines": 193,
+      "overriden_lines": 0
+    }
+  }
+}

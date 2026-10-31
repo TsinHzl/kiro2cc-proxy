@@ -67,30 +67,64 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
-            version: "3.4.43".to_string(),
+            version: "3.4.45".to_string(),
             is_latest: false,
             groups: vec![
-                feat_group(vec![
+                feat_group(vec![Bilingual::new(
+                    "新增 [prefix-drift] / [prefix-shrink] 诊断日志：对比同会话相邻两次请求的 tools 与 history[1..] 指纹，定位前缀从第几条消息起发生变化，用于区分前缀改动与上游缓存丢失",
+                    "Added [prefix-drift] / [prefix-shrink] diagnostics: tools and history[1..] fingerprints are compared between consecutive requests in a session to pinpoint the first message where the prefix changed, telling prefix edits apart from upstream cache loss",
+                )]),
+                improve_group(vec![
                     Bilingual::new(
-                        "聊天回复末尾新增 turn/session credits 展示（showSessionCredits）：对话结束时把本次所耗与累计的 credits 一并呈现给用户",
-                        "The end of a chat reply now shows turn/session credits (showSessionCredits): on conversation end the credits consumed this turn and the running session total are presented to the user",
+                        "36 套主题的文字与背景对比度统一提升到 WCAG AA（4.5:1），主题设置页实时预览的文字按实际底色计算可读色",
+                        "Text-to-background contrast across all 36 themes now meets WCAG AA (4.5:1), and the live preview on the theme settings page picks a readable text color from the actual background",
                     ),
                     Bilingual::new(
-                        "管理端弹窗与下拉菜单增加进出场动画，交互过渡更平滑",
-                        "The admin-side dialogs and dropdown menus now animate on open and close, making transitions smoother",
+                        "普通提示 toast 显示时长缩短到 2 秒；错误提示延长到 5 秒，带操作按钮的提示为 6 秒，留出阅读和点击时间",
+                        "Regular toasts now dismiss after 2 seconds; error toasts stay for 5 seconds and toasts with an action button for 6 seconds, leaving time to read and click",
+                    ),
+                    Bilingual::new(
+                        "从侧栏其他页面切回账号管理页时，刷新内容与浏览器标签页切回前台保持一致",
+                        "Switching back to the account manager from another sidebar page now refreshes the same data as returning to the browser tab",
+                    ),
+                    Bilingual::new(
+                        "支持模型页改为固定视口高度，模型表在框内滚动；按模型分组的折叠标题仅箭头和文字可点击",
+                        "The supported-models page now has a fixed viewport height with the table scrolling inside its frame; per-model group headers toggle only from the arrow and label",
+                    ),
+                ]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "缓存读取反推改用全部 Claude 模型的受控实测费率（未缓存 / 缓存 / 输出三项），修复 Sonnet 5.5 等模型缓存读取几乎恒为 0；未实测模型跳过反推、保留前缀估算",
+                        "Cache-read inference now uses measured rates (uncached / cached / output) for every Claude model, fixing cache reads that were almost always 0 on Sonnet 5.5 and others; unmeasured models skip inference and keep the prefix estimate",
+                    ),
+                    Bilingual::new(
+                        "基线表淘汰改为优先保留被反复匹配的主对话基线，避免子代理连续登记新基线把主对话基线挤出，导致上游前缀缓存整段失效",
+                        "Baseline eviction now favours main-conversation baselines that keep getting matched, so bursts of sub-agent baselines no longer push them out and invalidate the whole upstream prefix cache",
                     ),
                 ]),
             ],
         },
         ReleaseNote {
+            version: "3.4.43".to_string(),
+            is_latest: false,
+            groups: vec![feat_group(vec![
+                Bilingual::new(
+                    "聊天回复末尾新增 turn/session credits 展示（showSessionCredits）：对话结束时把本次所耗与累计的 credits 一并呈现给用户",
+                    "The end of a chat reply now shows turn/session credits (showSessionCredits): on conversation end the credits consumed this turn and the running session total are presented to the user",
+                ),
+                Bilingual::new(
+                    "管理端弹窗与下拉菜单增加进出场动画，交互过渡更平滑",
+                    "The admin-side dialogs and dropdown menus now animate on open and close, making transitions smoother",
+                ),
+            ])],
+        },
+        ReleaseNote {
             version: "3.4.42".to_string(),
             is_latest: false,
-            groups: vec![
-                feat_group(vec![Bilingual::new(
-                    "账号管理与使用日志页切回浏览器标签页时自动刷新数据，避免长时间停留在页面后展示过期状态",
-                    "The account-manager and usage-log pages now auto-refresh their data when the browser tab regains focus, so stale state is not shown after the page has been idle",
-                )]),
-            ],
+            groups: vec![feat_group(vec![Bilingual::new(
+                "账号管理与使用日志页切回浏览器标签页时自动刷新数据，避免长时间停留在页面后展示过期状态",
+                "The account-manager and usage-log pages now auto-refresh their data when the browser tab regains focus, so stale state is not shown after the page has been idle",
+            )])],
         },
         ReleaseNote {
             version: "3.4.41".to_string(),

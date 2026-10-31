@@ -99,6 +99,17 @@ export default {
           red: '#ef4444',
         },
       },
+      // 文字专用品牌色：text-brand 走 --brand-ink（保证对比度），bg-brand / border-brand 仍走 --brand 填充色。
+      // 必须写成完整对象，写成字符串会吞掉 text-brand-fg / text-brand-hover 等子类。
+      textColor: {
+        brand: {
+          DEFAULT: 'var(--brand-ink)',
+          hover: 'var(--brand-hover)',
+          fg: 'var(--brand-fg)',
+          soft: 'var(--brand-soft)',
+          line: 'var(--brand-line)',
+        },
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',

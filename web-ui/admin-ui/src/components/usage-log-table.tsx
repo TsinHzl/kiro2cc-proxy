@@ -261,7 +261,7 @@ export function UsageLogTable({
                         )}
                         {record.effort && (
                           <span
-                            className="rounded bg-orange-500/15 px-1 py-px font-mono text-[10px] leading-tight text-orange-500"
+                            className="rounded bg-warn-soft px-1 py-px font-mono text-[10px] leading-tight text-warn"
                             title={`effort: ${record.effort}`}
                           >
                             {record.effort}

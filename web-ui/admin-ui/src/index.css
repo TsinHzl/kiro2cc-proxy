@@ -1,4 +1,4 @@
-/* 34 个色彩主题变量映射：@import 必须位于所有其他语句之前，否则整文件被构建丢弃。
+/* 36 个色彩主题变量映射：@import 必须位于所有其他语句之前，否则整文件被构建丢弃。
    主题选择器特异性高于 @layer base 中 :root 基准令牌，此处加载不影响覆盖。 */
 @import './themes.css';
 
@@ -24,7 +24,7 @@
     --secondary-foreground: 210 12% 7%;
     --muted: 220 12% 95%;             /* ↔ --surface-3        #F1F2F4 */
     --muted-foreground: 215 6% 40%;   /* ↔ --ink-2            #5F646B */
-    /* --ink-3 由设计稿 #909699 降一个亮度级至 #71777A：原值在白底对比度仅 3.00，未达 WCAG AA */
+    /* --ink-3 由设计稿 #909699 降至 #676D6F：原值在白底对比度仅 3.00，#71777A 压 --surface-3 仍不足 4.5，现各表面均达 WCAG AA */
     --accent: 220 12% 95%;            /* ↔ --surface-3（shadcn 语义为 hover 表面，非强调色） */
     --accent-foreground: 210 12% 7%;
     --destructive: 359 56% 47%;       /* ↔ --danger           #BB3538 */
@@ -42,8 +42,9 @@
     --hairline-2: #DBDEE1;
     --ink: #0F1113;
     --ink-2: #5F646B;
-    --ink-3: #71777A;
+    --ink-3: #676d6f;
     --brand: #0D7A6F;
+    --brand-ink: #0D7A6F;
     --brand-hover: #0A655C;
     /* 品牌渐变末端：设计稿 color-mix(in srgb, brand 62%, #063B36) 的预算值，不依赖 color-mix 浏览器支持 */
     --brand-deep: #0A6259;
@@ -62,7 +63,7 @@
     --ok: #137A4C;
     --ok-soft: #E5F3EB;
     --ok-line: #BADFC9;
-    --warn: #9A6300;
+    --warn: #956000;
     --warn-soft: #FCF2DF;
     --warn-line: #EBD6A7;
     --danger: #BB3538;
@@ -75,13 +76,13 @@
     --quota-warn-grad: linear-gradient(90deg, #d97706 0%, #f59e0b 60%, #fbbf24 100%);
     --quota-danger-grad: linear-gradient(90deg, #e11d48 0%, #f43f5e 60%, #fb7185 100%);
     --quota-safe-badge-bg: #ecfdf5;
-    --quota-safe-badge-text: #059669;
+    --quota-safe-badge-text: #04825b;
     --quota-mod-badge-bg: #f0fdfa;
-    --quota-mod-badge-text: #0d9488;
+    --quota-mod-badge-text: #0b8177;
     --quota-warn-badge-bg: #fffbeb;
     --quota-warn-badge-text: #b45309;
     --quota-danger-badge-bg: #fff1f2;
-    --quota-danger-badge-text: #e11d48;
+    --quota-danger-badge-text: #d81c45;
     --code-bg: #FBFBFC;
     --shadow-sm: 0 1px 2px rgba(16, 18, 20, .05);
     --shadow-md: 0 4px 14px -4px rgba(16, 18, 20, .12), 0 1px 3px rgba(16, 18, 20, .06);
@@ -107,8 +108,8 @@
     --muted-foreground: 212 8% 63%;   /* ↔ --ink-2            #9AA1A9 */
     --accent: 213 12% 15%;            /* ↔ --surface-3（hover 表面） */
     --accent-foreground: 210 12% 93%;
-    --destructive: 358 80% 67%;       /* ↔ --danger           #EE676C */
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 358 80% 67%;       /* ↔ --danger 填充色 #EE676C（文字侧 --danger 已提亮至 #EF7075） */
+    --destructive-foreground: 0 0% 17%;
     --border: 213 11% 16%;            /* ↔ --hairline         #24282D */
     --input: 213 11% 16%;             /* ↔ --hairline         #24282D */
     --ring: 172 62% 45%;              /* ↔ --brand            #2BB8A6 */
@@ -120,19 +121,20 @@
     --hairline: #24282D;
     --hairline-2: #31363D;
     --ink: #ECEEF0;
-    --ink-2: #9AA1A9;
-    --ink-3: #79818B;               /* 设计稿 #6C737C 提亮一级，深卡对比度 3.75 → 4.55 达 AA */
+    --ink-2: #9da4ab;
+    --ink-3: #9aa0a7;               /* 设计稿 #6C737C 提亮至 #9AA0A7，各深色表面（含 brand-soft 叠 background）对比度均 ≥ 4.5（达 AA） */
     --brand: #2BB8A6;
+    --brand-ink: #2BB8A6;
     --brand-hover: #3FCBB8;
     --brand-deep: #1D897B;
     --brand-fg: #04201D;
     --brand-soft: rgba(43, 184, 166, .13);
     --brand-line: rgba(43, 184, 166, .32);
-    /* NEW 徽章专用色板（暗色）：暗色维持原有实心胶囊观感不变，故取值与 --brand / --brand-deep / --brand-fg
-       及原硬编码高光逐值等价，仅令牌化以便浅色侧独立调色 */
+    /* NEW 徽章专用色板（暗色）：暗色维持原有实心胶囊观感不变，故底色取值与 --brand / --brand-deep
+       及原硬编码高光逐值等价，仅令牌化以便浅色侧独立调色；文字色加深至 #020E0D 以压过渐变较暗一端 */
     --badge-new-from: #2BB8A6;
     --badge-new-to: #1D897B;
-    --badge-new-fg: #04201D;
+    --badge-new-fg: #020e0d;
     /* 暗色实心胶囊自带足够边界对比，保持透明以零回归 */
     --badge-new-line: transparent;
     --badge-new-shadow: 0 1px 3px -0.5px rgba(43, 184, 166, .3), inset 0 1px 0 rgba(255, 255, 255, .22);
@@ -142,7 +144,7 @@
     --warn: #DFA43A;
     --warn-soft: rgba(223, 164, 58, .13);
     --warn-line: rgba(223, 164, 58, .3);
-    --danger: #EE676C;
+    --danger: #f0797e;
     --danger-soft: rgba(238, 103, 108, .13);
     --danger-line: rgba(238, 103, 108, .3);
     --track: #282D33;
@@ -279,7 +281,7 @@
     letter-spacing: .06em;
   }
   .lv.info {
-    color: var(--brand);
+    color: var(--brand-ink);
     background: var(--brand-soft);
     border-color: var(--brand-line);
   }
@@ -353,7 +355,7 @@
     white-space: nowrap;
   }
   .plot-x span.on {
-    color: var(--brand);
+    color: var(--brand-ink);
     font-weight: 600;
   }
 

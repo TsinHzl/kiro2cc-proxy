@@ -110,7 +110,7 @@ export function getSubscriptionColor(title: string): string {
   const t = title.toUpperCase()
   // 订阅档色板随主题联动：引用 tailwind.config.js 中映射的语义主题变量
   if (t.includes('ENTERPRISE')) return 'text-warn'
-  if (t.includes('PRO+') || t.includes('PRO PLUS') || t.includes('PLUS')) return 'text-primary'
+  if (t.includes('PRO+') || t.includes('PRO PLUS') || t.includes('PLUS')) return 'text-brand'
   if (t.includes('PRO')) return 'text-ok'
   if (t.includes('STUDENT')) return 'text-[var(--quota-mod-badge-text)]'
   if (t.includes('FREE')) return 'text-muted-foreground'

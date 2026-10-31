@@ -240,7 +240,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
 
         {scene === 'workbench' ? (
           <div className="flex min-h-[168px]">
-            <div className="w-28 shrink-0 space-y-1.5 border-r p-2.5" style={{ background: swatch.sidebar ?? swatch.surface, borderColor: swatch.muted }}>
+            <div className="w-28 shrink-0 space-y-1.5 border-r p-2.5" style={{ background: sidebarBg, borderColor: swatch.muted }}>
               <p className="text-[10px] font-semibold" style={{ color: primaryOnSidebar }}>
                 kiro2cc
               </p>

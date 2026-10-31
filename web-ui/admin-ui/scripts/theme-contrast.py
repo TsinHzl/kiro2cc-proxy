@@ -45,7 +45,10 @@ FULL_MATRIX = [
     (["secondary-foreground"], ["secondary"]),
     (["accent-foreground"], ["accent"]),
     (["brand-ink"], ["background", "surface", "surface-2", "surface-3", "sidebar", "brand-soft", "ok-soft"]),
-    (["ok", "warn", "danger"], ["surface", "surface-2", "surface-3"] + _SOFTS),
+    (["ok", "warn", "danger"], ["surface", "surface-2", "surface-3"]),
+    (["ok"], _SOFTS),
+    (["warn"], ["warn-soft", "ok-soft"]),
+    (["danger"], ["danger-soft", "ok-soft"]),
     (["brand-fg"], ["brand", "brand-hover"]),
     (["primary-foreground"], ["primary"]),
     (["destructive-foreground"], ["destructive"]),
@@ -74,6 +77,9 @@ LEGACY_MATRIX = [([f], [b]) for f, b in _LEGACY_PAIRS]
 
 # 个别半透明背景在页面里还会直接叠在 background / surface-3 上（文档页 tabs、callout，状态徽章）
 EXTRA_BASES = {"brand-soft": ["background", "surface-3"], "ok-soft": ["background"]}
+
+# 悬停色与主色的最小对比度差：取 72 个主题原始 brand/brand-hover 的最小值，保证悬停仍可见
+HOVER_MIN_GAP = 1.1
 
 FILL_TEXT = {"brand-fg", "primary-foreground", "destructive-foreground"}
 FIX_ORDER = [
@@ -267,6 +273,12 @@ def selftest() -> None:
     _expect("--ink-3: #444;\n    --brand-ink: #00f;" in wb, "write_block 应为缺分号的末项补分号")
     _expect(_bases("brand-soft", ["surface"], EXTRA_BASES) == ["surface", "background", "surface-3"]
             and _bases("ink", ["surface"], EXTRA_BASES) == ["surface"], "per-bg 叠加底色去重与默认值错误")
+    bt = {"--" + k: v for k, v in _fixture_tokens().items()}
+    bt.update({"--brand": "#2563eb", "--brand-ink": "#0d7a6f"})
+    _expect(solve(bt, "brand-ink", bgs_of("brand-ink"), ["surface"]) == "#2563eb", "brand-ink 应从本主题 --brand 起步")
+    hv = {"--brand": "#808080", "--brand-fg": "#ffffff", "--brand-hover": "#808080"}
+    res = fix_brand_fg_with_hover(hv)
+    _expect(res is None or contrast(parse_color(res[1]), parse_color("#808080")) >= HOVER_MIN_GAP, "hover 不应与 brand 抹平")
     _selftest_fix()
     print("selftest OK")
 
@@ -428,7 +440,8 @@ def _hier(t):
 
 
 def solve(tokens, name, bgs, bases, extra=None, per_bg=None):
-    cur = tokens.get("--" + name) or (tokens["--brand"] if name == "brand-ink" else None)
+    # brand-ink 必须从本主题的 --brand 起步：合并后的 tokens 里带着 index.css 的基准 brand-ink
+    cur = tokens["--brand"] if name == "brand-ink" else tokens.get("--" + name)
     if cur is None:
         return None
 
@@ -460,7 +473,8 @@ def fix_brand_fg_with_hover(t: Tokens) -> Optional[Tuple[str, str]]:
         if contrast(parse_color(fg), brand) < MIN_RATIO:
             continue
         for h in candidates(t["--brand-hover"], 1):
-            if contrast(parse_color(fg), parse_color(h)) >= MIN_RATIO:
+            hc = parse_color(h)
+            if contrast(parse_color(fg), hc) >= MIN_RATIO and contrast(brand, hc) >= HOVER_MIN_GAP:
                 return fg, h
     return None
 
@@ -594,12 +608,16 @@ def run_fix(args):
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(text)
     bad = 0
-    for name, mode, tokens in load_variants(tmp, False):
-        if name in ("base", "default"):
-            continue
-        for fg, bg, *_ in check_variant(tokens, FULL_MATRIX, bases, True, EXTRA_BASES)[0]:
-            print(f"写回后仍失败 {name}/{mode}: {fg} on {bg}")
-            bad += 1
+    try:
+        for name, mode, tokens in load_variants(tmp, False):
+            if name in ("base", "default"):
+                continue
+            for fg, bg, *_ in check_variant(tokens, FULL_MATRIX, bases, True, EXTRA_BASES)[0]:
+                print(f"写回后仍失败 {name}/{mode}: {fg} on {bg}")
+                bad += 1
+    except Exception:
+        os.remove(tmp)
+        raise
     if bad:
         os.remove(tmp)
         return 1

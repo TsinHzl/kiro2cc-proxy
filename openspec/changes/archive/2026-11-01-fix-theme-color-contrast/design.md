@@ -62,7 +62,7 @@
 | `secondary-foreground`、`accent-foreground` | `secondary`、`accent` |
 | `ink`、`ink-2`、`ink-3` | `background`、`card`、`muted`、`brand-soft`、`ok-soft`、`warn-soft`、`danger-soft` |
 | `brand-ink`（修正前按 `--brand` 回退） | `background`、`surface`、`surface-2`、`surface-3`、`sidebar`、`brand-soft`、`ok-soft` |
-| `ok` / `warn` / `danger` | `surface`、`surface-2`、`surface-3`、`brand-soft`、`ok-soft`、`warn-soft`、`danger-soft`（共现统计中存在跨色组合，如 `text-ok` 压 `bg-warn-soft`，故四档 `-soft` 全覆盖） |
+| `ok` / `warn` / `danger` | `surface`、`surface-2`、`surface-3`；`-soft` 仅按实际共现覆盖：`ok` × 四档 `-soft`，`warn`、`danger` × 各自 `-soft` 与 `ok-soft`（CR 后收窄：`danger × brand-soft` 等组合代码中零共现，却把 glass 深色 `--danger` 提亮到接近浅粉） |
 | `muted-foreground` | `surface`、`surface-2`、`surface-3`、`sidebar` |
 | `brand-fg` | `brand`、`brand-hover` |
 | `primary-foreground` / `destructive-foreground` | `primary` / `destructive` |

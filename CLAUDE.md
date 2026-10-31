@@ -18,7 +18,7 @@ cargo check            # 快速类型检查
 cargo build            # dev；debug 模式 rust-embed 从磁盘读 dist
 cargo build --release  # release 模式将 web-ui/admin-ui/dist、web-ui/user-ui/dist 编译期内嵌
 
-# 测试（约 1140 个 #[test] / #[tokio::test]；模块内 #[cfg(test)] mod tests，大型模块用例放 tests/ 子目录）
+# 测试（约 1170 个 #[test] / #[tokio::test]；模块内 #[cfg(test)] mod tests，大型模块用例放 tests/ 子目录）
 cargo test                        # 全部
 cargo test <name-substring>       # 单个/一组，如 cargo test additional_model_request_fields
 cargo llvm-cov --lcov --output-path lcov.info   # CI 用的覆盖率跑法

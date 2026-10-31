@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Boxes, FileText, Lightbulb, LightbulbOff, MoreHorizontal, Pencil, Power, RefreshCw, Trash2, Wallet } from 'lucide-react'
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
 import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'

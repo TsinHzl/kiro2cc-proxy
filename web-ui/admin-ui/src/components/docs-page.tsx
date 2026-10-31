@@ -3,7 +3,7 @@
 // Mac 窗体工作台 + 左内容/右 TOC + hash 路由 + API Key 填充 + 客户端配置生成器
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
   ArrowLeft,
   BookOpen,

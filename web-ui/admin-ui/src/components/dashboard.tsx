@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {Server, Key, Settings, BarChart2, ScrollText, Boxes, Palette} from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useTranslation } from 'react-i18next'
 import { storage } from '@/lib/storage'
 import { Card, CardContent } from '@/components/ui/card'

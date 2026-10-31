@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { BarChart3, CalendarDays, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CustomRangeDialog, RANGE_DAYS, UsageMetricsBar, cstDateString, type CustomRange } from '@/components/daily-shared'

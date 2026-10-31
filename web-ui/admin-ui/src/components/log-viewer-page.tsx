@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Copy, Download, Pause, Play, Trash2 } from 'lucide-react'
 import { useLogStream, MAX_FRONT_LOGS, type LogEntry } from '@/hooks/use-log-stream'
 import { copyToClipboard } from '@/lib/clipboard'

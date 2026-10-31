@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, Plus, Check, RotateCw, Link2, Eraser, Box } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo, type SegmentedOption } from '@/components/toolbar'
 import { ApiKeyTable } from '@/components/api-key-table'
@@ -169,6 +169,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
       {
         onNotInstalled: (link) => {
           toast.error(t('apiKeys.ccSwitchNotInstalled'), {
+            duration: 6000,
             action: {
               label: t('apiKeys.ccSwitchCopyLink'),
               onClick: () => {

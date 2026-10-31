@@ -10,7 +10,8 @@ pub(crate) struct ModelPricing {
 ///
 /// 与 `crate::anthropic::converter::model::is_haiku_55` 保持同一判定口径
 /// （同一模型族在映射层与定价层必须一致，否则会出现「映射到 5.5 但按 4.5 计价」）。
-/// 不跨层引用是为避免 `model` 层反向依赖 `anthropic` 层。
+/// 仅服务美元定价路径；credits 反推（`get_claude_credit_rates`）已直接按 `map_model`
+/// 映射结果查表，不经过本函数。
 fn is_haiku_55(model_lower: &str) -> bool {
     model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
 }
@@ -147,7 +148,7 @@ const fn rates(r_miss: f64, r_cached: f64, r_out: f64) -> CreditRates {
     }
 }
 
-// 2026-11-01 受控实验实测（单账号 timedustgml、关闭 thinking、每模型独立会话）：
+// 2026-11-01 受控实验实测（单账号、关闭 thinking、每模型独立会话）：
 // 输入为仓库 Rust 源码 + 中英文文档（贴近 Claude Code 实际内容），约 18K–250K token。
 // - r_miss：同会话首个请求（冷启动）的 credits / 输入，2–5 个样本取均值；
 // - r_cached：同一请求原样重发（全量命中）的 credits / 输入；
@@ -208,7 +209,7 @@ pub(crate) fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<
 ///
 /// 设命中 `R` 个 token：`credits = r_miss·(I−R) + r_cached·R + r_out·O`，解得
 /// `R = clamp(round((r_miss·I + r_out·O − credits·1e6) / (r_miss − r_cached)), 0, I)`。
-/// 仅对 Claude 系列模型且 `input_tokens >= 4096`、`credits_used > 0` 生效。
+/// 仅对 `get_claude_credit_rates` 已实测的模型且 `input_tokens >= 4096`、`credits_used > 0` 生效。
 pub(crate) fn infer_cache_read_from_credits(
     model: &str,
     input_tokens: i32,

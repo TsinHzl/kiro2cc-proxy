@@ -1,0 +1,33 @@
+src/kiro/provider/retry.rs
+  5961d230e7470398 2-3,10,235-236,239-250,259-276,284-285,403-405,407-409,411-412
+src/kiro/provider/errors.rs
+  5961d230e7470398 32-43
+CLAUDE.md
+  5961d230e7470398 69
+src/model/config.rs
+  5961d230e7470398 165-169,306-309,357,499-503
+src/kiro/provider/mod.rs
+  5961d230e7470398 14
+src/kiro/provider/first_token.rs
+  5961d230e7470398 1-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a21e0dbf260b042c601790a161390dbb45243d78",
+  "prompts": {
+    "5961d230e7470398": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "840c60f1-2c18-41e8-979d-23440f2985c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 291,
+      "total_deletions": 21,
+      "accepted_lines": 271,
+      "overriden_lines": 1
+    }
+  }
+}

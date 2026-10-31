@@ -171,17 +171,7 @@ export function useBalanceFetcher({
     })()
   }
 
-  // 切换到凭据管理页时静默刷新所有余额
-  useEffect(() => {
-    if (prevTabRef.current !== null && prevTabRef.current !== 'credentials' && activeTab === 'credentials') {
-      refetch()
-      queryClient.invalidateQueries({ queryKey: ['dailyUsage'] })
-      refreshAllBalances()
-    }
-    prevTabRef.current = activeTab
-  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 浏览器标签页切回前台时静默刷新账号管理页：账号列表 + 每日统计 + 全部余额。
+  // 浏览器标签页切回前台、侧栏切到账号管理页共用：账号列表 + 每日统计 + 全部余额。
   // 手动刷新 / 首次加载 / 上一轮静默刷新仍在拉余额时（isFetchingBalances）跳过余额部分，避免两个循环并发
   const refreshOnReturn = () => {
     refetch()
@@ -189,6 +179,14 @@ export function useBalanceFetcher({
     if (isFetchingBalances.current) return
     refreshAllBalances()
   }
+
+  // 侧栏切到账号管理页时，与浏览器切回前台走同一套刷新
+  useEffect(() => {
+    if (prevTabRef.current !== null && prevTabRef.current !== 'credentials' && activeTab === 'credentials') {
+      refreshOnReturn()
+    }
+    prevTabRef.current = activeTab
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 添加/删除账号后自动拉取新账号余额
   useEffect(() => {

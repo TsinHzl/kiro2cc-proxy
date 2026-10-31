@@ -637,3 +637,5 @@ pub(crate) use pricing::{
     MIN_INFER_INPUT_TOKENS, ModelPricing, get_model_pricing, infer_cache_read_from_credits,
 };
 pub(crate) use pricing::{calculate_cost, get_k_ref, refine_prefix_cache_read};
+#[cfg(test)]
+pub(crate) use pricing::{credits_for_cache_read, get_claude_credit_rates};

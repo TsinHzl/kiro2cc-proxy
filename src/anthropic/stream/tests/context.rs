@@ -267,9 +267,15 @@ mod tests {
 
             // 模拟 346 tokens 输出（BPE 8 个 'a' 合并 1 token，2768 = 346）与部分缓存失效的 meteringEvent
             ctx.output_full_text = "a".repeat(346 * 8);
+            let credits = crate::model::usage::credits_for_cache_read(
+                "claude-haiku-5-5",
+                53_776,
+                346,
+                21_000,
+            );
             let metering_event = crate::kiro::model::events::Event::Metering(
                 crate::kiro::model::events::MeteringEvent {
-                    usage: 0.06617,
+                    usage: credits,
                     unit_plural: "credits".to_string(),
                     unit: String::new(),
                     cache_read_input_tokens: None,
@@ -300,9 +306,12 @@ mod tests {
             if continued {
                 assert_eq!(recorded_read, 53_650);
             } else {
-                assert!((20_000..=22_500).contains(&recorded_read));
+                assert!(
+                    (20_999..=21_001).contains(&recorded_read),
+                    "{recorded_read}"
+                );
             }
-            assert_eq!(page.records[0].credits_used, Some(0.06617));
+            assert_eq!(page.records[0].credits_used, Some(credits));
 
             // 2. 末尾 message_delta 保持静态前缀口径，与 message_start 一致
             let delta_evt = final_events

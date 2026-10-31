@@ -15,11 +15,6 @@ fn is_haiku_55(model_lower: &str) -> bool {
     model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
 }
 
-/// 判断模型名是否属于 sonnet 5.5（与 `is_haiku_55` 同口径，兼容 `5-5` / `5.5`）。
-fn is_sonnet_55(model_lower: &str) -> bool {
-    model_lower.replace(['.', ' '], "-").contains("sonnet-5-5")
-}
-
 /// Haiku 5.5 长上下文阈值（tokens）。
 ///
 /// 官方口径：单次请求 prompt 超过 100K 时，**整个请求**按 5 倍高档计费
@@ -29,33 +24,10 @@ const HAIKU_55_LONG_CONTEXT_THRESHOLD: i32 = 100_000;
 /// 触发 `creditsUsed` 缓存读取反推的最小输入 token 阈值。
 ///
 /// 输入过短时，输入积分占总 `creditsUsed` 比重过小，输出分词微差除以较小的
-/// `0.90 * r_miss` 会被放大，故低于 4096 tokens 直接保留静态前缀估算。
+/// `r_miss - r_cached` 会被放大，故低于 4096 tokens 直接保留静态前缀估算。
 pub(crate) const MIN_INFER_INPUT_TOKENS: i32 = 4096;
 
-/// Kiro 上游缓存读取相对未命中输入单价的节省比例（按 10% 计费，节省 90%）。
-const CACHE_READ_SAVINGS_RATIO: f64 = 0.90;
-
-/// Haiku 5.5 常态档（<= 100K）实测 credits/MTok 费率：(r_miss, r_out)。
-const HAIKU_55_CREDIT_RATES_STANDARD: (f64, f64) = (1.6978, 19.1873);
-
-/// Haiku 5.5 长上下文档（> 100K）实测 credits/MTok 费率：(r_miss, r_out)。
-const HAIKU_55_CREDIT_RATES_LONG_CONTEXT: (f64, f64) = (6.7830, 93.9200);
-
-/// Sonnet 5.5 实测 credits/MTok 费率：(r_miss, r_out)。
-///
-/// 按通用 sonnet 派生值（4.29 / 21.45）反推时，热请求的实际 credits ≈ 4.3/MTok
-/// 恰好等于派生的 r_miss，于是 94% 的请求被判为「完全未命中」、缓存读取落库为 0。
-/// 2026-10-31 单账号 457 个样本（55 个冷启动 + 402 个 4 分钟内的热续请求，
-/// 输入 8K–168K、thinking adaptive）联合回归：未缓存 ≈ 10.8、已缓存 ≈ 4.9。
-/// `r_out` 按可见输出 token 计（≈ 290），远高于定价派生值，因为上游不回传
-/// Sonnet 5.5 的思考内容、但照常计费，隐藏的思考成本只能摊到可见输出上。
-/// 未覆盖 >200K 输入，也未单独标定不开 thinking 的请求。
-const SONNET_55_CREDIT_RATES: (f64, f64) = (10.8, 290.0);
-
-/// Sonnet 5.5 缓存读取的节省比例：已缓存 ≈ 4.9 / 未缓存 ≈ 10.8，约省 55%（不是 90%）。
-const SONNET_55_CACHE_READ_SAVINGS_RATIO: f64 = 0.55;
-
-/// Opus 4.5+ 定价：$5 / $25。fable 仅在反推路径沿用此档。
+/// Opus 4.5+ 定价：$5 / $25。
 const OPUS_PRICING: ModelPricing = ModelPricing {
     input_per_mtok: 5.0,
     output_per_mtok: 25.0,
@@ -93,10 +65,9 @@ fn pricing_of_lower(model_lower: &str) -> ModelPricing {
 }
 
 /// 平台级 credits/USD 换算率，按模型档位差异化（代理实测 2026-06-25）。
-/// 供 usage 报表 credits_saved（estimated_cost × k_ref - credits_used）与
-/// creditsUsed 缓存读取反推（get_claude_credit_rates）共用。
+/// 仅供 usage 报表 credits_saved（estimated_cost × k_ref - credits_used）使用；
+/// 缓存读取反推已改用 `get_claude_credit_rates` 的实测费率，不再依赖本值。
 /// 2026-06-30 重校：按 opus 版本分档，基于实测 d=0.50 缓存折扣反推。
-/// 此处保留历史标定背景；这些值未按当前反推使用的 d=0.90 重新标定。
 /// 2026-07-25 追加 opus-5 与 4.7/4.8 同档。
 pub(crate) fn get_k_ref(model: &str) -> f64 {
     k_ref_of_lower(&model.to_lowercase())
@@ -157,57 +128,86 @@ pub(crate) fn calculate_cost(model: &str, input_tokens: i32, output_tokens: i32)
     input_cost + output_cost
 }
 
-/// 判断模型是否属于 Claude 系列（排除 GPT / 第三方模型）。
-fn is_claude_model(model_lower: &str) -> bool {
-    model_lower.contains("claude")
-        || model_lower.contains("sonnet")
-        || model_lower.contains("opus")
-        || model_lower.contains("haiku")
-        || model_lower.contains("fable")
+/// 单个模型的 Kiro credits 实测费率（credits / MTok，token 按代理的 cl100k 估算口径）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CreditRates {
+    /// 未命中缓存的输入单价
+    pub r_miss: f64,
+    /// 命中缓存的输入单价
+    pub r_cached: f64,
+    /// 输出单价（含客户端可见的 thinking）
+    pub r_out: f64,
 }
 
-/// 获取 Claude 模型的 `(r_miss, r_out, read_savings)`：前两项单位 credits / MTok，
-/// 第三项为缓存读取相对未命中单价的节省比例。
+const fn rates(r_miss: f64, r_cached: f64, r_out: f64) -> CreditRates {
+    CreditRates {
+        r_miss,
+        r_cached,
+        r_out,
+    }
+}
+
+// 2026-11-01 受控实验实测（单账号 timedustgml、关闭 thinking、每模型独立会话）：
+// 输入为仓库 Rust 源码 + 中英文文档（贴近 Claude Code 实际内容），约 18K–250K token。
+// - r_miss：同会话首个请求（冷启动）的 credits / 输入，2–5 个样本取均值；
+// - r_cached：同一请求原样重发（全量命中）的 credits / 输入；
+// - r_out：前缀已缓存时让模型复述约 1000 token 代码 / 中文、写 600 词短文或数数，
+//   扣除缓存部分后除以输出 token。中英文、代码输出单价一致。
+// 同一模型不同内容样本的单价波动约 ±3–6%（Kiro 分词与 cl100k 的比例随内容变化），
+// 折算到反推出的命中量约 ±15%（5.5 之前的模型缓存只省一半，误差放大更多）。
+// 规律：5.5 之前的模型缓存价恒为未命中价的 52.8%（只省约 47%），Sonnet / Opus 5.5 约 27%，
+// Haiku 5.5 约 10%；输出价约为未命中输入价的 29–33 倍（Sonnet / Opus 5.5 约 15 倍，
+// Haiku 5.5 约 5 倍）。早前按「美元定价 × k_ref」派生并统一假设缓存省 90%，与实测相差
+// 1.1–2.9 倍（输入）和 7–9 倍（输出），导致反推的缓存读取大面积为 0。
+// 实测 Sonnet 5.5 在 250K 输入时仍为同一档；其余模型未测 >200K。
+const HAIKU_45: CreditRates = rates(1.735, 0.916, 55.6);
+/// Haiku 5.5 ≤ 100K：缓存价为未命中的 10.4%（与 07be80b4 标定的 1/10 一致）；
+/// 输出 9.0 低于 07be80b4 由真实流量回归得到的 19.19，后者混入了部分未命中的成本
+const HAIKU_55: CreditRates = rates(1.78, 0.186, 9.0);
+/// Haiku 5.5 > 100K：整档约 5 倍（实测 124K 冷启动 8.757、重发 0.885；输出按 5 倍推算，未单独测）
+const HAIKU_55_LONG_CONTEXT: CreditRates = rates(8.757, 0.885, 45.0);
+const SONNET_45: CreditRates = rates(5.684, 3.002, 165.8);
+const SONNET_46: CreditRates = rates(5.613, 2.963, 164.7);
+const SONNET_5: CreditRates = rates(6.295, 3.322, 186.1);
+/// Sonnet 5.5：实测 250K 输入仍为同一档（无长上下文加价）
+const SONNET_55: CreditRates = rates(12.626, 3.370, 192.4);
+const OPUS_45: CreditRates = rates(9.344, 4.932, 278.7);
+const OPUS_46: CreditRates = rates(9.558, 5.105, 279.3);
+const OPUS_47: CreditRates = rates(11.409, 6.028, 329.1);
+const OPUS_48: CreditRates = rates(10.729, 5.661, 326.6);
+const OPUS_5: CreditRates = rates(10.706, 5.649, 315.2);
+const OPUS_55: CreditRates = rates(19.286, 5.235, 296.7);
+
+/// 按上游实际使用的 Kiro 模型（`map_model` 映射结果）取实测费率。
 ///
-/// - `claude-haiku-5-5` 使用实测标定的 `<= 100K` / `> 100K` 双档参数；
-/// - `claude-sonnet-5-5` 使用实测标定参数（见 `SONNET_55_CREDIT_RATES`）；
-/// - 其余 Claude 模型沿用定价与历史 k_ref 派生，属于尚未实测标定的费率假设；
-/// - 非 Claude 模型返回 `None`（跳过反推）。
-fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<(f64, f64, f64)> {
-    let model_lower = model.to_lowercase();
-    if !is_claude_model(&model_lower) {
-        return None;
-    }
-    if is_haiku_55(&model_lower) {
-        let (r_miss, r_out) = if input_tokens > HAIKU_55_LONG_CONTEXT_THRESHOLD {
-            HAIKU_55_CREDIT_RATES_LONG_CONTEXT
-        } else {
-            HAIKU_55_CREDIT_RATES_STANDARD
-        };
-        Some((r_miss, r_out, CACHE_READ_SAVINGS_RATIO))
-    } else if is_sonnet_55(&model_lower) {
-        let (r_miss, r_out) = SONNET_55_CREDIT_RATES;
-        Some((r_miss, r_out, SONNET_55_CACHE_READ_SAVINGS_RATIO))
-    } else {
-        // fable 仅反推路径按 opus 价，calculate_cost 口径保持不变
-        let pricing = if model_lower.contains("fable") {
-            OPUS_PRICING
-        } else {
-            pricing_of_lower(&model_lower)
-        };
-        let k_ref = k_ref_of_lower(&model_lower);
-        Some((
-            pricing.input_per_mtok * k_ref,
-            pricing.output_per_mtok * k_ref,
-            CACHE_READ_SAVINGS_RATIO,
-        ))
-    }
+/// 未实测的模型（`claude-sonnet-4`、`claude-fable-5`）与非 Claude 模型返回 `None`，
+/// 跳过反推、保留静态前缀估算。新模型实测后在此追加分支。
+pub(crate) fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<CreditRates> {
+    let kiro_model = crate::anthropic::converter::map_model(model)?;
+    Some(match kiro_model.as_str() {
+        "claude-haiku-4.5" => HAIKU_45,
+        "claude-haiku-5.5" if input_tokens > HAIKU_55_LONG_CONTEXT_THRESHOLD => {
+            HAIKU_55_LONG_CONTEXT
+        }
+        "claude-haiku-5.5" => HAIKU_55,
+        "claude-sonnet-4.5" => SONNET_45,
+        "claude-sonnet-4.6" => SONNET_46,
+        "claude-sonnet-5" => SONNET_5,
+        "claude-sonnet-5.5" => SONNET_55,
+        "claude-opus-4.5" => OPUS_45,
+        "claude-opus-4.6" => OPUS_46,
+        "claude-opus-4.7" => OPUS_47,
+        "claude-opus-4.8" => OPUS_48,
+        "claude-opus-5" => OPUS_5,
+        "claude-opus-5.5" => OPUS_55,
+        _ => return None,
+    })
 }
 
 /// 由上游 `meteringEvent.usage`（`credits_used`）反推缓存读取 token 数。
 ///
-/// 公式：`clamp(round((r_miss * I + r_out * O_billed - credits_used * 1e6) / (s * r_miss)), 0, I)`，
-/// `s` 为缓存读取节省比例（默认 0.90，Sonnet 5.5 为实测 0.55）。
+/// 设命中 `R` 个 token：`credits = r_miss·(I−R) + r_cached·R + r_out·O`，解得
+/// `R = clamp(round((r_miss·I + r_out·O − credits·1e6) / (r_miss − r_cached)), 0, I)`。
 /// 仅对 Claude 系列模型且 `input_tokens >= 4096`、`credits_used > 0` 生效。
 pub(crate) fn infer_cache_read_from_credits(
     model: &str,
@@ -218,14 +218,33 @@ pub(crate) fn infer_cache_read_from_credits(
     if input_tokens < MIN_INFER_INPUT_TOKENS || !credits_used.is_finite() || credits_used <= 0.0 {
         return None;
     }
-    let (r_miss, r_out, read_savings) = get_claude_credit_rates(model, input_tokens)?;
+    let CreditRates {
+        r_miss,
+        r_cached,
+        r_out,
+    } = get_claude_credit_rates(model, input_tokens)?;
     let input = input_tokens as f64;
     let output = billed_output_tokens.max(0) as f64;
     let expected_no_cache_micro = r_miss * input + r_out * output;
     let actual_micro = credits_used * 1_000_000.0;
     let saved_micro = expected_no_cache_micro - actual_micro;
-    let raw_read = (saved_micro / (read_savings * r_miss)).round() as i64;
+    let raw_read = (saved_micro / (r_miss - r_cached)).round() as i64;
     Some(raw_read.clamp(0, input_tokens as i64) as i32)
+}
+
+/// 测试辅助：按实测费率构造「命中 `cache_read` 个 token」时上游应扣的 credits。
+#[cfg(test)]
+pub(crate) fn credits_for_cache_read(
+    model: &str,
+    input_tokens: i32,
+    billed_output_tokens: i32,
+    cache_read: i32,
+) -> f64 {
+    let r = get_claude_credit_rates(model, input_tokens).expect("测试只用于已实测模型");
+    (r.r_miss * f64::from(input_tokens - cache_read)
+        + r.r_cached * f64::from(cache_read)
+        + r.r_out * f64::from(billed_output_tokens))
+        / 1_000_000.0
 }
 
 /// 结合静态前缀上界与 `creditsUsed` 反推值校准最终 `cache_read_input_tokens`。

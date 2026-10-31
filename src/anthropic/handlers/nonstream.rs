@@ -930,9 +930,12 @@ mod native_tests {
             let visible =
                 token::estimate_output_tokens(&content) + token::count_tokens(intercepted) as i32;
             let billed = visible + count_thinking_tokens(&content).unwrap();
-            let credits = (1.6978 * final_input_tokens as f64 + 19.1873 * billed as f64
-                - 0.90 * 1.6978 * 20_000.0)
-                / 1_000_000.0;
+            let credits = crate::model::usage::credits_for_cache_read(
+                "claude-haiku-5-5",
+                final_input_tokens,
+                billed,
+                20_000,
+            );
             for suppressed in [false, true] {
                 for include_thinking in [false, true] {
                     let (filtered, output, billed_output, observed) =

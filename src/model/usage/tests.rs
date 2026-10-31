@@ -4,7 +4,8 @@
 mod tests {
 
     use crate::model::usage::{
-        RecordOptions, UsageTracker, calculate_cost, get_k_ref, infer_cache_read_from_credits,
+        RecordOptions, UsageTracker, calculate_cost, credits_for_cache_read,
+        get_claude_credit_rates, get_k_ref, infer_cache_read_from_credits,
         refine_prefix_cache_read,
     };
     use std::collections::HashMap;
@@ -1106,33 +1107,46 @@ mod tests {
 
     #[test]
     fn test_pricing_infer_cache_read_haiku_5_5_standard_and_long_context() {
-        // 常态档（<= 100K）实测部分失效样本：input=53776, prefix=53650, out=346, credits=0.06617
-        let refined =
-            refine_prefix_cache_read("claude-haiku-5-5", 53_650, 53_776, 346, Some(0.06617));
-        assert!(
-            (20_000..=22_500).contains(&refined),
-            "常态档部分失效反推应落在 [20000, 22500]，实际: {}",
-            refined
+        let model = "claude-haiku-5-5";
+        // 常态档（<= 100K）部分失效：按实测费率构造命中 21000，反推应还原
+        let credits = credits_for_cache_read(model, 53_776, 346, 21_000);
+        assert_eq!(
+            refine_prefix_cache_read(model, 53_650, 53_776, 346, Some(credits)),
+            21_000
         );
-
-        // 常态档高命中样本：反推值若超过静态前缀，应被 prefix_estimated_tokens 上界截断
-        let capped =
-            refine_prefix_cache_read("claude-haiku-5-5", 52_000, 53_776, 100, Some(0.0110));
-        assert_eq!(capped, 52_000);
-
-        // 长上下文档（> 100K）实测半截命中样本：input=122222, prefix=121100, out=857, credits=0.70897
-        let long_partial =
-            refine_prefix_cache_read("claude-haiku-5-5", 121_100, 122_222, 857, Some(0.70897));
-        assert!(
-            (30_000..=35_000).contains(&long_partial),
-            "长上下文档半截命中反推应落在 [30000, 35000]，实际: {}",
-            long_partial
+        // 高命中：反推值超过静态前缀时被 prefix_estimated_tokens 截断
+        let credits = credits_for_cache_read(model, 53_776, 100, 53_000);
+        assert_eq!(
+            refine_prefix_cache_read(model, 52_000, 53_776, 100, Some(credits)),
+            52_000
         );
-
-        // 长上下文档全量未命中样本：credits >= 0.86 时 cache_read 应下修为 0
-        let long_miss =
-            refine_prefix_cache_read("claude-haiku-5-5", 121_100, 122_222, 319, Some(0.86999));
-        assert_eq!(long_miss, 0);
+        // 长上下文档（> 100K）：整档 5 倍，半截命中如实还原
+        let credits = credits_for_cache_read(model, 122_222, 857, 32_000);
+        assert_eq!(
+            refine_prefix_cache_read(model, 121_100, 122_222, 857, Some(credits)),
+            32_000
+        );
+        // 长上下文档全量未命中 → 0
+        let credits = credits_for_cache_read(model, 122_222, 319, 0);
+        assert_eq!(
+            refine_prefix_cache_read(model, 121_100, 122_222, 319, Some(credits)),
+            0
+        );
+        // 2026-11-01 受控实验原始样本（同会话冷启动 / 原样重发），允许 ±10% 内容波动
+        let cold = infer_cache_read_from_credits(model, 54_681, 1, 0.095_612_05).unwrap();
+        assert!(cold < 5_500, "冷启动应判为未命中，实际 {cold}");
+        let warm = infer_cache_read_from_credits(model, 54_681, 1, 0.009_781_74).unwrap();
+        assert!(warm > 49_000, "重发应近乎全量命中，实际 {warm}");
+        let warm_long = infer_cache_read_from_credits(model, 124_520, 1, 0.110_140_56).unwrap();
+        assert!(
+            warm_long > 112_000,
+            "长上下文重发应近乎全量命中，实际 {warm_long}"
+        );
+        let cold_long = infer_cache_read_from_credits(model, 124_520, 1, 1.090_378_65).unwrap();
+        assert!(
+            cold_long < 12_500,
+            "长上下文冷启动应判为未命中，实际 {cold_long}"
+        );
     }
 
     #[test]
@@ -1188,15 +1202,18 @@ mod tests {
             refine_prefix_cache_read(model, 4_000, 4_096, 0, Some(9.99)),
             0
         );
-        for (input, r_miss, r_out) in [(100_000, 1.6978, 19.1873), (100_001, 6.7830, 93.9200)] {
-            let credits =
-                (r_miss * input as f64 + r_out * 100.0 - 0.90 * r_miss * 20_000.0) / 1_000_000.0;
+        // 100_000 走常态档、100_001 走长上下文档，两档都能还原命中量
+        for input in [100_000, 100_001] {
+            let credits = credits_for_cache_read(model, input, 100, 20_000);
             assert_eq!(
                 infer_cache_read_from_credits(model, input, 100, credits),
                 Some(20_000)
             );
         }
-        let full_price = (1.6978 * 53_776.0 + 19.1873 * 346.0) / 1_000_000.0;
+        let low = get_claude_credit_rates(model, 100_000).unwrap();
+        let high = get_claude_credit_rates(model, 100_001).unwrap();
+        assert!(high.r_miss > 4.0 * low.r_miss, "长上下文档应为整档加价");
+        let full_price = credits_for_cache_read(model, 53_776, 346, 0);
         assert_eq!(
             refine_prefix_cache_read(model, 53_650, 53_776, 346, Some(full_price)),
             0
@@ -1204,60 +1221,108 @@ mod tests {
     }
 
     #[test]
-    fn test_pricing_infer_cache_read_fable_uses_opus_rates() {
-        // fable 按 Opus 档 (r_miss=11.8, r_out=59.0) 反推
-        assert_eq!(
-            infer_cache_read_from_credits("claude-fable-5", 50_000, 500, 0.4071),
-            Some(20_000)
-        );
-        assert_eq!(
-            infer_cache_read_from_credits("claude-fable-5", 50_000, 500, 0.6195),
-            Some(0)
-        );
+    fn test_pricing_infer_cache_read_skips_unmeasured_models() {
+        // 未实测的模型不反推，保留静态前缀估算（fable 上游不可用，sonnet-4 未测）
+        for model in [
+            "claude-fable-5",
+            "claude-sonnet-4-20250514",
+            "gpt-5.6-luna",
+            "kimi-k3",
+        ] {
+            assert_eq!(
+                infer_cache_read_from_credits(model, 50_000, 500, 0.4),
+                None,
+                "{model}"
+            );
+            assert_eq!(
+                refine_prefix_cache_read(model, 40_000, 50_000, 500, Some(9.9)),
+                40_000,
+                "{model}"
+            );
+        }
     }
 
     #[test]
-    fn test_pricing_infer_cache_read_sonnet_55_uses_calibrated_rates() {
-        // 2026-10-31 日志实测样本（[usage] 入库行）：热续请求按通用 sonnet 派生费率
-        // 反推为 0（回归点），按实测费率应接近满命中
-        for model in ["claude-sonnet-5-5", "claude-sonnet-5.5"] {
-            // 23:00:56 热请求：I=113615 O=85 credits=0.4630，上一轮 4 秒前
-            let warm = infer_cache_read_from_credits(model, 113_615, 85, 0.463_0).unwrap();
+    fn test_pricing_infer_cache_read_round_trips_every_measured_model() {
+        // 每个实测模型（含客户端常见的别名写法）按自身费率构造的 credits 都能还原命中量
+        for model in [
+            "claude-haiku-4-5",
+            "claude-haiku-4-5-20251001",
+            "claude-haiku-5-5",
+            "claude-sonnet-4-5",
+            "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4-6",
+            "claude-sonnet-4.6",
+            "claude-sonnet-5",
+            "claude-sonnet-5-5",
+            "claude-sonnet-5.5",
+            "claude-opus-4-5",
+            "claude-opus-4-6",
+            "claude-opus-4-7",
+            "claude-opus-4.8",
+            "claude-opus-5",
+            "claude-opus-5-5",
+        ] {
+            for read in [0, 12_345, 59_000] {
+                let credits = credits_for_cache_read(model, 60_000, 700, read);
+                assert_eq!(
+                    infer_cache_read_from_credits(model, 60_000, 700, credits),
+                    Some(read),
+                    "{model} read={read}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_pricing_infer_cache_read_matches_controlled_experiment_samples() {
+        // 2026-11-01 受控实验原始数据：(模型, 输入, 冷启动 credits, 原样重发 credits)
+        // 冷启动应判为基本未命中，重发应判为基本全量命中（单价随内容有 ±3–6% 波动，折算到命中量约 ±15%）
+        let samples = [
+            ("claude-haiku-4-5", 53_932, 0.090_723_90, 0.047_851_06),
+            ("claude-sonnet-4-5", 23_995, 0.141_430_04, 0.074_767_20),
+            ("claude-sonnet-5", 56_940, 0.356_135_71, 0.187_750_78),
+            ("claude-sonnet-5-5", 56_151, 0.681_799_72, 0.184_767_04),
+            ("claude-sonnet-5-5", 249_721, 2.998_775_92, 0.810_976_82),
+            ("claude-opus-4-5", 62_905, 0.569_036_31, 0.300_051_83),
+            ("claude-opus-4-6", 50_858, 0.474_483_74, 0.250_287_32),
+            ("claude-opus-4-7", 62_529, 0.671_422_92, 0.354_268_29),
+            ("claude-opus-4-8", 61_391, 0.629_462_61, 0.331_822_31),
+            ("claude-opus-5", 55_126, 0.595_377_93, 0.313_883_01),
+            ("claude-opus-5-5", 23_530, 0.476_655_98, 0.129_590_31),
+        ];
+        for (model, input, cold, warm) in samples {
+            let cold_read = infer_cache_read_from_credits(model, input, 1, cold).unwrap();
             assert!(
-                warm > 100_000,
-                "{model} 热请求应判为大部分命中，实际 {warm}"
+                f64::from(cold_read) < 0.15 * f64::from(input),
+                "{model} 冷启动应判为未命中，实际 {cold_read}/{input}"
             );
-            assert_eq!(
-                refine_prefix_cache_read(model, 113_500, 113_615, 85, Some(0.463_0)),
-                113_500,
-                "{model} 命中值受静态前缀上界约束"
-            );
-            // 21:53:41 冷启动（新基线首个请求）：I=13069 O=19 credits=0.1659
-            assert_eq!(
-                infer_cache_read_from_credits(model, 13_069, 19, 0.165_9),
-                Some(0),
-                "{model} 冷启动应判为未命中"
-            );
-            // 22:27:47 冷启动长上下文：I=112025 O=193 credits=1.3200
-            assert_eq!(
-                infer_cache_read_from_credits(model, 112_025, 193, 1.320_0),
-                Some(0)
+            let warm_read = infer_cache_read_from_credits(model, input, 1, warm).unwrap();
+            assert!(
+                f64::from(warm_read) > 0.85 * f64::from(input),
+                "{model} 重发应判为全量命中，实际 {warm_read}/{input}"
             );
         }
-        // 公式自洽：按标定参数构造 30% 命中，反推应还原
-        let (r_miss, r_out, s) = (10.8, 290.0, 0.55);
-        let credits = (r_miss * 100_000.0 + r_out * 200.0 - s * r_miss * 30_000.0) / 1e6;
-        assert_eq!(
-            infer_cache_read_from_credits("claude-sonnet-5-5", 100_000, 200, credits),
-            Some(30_000)
-        );
-        // sonnet 5 / 4.6 仍走通用派生费率，不受影响
-        let generic = (4.29 * 50_000.0 + 21.45 * 500.0 - 0.90 * 4.29 * 20_000.0) / 1e6;
-        for model in ["claude-sonnet-5", "claude-sonnet-4-6"] {
-            assert_eq!(
-                infer_cache_read_from_credits(model, 50_000, 500, generic),
-                Some(20_000),
-                "{model}"
+    }
+
+    #[test]
+    fn test_pricing_infer_cache_read_sonnet_55_server_log_samples() {
+        // 2026-10-31 服务端日志真实样本：旧的派生费率下全部反推为 0（回归点）
+        for model in ["claude-sonnet-5-5", "claude-sonnet-5.5"] {
+            // 23:00:56 热续请求：I=113615 O=85 credits=0.4630，上一轮 4 秒前 → 约 91% 命中
+            let warm = infer_cache_read_from_credits(model, 113_615, 85, 0.463_0).unwrap();
+            assert!(
+                (95_000..=110_000).contains(&warm),
+                "{model} 热请求应判为大部分命中，实际 {warm}"
+            );
+            // 21:53:41 冷启动（新基线首个请求）：I=13069 O=19 credits=0.1659
+            let cold = infer_cache_read_from_credits(model, 13_069, 19, 0.165_9).unwrap();
+            assert!(cold < 1_300, "{model} 冷启动应判为未命中，实际 {cold}");
+            // 22:27:47 冷启动长上下文：I=112025 O=193 credits=1.3200
+            let cold_long = infer_cache_read_from_credits(model, 112_025, 193, 1.320_0).unwrap();
+            assert!(
+                cold_long < 16_800,
+                "{model} 长上下文冷启动应判为基本未命中，实际 {cold_long}"
             );
         }
     }

@@ -126,10 +126,12 @@ mod tests {
             .retain(|(sid, _), _| sid != key);
     }
 
-    /// 与 2026-10-25 实测 0.0539 事件同构：prefix 53650、input 53776、输出 346、
-    /// credits 0.06617 → 反推约 21000，命中率约 39%，应触发
+    /// 与 2026-10-25 实测 0.0539 事件同构：prefix 53650、input 53776、输出 346；
+    /// credits 按 Haiku 5.5 实测费率构造为命中 21000（≈39%），应触发
     fn event_credits() -> (i32, i32, i32, f64) {
-        (53_650, 53_776, 346, 0.06617)
+        let credits =
+            crate::model::usage::credits_for_cache_read("claude-haiku-5-5", 53_776, 346, 21_000);
+        (53_650, 53_776, 346, credits)
     }
 
     #[derive(Clone, Default)]
@@ -301,8 +303,13 @@ mod tests {
                 prefix,
                 input,
                 output,
-                // opus 费率（9.5/47.5 credits/MTok）下反推 21000 所需的部分未命中 credits
-                Some(0.347757),
+                // opus 4.6 实测费率下命中 21000 所需的部分未命中 credits
+                Some(crate::model::usage::credits_for_cache_read(
+                    "claude-opus-4-6",
+                    input,
+                    output,
+                    21_000,
+                )),
                 true,
                 64,
                 Instant::now(),

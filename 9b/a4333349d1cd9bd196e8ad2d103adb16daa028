@@ -1,0 +1,27 @@
+web-ui/admin-ui/scripts/theme-contrast.py
+  42b4f72021b55a65 48-51,81-83,276-281,443-444,476-477,611-620
+web-ui/admin-ui/src/components/theme-settings-page.tsx
+  42b4f72021b55a65 243
+openspec/changes/archive/2026-11-01-fix-theme-color-contrast/design.md
+  42b4f72021b55a65 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9ba4333349d1cd9bd196e8ad2d103adb16daa028",
+  "prompts": {
+    "42b4f72021b55a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d1ec2b-a1e4-45fe-b652-56bb85bac601",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 11,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

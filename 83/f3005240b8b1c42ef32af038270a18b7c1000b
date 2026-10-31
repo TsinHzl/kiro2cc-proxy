@@ -1,0 +1,55 @@
+web-ui/admin-ui/src/api/credentials.ts
+  5961d230e7470398 47-59
+web-ui/admin-ui/src/i18n/locales/zh.json
+  5961d230e7470398 742-745
+src/admin/log_handler.rs
+  5961d230e7470398 6,10,20,45,49-50,112,116-117,145,149-150,186-187,191,193,197
+src/main.rs
+  5961d230e7470398 358-361,365,440-504
+src/model/config.rs
+  5961d230e7470398 158-164,297-300,347,489-493
+src/kiro/token_manager/manager/stats.rs
+  5961d230e7470398 289-293
+web-ui/admin-ui/src/components/login-page.tsx
+  5961d230e7470398 4-5,7,21,31-33,35-53,100
+web-ui/admin-ui/src/App.tsx
+  5961d230e7470398 4,12,15,17-20,22-24,35-36
+src/admin/auth_throttle.rs
+  5961d230e7470398 1-143,145-146,148-268,270-273,275-327
+web-ui/admin-ui/src/main.tsx
+  5961d230e7470398 5,15-20
+src/anthropic/handlers/mod.rs
+  5961d230e7470398 24
+src/anthropic/handlers/ping.rs
+  5961d230e7470398 9,16-41
+src/admin/mod.rs
+  5961d230e7470398 22
+src/model/usage/mod.rs
+  5961d230e7470398 18-20,176-177,312,322-339,351,357-364,377,383-387
+src/admin/middleware.rs
+  5961d230e7470398 9,16,56-57,75,123-128,131-171,181-184,186-205,207-218,220-247,249-250
+src/anthropic/router.rs
+  5961d230e7470398 16-18,60
+web-ui/admin-ui/src/i18n/locales/en.json
+  5961d230e7470398 742-745
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "83f3005240b8b1c42ef32af038270a18b7c1000b",
+  "prompts": {
+    "5961d230e7470398": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "840c60f1-2c18-41e8-979d-23440f2985c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 731,
+      "total_deletions": 88,
+      "accepted_lines": 694,
+      "overriden_lines": 4
+    }
+  }
+}

@@ -1,0 +1,23 @@
+openspec/specs/theme/spec.md
+  42b4f72021b55a65 55-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a81f5a4ade4cf5317034c21923cb0ef65a37bda1",
+  "prompts": {
+    "42b4f72021b55a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d1ec2b-a1e4-45fe-b652-56bb85bac601",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -608,6 +608,29 @@ mod tests {
     }
 
     #[test]
+    fn test_credits_footer_stop_hook_continuation_stays_in_same_turn() {
+        let conv = "ctx-footer-stop-hook";
+        // 用户发消息，模型调用工具后以 end_turn 收尾（此时输出的汇总行只含已发生的部分）
+        let mut first = make_ctx(conv, request(true));
+        first.process_kiro_event(&text_event("改好了"));
+        first.process_kiro_event(&metering_event(0.5));
+        let out = first.generate_final_events();
+        assert!(collect_text(&out).contains("turn 0.50 • session 0.50"));
+
+        // Stop hook 拦截收尾，Claude Code 在同一轮里带着 hook 反馈再次请求（new_turn = false）：
+        // turn 必须接着前面累计，而不是从零开始
+        let mut second = make_ctx(conv, request(false));
+        let mut out = second.process_kiro_event(&text_event("是否执行 Code Review？"));
+        second.process_kiro_event(&metering_event(0.25));
+        out.extend(second.generate_final_events());
+        assert!(
+            collect_text(&out).contains("turn 0.75 • session 0.75"),
+            "text={:?}",
+            collect_text(&out)
+        );
+    }
+
+    #[test]
     fn test_credits_footer_plain_style_has_no_escape_codes() {
         let mut ctx = make_ctx(
             "ctx-footer-plain",

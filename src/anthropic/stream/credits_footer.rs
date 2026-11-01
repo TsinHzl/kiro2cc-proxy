@@ -7,8 +7,9 @@
 //! ▸ Credits: turn 0.86 • session 8.73 | Time: 12s
 //! ```
 //!
-//! - `turn`：从用户最近一次发送消息起到本轮回复结束，所有上游请求（含工具调用往返、
-//!   期间子代理发起的请求）的 credits 之和
+//! - `turn`：从用户最近一次发送消息起到本轮回复结束（对应 Claude Code 的
+//!   `✻ Brewed for Ns`），所有上游请求的 credits 之和，包括工具调用往返、期间子代理发起的请求，
+//!   以及 Stop hook 拦截收尾后继续的部分
 //! - `session`：同一 conversationId 下自开启以来所有请求的 credits 之和
 //! - `Time`：本轮从第一个请求发起到当前响应结束的墙钟时间（含工具执行耗时）
 //!
@@ -63,7 +64,8 @@ pub fn show_session_credits_enabled() -> bool {
 pub struct CreditsFooterRequest {
     /// 渲染样式（终端用 ANSI 变暗，其余入口用无转义的 Markdown 斜体）
     pub style: ThinkingTextStyle,
-    /// 本请求是否开启新的一轮（即不是工具结果回传的续轮）
+    /// 本请求是否开启新的一轮（用户亲自发送的新消息；工具回传与 Claude Code 在同一轮内
+    /// 注入的续请求都不算，见 [`is_new_user_turn`]）
     pub new_turn: bool,
     /// 请求链标识：首条消息文本的哈希。主对话与每个子代理的首条消息各不相同，据此区分
     pub chain: u64,
@@ -85,7 +87,7 @@ pub fn credits_footer_request(
     let style = thinking_text_style(headers)?;
     Some(CreditsFooterRequest {
         style,
-        new_turn: !is_tool_result_continuation(messages),
+        new_turn: is_new_user_turn(messages),
         chain: chain_key(messages),
     })
 }
@@ -107,20 +109,64 @@ fn chain_key(messages: &[Message]) -> u64 {
     hasher.finish()
 }
 
-/// 最后一条消息是否携带工具结果（同一轮内的续请求）。
+/// Claude Code 在同一轮（一次 query 循环）内自行注入、并非用户输入的纯文本前缀。
 ///
-/// Claude Code 会在 tool_result 旁边夹带 `<system-reminder>` 等文本块，所以只要出现
-/// tool_result 就算续轮；纯文本的 user 消息才是用户的新一轮输入。
-fn is_tool_result_continuation(messages: &[Message]) -> bool {
+/// `<system-reminder>`：附件与 hook 反馈的统一包装（Stop hook 拦截后的
+/// `Stop hook blocking error ...` 也是这种形式）；`<task-notification>`：后台任务 /
+/// asyncRewake hook 的通知。其余是 query 循环因输出被截断或工具调用异常发出的重试提示。
+const INJECTED_TEXT_PREFIXES: [&str; 6] = [
+    "<system-reminder>",
+    "<task-notification>",
+    "Output token limit hit.",
+    "The previous response failed to produce a valid tool call.",
+    "Your tool call was malformed and could not be parsed.",
+    "[Your previous response had no visible output.",
+];
+
+fn is_injected_text(text: &str) -> bool {
+    let text = text.trim_start();
+    INJECTED_TEXT_PREFIXES.iter().any(|p| text.starts_with(p))
+}
+
+fn block_type(block: &serde_json::Value) -> Option<&str> {
+    block.get("type").and_then(|t| t.as_str())
+}
+
+/// 最后一条消息是否是用户亲自发送的新一轮输入（对应 Claude Code 输出
+/// `✻ Brewed for Ns` 的那个「轮」的起点）。
+///
+/// 一轮 = Claude Code 的一次 query 循环，循环内部会多次请求上游，且最后一条 user 消息不一定带
+/// tool_result：Stop hook 拦截收尾后的反馈、后台任务通知、输出截断后的恢复提示，都是
+/// 纯文本 user 消息，但它们仍属于同一轮。区分依据是内容：
+/// - 带 tool_result：工具往返的续请求（旁边夹带的 queued 用户消息同样属于本轮）
+/// - 文本块全部是 Claude Code 注入的内容（见 [`INJECTED_TEXT_PREFIXES`]）：循环内续请求
+/// - 含用户亲自输入的文本块，或图片 / 文档块：新一轮。用户消息里的提示文本总是独立于
+///   `<system-reminder>` 附件块之外
+fn is_new_user_turn(messages: &[Message]) -> bool {
     let Some(last) = messages.last() else {
         return false;
     };
-    last.role == "user"
-        && last.content.as_array().is_some_and(|blocks| {
-            blocks
-                .iter()
-                .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_result"))
-        })
+    if last.role != "user" {
+        return false;
+    }
+    let is_human_text = |t: &str| !t.trim().is_empty() && !is_injected_text(t);
+    match &last.content {
+        serde_json::Value::String(s) => is_human_text(s),
+        serde_json::Value::Array(blocks) => {
+            if blocks.iter().any(|b| block_type(b) == Some("tool_result")) {
+                return false;
+            }
+            blocks.iter().any(|b| match block_type(b) {
+                Some("text") => b
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .is_some_and(is_human_text),
+                Some("image" | "document") => true,
+                _ => false,
+            })
+        }
+        _ => false,
+    }
 }
 
 #[derive(Debug)]
@@ -149,6 +195,15 @@ impl SessionEntry {
             sub_chains: HashSet::new(),
         }
     }
+
+    /// 开启新的主对话 turn：从零累计、重新计时，并丢弃上一轮识别出的子代理链
+    fn start_turn(&mut self, chain: u64, started_at: Instant) {
+        self.main_chain = chain;
+        self.sub_chains.clear();
+        self.turn_total = 0.0;
+        self.turn_started = started_at;
+        self.turn_open = true;
+    }
 }
 
 static SESSIONS: Mutex<Option<HashMap<String, SessionEntry>>> = Mutex::new(None);
@@ -161,12 +216,15 @@ pub struct CreditsSnapshot {
     pub elapsed: Duration,
 }
 
-/// 登记请求开始：新一轮则清零 turn 累计并重置计时起点。
+/// 登记请求开始：新一轮（用户亲自发送的消息）清零 turn 累计并重置计时起点。
 ///
 /// `started_at` 是请求发起时刻（含上游建连），新一轮以它作为 Time 的起点。
 ///
 /// 返回本请求是否为子代理请求：主对话 turn 进行中出现的陌生请求链。子代理的 credits
 /// 计入主对话当前 turn，但不清零 turn、不输出汇总行。
+///
+/// 主对话 end_turn 关闭 turn 后，同链又到达非用户输入的请求（Stop hook 拦截后的反馈等）
+/// 视为同一轮的延续，沿用已有累计与计时。
 pub fn begin_request(
     conversation_id: &str,
     chain: u64,
@@ -180,30 +238,32 @@ pub fn begin_request(
         .entry(conversation_id.to_string())
         .or_insert_with(|| SessionEntry::new(started_at));
     let now = Instant::now();
-    let open = entry.turn_open && now.saturating_duration_since(entry.touched) < TURN_IDLE_LIMIT;
+    let idle = now.saturating_duration_since(entry.touched) >= TURN_IDLE_LIMIT;
+    let open = entry.turn_open && !idle;
     let is_sub = if new_turn {
         if open && chain != entry.main_chain {
             entry.sub_chains.insert(chain);
             true
         } else {
-            entry.main_chain = chain;
-            entry.sub_chains.clear();
-            entry.turn_total = 0.0;
-            entry.turn_started = started_at;
-            entry.turn_open = true;
+            entry.start_turn(chain, started_at);
             false
         }
+    } else if entry.sub_chains.contains(&chain) {
+        true
     } else {
-        entry.sub_chains.contains(&chain)
+        if !entry.turn_open {
+            // turn 已被 end_turn 关闭，却又来了同链的非用户输入请求：Claude Code 的同一轮
+            // 仍在继续（Stop hook 拦截收尾后的反馈、后台任务通知等），沿用已有的累计与计时，
+            // 汇总行才能覆盖到 `Brewed for` 的整段。
+            // 链不同、或闲置过久（会话恢复等）则不属于这一轮，按新 turn 从零累计。
+            if chain == entry.main_chain && !idle {
+                entry.turn_open = true;
+            } else {
+                entry.start_turn(chain, started_at);
+            }
+        }
+        false
     };
-    if !is_sub && !entry.turn_open {
-        // 与 new_turn 路径同口径：重开的 turn 从零累计、重新计时，
-        // 否则 turn 已关闭后到达的续轮请求会沿用上一轮的 turn_total / turn_started
-        entry.main_chain = chain;
-        entry.turn_open = true;
-        entry.turn_total = 0.0;
-        entry.turn_started = started_at;
-    }
     entry.touched = now;
     is_sub
 }
@@ -429,33 +489,62 @@ mod tests {
     }
 
     #[test]
-    fn message_with_tool_result_is_continuation() {
-        let cont = [msg(
+    fn new_turn_requires_human_input_in_last_user_message() {
+        let text = |t: &str| json!({"type": "text", "text": t});
+        let reminder = |t: &str| text(&format!("<system-reminder>\n{t}\n</system-reminder>"));
+        let tool_result = json!({"type": "tool_result", "tool_use_id": "t1", "content": "ok"});
+
+        // 用户亲自输入：纯字符串、文本块数组、附件块 + 提示文本、纯图片
+        assert!(is_new_user_turn(&[msg("user", json!("帮我改一下"))]));
+        assert!(is_new_user_turn(&[msg("user", json!([text("新需求")]))]));
+        assert!(is_new_user_turn(&[msg(
             "user",
-            json!([{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]),
-        )];
-        assert!(is_tool_result_continuation(&cont));
-
-        let fresh_text = [msg("user", json!("帮我改一下"))];
-        assert!(!is_tool_result_continuation(&fresh_text));
-
-        // tool_result 旁夹带 system-reminder 文本块：仍是续轮
-        let with_reminder = [msg(
+            json!([reminder("date changed"), text("新需求")])
+        )]));
+        assert!(is_new_user_turn(&[msg(
             "user",
-            json!([
-                {"type": "tool_result", "tool_use_id": "t1", "content": "ok"},
-                {"type": "text", "text": "<system-reminder>...</system-reminder>"}
-            ]),
-        )];
-        assert!(is_tool_result_continuation(&with_reminder));
+            json!([{"type": "image", "source": {}}])
+        )]));
 
-        // 纯文本块数组：用户新输入
-        let text_blocks = [msg("user", json!([{"type": "text", "text": "新需求"}]))];
-        assert!(!is_tool_result_continuation(&text_blocks));
+        // 带 tool_result：工具往返续请求，旁边夹带的 system-reminder / 用户排队消息都不改变结论
+        assert!(!is_new_user_turn(&[msg(
+            "user",
+            json!([tool_result.clone()])
+        )]));
+        assert!(!is_new_user_turn(&[msg(
+            "user",
+            json!([tool_result.clone(), reminder("task tools")])
+        )]));
+        assert!(!is_new_user_turn(&[msg(
+            "user",
+            json!([tool_result, text("顺便再加个需求")])
+        )]));
 
-        let assistant_last = [msg("assistant", json!([{"type": "text", "text": "x"}]))];
-        assert!(!is_tool_result_continuation(&assistant_last));
-        assert!(!is_tool_result_continuation(&[]));
+        // 同一轮内 Claude Code 注入的纯文本 user 消息：Stop hook 反馈、后台任务通知、重试提示
+        for injected in [
+            "<system-reminder>\nStop hook blocking error from command \"x\": 先问是否 CR\n</system-reminder>",
+            "<task-notification>\n<summary>done</summary>\n</task-notification>",
+            "Output token limit hit. Resume directly — no apology, no recap of what you were doing.",
+            "Your tool call was malformed and could not be parsed. Please retry.",
+            "[Your previous response had no visible output. Please continue and produce a user-visible response.]",
+        ] {
+            assert!(
+                !is_new_user_turn(&[msg("user", json!([text(injected)]))]),
+                "{injected}"
+            );
+            assert!(
+                !is_new_user_turn(&[msg("user", json!(injected))]),
+                "{injected}"
+            );
+        }
+
+        // 空文本、非 user、空列表
+        assert!(!is_new_user_turn(&[msg("user", json!([text("  ")]))]));
+        assert!(!is_new_user_turn(&[msg(
+            "assistant",
+            json!([{"type": "text", "text": "x"}])
+        )]));
+        assert!(!is_new_user_turn(&[]));
     }
 
     #[test]
@@ -479,14 +568,36 @@ mod tests {
     }
 
     #[test]
-    fn continuation_after_turn_closed_restarts_turn_total() {
+    fn continuation_after_turn_closed_keeps_accumulating() {
         let conv = "test-conv-reopen";
+        let started = Instant::now() - Duration::from_secs(5);
+        begin_request(conv, 1, true, started);
+        record_credits(conv, 0.5);
+        finish_turn(conv);
+
+        // end_turn 之后同链又来了非用户输入的请求（Stop hook 拦截后的反馈）：仍是同一轮，
+        // turn 沿用已有累计与计时起点，汇总行覆盖到 `Brewed for` 的整段
+        assert!(!begin_request(conv, 1, false, Instant::now()));
+        let s = record_credits(conv, 0.25);
+        assert_eq!((s.turn, s.session), (0.75, 0.75));
+        assert!(s.elapsed >= Duration::from_secs(5));
+
+        // 再收尾后用户发新消息：才清零
+        finish_turn(conv);
+        begin_request(conv, 1, true, Instant::now());
+        let n = record_credits(conv, 1.0);
+        assert_eq!((n.turn, n.session), (1.0, 1.75));
+    }
+
+    #[test]
+    fn continuation_with_other_chain_after_turn_closed_starts_new_turn() {
+        let conv = "test-conv-reopen-other-chain";
         begin_request(conv, 1, true, Instant::now());
         record_credits(conv, 0.5);
         finish_turn(conv);
 
-        // turn 已关闭后到达的同链续轮请求：作为新 turn 从零累计，不沿用上一轮的 turn_total
-        assert!(!begin_request(conv, 1, false, Instant::now()));
+        // 链不同（如会话恢复、首条消息被改写）：不属于刚结束的那一轮
+        assert!(!begin_request(conv, 2, false, Instant::now()));
         let s = record_credits(conv, 0.25);
         assert_eq!((s.turn, s.session), (0.25, 0.75));
     }

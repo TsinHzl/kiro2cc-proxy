@@ -128,6 +128,22 @@ fn is_injected_text(text: &str) -> bool {
     INJECTED_TEXT_PREFIXES.iter().any(|p| text.starts_with(p))
 }
 
+/// 文本是否含用户亲自输入的内容：剥离开头连续的完整 `<system-reminder>…</system-reminder>`
+/// 附件块后，剩余部分仍非空且不是注入文案。
+///
+/// 提醒块与用户正文可能分成独立文本块，也可能合并在同一段文本里，两种形态都要识别。
+/// 未闭合的提醒不剥离，整段仍按注入处理。
+fn has_human_text(text: &str) -> bool {
+    const OPEN: &str = "<system-reminder>";
+    const CLOSE: &str = "</system-reminder>";
+    let mut rest = text.trim_start();
+    while let Some(after) = rest.strip_prefix(OPEN) {
+        let Some(end) = after.find(CLOSE) else { break };
+        rest = after[end + CLOSE.len()..].trim_start();
+    }
+    !rest.is_empty() && !is_injected_text(rest)
+}
+
 fn block_type(block: &serde_json::Value) -> Option<&str> {
     block.get("type").and_then(|t| t.as_str())
 }
@@ -140,8 +156,8 @@ fn block_type(block: &serde_json::Value) -> Option<&str> {
 /// 纯文本 user 消息，但它们仍属于同一轮。区分依据是内容：
 /// - 带 tool_result：工具往返的续请求（旁边夹带的 queued 用户消息同样属于本轮）
 /// - 文本块全部是 Claude Code 注入的内容（见 [`INJECTED_TEXT_PREFIXES`]）：循环内续请求
-/// - 含用户亲自输入的文本块，或图片 / 文档块：新一轮。用户消息里的提示文本总是独立于
-///   `<system-reminder>` 附件块之外
+/// - 含用户亲自输入的文本（见 [`has_human_text`]），或图片 / 文档块：新一轮。提醒块与
+///   用户正文可能是独立文本块，也可能合并成同一段文本，两种形态都按此判断
 fn is_new_user_turn(messages: &[Message]) -> bool {
     let Some(last) = messages.last() else {
         return false;
@@ -149,9 +165,8 @@ fn is_new_user_turn(messages: &[Message]) -> bool {
     if last.role != "user" {
         return false;
     }
-    let is_human_text = |t: &str| !t.trim().is_empty() && !is_injected_text(t);
     match &last.content {
-        serde_json::Value::String(s) => is_human_text(s),
+        serde_json::Value::String(s) => has_human_text(s),
         serde_json::Value::Array(blocks) => {
             if blocks.iter().any(|b| block_type(b) == Some("tool_result")) {
                 return false;
@@ -160,7 +175,7 @@ fn is_new_user_turn(messages: &[Message]) -> bool {
                 Some("text") => b
                     .get("text")
                     .and_then(|t| t.as_str())
-                    .is_some_and(is_human_text),
+                    .is_some_and(has_human_text),
                 Some("image" | "document") => true,
                 _ => false,
             })
@@ -504,6 +519,31 @@ mod tests {
         assert!(is_new_user_turn(&[msg(
             "user",
             json!([{"type": "image", "source": {}}])
+        )]));
+        assert!(is_new_user_turn(&[msg(
+            "user",
+            json!([{"type": "document", "source": {}}])
+        )]));
+        // 提醒与用户正文合并成同一段文本（字符串或单个文本块）：仍是新一轮
+        let merged = "<system-reminder>规则</system-reminder>\n<system-reminder>日期</system-reminder>\n请修复代码。";
+        assert!(is_new_user_turn(&[msg("user", json!(merged))]));
+        assert!(is_new_user_turn(&[msg("user", json!([text(merged)]))]));
+        // 仅有提醒、没有正文（含未闭合的提醒）：Claude Code 注入的续请求
+        for only_reminder in [
+            "<system-reminder>规则</system-reminder>",
+            "<system-reminder>规则</system-reminder>\n<system-reminder>日期</system-reminder>\n",
+            "<system-reminder>未闭合提醒也不能当作用户输入",
+        ] {
+            assert!(!is_new_user_turn(&[msg("user", json!(only_reminder))]));
+            assert!(!is_new_user_turn(&[msg(
+                "user",
+                json!([text(only_reminder)])
+            )]));
+        }
+        // 提醒之后紧跟注入的重试提示：仍不是用户输入
+        assert!(!is_new_user_turn(&[msg(
+            "user",
+            json!("<system-reminder>x</system-reminder>\nOutput token limit hit. Resume directly.")
         )]));
 
         // 带 tool_result：工具往返续请求，旁边夹带的 system-reminder / 用户排队消息都不改变结论

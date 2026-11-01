@@ -15,6 +15,8 @@ export interface CredentialStatusItem {
   failureCount: number
   isCurrent: boolean
   expiresAt: string | null
+  /** 账号添加时间（RFC3339；旧账号为首次加载补写值） */
+  createdAt?: string | null
   authMethod: string | null
   hasProfileArn: boolean
   /** OIDC Client ID（IdC / external_idp；非机密，编辑弹窗只读展示） */
@@ -62,6 +64,49 @@ export interface BalanceResponse {
   remaining: number
   usagePercentage: number
   nextResetAt: number | null
+  /** 主配额已用（无 breakdown 时缺失） */
+  baseUsage?: number
+  /** 主配额上限 */
+  baseLimit?: number
+  /** 免费试用额度（仅 ACTIVE 时返回） */
+  freeTrial?: FreeTrialBalance
+  /** 生效奖励列表（仅 ACTIVE） */
+  bonuses?: BonusBalance[]
+  /** 资源计费详情 */
+  resourceDetail?: ResourceDetailBalance
+  /** 原始订阅类型（Q_DEVELOPER_STANDALONE_PRO 等） */
+  subscriptionType?: string
+  /** 是否可升级 */
+  upgradeCapable?: boolean
+  /** 用户邮箱（依赖 isEmailRequired=true） */
+  userEmail?: string
+  /** 用户 ID（d-xxxx 长格式） */
+  userId?: string
+}
+
+// 免费试用额度分解
+export interface FreeTrialBalance {
+  currentUsage: number
+  usageLimit: number
+  expiresAt: number | null
+}
+
+// 生效奖励额度
+export interface BonusBalance {
+  code: string
+  name: string
+  currentUsage: number
+  usageLimit: number
+  expiresAt: number | null
+  status: string
+}
+
+// 资源计费详情
+export interface ResourceDetailBalance {
+  resourceType?: string
+  unit?: string
+  currency?: string
+  overageRate?: number
 }
 
 // 成功响应

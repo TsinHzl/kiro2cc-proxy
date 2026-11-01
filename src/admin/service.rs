@@ -16,7 +16,8 @@ use crate::model::throttle_log::ThrottleLogStore;
 use super::error::AdminServiceError;
 use super::types::{
     AddCredentialRequest, AddCredentialResponse, AdminModelItem, AdminModelsResponse,
-    BalanceResponse, CredentialStatusItem, CredentialsStatusResponse, LoadBalancingModeResponse,
+    BalanceResponse, BonusBalance, CredentialStatusItem, CredentialsStatusResponse,
+    FreeTrialBalance, LoadBalancingModeResponse, ResourceDetailBalance,
     SetLoadBalancingModeRequest, UpdateCredentialRequest,
 };
 
@@ -164,6 +165,7 @@ impl AdminService {
                     .map(|s| s.count_within(entry.id, since) as u64)
                     .unwrap_or(0),
                 disabled_reason: entry.disabled_reason,
+                created_at: entry.created_at,
             })
             .collect();
 
@@ -264,6 +266,15 @@ impl AdminService {
                     remaining: 0.0,
                     usage_percentage: 0.0,
                     next_reset_at: None,
+                    base_usage: None,
+                    base_limit: None,
+                    free_trial: None,
+                    bonuses: None,
+                    resource_detail: None,
+                    subscription_type: None,
+                    upgrade_capable: None,
+                    user_email: None,
+                    user_id: None,
                 });
             }
             Err(e) => return Err(self.classify_balance_error(e, id)),
@@ -278,6 +289,50 @@ impl AdminService {
             0.0
         };
 
+        // 额度分解与账号详情（对齐 KAM parseUsageResponse：分解仅透传，汇总口径不变）
+        let detail = usage.usage_breakdown_list.first();
+        let base_usage = detail.map(|b| b.current_usage_with_precision);
+        let base_limit = detail.map(|b| b.usage_limit_with_precision);
+        let free_trial = detail
+            .and_then(|b| b.free_trial_info.as_ref())
+            .filter(|t| t.is_active())
+            .map(|t| FreeTrialBalance {
+                current_usage: t.current_usage_with_precision,
+                usage_limit: t.usage_limit_with_precision,
+                expires_at: t.free_trial_expiry,
+            });
+        let bonuses = detail.map(|b| {
+            b.bonuses
+                .iter()
+                .filter(|bonus| bonus.is_active())
+                .map(|bonus| BonusBalance {
+                    code: bonus.bonus_code.clone().unwrap_or_default(),
+                    name: bonus.display_name.clone().unwrap_or_default(),
+                    current_usage: bonus.current_usage,
+                    usage_limit: bonus.usage_limit,
+                    expires_at: bonus.expires_at,
+                    status: bonus.status.clone().unwrap_or_else(|| "ACTIVE".to_string()),
+                })
+                .collect::<Vec<_>>()
+        });
+        let resource_detail = detail.map(|b| ResourceDetailBalance {
+            resource_type: b.resource_type.clone(),
+            unit: b.unit.clone(),
+            currency: b.currency.clone(),
+            overage_rate: b.overage_rate,
+        });
+        let subscription_type = usage
+            .subscription_info
+            .as_ref()
+            .and_then(|info| info.subscription_type.clone());
+        let upgrade_capable = usage
+            .subscription_info
+            .as_ref()
+            .and_then(|info| info.upgrade_capability.as_deref())
+            .map(|c| c == "UPGRADE_CAPABLE");
+        let user_email = usage.user_info.as_ref().and_then(|u| u.email.clone());
+        let user_id = usage.user_info.as_ref().and_then(|u| u.user_id.clone());
+
         Ok(BalanceResponse {
             id,
             subscription_title: usage.subscription_title().map(|s| s.to_string()),
@@ -286,6 +341,15 @@ impl AdminService {
             remaining,
             usage_percentage,
             next_reset_at: usage.next_date_reset,
+            base_usage,
+            base_limit,
+            free_trial,
+            bonuses,
+            resource_detail,
+            subscription_type,
+            upgrade_capable,
+            user_email,
+            user_id,
         })
     }
 
@@ -375,6 +439,7 @@ impl AdminService {
             disabled: initially_disabled,
             endpoint: None,
             thinking_adaptive: true, // 新添加的账号默认注入 thinking 字段（默认开启）
+            created_at: None,        // 由 token_manager::add_credential 统一写入添加时间
         };
 
         // 调用 token_manager 添加账号

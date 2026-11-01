@@ -534,13 +534,17 @@ pub(crate) async fn get_usage_limits(
     // resourceType=AGENTIC_REQUEST 对企业 IdC 账号（有 profileArn）有效；实测
     // BuilderId 占位 ARN + resourceType 组合同样返回 200（见函数级 doc 注释），
     // 补全后的 idc/social 账号统一走此路径
+    // isEmailRequired=true 对齐 KAM REST 口径，使上游返回 userInfo（email/userId）
     let mut url = if credentials.profile_arn.is_some() {
         format!(
-            "https://{}/getUsageLimits?origin=AI_EDITOR&resourceType=AGENTIC_REQUEST",
+            "https://{}/getUsageLimits?origin=AI_EDITOR&resourceType=AGENTIC_REQUEST&isEmailRequired=true",
             host
         )
     } else {
-        format!("https://{}/getUsageLimits?origin=AI_EDITOR", host)
+        format!(
+            "https://{}/getUsageLimits?origin=AI_EDITOR&isEmailRequired=true",
+            host
+        )
     };
 
     // profileArn 是可选的

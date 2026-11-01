@@ -80,6 +80,10 @@ pub struct CredentialStatusItem {
     /// 禁用原因（None = 未禁用；QuotaExceeded 时前端显示「额度已用尽」而非通用「已禁用」）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_reason: Option<crate::kiro::token_manager::DisabledReason>,
+
+    /// 账号添加时间（RFC3339 格式；旧账号首次加载时补写，为近似值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
 }
 
 // ============ 操作请求 ============
@@ -204,6 +208,7 @@ mod tests {
             health_status: crate::kiro::token_manager::HealthStatus::Healthy,
             throttle_count: 0,
             disabled_reason: None,
+            created_at: None,
         }
     }
 
@@ -367,6 +372,9 @@ pub struct UpdateCredentialRequest {
 // ============ 余额查询 ============
 
 /// 余额查询响应
+///
+/// 前六个字段 + `next_reset_at` 为汇总口径（与改造前一致）；其余为额度分解
+/// 与账号详情字段（对齐 KAM `parseUsageResponse`），全部可选，缺失时前端降级隐藏。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceResponse {
@@ -374,16 +382,92 @@ pub struct BalanceResponse {
     pub id: u64,
     /// 订阅类型
     pub subscription_title: Option<String>,
-    /// 当前使用量
+    /// 当前使用量（基础 + ACTIVE freeTrial + ACTIVE bonus）
     pub current_usage: f64,
-    /// 使用限额
+    /// 使用限额（基础 + ACTIVE freeTrial + ACTIVE bonus）
     pub usage_limit: f64,
     /// 剩余额度
     pub remaining: f64,
     /// 使用百分比
     pub usage_percentage: f64,
-    /// 下次重置时间（Unix 时间戳）
+    /// 下次重置时间（Unix 时间戳，秒）
     pub next_reset_at: Option<f64>,
+
+    /// 主配额已用（breakdown 精确值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_usage: Option<f64>,
+    /// 主配额上限
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_limit: Option<f64>,
+    /// 免费试用额度（仅 freeTrialStatus=ACTIVE 时有值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_trial: Option<FreeTrialBalance>,
+    /// 生效奖励列表（仅 status=ACTIVE）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bonuses: Option<Vec<BonusBalance>>,
+    /// 资源计费详情
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_detail: Option<ResourceDetailBalance>,
+    /// 原始订阅类型（Q_DEVELOPER_STANDALONE_PRO 等）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscription_type: Option<String>,
+    /// 是否可升级（upgradeCapability=UPGRADE_CAPABLE）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upgrade_capable: Option<bool>,
+    /// 用户邮箱（依赖 isEmailRequired=true）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_email: Option<String>,
+    /// 用户 ID（d-xxxx 长格式）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+}
+
+/// 免费试用额度分解
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FreeTrialBalance {
+    /// 已用
+    pub current_usage: f64,
+    /// 上限
+    pub usage_limit: f64,
+    /// 过期时间（Unix 时间戳，秒）
+    pub expires_at: Option<f64>,
+}
+
+/// 生效奖励额度
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BonusBalance {
+    /// 奖励 Code
+    pub code: String,
+    /// 奖励名称（Trial credits 等）
+    pub name: String,
+    /// 已用
+    pub current_usage: f64,
+    /// 上限
+    pub usage_limit: f64,
+    /// 过期时间（Unix 时间戳，秒）
+    pub expires_at: Option<f64>,
+    /// 状态（ACTIVE）
+    pub status: String,
+}
+
+/// 资源计费详情
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceDetailBalance {
+    /// 资源类型（CREDIT）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_type: Option<String>,
+    /// 计费单位（INVOCATIONS）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    /// 币种（USD）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    /// 超额费率（0.04 → $0.04/INVOCATIONS）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overage_rate: Option<f64>,
 }
 
 // ============ 负载均衡配置 ============

@@ -1,0 +1,47 @@
+src/kiro/model/usage_limits.rs
+  42b4f72021b55a65 4-6,13,23-30,39,44-85,93-120,153,155-162,171-173,203,299-477,479-491
+src/kiro/token_manager/manager/admin_ops.rs
+  42b4f72021b55a65 117,762-763
+src/kiro/model/credentials/model.rs
+  42b4f72021b55a65 152-159,200
+src/kiro/token_manager/types.rs
+  42b4f72021b55a65 82-84
+src/kiro/model/credentials/tests.rs
+  42b4f72021b55a65 283,409,447,567,656-680
+src/kiro/token_manager/manager/core.rs
+  42b4f72021b55a65 54,75-79,173-174,176-179,181
+web-ui/admin-ui/src/i18n/locales/zh.json
+  42b4f72021b55a65 346-368
+src/admin/types.rs
+  42b4f72021b55a65 83-86,211,375-377,385,387,393,395-470
+web-ui/admin-ui/src/i18n/locales/en.json
+  42b4f72021b55a65 346-368
+src/admin/service.rs
+  42b4f72021b55a65 19-20,168,269-277,292-335,344-352,442
+src/kiro/token_manager/refresh.rs
+  42b4f72021b55a65 537,540,544-547
+web-ui/admin-ui/src/types/api.ts
+  42b4f72021b55a65 18-19,67-109
+web-ui/admin-ui/src/components/balance-dialog.tsx
+  42b4f72021b55a65 169-175,204-227,343-444,475-496,534-540,546-603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1ae737b741550083e9d50ba80b97d95ac25da8ab",
+  "prompts": {
+    "42b4f72021b55a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06d1ec2b-a1e4-45fe-b652-56bb85bac601",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 945,
+      "total_deletions": 73,
+      "accepted_lines": 889,
+      "overriden_lines": 0
+    }
+  }
+}

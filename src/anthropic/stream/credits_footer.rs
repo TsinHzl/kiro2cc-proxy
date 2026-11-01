@@ -197,8 +197,12 @@ pub fn begin_request(
         entry.sub_chains.contains(&chain)
     };
     if !is_sub && !entry.turn_open {
+        // 与 new_turn 路径同口径：重开的 turn 从零累计、重新计时，
+        // 否则 turn 已关闭后到达的续轮请求会沿用上一轮的 turn_total / turn_started
         entry.main_chain = chain;
         entry.turn_open = true;
+        entry.turn_total = 0.0;
+        entry.turn_started = started_at;
     }
     entry.touched = now;
     is_sub
@@ -472,6 +476,19 @@ mod tests {
         begin_request(conv, 1, true, Instant::now());
         let c = record_credits(conv, 1.0);
         assert_eq!((c.turn, c.session), (1.0, 1.75));
+    }
+
+    #[test]
+    fn continuation_after_turn_closed_restarts_turn_total() {
+        let conv = "test-conv-reopen";
+        begin_request(conv, 1, true, Instant::now());
+        record_credits(conv, 0.5);
+        finish_turn(conv);
+
+        // turn 已关闭后到达的同链续轮请求：作为新 turn 从零累计，不沿用上一轮的 turn_total
+        assert!(!begin_request(conv, 1, false, Instant::now()));
+        let s = record_credits(conv, 0.25);
+        assert_eq!((s.turn, s.session), (0.25, 0.75));
     }
 
     #[test]

@@ -515,6 +515,32 @@ mod tests {
     }
 
     #[test]
+    fn test_end_turn_without_metering_still_closes_turn() {
+        let conv = "ctx-footer-close-without-metering";
+        // 主对话以 end_turn 结束但上游没有 metering：不输出汇总行，turn 仍须关闭
+        let mut first = make_ctx(conv, request(true));
+        let mut out = first.process_kiro_event(&text_event("完成了"));
+        out.extend(first.generate_final_events());
+        assert_eq!(collect_text(&out), "完成了");
+
+        // 换链的新请求（如 /compact 改写首条消息）不应被误判为子代理，应正常输出汇总行
+        let other_chain = Some(CreditsFooterRequest {
+            style: ThinkingTextStyle::Ansi,
+            new_turn: true,
+            chain: 2,
+        });
+        let mut second = make_ctx(conv, other_chain);
+        let mut out = second.process_kiro_event(&text_event("好的"));
+        second.process_kiro_event(&metering_event(0.5));
+        out.extend(second.generate_final_events());
+        assert!(
+            collect_text(&out).contains("turn 0.50 • session 0.50"),
+            "text={:?}",
+            collect_text(&out)
+        );
+    }
+
+    #[test]
     fn test_credits_footer_disabled_or_without_metering_adds_nothing() {
         // 未开启
         let mut off = make_ctx("ctx-footer-off", None);

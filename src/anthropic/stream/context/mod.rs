@@ -722,11 +722,17 @@ impl StreamContext {
     /// - 子代理请求（主对话 turn 进行中的陌生请求链）只记账，不输出汇总行，也不结束主对话的 turn
     /// - 汇总行不计入 `visible_full_text`：它不是模型输出，不能进入 output_tokens 上报与计费口径
     fn credits_footer_events(&mut self) -> Vec<SseEvent> {
-        let (Some(footer), Some(conv), Some(credits)) = (
-            self.credits_footer,
-            self.conversation_id.as_deref(),
-            self.metering_usage,
-        ) else {
+        let (Some(footer), Some(conv)) = (self.credits_footer, self.conversation_id.as_deref())
+        else {
+            return Vec::new();
+        };
+        let end_turn = self.state_manager.get_stop_reason() == "end_turn";
+        // turn 的生命周期与记账解耦：上游没返回 meteringEvent 的 end_turn 也要关闭 turn，
+        // 否则 turn_open 残留，之后换链的请求（/compact 等）会被误判为子代理（finish_turn 幂等）
+        if end_turn && !self.credits_is_sub {
+            crate::anthropic::stream::finish_turn(conv);
+        }
+        let Some(credits) = self.metering_usage else {
             return Vec::new();
         };
         // 与 message_ended 同口径：桥接兜底路径可能再次收尾，只记账一次
@@ -735,10 +741,6 @@ impl StreamContext {
         }
         self.credits_recorded = true;
         let snapshot = crate::anthropic::stream::record_credits(conv, credits);
-        let end_turn = self.state_manager.get_stop_reason() == "end_turn";
-        if end_turn && !self.credits_is_sub {
-            crate::anthropic::stream::finish_turn(conv);
-        }
         if self.credits_is_sub || !end_turn || self.visible_full_text.is_empty() {
             return Vec::new();
         }

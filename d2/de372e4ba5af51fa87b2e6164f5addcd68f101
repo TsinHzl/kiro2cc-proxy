@@ -1,0 +1,34 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d2de372e4ba5af51fa87b2e6164f5addcd68f101",
+  "prompts": {
+    "7696a21c29db2555": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8755463-6ba4-4233-adee-56f0c4faaaaf",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 100,
+      "total_deletions": 13,
+      "accepted_lines": 100,
+      "overriden_lines": 0
+    },
+    "fd186f5b0bff388f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc7cfe66-8415-4696-865a-148aa14d2704",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 43,
+      "total_deletions": 0,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

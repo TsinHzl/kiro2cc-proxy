@@ -68,6 +68,19 @@ export function Dashboard({ onLogout }: DashboardProps) {
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
   }, [])
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [mobileNavOpen])
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -722,6 +735,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
             className="h-8 w-8 shrink-0 text-ink-2 hover:bg-surface-3 hover:text-ink"
             onClick={() => setMobileNavOpen(true)}
             aria-label={t('dashboard.expandSidebar')}
+            aria-expanded={mobileNavOpen}
+            aria-controls="admin-sidebar"
           >
             <Menu className="h-4 w-4" />
           </Button>

@@ -405,7 +405,7 @@
 }
 
 /* 手机尺寸响应式适配（<768px）：仅在小屏视口生效，>=768px 桌面端零变化 */
-@media (max-width: 767px) {
+@media not all and (min-width: 768px) {
   /* 多列指标条（MetricsBar）在手机端自动折叠为 2 列网格 */
   section[style*="grid-template-columns"] {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -413,6 +413,8 @@
   }
   section[style*="grid-template-columns"] > * {
     padding: 12px 14px !important;
+  }
+  section[style*="grid-template-columns"] > *:not(:last-child):not(:nth-child(odd):nth-last-child(2)) {
     border-bottom: 0.5px solid var(--hairline);
   }
   section[style*="grid-template-columns"] > *:nth-child(2n) .metric-divider {
@@ -422,9 +424,10 @@
   /* 固定视口高度容器在手机端释放死锁高度，避免指标条折行后挤压下方表格空间 */
   .h-\[calc\(100vh-56px\)\] {
     height: auto !important;
-    min-height: calc(100vh - 76px);
+    min-height: calc(100vh - 82px);
   }
-  .h-\[calc\(100vh-56px\)\] .overflow-y-auto {
+  .h-\[calc\(100vh-56px\)\] .overflow-y-auto:not([class*="max-h-"]):not(pre),
+  .h-\[calc\(100vh-56px\)\] .logstream {
     max-height: 65vh;
   }
 
@@ -434,7 +437,7 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  main table {
+  main table:not(.docs-layout table) {
     min-width: 600px;
   }
 

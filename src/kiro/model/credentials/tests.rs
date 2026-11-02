@@ -280,6 +280,7 @@ mod tests {
             disabled: false,
             endpoint: None,
             thinking_adaptive: false,
+            created_at: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -405,6 +406,7 @@ mod tests {
             disabled: false,
             endpoint: None,
             thinking_adaptive: false,
+            created_at: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -442,6 +444,7 @@ mod tests {
             disabled: false,
             endpoint: None,
             thinking_adaptive: false,
+            created_at: None,
         };
 
         let json = creds.to_pretty_json().unwrap();
@@ -561,6 +564,7 @@ mod tests {
             disabled: false,
             endpoint: None,
             thinking_adaptive: false,
+            created_at: None,
         };
 
         let json = original.to_pretty_json().unwrap();
@@ -647,6 +651,33 @@ mod tests {
         assert!(json.contains("thinkingAdaptive"));
         let parsed = KiroCredentials::from_json(&json).unwrap();
         assert!(parsed.thinking_adaptive);
+    }
+
+    // ============ created_at 字段测试 ============
+
+    #[test]
+    fn test_created_at_missing_for_legacy_json() {
+        // 旧版 credentials.json 不含 createdAt 字段 → 反序列化为 None（由加载流程补写）
+        let json = r#"{"refreshToken": "test"}"#;
+        let creds = KiroCredentials::from_json(json).unwrap();
+        assert!(creds.created_at.is_none());
+    }
+
+    #[test]
+    fn test_created_at_roundtrip() {
+        let creds = KiroCredentials {
+            refresh_token: Some("test".to_string()),
+            created_at: Some("2026-11-01T13:00:00+00:00".to_string()),
+            ..Default::default()
+        };
+
+        let json = creds.to_pretty_json().unwrap();
+        assert!(json.contains("createdAt"));
+        let parsed = KiroCredentials::from_json(&json).unwrap();
+        assert_eq!(
+            parsed.created_at.as_deref(),
+            Some("2026-11-01T13:00:00+00:00")
+        );
     }
 
     #[test]

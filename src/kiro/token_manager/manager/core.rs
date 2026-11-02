@@ -51,6 +51,7 @@ impl MultiTokenManager {
         let mut has_new_ids = false;
         let mut has_new_machine_ids = false;
         let mut has_new_profile_arns = false;
+        let mut has_new_created_ats = false;
         let config_ref = &config;
 
         let entries: Vec<CredentialEntry> = credentials
@@ -70,6 +71,12 @@ impl MultiTokenManager {
                     cred.machine_id =
                         Some(machine_id::generate_from_credentials(&cred, config_ref));
                     has_new_machine_ids = true;
+                }
+                // 存量账号补写添加时间：旧版 credentials.json 无此字段，
+                // 首次加载时补当前时间（近似值）并落盘
+                if cred.created_at.is_none() {
+                    cred.created_at = Some(chrono::Utc::now().to_rfc3339());
+                    has_new_created_ats = true;
                 }
                 // 存量账号补全：旧版本添加的 social/idc 账号可能没有 profileArn，
                 // 启动加载时按账号类型补全并标记写回配置文件
@@ -163,12 +170,15 @@ impl MultiTokenManager {
         // 避免文件丢失/首次运行时缺失导致回退到仅按当前列表推算）
         manager.save_id_counter_at_least(final_max_id);
 
-        // 如果有新分配的 ID、新生成的 machineId 或补全的 profileArn，立即持久化到配置文件
-        if has_new_ids || has_new_machine_ids || has_new_profile_arns {
+        // 如果有新分配的 ID、新生成的 machineId、补全的 profileArn 或补写的添加时间，立即持久化到配置文件
+        if has_new_ids || has_new_machine_ids || has_new_profile_arns || has_new_created_ats {
             if let Err(e) = manager.persist_credentials() {
-                tracing::warn!("补全账号 ID/machineId/profileArn 后持久化失败: {}", e);
+                tracing::warn!(
+                    "补全账号 ID/machineId/profileArn/添加时间 后持久化失败: {}",
+                    e
+                );
             } else {
-                tracing::info!("已补全账号 ID/machineId/profileArn 并写回配置文件");
+                tracing::info!("已补全账号 ID/machineId/profileArn/添加时间 并写回配置文件");
             }
         }
 

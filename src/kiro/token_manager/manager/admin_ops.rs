@@ -114,6 +114,7 @@ impl MultiTokenManager {
                     throttle_count: e.throttle_count,
                     disabled_reason: e.disabled_reason,
                     thinking_adaptive: e.credentials.thinking_adaptive,
+                    created_at: e.credentials.created_at.clone(),
                 })
                 .collect(),
             current_id,
@@ -758,6 +759,8 @@ impl MultiTokenManager {
         validated_cred.proxy_url = new_cred.proxy_url;
         validated_cred.proxy_username = new_cred.proxy_username;
         validated_cred.proxy_password = new_cred.proxy_password;
+        // 添加时间：本函数是账号入库的唯一入口，在此统一写入
+        validated_cred.created_at = Some(chrono::Utc::now().to_rfc3339());
 
         // idc 账号（BuilderId 与企业版共用 OIDC，刷新响应均不带 profileArn）：先尝试发现真实 ARN。
         // 企业版必须有租户自己的 ARN，BuilderId 占位符会被上游拒绝（issue #43）；

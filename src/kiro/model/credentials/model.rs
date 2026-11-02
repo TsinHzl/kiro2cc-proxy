@@ -149,6 +149,14 @@ pub struct KiroCredentials {
     /// —— `persist_credentials()` 一旦执行即把当前值显式写回，此后缺失状态不再存在。
     #[serde(default = "default_true")]
     pub thinking_adaptive: bool,
+
+    /// 账号添加时间（RFC3339 格式，前端展示「添加日期」）
+    ///
+    /// 新增账号时写入；旧版 credentials.json 不含此字段，加载时补写当前时间
+    /// （与真实历史添加时间近似，非精确值）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 /// 对邮箱做部分掩码（保留首字符与域名，如 u***@example.com）
@@ -189,6 +197,7 @@ impl std::fmt::Debug for KiroCredentials {
             .field("proxy_password", &redact(&self.proxy_password))
             .field("disabled", &self.disabled)
             .field("thinking_adaptive", &self.thinking_adaptive)
+            .field("created_at", &self.created_at)
             .finish()
     }
 }

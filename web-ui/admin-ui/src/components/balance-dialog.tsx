@@ -166,6 +166,13 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
     return num.toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
+  // 配额卡片用量/上限：整数值无小数，含小数保留 1 位（上游精确值如 0.3/37.6，避免四舍五入后
+  // 与 Hero 区两位小数口径矛盾），千分位
+  const formatQuota = (num: number) =>
+    Number.isInteger(num)
+      ? num.toLocaleString(localeTag())
+      : num.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
   /** RFC3339 → 本地时间；解析失败原样返回，避免出现 Invalid Date */
   const formatIso = (iso: string | null | undefined) => {
     if (!iso) return t('credentials.unknown')
@@ -193,6 +200,30 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
   const clampedProgressValue = Math.min(100, Math.max(0, safeUsagePercentage))
   // 剩余额度色阶复用项目统一的 quotaTone（按剩余百分比 60/30/15 分四档），与表格进度条同源
   const remainingTone = quotaTone(Math.max(0, 100 - clampedProgressValue))
+
+  // 配额分解（对齐 KAM 账号详情口径）：主配额取 usageBreakdown 精确值，缺失时回退汇总值
+  const baseUsage = balance?.baseUsage ?? balance?.currentUsage ?? 0
+  const baseLimit = balance?.baseLimit ?? balance?.usageLimit ?? 0
+  // 奖励汇总仅统计 ACTIVE（后端已过滤），无奖励时 0/0 占位
+  const activeBonuses = balance?.bonuses ?? []
+  const bonusTotalUsage = activeBonuses.reduce((sum, b) => sum + b.currentUsage, 0)
+  const bonusTotalLimit = activeBonuses.reduce((sum, b) => sum + b.usageLimit, 0)
+  // 奖励已用百分比：<10% 保留 1 位小数（对齐 KAM「已用 0%」粒度），否则取整；0 用量显示整数 0
+  const bonusPercent = (usage: number, limit: number) => {
+    if (limit <= 0 || usage <= 0) return '0'
+    const percent = (usage / limit) * 100
+    return percent < 10 ? percent.toFixed(1) : Math.round(percent).toString()
+  }
+
+  // 订阅详情整卡仅在任一字段可达时渲染，避免空卡；
+  // resourceDetail 需深入到内层字段（后端 breakdown 存在时恒为 Some，可能全 null）
+  const hasSubscriptionDetail = Boolean(
+    balance &&
+      (balance.subscriptionType ||
+        balance.resourceDetail?.resourceType ||
+        balance.resourceDetail?.overageRate != null ||
+        balance.upgradeCapable != null),
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -309,6 +340,111 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
             </div>
           )}
 
+          {/* 阶梯 2.5：配额分解三卡片（主配额 / 免费试用 / 奖励总计），对齐 KAM 账号详情 */}
+          {balance && (
+            <div className="grid grid-cols-3 gap-2">
+              {/* 主配额 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBase')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(baseUsage)}
+                  <span className="text-ink-3"> / {formatQuota(baseLimit)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {t('credentials.quotaResetAt', { time: formatTimestamp(balance.nextResetAt) })}
+                </div>
+              </div>
+
+              {/* 免费试用：恒渲染，无额度时 0/0 + 占位文案 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardFreeTrial')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(balance.freeTrial?.currentUsage ?? 0)}
+                  <span className="text-ink-3"> / {formatQuota(balance.freeTrial?.usageLimit ?? 0)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {balance.freeTrial
+                    ? t('credentials.quotaExpiresAt', { time: formatTimestamp(balance.freeTrial.expiresAt) })
+                    : t('credentials.quotaFreeTrialNone')}
+                </div>
+              </div>
+
+              {/* 奖励总计：N 个生效奖励 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBonuses')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(bonusTotalUsage)}
+                  <span className="text-ink-3"> / {formatQuota(bonusTotalLimit)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {t('credentials.quotaActiveBonusCount', { count: activeBonuses.length })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 阶梯 2.6：生效奖励明细（无 ACTIVE 数据时整块隐藏） */}
+          {balance && activeBonuses.length > 0 && (
+            <div className="space-y-2.5 rounded-lg border border-transparent bg-surface-2 p-3 px-3.5">
+              <CardHeader
+                label={t('credentials.bonusDetailTitle')}
+                icon={
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 12v10H4V12" />
+                    <path d="M2 7h20v5H2z" />
+                    <path d="M12 22V7" />
+                    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                  </svg>
+                }
+              />
+              {activeBonuses.map((bonus, index) => (
+                <div
+                  key={bonus.code || `bonus-${index}`}
+                  className="space-y-1.5 rounded-lg border border-transparent bg-surface p-2.5 px-3"
+                >
+                  {/* 名称 + ACTIVE 徽章 */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[12px] font-medium text-ink" title={bonus.name}>
+                      {bonus.name || bonus.code}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded border border-transparent bg-ok-soft px-1.5 py-0.5 text-[10px] font-medium text-ok">
+                      <span className="h-1 w-1 rounded-full bg-ok" />
+                      {bonus.status}
+                    </span>
+                  </div>
+                  {/* Code（可复制）+ 过期时间 */}
+                  <div className="flex items-center justify-between gap-2 text-[10.5px] text-ink-3">
+                    <span className="flex min-w-0 items-center gap-1">
+                      <span className="shrink-0">{t('credentials.bonusCodeLabel')}</span>
+                      <span className="truncate font-mono text-ink-2" title={bonus.code}>{bonus.code}</span>
+                      {bonus.code && <CopyButton text={bonus.code} title={t('credentials.copyBonusCode')} />}
+                    </span>
+                    <span className="shrink-0">
+                      {t('credentials.bonusExpiresLabel')}{' '}
+                      <span className="font-mono text-ink-2">{formatTimestamp(bonus.expiresAt)}</span>
+                    </span>
+                  </div>
+                  {/* 用量 + 百分比进度 */}
+                  <div className="space-y-1">
+                    <Progress
+                      value={Math.min(100, Math.max(0, bonus.usageLimit > 0 ? (bonus.currentUsage / bonus.usageLimit) * 100 : 0))}
+                      className="h-1.5 rounded-full"
+                    />
+                    <div className="flex items-center justify-between text-[10.5px] text-ink-3">
+                      <span className="font-mono">
+                        {formatQuota(bonus.currentUsage)} / {formatQuota(bonus.usageLimit)}
+                      </span>
+                      <span>
+                        {t('credentials.bonusUsedPercent', { percent: bonusPercent(bonus.currentUsage, bonus.usageLimit) })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* 阶梯三：模块化双栏卡片网格 */}
           {credential && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -338,6 +474,28 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                   </div>
 
                   <InfoRow label={t('credentials.nicknameLabel')} value={credential.nickname || t('credentials.unknown')} />
+
+                  {/* 用户 ID（d-xxxx 长格式，来自 getUsageLimits userInfo；可复制） */}
+                  {balance?.userId && (
+                    <div>
+                      <div className="text-[10.5px] text-ink-3">{t('credentials.userIdLabel')}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-mono text-[12px] font-medium text-ink" title={balance.userId}>
+                          {balance.userId}
+                        </span>
+                        <CopyButton text={balance.userId} title={t('credentials.copyUserId')} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 添加日期（旧账号为首次加载补写值） */}
+                  {credential.createdAt && (
+                    <InfoRow
+                      label={t('credentials.createdAtLabel')}
+                      value={formatIso(credential.createdAt)}
+                      title={credential.createdAt}
+                    />
+                  )}
 
                   <div>
                     <div className="text-[10.5px] text-ink-3">{t('credentials.priorityFieldLabel')}</div>
@@ -376,8 +534,73 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                       {credential.apiRegion || t('credentials.regionFallbackGlobal')}
                     </div>
                   </div>
+
+                  {/* Access token 过期时间（到期后自动刷新，非账号失效） */}
+                  <InfoRow
+                    label={t('credentials.tokenExpiresLabel')}
+                    value={formatIso(credential.expiresAt)}
+                    title={credential.expiresAt ?? undefined}
+                  />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 阶梯 3.5：订阅详情（rawType / 超额费率 / 资源类型 / 可升级徽章） */}
+          {hasSubscriptionDetail && (
+            <div className="space-y-2.5 rounded-lg border border-transparent bg-surface-2 p-3 px-3.5">
+              <CardHeader
+                label={t('credentials.subscriptionDetailTitle')}
+                icon={
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                  </svg>
+                }
+              />
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {balance?.subscriptionType && (
+                  <div className="col-span-2">
+                    <div className="text-[10.5px] text-ink-3">{t('credentials.subscriptionRawTypeLabel')}</div>
+                    <div className="truncate font-mono text-[12px] font-medium text-ink" title={balance.subscriptionType}>
+                      {balance.subscriptionType}
+                    </div>
+                  </div>
+                )}
+
+                {balance?.resourceDetail?.resourceType && (
+                  <div>
+                    <div className="text-[10.5px] text-ink-3">{t('credentials.resourceTypeLabel')}</div>
+                    <div className="truncate font-mono text-[12px] font-medium text-ink">
+                      {balance.resourceDetail.resourceType}
+                    </div>
+                  </div>
+                )}
+
+                {balance?.resourceDetail?.overageRate != null && (
+                  <div>
+                    <div className="text-[10.5px] text-ink-3">{t('credentials.overageRateLabel')}</div>
+                    <div className="truncate font-mono text-[12px] font-medium text-ink">
+                      {t('credentials.overageRateValue', {
+                        rate: balance.resourceDetail.overageRate,
+                        unit: balance.resourceDetail.unit || 'INVOCATIONS',
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 可升级徽章：仅明确可达时渲染 */}
+              {balance?.upgradeCapable != null && (
+                <span className={`inline-flex items-center gap-1 rounded border border-transparent px-2 py-0.5 text-[11px] font-medium ${
+                  balance.upgradeCapable ? 'bg-ok-soft text-ok' : 'bg-surface-3 text-ink-2'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${balance.upgradeCapable ? 'bg-ok' : 'bg-ink-3'}`} />
+                  {balance.upgradeCapable
+                    ? t('credentials.upgradeCapableYes')
+                    : t('credentials.upgradeCapableNo')}
+                </span>
+              )}
             </div>
           )}
 

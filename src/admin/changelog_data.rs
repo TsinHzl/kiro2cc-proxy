@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.0".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![
+                Bilingual::new(
+                    "修复 Claude Code 反复出现 \"Resume directly\" 的死循环（#59）：不再用本地估算的 input_tokens ≥ 1M 改写 stop_reason 为 model_context_window_exceeded，真正超限仍由上游返回 prompt is too long；OpenAI 兼容端点同步受益",
+                    "Fixed the endless \"Resume directly\" loop in Claude Code (#59): a local input_tokens estimate of 1M or more no longer rewrites stop_reason to model_context_window_exceeded. Real over-limit requests are still rejected upstream with prompt is too long; the OpenAI-compatible endpoints benefit too",
+                ),
+                Bilingual::new(
+                    "会话中途出现的内联 system 通知改为就地挂回相邻 user 消息，不再每轮重复放到当前消息开头；历史字节跨轮稳定，通知进入可缓存前缀（升级后带通知的会话会有一次缓存未命中）",
+                    "Inline system notices that appear mid-conversation are now attached in place to the adjacent user message instead of being replayed at the head of the current message every turn. History stays byte-stable across turns and the notices join the cacheable prefix (sessions with notices see one cache miss after upgrading)",
+                ),
+            ])],
+        },
+        ReleaseNote {
             version: "3.4.46".to_string(),
             is_latest: false,
             groups: vec![

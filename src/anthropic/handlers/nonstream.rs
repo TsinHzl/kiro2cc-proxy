@@ -630,9 +630,12 @@ pub(crate) async fn handle_non_stream_request(
     let final_input_tokens =
         super::super::stream::cap_input_tokens_pub(raw_final_input_tokens, input_tokens, model);
 
-    // 本地估算 ≥ 1M 兜底触发 stop_reason
-    if final_input_tokens >= 1_000_000 && stop_reason == "end_turn" {
-        stop_reason = "model_context_window_exceeded".to_string();
+    // 不再用本地估算 ≥ 1M 改写 stop_reason（Issue #59）：理由见流式路径同位置注释。
+    if raw_final_input_tokens >= 1_000_000 {
+        tracing::warn!(
+            estimated = raw_final_input_tokens,
+            "本地估算 input_tokens 已达 1M，但上游正常完成，保持原 stop_reason"
+        );
     }
 
     tracing::info!(

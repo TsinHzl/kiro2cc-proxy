@@ -127,9 +127,10 @@
 - **WHEN** Kiro `Event::ContextUsage` 上报 `contextUsagePercentage == 100.0`
 - **THEN** `stop_reason` 设置为 `model_context_window_exceeded`（与原行为一致）
 
-#### 场景：本地估算触发 stop_reason
-- **WHEN** 本地 `count_all_tokens` 估算结果 ≥ `1_000_000`
-- **THEN** `stop_reason` 设置为 `model_context_window_exceeded`
+#### 场景：本地估算不触发 stop_reason（Issue #59）
+- **WHEN** 本地 `count_all_tokens` 估算结果 ≥ `1_000_000`，且上游正常完成响应
+- **THEN** `stop_reason` 保持原值（如 `end_turn`），不得改写为 `model_context_window_exceeded`
+- **AND** 真正超窗由上游 `CONTENT_LENGTH_EXCEEDS_THRESHOLD` 拒绝并映射为 400 `prompt is too long`
 
 #### 场景：final_input_tokens 来源优先级
 - **WHEN** metering 提供 `inputTokens` 真值

@@ -702,6 +702,43 @@ mod tests {
         );
     }
 
+    /// Issue #59：本地估算 input_tokens ≥ 1M 且上游正常完成时，stop_reason 必须保持 end_turn，
+    /// 不能被改写成 model_context_window_exceeded（否则客户端把完整回复当作截断而死循环续写）。
+    #[test]
+    fn local_estimate_over_1m_keeps_end_turn() {
+        let mut ctx = StreamContext::new_with_thinking("claude-opus-5.5", 1_500_000, false);
+        let _ = ctx.generate_initial_events();
+        let _ = ctx.process_assistant_response("done");
+        let finals = ctx.generate_final_events();
+        let md = finals
+            .iter()
+            .find(|e| e.event == "message_delta")
+            .expect("message_delta");
+        assert_eq!(md.data["delta"]["stop_reason"], "end_turn");
+    }
+
+    /// 上游 contextUsage 100% 的真实信号仍应映射为 model_context_window_exceeded。
+    #[test]
+    fn upstream_context_usage_100_still_reports_exceeded() {
+        let mut ctx = StreamContext::new_with_thinking("claude-opus-5.5", 1000, false);
+        let _ = ctx.generate_initial_events();
+        let _ = ctx.process_assistant_response("partial");
+        ctx.process_kiro_event(&crate::kiro::model::events::Event::ContextUsage(
+            crate::kiro::model::events::ContextUsageEvent {
+                context_usage_percentage: 100.0,
+            },
+        ));
+        let finals = ctx.generate_final_events();
+        let md = finals
+            .iter()
+            .find(|e| e.event == "message_delta")
+            .expect("message_delta");
+        assert_eq!(
+            md.data["delta"]["stop_reason"],
+            "model_context_window_exceeded"
+        );
+    }
+
     /// 任务 1：native reasoning 路径的 thinking token 统计（>0 且不含 signature/可见文本）
     #[test]
     fn test_thinking_token_count_native_reasoning_path() {

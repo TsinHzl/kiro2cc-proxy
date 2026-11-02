@@ -1002,10 +1002,15 @@ impl StreamContext {
         let final_input_tokens =
             cap_input_tokens(raw_final_input_tokens, self.input_tokens, &self.model);
 
-        // 本地估算 ≥ 1M 兜底触发 stop_reason
-        if final_input_tokens >= 1_000_000 {
-            self.state_manager
-                .set_stop_reason("model_context_window_exceeded");
+        // 不再用本地估算 ≥ 1M 改写 stop_reason（Issue #59）：估算值有误差且已被 clamp 到 1M，
+        // 上游完整返回的响应不应被改写成"超窗"，否则 Claude Code 会把已完成的回复当成被截断而
+        // 反复续写 / 压缩。真正超窗时上游会拒绝请求（见 handlers/error.rs 的
+        // CONTENT_LENGTH_EXCEEDS_THRESHOLD 分支），Kiro contextUsage 100% 的上游信号仍保留。
+        if raw_final_input_tokens >= 1_000_000 {
+            tracing::warn!(
+                estimated = raw_final_input_tokens,
+                "本地估算 input_tokens 已达 1M，但上游正常完成，保持原 stop_reason"
+            );
         }
 
         tracing::info!(

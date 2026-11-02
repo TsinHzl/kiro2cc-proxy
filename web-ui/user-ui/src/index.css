@@ -347,3 +347,15 @@
     background: var(--hairline-2);
   }
 }
+
+/* 手机尺寸响应式适配（<768px）：仅在小屏视口生效，>=768px 桌面端零变化 */
+@media (max-width: 767px) {
+  div:has(> table),
+  section:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    min-width: 600px;
+  }
+}

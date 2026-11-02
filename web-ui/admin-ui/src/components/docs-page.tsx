@@ -414,7 +414,7 @@ print(resp.choices[0].message.content)`
 
   return (
     <div>
-      <header className="sticky top-0 z-20 -mx-9 -mt-7 border-b-[0.5px] border-hairline bg-background px-9 pb-3 pt-7">
+      <header className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 -mt-7 max-md:mt-0 border-b-[0.5px] border-hairline bg-background px-9 max-md:px-3.5 pb-3 pt-7 max-md:pt-3">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <div className="docs-eyebrow">

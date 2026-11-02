@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useMemo, useRef } from 'react'
-import {Server, Key, Settings, BarChart2, ScrollText, Boxes, Palette} from 'lucide-react'
+import {Server, Key, Settings, BarChart2, ScrollText, Boxes, Palette, Menu} from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/toast'
 import { useTranslation } from 'react-i18next'
@@ -59,6 +59,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [sidebarContentCollapsed, setSidebarContentCollapsed] = useState<boolean>(sidebarCollapsed)
   // 与 sidebarContentCollapsed 的瞬切时机配合：切换前淡出、切换后淡入，把布局跳变藏在不可见的瞬间
   const [sidebarContentFading, setSidebarContentFading] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)')
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileNavOpen(false)
+    }
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
   const [detailKeyId, setDetailKeyId] = useState<number | null>(null)
   const [detailCredentialId, setDetailCredentialId] = useState<number | null>(null)
   const [throttleLogCredentialId, setThrottleLogCredentialId] = useState<number | null>(null)
@@ -704,6 +713,32 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   return (
     <div className="flex min-h-screen bg-background">
+      {/* 移动端固定顶栏（仅 <768px 显示，桌面端隐藏） */}
+      <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center justify-between border-b-[0.5px] border-hairline bg-sidebar px-3.5 md:hidden">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-ink-2 hover:bg-surface-3 hover:text-ink"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label={t('dashboard.expandSidebar')}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <img
+            src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
+            alt="Kiro2CCProxy"
+            className="hidden h-6 w-6 shrink-0 rounded-[6px] shadow-hair dark:block"
+          />
+          <img
+            src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
+            alt="Kiro2CCProxy"
+            className="h-6 w-6 shrink-0 rounded-[6px] shadow-hair dark:hidden"
+          />
+          <span className="truncate text-[13.5px] font-semibold tracking-[-.01em]">Kiro2CCProxy</span>
+        </div>
+      </header>
+
       {/* 左侧 Sidebar（自本文件拆出，纯代码搬移） */}
       <Sidebar
         sidebarCollapsed={sidebarCollapsed}
@@ -716,10 +751,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
         toggleSidebarCollapsed={toggleSidebarCollapsed}
         handleLogout={handleLogout}
         toggleTheme={toggleTheme}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
       />
 
       {/* 主内容 */}
-      <main className={`${sidebarCollapsed ? 'ml-16' : 'ml-[232px]'} flex-1 min-h-screen px-9 py-7 transition-all duration-200`}>
+      <main className={`${sidebarCollapsed ? 'ml-16' : 'ml-[232px]'} max-md:ml-0 flex-1 min-w-0 min-h-screen px-9 py-7 max-md:px-3.5 max-md:pt-[62px] max-md:pb-5 transition-all duration-200`}>
         {activeTab === 'logs' ? (
           <LogViewerPage />
         ) : activeTab === 'docs' ? (

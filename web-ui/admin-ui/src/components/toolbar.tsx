@@ -73,7 +73,7 @@ export function SearchBox({
 
   return (
     <label
-      className={`flex h-[31px] ${widthClass} shrink-0 items-center gap-[7px] rounded-[7px] border border-transparent bg-surface px-2.5 text-ink-3 shadow-hair focus-within:border-brand`}
+      className={`flex h-[31px] ${widthClass} max-md:w-full max-md:min-w-[160px] max-md:flex-1 shrink-0 items-center gap-[7px] rounded-[7px] border border-transparent bg-surface px-2.5 text-ink-3 shadow-hair focus-within:border-brand`}
     >
       <Search className="size-[15px] shrink-0" />
       <input
@@ -130,7 +130,7 @@ export interface SegmentedProps<T extends string> {
  */
 export function Segmented<T extends string>({ value, onChange, groupLabel, options }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={groupLabel} className="flex shrink-0 gap-0.5 rounded-[8px] bg-surface-3 p-0.5">
+    <div role="radiogroup" aria-label={groupLabel} className="flex shrink-0 max-md:max-w-full max-md:overflow-x-auto gap-0.5 rounded-[8px] bg-surface-3 p-0.5">
       {options.map((opt) => {
         const on = value === opt.key
         return (

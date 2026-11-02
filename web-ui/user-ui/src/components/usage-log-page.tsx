@@ -80,7 +80,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="w-[90%] mx-auto px-4 py-6">
+      <div className="w-[90%] max-md:w-full mx-auto px-4 max-md:px-3.5 py-6 max-md:py-4">
         <PageHead
           crumb={['请求日志']}
           title="请求日志"

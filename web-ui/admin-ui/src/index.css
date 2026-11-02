@@ -403,3 +403,63 @@
   animation: none;
   mix-blend-mode: normal;
 }
+
+/* 手机尺寸响应式适配（<768px）：仅在小屏视口生效，>=768px 桌面端零变化 */
+@media not all and (min-width: 768px) {
+  /* 多列指标条（MetricsBar）在手机端自动折叠为 2 列网格 */
+  section[style*="grid-template-columns"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow-x: hidden !important;
+  }
+  section[style*="grid-template-columns"] > * {
+    padding: 12px 14px !important;
+  }
+  section[style*="grid-template-columns"] > *:not(:last-child):not(:nth-child(odd):nth-last-child(2)) {
+    border-bottom: 0.5px solid var(--hairline);
+  }
+  section[style*="grid-template-columns"] > *:nth-child(2n) .metric-divider {
+    display: none !important;
+  }
+
+  /* 固定视口高度容器在手机端释放死锁高度，避免指标条折行后挤压下方表格空间 */
+  .h-\[calc\(100vh-56px\)\] {
+    height: auto !important;
+    min-height: calc(100vh - 82px);
+  }
+  .h-\[calc\(100vh-56px\)\] .overflow-y-auto:not([class*="max-h-"]):not(pre),
+  .h-\[calc\(100vh-56px\)\] .logstream {
+    max-height: 65vh;
+  }
+
+  /* 表格外层容器开启横向平滑滚动，保持全部列完整可查阅 */
+  div:has(> table),
+  section:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main table:not(.docs-layout table) {
+    min-width: 600px;
+  }
+
+  /* 系统设置行与宽输入框在窄屏下允许自动换行并收敛宽度 */
+  div.flex.items-center.gap-4.border-b-\[0\.5px\] {
+    flex-wrap: wrap;
+  }
+  .w-\[290px\] {
+    width: min(290px, 52vw) !important;
+  }
+
+  /* 实时日志流在窄屏下收缩目标列宽度与字号间距 */
+  .logrow {
+    gap: 7px;
+    padding: 3px 10px;
+    font-size: 11px;
+  }
+  .logrow .tgt {
+    min-width: 96px;
+    max-width: 128px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

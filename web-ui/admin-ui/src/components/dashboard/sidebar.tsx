@@ -27,6 +27,8 @@ interface SidebarProps {
   toggleSidebarCollapsed: () => void
   handleLogout: () => void
   toggleTheme: (x: number, y: number) => void
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
 export function Sidebar({
@@ -40,8 +42,11 @@ export function Sidebar({
   toggleSidebarCollapsed,
   handleLogout,
   toggleTheme,
+  mobileOpen = false,
+  onMobileClose,
 }: SidebarProps) {
   const { t, i18n } = useTranslation()
+  const collapsed = sidebarContentCollapsed && !mobileOpen
   const language = i18n.language === 'en' ? 'en' : 'zh'
   const nextLanguage = language === 'en' ? 'zh' : 'en'
   const nextLanguageLabel = nextLanguage === 'en'
@@ -64,16 +69,27 @@ export function Sidebar({
   const hasUpdate = !!serverInfo?.version && !!latestVersion && isNewerVersion(latestVersion, serverInfo.version)
 
   return (
-      <aside className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} bg-sidebar bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}>
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[1px] md:hidden"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        id="admin-sidebar"
+        className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} max-md:w-[232px] max-md:z-40 ${mobileOpen ? 'max-md:visible max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'} bg-sidebar bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}
+      >
         {/* 内容区整体做一次透明度过渡：把 header/nav/footer 所有跟随收起态瞬时切换的布局
             （flex 方向、文字显隐、ml-auto）都藏在这次淡出淡入的不可见瞬间，避免逐处单独处理时互相错位 */}
         <div className={`flex h-full flex-col transition-opacity duration-100 ${sidebarContentFading ? 'opacity-0' : 'opacity-100'}`}>
-        <div className={`flex items-center border-b-[0.5px] border-hairline ${sidebarContentCollapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
+        <div className={`flex items-center border-b-[0.5px] border-hairline ${collapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
           <a
             href="https://github.com/TsinHzl/kiro2cc-proxy"
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center group min-w-0 ${sidebarContentCollapsed ? '' : 'gap-2.5'}`}
+            className={`flex items-center group min-w-0 ${collapsed ? '' : 'gap-2.5'}`}
           >
             {/* 方案 4（Aurora Prism）图标自带圆角底座与极光边框，故不再套品牌渐变方块；
                 随主题切换 dark / light 两版，与设计稿 preview.html 的实机模拟一致 */}
@@ -89,7 +105,7 @@ export function Sidebar({
               alt="Kiro2CCProxy"
               className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
             />
-            {!sidebarContentCollapsed && (
+            {!collapsed && (
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors">Kiro2CCProxy</div>
                 <div className="text-[10.5px] tracking-[.02em] text-ink-3 group-hover:text-brand transition-colors">{t('dashboard.consoleSubtitle')}</div>
@@ -99,19 +115,19 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
-            onClick={toggleSidebarCollapsed}
-            title={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
-            aria-label={sidebarCollapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${collapsed ? '' : 'ml-auto'}`}
+            onClick={() => (mobileOpen && onMobileClose ? onMobileClose() : toggleSidebarCollapsed())}
+            title={collapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
+            aria-label={collapsed ? t('dashboard.expandSidebar') : t('dashboard.collapseSidebar')}
           >
-            {sidebarCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+            {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
           </Button>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <TooltipProvider delayDuration={200}>
             {navGroups.map((group, groupIndex) => (
               <div key={group.title}>
-                {sidebarContentCollapsed ? (
+                {collapsed ? (
                   /* 设计稿 .shell.is-collapsed .nav-group：标题降级为 1px 分隔线，首组不渲染 */
                   groupIndex > 0 && (
                     <div role="separator" aria-label={group.title} className="mx-[14px] my-[9px] h-[0.5px] bg-hairline-2" />
@@ -127,13 +143,16 @@ export function Sidebar({
                   const item = (
                     <button
                       key={key}
-                      onClick={onClick}
+                      onClick={() => {
+                        onClick()
+                        onMobileClose?.()
+                      }}
                       aria-label={fullLabel}
                       aria-current={active ? 'true' : undefined}
-                      className={`mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${sidebarContentCollapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
+                      className={`mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${collapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
-                      {!sidebarContentCollapsed && (
+                      {!collapsed && (
                         <>
                           <span className="truncate">{label}</span>
                           {count !== undefined && (
@@ -143,7 +162,7 @@ export function Sidebar({
                       )}
                     </button>
                   )
-                  return sidebarContentCollapsed ? (
+                  return collapsed ? (
                     <Tooltip key={key}>
                       <TooltipTrigger asChild>{item}</TooltipTrigger>
                       <TooltipContent side="right">{fullLabel}</TooltipContent>
@@ -157,16 +176,16 @@ export function Sidebar({
           </TooltipProvider>
         </nav>
         {/* 语言区：替换身份信息，主题切换仍独立保留 */}
-        <div className={`flex items-center border-t-[0.5px] border-hairline ${sidebarContentCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-[9px] px-3 py-2.5'}`}>
+        <div className={`flex items-center border-t-[0.5px] border-hairline ${collapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-[9px] px-3 py-2.5'}`}>
           <Button
             variant="ghost"
-            className={`h-8 shrink-0 text-ink-2 hover:bg-brand-soft hover:text-brand ${sidebarContentCollapsed ? 'w-8 px-0' : 'gap-2 px-2'}`}
+            className={`h-8 shrink-0 text-ink-2 hover:bg-brand-soft hover:text-brand ${collapsed ? 'w-8 px-0' : 'gap-2 px-2'}`}
             onClick={toggleLanguage}
             title={t('dashboard.switchLanguageTo', { language: nextLanguageLabel })}
             aria-label={t('dashboard.switchLanguageTo', { language: nextLanguageLabel })}
           >
             <Languages className="h-3.5 w-3.5 shrink-0" />
-            {!sidebarContentCollapsed && (
+            {!collapsed && (
               <span className="rounded-[5px] bg-surface-3 px-1.5 py-0.5 text-[10px] font-semibold text-ink-3">
                 {language === 'en' ? 'EN' : '中'}
               </span>
@@ -175,7 +194,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${collapsed ? '' : 'ml-auto'}`}
             onClick={(e) => toggleTheme(e.clientX, e.clientY)}
             title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
             aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
@@ -184,7 +203,7 @@ export function Sidebar({
           </Button>
         </div>
         {/* 页脚（设计稿 .side-foot）：运行状态点 + 版本号 + 退出登录 */}
-        <div className={`flex items-center border-t-[0.5px] border-hairline ${sidebarContentCollapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
+        <div className={`flex items-center border-t-[0.5px] border-hairline ${collapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
           <span
             role="img"
             aria-label={serverStatusLabel}
@@ -192,7 +211,7 @@ export function Sidebar({
             className={`h-1.5 w-1.5 shrink-0 rounded-full ring-[3px] ${serverHealthy ? 'bg-ok ring-ok-soft' : 'bg-ink-3 ring-surface-3'}`}
           />
           {/* 加载中 / 请求失败时连同版本号一并隐藏，只留灰点，避免展示 `v...` 这类无效版本 */}
-          {!sidebarContentCollapsed && serverHealthy && (
+          {!collapsed && serverHealthy && (
             <a
               href="https://github.com/TsinHzl/kiro2cc-proxy"
               target="_blank"
@@ -212,7 +231,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${sidebarContentCollapsed ? '' : 'ml-auto'}`}
+            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${collapsed ? '' : 'ml-auto'}`}
             onClick={handleLogout}
             title={t('common.logout')}
             aria-label={t('common.logout')}
@@ -222,5 +241,6 @@ export function Sidebar({
         </div>
         </div>
       </aside>
+    </>
   )
 }

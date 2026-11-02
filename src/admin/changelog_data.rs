@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.4.46".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "账号余额弹窗融入 Kiro 账号详情全部信息：主配额 / 免费试用 / 奖励总计三卡片分解、生效奖励明细（Code / 过期时间 / 用量进度）、订阅详情（订阅类型 / 超额费率 / 可升级）、用户 ID、Token 到期与账号添加日期",
+                    "The account balance dialog now shows the full Kiro account details: base / free-trial / bonus quota breakdown cards, active bonus details (code, expiry, usage progress), subscription details (type, overage rate, upgradeable badge), user ID, token expiry and the date the account was added",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "getUsageLimits 请求补齐 isEmailRequired 参数取回用户信息；账号添加时间自动记录，存量账号首次加载时补写",
+                    "getUsageLimits requests now pass isEmailRequired so user info is returned; the account creation date is recorded automatically and backfilled for existing accounts on first load",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.4.45".to_string(),
             is_latest: false,
             groups: vec![

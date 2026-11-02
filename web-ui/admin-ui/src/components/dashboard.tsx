@@ -135,27 +135,21 @@ export function Dashboard({ onLogout }: DashboardProps) {
     throttleLogCredentialId === null
   useReturnRefresh(onCredentialListView, refreshOnReturn)
 
-  // 进入「使用日志」页的状态重置（侧边栏点击与切回浏览器共用，保证两条路径效果一致）：
-  // 区间回到「今日」、清空自定义区间，页面重新挂载后页码回到第 1 页并重拉数据
+  // 浏览器标签页 / 窗口切回前台或从侧边栏切回「使用日志」页时共用：
+  // 保留用户此前选中的时间维度（今日 / 7 天 / 14 天 / 30 天 / 自定义），换 key 重新挂载使页码回到第 1 页并强制重拉最新数据
+  const [dailyStatsRemountKey, setDailyStatsRemountKey] = useState(0)
   const resetDailyStatsView = () => {
     setActiveTab('credentials')
     setDetailKeyId(null)
     setDetailCredentialId(null)
     setDailyView('list')
-    setDailyRange('today')
-    setDailyCustomRange(null)
     setDailyDetailFromSummary(false)
-  }
-  // 浏览器标签页 / 窗口切回前台且停留在「使用日志」页时，等同于再点一次侧边栏「使用日志」：
-  // 该页当前已挂载，需换 key 强制重新挂载，才能得到与"从别的菜单切过来"相同的重置与重拉
-  const [dailyStatsRemountKey, setDailyStatsRemountKey] = useState(0)
-  useReturnRefresh(dailyView === 'list', () => {
-    resetDailyStatsView()
     queryClient.invalidateQueries({ queryKey: ['dailyUsage'] })
     queryClient.invalidateQueries({ queryKey: ['dailyUsageRecords'] })
     queryClient.invalidateQueries({ queryKey: ['usageRecordsByRange'] })
     setDailyStatsRemountKey((k) => k + 1)
-  })
+  }
+  useReturnRefresh(dailyView === 'list', resetDailyStatsView)
 
   const now = new Date()
   const todayLocal = formatLocalDate(now)

@@ -10,7 +10,8 @@ use serde::Deserialize;
 /// 使用额度查询响应
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)] // 扩展字段在任务 4（BalanceResponse 组装）接入，任务间允许暂未读取
+// 对齐 KAM 完整响应模型的全量镜像：部分字段暂无读取方，保留供后续详情扩展，非遗漏
+#[allow(dead_code)]
 pub struct UsageLimitsResponse {
     /// 下次重置日期 (Unix 时间戳)
     #[serde(default)]

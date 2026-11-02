@@ -10,13 +10,14 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::kiro::model::credentials::KiroCredentials;
+use crate::kiro::model::usage_limits::UsageLimitsResponse;
 use crate::kiro::token_manager::{MultiTokenManager, UsageLimitsUnsupportedError};
 use crate::model::throttle_log::ThrottleLogStore;
 
 use super::error::AdminServiceError;
 use super::types::{
     AddCredentialRequest, AddCredentialResponse, AdminModelItem, AdminModelsResponse,
-    BalanceResponse, BonusBalance, CredentialStatusItem, CredentialsStatusResponse,
+    BalanceDetail, BalanceResponse, BonusBalance, CredentialStatusItem, CredentialsStatusResponse,
     FreeTrialBalance, LoadBalancingModeResponse, ResourceDetailBalance,
     SetLoadBalancingModeRequest, UpdateCredentialRequest,
 };
@@ -266,15 +267,7 @@ impl AdminService {
                     remaining: 0.0,
                     usage_percentage: 0.0,
                     next_reset_at: None,
-                    base_usage: None,
-                    base_limit: None,
-                    free_trial: None,
-                    bonuses: None,
-                    resource_detail: None,
-                    subscription_type: None,
-                    upgrade_capable: None,
-                    user_email: None,
-                    user_id: None,
+                    detail: BalanceDetail::default(),
                 });
             }
             Err(e) => return Err(self.classify_balance_error(e, id)),
@@ -290,48 +283,7 @@ impl AdminService {
         };
 
         // 额度分解与账号详情（对齐 KAM parseUsageResponse：分解仅透传，汇总口径不变）
-        let detail = usage.usage_breakdown_list.first();
-        let base_usage = detail.map(|b| b.current_usage_with_precision);
-        let base_limit = detail.map(|b| b.usage_limit_with_precision);
-        let free_trial = detail
-            .and_then(|b| b.free_trial_info.as_ref())
-            .filter(|t| t.is_active())
-            .map(|t| FreeTrialBalance {
-                current_usage: t.current_usage_with_precision,
-                usage_limit: t.usage_limit_with_precision,
-                expires_at: t.free_trial_expiry,
-            });
-        let bonuses = detail.map(|b| {
-            b.bonuses
-                .iter()
-                .filter(|bonus| bonus.is_active())
-                .map(|bonus| BonusBalance {
-                    code: bonus.bonus_code.clone().unwrap_or_default(),
-                    name: bonus.display_name.clone().unwrap_or_default(),
-                    current_usage: bonus.current_usage,
-                    usage_limit: bonus.usage_limit,
-                    expires_at: bonus.expires_at,
-                    status: bonus.status.clone().unwrap_or_else(|| "ACTIVE".to_string()),
-                })
-                .collect::<Vec<_>>()
-        });
-        let resource_detail = detail.map(|b| ResourceDetailBalance {
-            resource_type: b.resource_type.clone(),
-            unit: b.unit.clone(),
-            currency: b.currency.clone(),
-            overage_rate: b.overage_rate,
-        });
-        let subscription_type = usage
-            .subscription_info
-            .as_ref()
-            .and_then(|info| info.subscription_type.clone());
-        let upgrade_capable = usage
-            .subscription_info
-            .as_ref()
-            .and_then(|info| info.upgrade_capability.as_deref())
-            .map(|c| c == "UPGRADE_CAPABLE");
-        let user_email = usage.user_info.as_ref().and_then(|u| u.email.clone());
-        let user_id = usage.user_info.as_ref().and_then(|u| u.user_id.clone());
+        let detail = build_balance_detail(&usage);
 
         Ok(BalanceResponse {
             id,
@@ -341,15 +293,7 @@ impl AdminService {
             remaining,
             usage_percentage,
             next_reset_at: usage.next_date_reset,
-            base_usage,
-            base_limit,
-            free_trial,
-            bonuses,
-            resource_detail,
-            subscription_type,
-            upgrade_capable,
-            user_email,
-            user_id,
+            detail,
         })
     }
 
@@ -743,6 +687,66 @@ impl AdminService {
     }
 }
 
+/// 组装余额分解详情（对齐 KAM `parseUsageResponse`：分解仅透传，汇总口径不变）
+///
+/// 纯函数：freeTrial/bonus 仅 ACTIVE 透传；`upgrade_capability` 映射为 bool；
+/// `type` 键（alias subscriptionType）透传为 `subscription_type`。
+fn build_balance_detail(usage: &UsageLimitsResponse) -> BalanceDetail {
+    let detail = usage.usage_breakdown_list.first();
+    let base_usage = detail.map(|b| b.current_usage_with_precision);
+    let base_limit = detail.map(|b| b.usage_limit_with_precision);
+    let free_trial = detail
+        .and_then(|b| b.free_trial_info.as_ref())
+        .filter(|t| t.is_active())
+        .map(|t| FreeTrialBalance {
+            current_usage: t.current_usage_with_precision,
+            usage_limit: t.usage_limit_with_precision,
+            expires_at: t.free_trial_expiry,
+        });
+    let bonuses = detail.map(|b| {
+        b.bonuses
+            .iter()
+            .filter(|bonus| bonus.is_active())
+            .map(|bonus| BonusBalance {
+                code: bonus.bonus_code.clone().unwrap_or_default(),
+                name: bonus.display_name.clone().unwrap_or_default(),
+                current_usage: bonus.current_usage,
+                usage_limit: bonus.usage_limit,
+                expires_at: bonus.expires_at,
+                // filter(is_active) 之后 status 必为 Some("ACTIVE")
+                status: "ACTIVE".to_string(),
+            })
+            .collect::<Vec<_>>()
+    });
+    let resource_detail = detail.map(|b| ResourceDetailBalance {
+        resource_type: b.resource_type.clone(),
+        unit: b.unit.clone(),
+        currency: b.currency.clone(),
+        overage_rate: b.overage_rate,
+    });
+    let subscription_type = usage
+        .subscription_info
+        .as_ref()
+        .and_then(|info| info.subscription_type.clone());
+    let upgrade_capable = usage
+        .subscription_info
+        .as_ref()
+        .and_then(|info| info.upgrade_capability.as_deref())
+        .map(|c| c == "UPGRADE_CAPABLE");
+    let user_id = usage.user_info.as_ref().and_then(|u| u.user_id.clone());
+
+    BalanceDetail {
+        base_usage,
+        base_limit,
+        free_trial,
+        bonuses,
+        resource_detail,
+        subscription_type,
+        upgrade_capable,
+        user_id,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1091,5 +1095,121 @@ mod tests {
             .expect("id=1 的账号应存在");
         // 5 条 8 天前（窗口外）+ 3 条 当前（窗口内）→ 期望 3
         assert_eq!(item.throttle_count, 3);
+    }
+
+    /// KAM 实测响应形态样例（与 usage_limits.rs 测试同构），覆盖 ACTIVE/EXPIRED 混合
+    const KAM_DETAIL_RESPONSE: &str = r#"{
+        "subscriptionInfo": {
+            "subscriptionTitle": "KIRO PRO",
+            "type": "Q_DEVELOPER_STANDALONE_PRO",
+            "upgradeCapability": "UPGRADE_CAPABLE"
+        },
+        "userInfo": {
+            "email": "user@example.com",
+            "userId": "d-9067c98495-44e8a498"
+        },
+        "usageBreakdownList": [
+            {
+                "resourceType": "CREDIT",
+                "currency": "USD",
+                "unit": "INVOCATIONS",
+                "overageRate": 0.04,
+                "currentUsageWithPrecision": 37.6,
+                "usageLimitWithPrecision": 1000,
+                "freeTrialInfo": {
+                    "currentUsageWithPrecision": 5,
+                    "usageLimitWithPrecision": 50,
+                    "freeTrialStatus": "ACTIVE",
+                    "freeTrialExpiry": 1822568100
+                },
+                "bonuses": [
+                    {
+                        "bonusCode": "0tcrw2acft3da3mmhed#0",
+                        "displayName": "Trial credits",
+                        "currentUsage": 0.5,
+                        "usageLimit": 500,
+                        "expiresAt": 1822568100,
+                        "status": "ACTIVE"
+                    },
+                    {
+                        "bonusCode": "expired#1",
+                        "displayName": "Old credits",
+                        "currentUsage": 12.5,
+                        "usageLimit": 100,
+                        "expiresAt": 1600000000,
+                        "status": "EXPIRED"
+                    }
+                ]
+            }
+        ]
+    }"#;
+
+    /// 组装映射口径：仅 ACTIVE 的 freeTrial/bonus 透传，type/upgradeCapability/userId 正确映射
+    #[test]
+    fn build_balance_detail_filters_inactive_and_maps_fields() {
+        let usage: UsageLimitsResponse = serde_json::from_str(KAM_DETAIL_RESPONSE).unwrap();
+        let detail = build_balance_detail(&usage);
+
+        assert_eq!(detail.base_usage, Some(37.6));
+        assert_eq!(detail.base_limit, Some(1000.0));
+
+        // freeTrial ACTIVE → 透传精确值与过期时间
+        let trial = detail.free_trial.as_ref().unwrap();
+        assert_eq!(trial.current_usage, 5.0);
+        assert_eq!(trial.usage_limit, 50.0);
+        assert_eq!(trial.expires_at, Some(1822568100.0));
+
+        // bonuses 仅 ACTIVE 一条（EXPIRED 被过滤），status 恒为 ACTIVE
+        let bonuses = detail.bonuses.as_ref().unwrap();
+        assert_eq!(bonuses.len(), 1);
+        assert_eq!(bonuses[0].code, "0tcrw2acft3da3mmhed#0");
+        assert_eq!(bonuses[0].name, "Trial credits");
+        assert_eq!(bonuses[0].current_usage, 0.5);
+        assert_eq!(bonuses[0].status, "ACTIVE");
+
+        let resource = detail.resource_detail.as_ref().unwrap();
+        assert_eq!(resource.resource_type.as_deref(), Some("CREDIT"));
+        assert_eq!(resource.currency.as_deref(), Some("USD"));
+        assert_eq!(resource.unit.as_deref(), Some("INVOCATIONS"));
+        assert_eq!(resource.overage_rate, Some(0.04));
+
+        // type 键 → subscription_type；UPGRADE_CAPABLE → true
+        assert_eq!(
+            detail.subscription_type.as_deref(),
+            Some("Q_DEVELOPER_STANDALONE_PRO")
+        );
+        assert_eq!(detail.upgrade_capable, Some(true));
+        assert_eq!(detail.user_id.as_deref(), Some("d-9067c98495-44e8a498"));
+    }
+
+    /// 空 breakdown / 缺失订阅信息：全字段 None/空，不 panic
+    #[test]
+    fn build_balance_detail_tolerates_empty_response() {
+        let usage: UsageLimitsResponse = serde_json::from_str("{}").unwrap();
+        let detail = build_balance_detail(&usage);
+
+        assert_eq!(detail.base_usage, None);
+        assert_eq!(detail.base_limit, None);
+        assert!(detail.free_trial.is_none());
+        assert!(detail.bonuses.is_none());
+        assert!(detail.resource_detail.is_none());
+        assert_eq!(detail.subscription_type, None);
+        assert_eq!(detail.upgrade_capable, None);
+        assert_eq!(detail.user_id, None);
+    }
+
+    /// EXPIRED freeTrial 不透传；upgradeCapability 非 UPGRADE_CAPABLE → false
+    #[test]
+    fn build_balance_detail_skips_expired_free_trial() {
+        let usage: UsageLimitsResponse = serde_json::from_str(
+            r#"{"subscriptionInfo": {"type": "T", "upgradeCapability": "NOT_CAPABLE"},
+               "usageBreakdownList": [{"usageLimitWithPrecision": 100,
+                 "freeTrialInfo": {"freeTrialStatus": "EXPIRED"}}]}"#,
+        )
+        .unwrap();
+        let detail = build_balance_detail(&usage);
+
+        assert!(detail.free_trial.is_none());
+        assert_eq!(detail.upgrade_capable, Some(false));
     }
 }

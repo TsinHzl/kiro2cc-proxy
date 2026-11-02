@@ -208,9 +208,9 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
   const activeBonuses = balance?.bonuses ?? []
   const bonusTotalUsage = activeBonuses.reduce((sum, b) => sum + b.currentUsage, 0)
   const bonusTotalLimit = activeBonuses.reduce((sum, b) => sum + b.usageLimit, 0)
-  // 奖励已用百分比：<10% 保留 1 位小数（对齐 KAM「已用 0%」粒度），否则取整
+  // 奖励已用百分比：<10% 保留 1 位小数（对齐 KAM「已用 0%」粒度），否则取整；0 用量显示整数 0
   const bonusPercent = (usage: number, limit: number) => {
-    if (limit <= 0) return '0'
+    if (limit <= 0 || usage <= 0) return '0'
     const percent = (usage / limit) * 100
     return percent < 10 ? percent.toFixed(1) : Math.round(percent).toString()
   }
@@ -398,8 +398,11 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                   </svg>
                 }
               />
-              {activeBonuses.map((bonus) => (
-                <div key={bonus.code} className="space-y-1.5 rounded-lg border border-transparent bg-surface p-2.5 px-3">
+              {activeBonuses.map((bonus, index) => (
+                <div
+                  key={bonus.code || `bonus-${index}`}
+                  className="space-y-1.5 rounded-lg border border-transparent bg-surface p-2.5 px-3"
+                >
                   {/* 名称 + ACTIVE 徽章 */}
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-[12px] font-medium text-ink" title={bonus.name}>
@@ -532,7 +535,7 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                     </div>
                   </div>
 
-                  {/* Token 到期时间（凭据 refresh token 生命周期） */}
+                  {/* Access token 过期时间（到期后自动刷新，非账号失效） */}
                   <InfoRow
                     label={t('credentials.tokenExpiresLabel')}
                     value={formatIso(credential.expiresAt)}

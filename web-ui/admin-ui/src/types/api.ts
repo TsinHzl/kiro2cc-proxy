@@ -78,8 +78,6 @@ export interface BalanceResponse {
   subscriptionType?: string
   /** 是否可升级 */
   upgradeCapable?: boolean
-  /** 用户邮箱（依赖 isEmailRequired=true） */
-  userEmail?: string
   /** 用户 ID（d-xxxx 长格式） */
   userId?: string
 }

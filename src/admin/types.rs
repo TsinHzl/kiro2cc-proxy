@@ -177,7 +177,10 @@ fn default_auth_method() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{AddCredentialRequest, CredentialStatusItem, DumpFilesResponse};
+    use super::{
+        AddCredentialRequest, BalanceDetail, BalanceResponse, CredentialStatusItem,
+        DumpFilesResponse,
+    };
     use crate::common::dump::DumpFileMeta;
 
     /// 构造仅填充必填字段的状态项，其余用默认值
@@ -288,6 +291,49 @@ mod tests {
         assert!(json.get("machineId").is_none());
     }
 
+    /// BalanceDetail 经 flatten 平铺到 BalanceResponse 顶层：分解字段不得嵌套在
+    /// detail 键下，未赋值字段省略而非输出 null（API 形状与拆分前保持一致）
+    #[test]
+    fn balance_response_flattens_detail_to_top_level() {
+        let resp = BalanceResponse {
+            id: 1,
+            subscription_title: Some("KIRO PRO".to_string()),
+            current_usage: 37.6,
+            usage_limit: 1500.0,
+            remaining: 1462.4,
+            usage_percentage: 2.5,
+            next_reset_at: Some(1799136000.0),
+            detail: BalanceDetail {
+                base_usage: Some(37.6),
+                base_limit: Some(1000.0),
+                free_trial: None,
+                bonuses: None,
+                resource_detail: None,
+                subscription_type: Some("Q_DEVELOPER_STANDALONE_PRO".to_string()),
+                upgrade_capable: Some(true),
+                user_id: None,
+            },
+        };
+
+        let json = serde_json::to_value(&resp).unwrap();
+
+        // flatten 后分解字段平铺在顶层
+        assert_eq!(json["baseUsage"], 37.6);
+        assert_eq!(json["baseLimit"], 1000.0);
+        assert_eq!(
+            json["subscriptionType"].as_str(),
+            Some("Q_DEVELOPER_STANDALONE_PRO")
+        );
+        assert_eq!(json["upgradeCapable"], true);
+        // 不出现嵌套 detail 键与 userEmail（已移除的死字段）
+        assert!(json.get("detail").is_none());
+        assert!(json.get("userEmail").is_none());
+        // 未赋值的可选字段省略
+        assert!(json.get("freeTrial").is_none());
+        assert!(json.get("bonuses").is_none());
+        assert!(json.get("userId").is_none());
+    }
+
     #[test]
     fn add_credential_request_defaults_disabled_to_false() {
         let request: AddCredentialRequest =
@@ -373,8 +419,9 @@ pub struct UpdateCredentialRequest {
 
 /// 余额查询响应
 ///
-/// 前六个字段 + `next_reset_at` 为汇总口径（与改造前一致）；其余为额度分解
-/// 与账号详情字段（对齐 KAM `parseUsageResponse`），全部可选，缺失时前端降级隐藏。
+/// 前六个字段 + `next_reset_at` 为汇总口径（与改造前一致）；`detail`（flatten 平铺到
+/// 本层）为额度分解与账号详情字段（对齐 KAM `parseUsageResponse`），全部可选，
+/// 缺失时前端降级隐藏。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceResponse {
@@ -392,7 +439,15 @@ pub struct BalanceResponse {
     pub usage_percentage: f64,
     /// 下次重置时间（Unix 时间戳，秒）
     pub next_reset_at: Option<f64>,
+    /// 额度分解与账号详情（serde flatten：JSON 形状与本层平铺一致）
+    #[serde(flatten)]
+    pub detail: BalanceDetail,
+}
 
+/// 余额分解详情（由 `build_balance_detail` 从 `UsageLimitsResponse` 组装）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BalanceDetail {
     /// 主配额已用（breakdown 精确值）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_usage: Option<f64>,
@@ -414,9 +469,6 @@ pub struct BalanceResponse {
     /// 是否可升级（upgradeCapability=UPGRADE_CAPABLE）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upgrade_capable: Option<bool>,
-    /// 用户邮箱（依赖 isEmailRequired=true）
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_email: Option<String>,
     /// 用户 ID（d-xxxx 长格式）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,

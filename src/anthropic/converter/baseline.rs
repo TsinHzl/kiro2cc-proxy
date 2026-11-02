@@ -9,7 +9,8 @@
 //!
 //! 做法：按会话记录基线（首次见到的稳定块指纹多重集）。之后的请求只要**包含全部基线块**，
 //! 多出来的块就视为会话中途新增，不进 history[0]，由调用方放到当前消息开头——模型仍可见，
-//! 但不参与缓存哈希。
+//! 但不参与缓存哈希。来自会话中途内联 `role:"system"` 消息的块不放开头，
+//! 而是就地挂回它在对话里相邻的 user 消息（见 `history::build_history`，issue #59）。
 //!
 //! 不满足「包含全部基线块」的请求（子代理、压缩后的请求、已有块被原地改写）不被分流，
 //! 并登记为该会话的新基线，行为与引入本模块之前一致。同一会话保留少量基线，
@@ -91,12 +92,31 @@ fn extras_of(baseline: &[Fingerprint], current: &[Fingerprint]) -> Option<Vec<us
 /// 把稳定系统块拆成 `(留在 history[0] 的块, 会话中途新增的块)`，两部分各自保持原顺序。
 ///
 /// 会话首次出现（或没有任何基线匹配）时，全部块视为稳定，并登记为新基线。
+#[cfg(test)]
 pub(super) fn split_new_blocks<'a>(
     session_id: &str,
     blocks: &[&'a str],
 ) -> (Vec<&'a str>, Vec<&'a str>) {
+    let flags = new_block_flags(session_id, blocks);
+    let mut stable = Vec::with_capacity(blocks.len());
+    let mut added = Vec::new();
+    for (block, is_new) in blocks.iter().zip(flags) {
+        if is_new {
+            added.push(*block);
+        } else {
+            stable.push(*block);
+        }
+    }
+    (stable, added)
+}
+
+/// 同 `split_new_blocks`，但按位置返回「是否为会话中途新增」标记（与 `blocks` 等长）。
+///
+/// 调用方需要知道每个被分流的块是哪一个（例如它来自哪条内联 system 消息），
+/// 只拿到文本切片无法区分内容相同的块。
+pub(super) fn new_block_flags(session_id: &str, blocks: &[&str]) -> Vec<bool> {
     if blocks.is_empty() {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     }
     let fps: Vec<Fingerprint> = blocks.iter().map(|b| block_fingerprint(b)).collect();
 
@@ -122,23 +142,11 @@ pub(super) fn split_new_blocks<'a>(
     if let Some((i, _, extras)) = best {
         entry.value[i].last_used = Instant::now();
         entry.value[i].hits = entry.value[i].hits.saturating_add(1);
-        if extras.is_empty() {
-            return (blocks.to_vec(), Vec::new());
-        }
         let mut is_extra = vec![false; blocks.len()];
         for &k in &extras {
             is_extra[k] = true;
         }
-        let mut stable = Vec::with_capacity(blocks.len() - extras.len());
-        let mut added = Vec::with_capacity(extras.len());
-        for (block, extra) in blocks.iter().zip(is_extra) {
-            if extra {
-                added.push(*block);
-            } else {
-                stable.push(*block);
-            }
-        }
-        return (stable, added);
+        return is_extra;
     }
 
     tracing::info!(
@@ -159,7 +167,7 @@ pub(super) fn split_new_blocks<'a>(
         hits: 0,
     });
     evict_oldest_if_full(&mut map);
-    (blocks.to_vec(), Vec::new())
+    vec![false; blocks.len()]
 }
 
 #[cfg(test)]

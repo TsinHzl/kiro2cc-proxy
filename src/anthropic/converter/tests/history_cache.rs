@@ -1004,3 +1004,244 @@ fn prefix_cached_is_false_on_first_turn_and_true_on_subsequent_turns() {
     .unwrap();
     assert!(!turn3_reset.prefix_cached);
 }
+
+// ---- issue #59：会话中途内联 system 通知就地挂回，而不是每轮重复置顶 ----
+
+const FILE_NOTE: &str = "Note: /tmp/a.rs changed on disk since you last read it.";
+
+/// 足够大的稳定系统提示：基线的「多出块不得超过基线字节数」防护要求基线比新增块大
+fn big_system() -> String {
+    "You are a coding assistant. Follow the project rules carefully. ".repeat(20)
+}
+
+/// 带唯一会话 ID 的请求，避免全局基线表在用例间串扰
+fn inline_req(session: &str, system: Option<&str>, messages: serde_json::Value) -> MessagesRequest {
+    let mut req = reminder_request(system, messages);
+    req.metadata = serde_json::from_value(serde_json::json!({
+        "user_id": format!("user_account__session_{session}")
+    }))
+    .unwrap();
+    req
+}
+
+fn history_user_texts(result: &ConversionResult) -> Vec<String> {
+    result
+        .conversation_state
+        .history
+        .iter()
+        .filter_map(|m| match m {
+            Message::User(u) => Some(u.user_input_message.content.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn current_text(result: &ConversionResult) -> &str {
+    &result
+        .conversation_state
+        .current_message
+        .user_input_message
+        .content
+}
+
+/// 会话里先出现一次通知，之后又过了若干轮：旧通知必须留在它当时的位置，
+/// 不能出现在最新一轮的当前消息里。
+#[test]
+fn mid_session_notice_stays_at_its_original_position() {
+    let session = "7c1d0e5a-3b2f-4c8a-9e61-0a1b2c3d4e51";
+    // 第 1 轮：建立基线（不含通知）
+    let turn1 = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([{"role": "user", "content": "task one"}]),
+    );
+    convert_request(&turn1).unwrap();
+
+    // 第 2 轮：通知夹在 assistant 与新 user 之间
+    let r2 = convert_request(&inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([
+            {"role": "user", "content": "task one"},
+            {"role": "assistant", "content": "done one"},
+            {"role": "system", "content": FILE_NOTE},
+            {"role": "user", "content": "task two"}
+        ]),
+    ))
+    .unwrap();
+    assert!(
+        current_text(&r2).contains(FILE_NOTE) && current_text(&r2).ends_with("task two"),
+        "通知刚出现的那一轮挂在它后面紧跟的 user 消息开头: {}",
+        current_text(&r2)
+    );
+
+    // 第 3 轮：历史里已有该通知，用户又发了新消息
+    let turn3 = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([
+            {"role": "user", "content": "task one"},
+            {"role": "assistant", "content": "done one"},
+            {"role": "system", "content": FILE_NOTE},
+            {"role": "user", "content": "task two"},
+            {"role": "assistant", "content": "done two"},
+            {"role": "user", "content": "task three"}
+        ]),
+    );
+    let r3 = convert_request(&turn3).unwrap();
+    assert_eq!(
+        current_text(&r3),
+        "task three",
+        "旧通知不得再出现在当前消息"
+    );
+    let users = history_user_texts(&r3);
+    assert_eq!(users[0], big_system(), "通知不得进入 history[0]");
+    assert!(
+        users[2].contains(FILE_NOTE) && users[2].ends_with("task two"),
+        "旧通知应仍在它所属的 user 消息里: {users:?}"
+    );
+    assert!(!users[1].contains(FILE_NOTE));
+}
+
+/// 同一条通知在相邻两轮里挂靠的 user 消息文本必须逐字节一致（前缀缓存稳定）。
+#[test]
+fn notice_attachment_is_byte_stable_across_turns() {
+    let session = "7c1d0e5a-3b2f-4c8a-9e61-0a1b2c3d4e52";
+    let base = |tail: serde_json::Value| {
+        let mut m = serde_json::json!([
+            {"role": "user", "content": "q1"},
+            {"role": "assistant", "content": "a1"},
+            {"role": "system", "content": FILE_NOTE},
+            {"role": "user", "content": "q2"},
+            {"role": "assistant", "content": "a2"},
+            {"role": "user", "content": "q3"}
+        ]);
+        m.as_array_mut()
+            .unwrap()
+            .extend(tail.as_array().unwrap().clone());
+        m
+    };
+    let register = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([{"role": "user", "content": "q1"}]),
+    );
+    convert_request(&register).unwrap();
+
+    let a = convert_request(&inline_req(
+        session,
+        Some(big_system().as_str()),
+        base(serde_json::json!([])),
+    ))
+    .unwrap();
+    let b = convert_request(&inline_req(
+        session,
+        Some(big_system().as_str()),
+        base(serde_json::json!([
+            {"role": "assistant", "content": "a3"},
+            {"role": "user", "content": "q4"}
+        ])),
+    ))
+    .unwrap();
+    let (ua, ub) = (history_user_texts(&a), history_user_texts(&b));
+    assert_eq!(ua[..3], ub[..3], "已有历史前缀必须逐字节不变");
+}
+
+/// 通知跟在 tool_result 之后（最新一轮，后面没有 user）：挂在该 tool_result 消息末尾，
+/// 不能让通知变成「当前消息」而把 tool_result 挤进历史。
+#[test]
+fn trailing_notice_does_not_displace_tool_result_message() {
+    let session = "7c1d0e5a-3b2f-4c8a-9e61-0a1b2c3d4e53";
+    let register = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([{"role": "user", "content": "go"}]),
+    );
+    convert_request(&register).unwrap();
+
+    let req = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([
+            {"role": "user", "content": "go"},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": "toolu_1", "name": "Read", "input": {"file_path": "/a"}}
+            ]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_1", "content": "file body"}
+            ]},
+            {"role": "system", "content": FILE_NOTE}
+        ]),
+    );
+    let r = convert_request(&req).unwrap();
+    let cur = &r.conversation_state.current_message.user_input_message;
+    assert_eq!(cur.user_input_message_context.tool_results.len(), 1);
+    assert_eq!(
+        cur.user_input_message_context.tool_results[0].tool_use_id,
+        "toolu_1"
+    );
+    assert!(
+        cur.content.starts_with("(tool result above)"),
+        "{}",
+        cur.content
+    );
+    assert!(cur.content.contains(FILE_NOTE));
+    // 历史里仍是 user / assistant 成对，tool_use 紧邻当前消息之前
+    assert!(matches!(
+        r.conversation_state.history.last(),
+        Some(Message::Assistant(_))
+    ));
+}
+
+/// token 预算提示是逐轮变化的状态，行为不变：仍放当前消息开头，不进历史。
+#[test]
+fn token_budget_notice_still_goes_to_current_head() {
+    let session = "7c1d0e5a-3b2f-4c8a-9e61-0a1b2c3d4e54";
+    let req = inline_req(
+        session,
+        Some(big_system().as_str()),
+        serde_json::json!([
+            {"role": "user", "content": "a"},
+            {"role": "assistant", "content": "b"},
+            {"role": "system", "content": "<total_tokens>100 tokens left</total_tokens>"},
+            {"role": "user", "content": "c"}
+        ]),
+    );
+    // 首个请求即建立基线；预算提示按既有规则走开头路径，不挂靠历史
+    let r = convert_request(&req).unwrap();
+    let hist = serde_json::to_string(&r.conversation_state.history).unwrap();
+    assert!(!hist.contains("total_tokens"), "{hist}");
+    assert!(current_text(&r).contains("total_tokens"));
+}
+
+#[test]
+fn resolve_inline_anchor_prefers_next_user_then_previous_user() {
+    use super::super::convert::resolve_inline_anchor as resolve;
+    use super::super::history::InlineAnchor;
+    // user, assistant, [S], user  -> 挂后面 user 开头
+    assert_eq!(
+        resolve(&["user", "assistant", "user"], 2),
+        Some(InlineAnchor {
+            msg: 2,
+            after: false
+        })
+    );
+    // user, [S], assistant        -> 挂前面 user 末尾
+    assert_eq!(
+        resolve(&["user", "assistant"], 1),
+        Some(InlineAnchor {
+            msg: 0,
+            after: true
+        })
+    );
+    // user, assistant, [S], assistant, user -> 夹在两条 assistant 之间，就近取后面的 user
+    assert_eq!(
+        resolve(&["user", "assistant", "assistant", "user"], 2),
+        Some(InlineAnchor {
+            msg: 3,
+            after: false
+        })
+    );
+    // 会话开头不挂靠
+    assert_eq!(resolve(&["user"], 0), None);
+}

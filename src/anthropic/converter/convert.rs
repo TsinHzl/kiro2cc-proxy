@@ -9,7 +9,7 @@ use crate::kiro::model::requests::conversation::{
 };
 
 use super::fields::build_additional_model_request_fields;
-use super::history::build_history;
+use super::history::{BuiltHistory, InlineAnchor, SysBlock, build_history};
 use super::message::{process_message_content, process_message_content_with_tool_filter};
 use super::model::map_model;
 use super::prompt::{append_output_format_instruction, append_recent_knowledge_hints};
@@ -49,22 +49,25 @@ pub(super) fn convert_request_with_chunking(
 
     // 2.5. 内联 system 按原顺序追加到系统区，先校验全部角色，避免 prefill 掩盖无效输入。
     // 只借用原文；会话 ID、诊断仍使用原始 req，不复制图片或工具结果。
-    let mut system = req.system.as_ref().map(|blocks| {
+    // 会话中途（已有 user/assistant 消息之后）的内联 system 记下它当时的位置，
+    // 循环结束后据此解析锚点（需要看到后面的消息，见 `resolve_inline_anchor`）。
+    let mut system: Option<Vec<SysBlock>> = req.system.as_ref().map(|blocks| {
         blocks
             .iter()
-            .map(|block| block.text.as_str())
+            .map(|block| SysBlock::plain(block.text.as_str()))
             .collect::<Vec<_>>()
     });
     let mut messages = Vec::with_capacity(req.messages.len());
+    // (块在 system 中的下标, 它出现时已收集的消息数)
+    let mut mid_session_blocks: Vec<(usize, usize)> = Vec::new();
     for (index, message) in req.messages.iter().enumerate() {
         match message.role.as_str() {
             "user" | "assistant" => messages.push(message),
             "system" => {
-                // 惰性创建系统区：只有真正贡献文本时才从 None 变为 Some，否则仅含被跳过
-                // 事件的消息会造出空的 Some，让 build_history 误判为「有 system 但为空」而漏注 thinking 前缀
+                let seen = messages.len();
                 match &message.content {
                     serde_json::Value::String(text) => {
-                        system.get_or_insert_with(Vec::new).push(text.as_str())
+                        push_inline_system(&mut system, &mut mid_session_blocks, seen, text)
                     }
                     serde_json::Value::Array(blocks) => {
                         for block in blocks {
@@ -87,13 +90,19 @@ pub(super) fn convert_request_with_chunking(
                                 .get("text")
                                 .and_then(|v| v.as_str())
                                 .ok_or(ConversionError::InvalidSystemContent { index })?;
-                            system.get_or_insert_with(Vec::new).push(text);
+                            push_inline_system(&mut system, &mut mid_session_blocks, seen, text);
                         }
                     }
                     _ => return Err(ConversionError::InvalidSystemContent { index }),
                 }
             }
             _ => return Err(ConversionError::UnsupportedRole { index }),
+        }
+    }
+    if let Some(blocks) = system.as_mut() {
+        let roles: Vec<&str> = messages.iter().map(|m| m.role.as_str()).collect();
+        for (block_index, seen) in mid_session_blocks {
+            blocks[block_index].anchor = resolve_inline_anchor(&roles, seen);
         }
     }
     // Kiro 不支持末尾 assistant prefill；system 已归并，不能再按“非 user”裁剪。
@@ -180,17 +189,27 @@ pub(super) fn convert_request_with_chunking(
         chunking_note = write_chunking_system_note(chunk_max_lines);
         system
             .get_or_insert_with(Vec::new)
-            .push(chunking_note.as_str());
+            .push(SysBlock::plain(chunking_note.as_str()));
     }
 
     // 7. 构建历史消息（需要先构建，以便收集历史中使用的工具）
-    let (mut history, dynamic_system, prefix_cached) = build_history(
+    let BuiltHistory {
+        mut history,
+        dynamic_content: dynamic_system,
+        current_attach,
+        prefix_cached,
+    } = build_history(
         req,
         &messages,
         system.as_deref(),
         &model_id,
         &conversation_id,
     )?;
+    // 会话中途内联 system 通知就地挂回当前消息前后（issue #59），再叠加放不下去的动态块。
+    let text_content = match &current_attach {
+        Some(attach) => attach.render(text_content),
+        None => text_content,
+    };
     // 被分流出 history[0] 的动态块放到当前消息文本**开头**（请求无动态块时为空，
     // 不改动 text_content）。放开头而非末尾：当前消息末尾通常是 skill / 用户指令正文，
     // 末尾追加 "deferred tools / MCP 连接中" 之类通知会抢走模型对本轮指令的注意力；
@@ -312,6 +331,56 @@ pub(super) fn convert_request_with_chunking(
             .unwrap_or(false),
         prefix_cached,
     })
+}
+
+/// 追加一个内联 system 文本块。
+///
+/// 惰性创建系统区：只有真正贡献文本时才从 None 变为 Some，否则仅含被跳过
+/// 事件的消息会造出空的 Some，让 build_history 误判为「有 system 但为空」而漏注 thinking 前缀。
+/// `seen > 0`（前面已有 user/assistant 消息）的块记入 `mid_session`，后面再解析锚点。
+fn push_inline_system<'a>(
+    system: &mut Option<Vec<SysBlock<'a>>>,
+    mid_session: &mut Vec<(usize, usize)>,
+    seen: usize,
+    text: &'a str,
+) {
+    let blocks = system.get_or_insert_with(Vec::new);
+    if seen > 0 {
+        mid_session.push((blocks.len(), seen));
+    }
+    blocks.push(SysBlock::plain(text));
+}
+
+/// 解析会话中途内联 system 消息的锚点：它出现时前面已有 `seen` 条 user/assistant 消息。
+///
+/// 通知属于它出现的那个时刻，所以优先挂到紧随其后的 user 消息开头（工具结果前的通知
+/// 与该 tool_result 同处一条消息）；后面不是 user 时挂到紧邻的前一条 user 消息末尾；
+/// 都不满足（夹在两条 assistant 之间）再就近找后面、前面的 user 消息。
+/// 会话开头（`seen == 0`）的内联 system 属于系统指令，不挂靠，由调用方保留在系统区。
+pub(super) fn resolve_inline_anchor(roles: &[&str], seen: usize) -> Option<InlineAnchor> {
+    if seen == 0 {
+        return None;
+    }
+    let is_user = |i: &usize| roles.get(*i).is_some_and(|r| *r == "user");
+    if is_user(&seen) {
+        return Some(InlineAnchor {
+            msg: seen,
+            after: false,
+        });
+    }
+    if is_user(&(seen - 1)) {
+        return Some(InlineAnchor {
+            msg: seen - 1,
+            after: true,
+        });
+    }
+    if let Some(msg) = (seen..roles.len()).find(is_user) {
+        return Some(InlineAnchor { msg, after: false });
+    }
+    (0..seen)
+        .rev()
+        .find(is_user)
+        .map(|msg| InlineAnchor { msg, after: true })
 }
 
 /// 确定聊天触发类型

@@ -31,20 +31,100 @@ fn sanitize_rendered_history_text(text: &str) -> String {
     crate::anthropic::stream::strip_dim_markers(&stripped).into_owned()
 }
 
+/// 系统区的一个文本块及其来源。
+///
+/// 顶层 `system`、会话开头的内联 system、代理自己追加的约束，`anchor` 都是 `None`；
+/// 会话中途（至少有一条 user/assistant 消息之后）出现的内联 `role:"system"` 消息带锚点，
+/// 指向它在对话里相邻的 user 消息。
+#[derive(Clone, Copy)]
+pub(super) struct SysBlock<'a> {
+    pub text: &'a str,
+    pub anchor: Option<InlineAnchor>,
+}
+
+impl<'a> SysBlock<'a> {
+    pub(super) fn plain(text: &'a str) -> Self {
+        Self { text, anchor: None }
+    }
+}
+
+/// 内联 system 消息在对话中的位置：挂到第 `msg` 条（`messages` 下标）user 消息的
+/// 开头（`after=false`）或末尾（`after=true`）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct InlineAnchor {
+    pub msg: usize,
+    pub after: bool,
+}
+
+/// 挂到某条 user 消息前后的动态通知文本（按出现顺序）。
+#[derive(Default)]
+pub(super) struct Attach<'a> {
+    before: Vec<&'a str>,
+    after: Vec<&'a str>,
+}
+
+impl<'a> Attach<'a> {
+    fn push(&mut self, anchor: InlineAnchor, text: &'a str) {
+        if anchor.after {
+            self.after.push(text);
+        } else {
+            self.before.push(text);
+        }
+    }
+
+    /// 把通知包进 `<system-reminder>` 后与消息正文拼接：开头的在前，末尾的在后。
+    /// 正文为空（如只含 tool_result 的消息）时补占位词，保持与既有空 content 兜底一致。
+    pub(super) fn render(&self, text: String) -> String {
+        if self.before.is_empty() && self.after.is_empty() {
+            return text;
+        }
+        let wrap = |blocks: &[&str]| {
+            format!(
+                "<system-reminder>\n{}\n</system-reminder>",
+                blocks.join("\n\n")
+            )
+        };
+        let mut parts = Vec::with_capacity(3);
+        if !self.before.is_empty() {
+            parts.push(wrap(&self.before));
+        }
+        parts.push(if text.is_empty() {
+            "(tool result above)".to_string()
+        } else {
+            text
+        });
+        if !self.after.is_empty() {
+            parts.push(wrap(&self.after));
+        }
+        parts.join("\n\n")
+    }
+}
+
+/// `build_history` 的产出
+pub(super) struct BuiltHistory<'a> {
+    pub history: Vec<Message>,
+    /// 无法就地放置的动态块（顶层 system 里的动态块、token 预算提示等），
+    /// 由调用方放到当前消息开头
+    pub dynamic_content: String,
+    /// 挂到当前（最后一条）user 消息前后的内联通知
+    pub current_attach: Option<Attach<'a>>,
+    pub prefix_cached: bool,
+}
+
 /// 构建历史消息
 ///
 /// # Arguments
 /// * `req` - 原始请求，用于读取 `thinking` 等配置字段
 /// * `messages` - 移除内联 system 和末尾 assistant prefill 后的消息引用，末尾必为 user。
-/// * `system` - 顶层 system 与内联 system 按顺序归并后的文本，不改变原请求。
+/// * `system` - 顶层 system 与内联 system 按顺序归并后的文本块，不改变原请求。
 /// * `model_id` - 已映射的 Kiro 模型 ID
-pub(super) fn build_history(
+pub(super) fn build_history<'a>(
     req: &MessagesRequest,
     messages: &[&crate::anthropic::types::Message],
-    system: Option<&[&str]>,
+    system: Option<&[SysBlock<'a>]>,
     model_id: &str,
     session_id: &str,
-) -> Result<(Vec<Message>, String, bool), ConversionError> {
+) -> Result<BuiltHistory<'a>, ConversionError> {
     let mut history = Vec::new();
     let mut h0_frozen = true;
 
@@ -57,27 +137,57 @@ pub(super) fn build_history(
     // 所有模型：CC 中途注入的动态块（hook 输出、工具/MCP 状态通知）逐轮累积，
     // 留在 history[0] 会使冻结缓存 key 每轮漂移、history[0] 之后的整段前缀缓存
     // 持续 miss（issue #47：claude-opus-5.5 会话 history[0] 每轮 +50~+970 字节）。
-    // 这里把它们从 history[0] 拼接中剔除，并返回给调用方放到当前消息开头——模型仍可见
-    // （hook 注入的用户规则不丢失），但不参与缓存 hash。
-    let (stable_system, mut dynamic_system): (Vec<&str>, Vec<&str>) = match system {
-        Some(blocks) => blocks
-            .iter()
-            .copied()
-            .partition(|s| !is_dynamic_hook_injection(s) && !is_token_budget_reminder(s)),
-        None => (Vec::new(), Vec::new()),
-    };
+    // 这里把它们从 history[0] 拼接中剔除，模型仍可见（hook 注入的用户规则不丢失），
+    // 但不参与缓存 hash。放置位置：
+    // - 来自会话中途内联 system 消息的块（带锚点）：就地挂回它在对话里相邻的 user 消息
+    //   （issue #59：此前一律放到当前消息开头，客户端每轮回传完整历史，
+    //   几十轮前的一次性通知每轮都被当成新通知重复提醒）；
+    // - 其余（顶层 system 里的动态块、token 预算提示）：返回给调用方放到当前消息开头。
+    let blocks: &[SysBlock<'a>] = system.unwrap_or(&[]);
+    let (stable_blocks, mut dynamic_blocks): (Vec<SysBlock<'a>>, Vec<SysBlock<'a>>) = blocks
+        .iter()
+        .copied()
+        .partition(|b| !is_dynamic_hook_injection(b.text) && !is_token_budget_reminder(b.text));
     // 文本前缀只能识别已知的动态块；CC 还会中途追加按路径加载的 rules 等新块（实测一次
     // 4KB 的 rules 块使 history[0] 重置、单轮多花约 0.5 credits）。再按会话基线把
     // 「会话开始后才出现」的块也分流出去，与块的文本无关（见 `baseline` 模块）。
-    let (stable_system, new_blocks) = super::baseline::split_new_blocks(session_id, &stable_system);
-    dynamic_system.extend(new_blocks);
+    let stable_texts: Vec<&str> = stable_blocks.iter().map(|b| b.text).collect();
+    let new_flags = super::baseline::new_block_flags(session_id, &stable_texts);
+    let mut stable_system: Vec<&str> = Vec::with_capacity(stable_blocks.len());
+    for (block, is_new) in stable_blocks.into_iter().zip(new_flags) {
+        if is_new {
+            dynamic_blocks.push(block);
+        } else {
+            stable_system.push(block.text);
+        }
+    }
     // 全部块都被分流（stable 拼接结果为空，含仅剩空文本块）时按"无系统消息"处理，
     // 保留 thinking 前缀 / 引导语注入
     let stable_content = stable_system.join("\n");
-    super::drift_diag::log_diverted(session_id, &dynamic_system);
+    let diverted_texts: Vec<&str> = dynamic_blocks.iter().map(|b| b.text).collect();
+    super::drift_diag::log_diverted(session_id, &diverted_texts);
     let system_present =
-        system.is_some() && (dynamic_system.is_empty() || !stable_content.is_empty());
-    let dynamic_content = dynamic_system.join("\n\n");
+        system.is_some() && (dynamic_blocks.is_empty() || !stable_content.is_empty());
+
+    // 把被分流的块按锚点拆成「就地挂回」与「放当前消息开头」两类。
+    // token 预算提示是逐轮变化的状态而不是一次性事件，仍放当前消息开头，
+    // 避免历史消息里的预算数值参与前缀缓存哈希。空白块没有可挂的内容，也走开头路径。
+    let mut head_blocks: Vec<&str> = Vec::new();
+    let mut attached: HashMap<usize, Attach<'a>> = HashMap::new();
+    for block in &dynamic_blocks {
+        match block.anchor {
+            Some(anchor)
+                if !is_token_budget_reminder(block.text) && !block.text.trim().is_empty() =>
+            {
+                attached
+                    .entry(anchor.msg)
+                    .or_default()
+                    .push(anchor, block.text);
+            }
+            _ => head_blocks.push(block.text),
+        }
+    }
+    let dynamic_content = head_blocks.join("\n\n");
 
     if system_present {
         let system_content = stable_content;
@@ -179,10 +289,10 @@ pub(super) fn build_history(
     let history_end_index = messages.len().saturating_sub(1);
 
     // 收集并配对消息
-    let mut user_buffer: Vec<&crate::anthropic::types::Message> = Vec::new();
+    let mut user_buffer: Vec<(&crate::anthropic::types::Message, Option<&Attach<'a>>)> = Vec::new();
     let mut assistant_buffer: Vec<&crate::anthropic::types::Message> = Vec::new();
 
-    for msg in &messages[..history_end_index] {
+    for (index, msg) in messages[..history_end_index].iter().enumerate() {
         if msg.role == "user" {
             // 先处理累积的 assistant 消息
             if !assistant_buffer.is_empty() {
@@ -190,7 +300,7 @@ pub(super) fn build_history(
                 history.push(Message::Assistant(merged));
                 assistant_buffer.clear();
             }
-            user_buffer.push(msg);
+            user_buffer.push((msg, attached.get(&index)));
         } else if msg.role == "assistant" {
             // 先处理累积的 user 消息
             if !user_buffer.is_empty() {
@@ -219,11 +329,12 @@ pub(super) fn build_history(
         history.push(Message::Assistant(auto_assistant));
     }
 
-    Ok((
+    Ok(BuiltHistory {
         history,
         dynamic_content,
-        determine_prefix_cached(history_end_index > 0, h0_frozen),
-    ))
+        current_attach: attached.remove(&history_end_index),
+        prefix_cached: determine_prefix_cached(history_end_index > 0, h0_frozen),
+    })
 }
 
 /// `prefix_cached` 判定：本请求的缓存前缀（history[0] + 历史轮次）是否已命中会话级冻结缓存。
@@ -245,18 +356,22 @@ fn determine_prefix_cached(has_history_turns: bool, h0_frozen: bool) -> bool {
     has_history_turns && h0_frozen
 }
 
-/// 合并多个 user 消息
+/// 合并多个 user 消息；每条消息可带挂在其前后的内联 system 通知
 pub(super) fn merge_user_messages(
-    messages: &[&crate::anthropic::types::Message],
+    messages: &[(&crate::anthropic::types::Message, Option<&Attach<'_>>)],
     model_id: &str,
 ) -> Result<HistoryUserMessage, ConversionError> {
     let mut content_parts = Vec::new();
     let mut all_images = Vec::new();
     let mut all_tool_results = Vec::new();
 
-    for msg in messages {
+    for (msg, attach) in messages {
         let (text, images, tool_results) =
             process_message_content_with_tool_filter(&msg.content, all_images.len(), |_| true)?;
+        let text = match attach {
+            Some(attach) => attach.render(text),
+            None => text,
+        };
         if !text.is_empty() {
             content_parts.push(text);
         }

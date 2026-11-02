@@ -536,7 +536,7 @@ fn merged_history_user_messages_continue_image_numbers() {
         ]}
     ]))
     .unwrap();
-    let refs = messages.iter().collect::<Vec<_>>();
+    let refs = messages.iter().map(|m| (m, None)).collect::<Vec<_>>();
 
     let merged = super::super::history::merge_user_messages(&refs, "claude-sonnet-4-6")
         .unwrap()

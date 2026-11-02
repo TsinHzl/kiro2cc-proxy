@@ -9,7 +9,10 @@ use crate::kiro::model::requests::conversation::{
 };
 
 use super::fields::build_additional_model_request_fields;
-use super::history::{BuiltHistory, InlineAnchor, SysBlock, build_history};
+use super::history::{
+    BuiltHistory, EMPTY_USER_CONTENT_PLACEHOLDER, InlineAnchor, SysBlock, build_history,
+    wrap_system_reminder,
+};
 use super::message::{process_message_content, process_message_content_with_tool_filter};
 use super::model::map_model;
 use super::prompt::{append_output_format_instruction, append_recent_knowledge_hints};
@@ -219,9 +222,12 @@ pub(super) fn convert_request_with_chunking(
     let text_content = if dynamic_system.is_empty() {
         text_content
     } else if text_content.is_empty() {
-        format!("<system-reminder>\n{dynamic_system}\n</system-reminder>")
+        wrap_system_reminder(&dynamic_system)
     } else {
-        format!("<system-reminder>\n{dynamic_system}\n</system-reminder>\n\n{text_content}")
+        format!(
+            "{}\n\n{text_content}",
+            wrap_system_reminder(&dynamic_system)
+        )
     };
 
     // 8. 验证并过滤 tool_use/tool_result 配对
@@ -285,7 +291,7 @@ pub(super) fn convert_request_with_chunking(
     // "用户让我继续" → 仅简短回 "已完成" 不复述工具结果（如 LS 输出）。
     // 改用中性提示词，明确告知"上方为工具结果"，让模型基于结果回复用户。
     let content = if text_content.is_empty() {
-        "(tool result above)".to_string()
+        EMPTY_USER_CONTENT_PLACEHOLDER.to_string()
     } else {
         text_content
     };

@@ -31,6 +31,17 @@ fn sanitize_rendered_history_text(text: &str) -> String {
     crate::anthropic::stream::strip_dim_markers(&stripped).into_owned()
 }
 
+/// user 消息正文为空（如只含 tool_result）时的占位词。
+///
+/// 用中性提示明示"上方为工具结果"，避免用 "Continue" 让模型误判为"用户让我继续"。
+/// assistant 侧的空 content 占位符策略不同，不使用该常量。
+pub(super) const EMPTY_USER_CONTENT_PLACEHOLDER: &str = "(tool result above)";
+
+/// 把正文包进 `<system-reminder>` 块。
+pub(super) fn wrap_system_reminder(body: &str) -> String {
+    format!("<system-reminder>\n{body}\n</system-reminder>")
+}
+
 /// 系统区的一个文本块及其来源。
 ///
 /// 顶层 `system`、会话开头的内联 system、代理自己追加的约束，`anchor` 都是 `None`；
@@ -78,18 +89,13 @@ impl<'a> Attach<'a> {
         if self.before.is_empty() && self.after.is_empty() {
             return text;
         }
-        let wrap = |blocks: &[&str]| {
-            format!(
-                "<system-reminder>\n{}\n</system-reminder>",
-                blocks.join("\n\n")
-            )
-        };
+        let wrap = |blocks: &[&str]| wrap_system_reminder(&blocks.join("\n\n"));
         let mut parts = Vec::with_capacity(3);
         if !self.before.is_empty() {
             parts.push(wrap(&self.before));
         }
         parts.push(if text.is_empty() {
-            "(tool result above)".to_string()
+            EMPTY_USER_CONTENT_PLACEHOLDER.to_string()
         } else {
             text
         });
@@ -383,7 +389,7 @@ pub(super) fn merge_user_messages(
     // 空 content 兜底：历史 user 消息中仅含 tool_result 时，Kiro 不接受空字符串。
     // 与 convert_request 保持同样占位词，避免 "Continue" 误导模型。
     let content = if content.is_empty() {
-        "(tool result above)".to_string()
+        EMPTY_USER_CONTENT_PLACEHOLDER.to_string()
     } else {
         content
     };

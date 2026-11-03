@@ -1,0 +1,31 @@
+web-ui/admin-ui/src/components/metrics.tsx
+  92f43acfd91a145e 67-69,139-140,283-284
+web-ui/admin-ui/src/components/api-key-panel-foot.tsx
+  92f43acfd91a145e 76-77
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  92f43acfd91a145e 569-572
+web-ui/admin-ui/src/components/api-key-table.tsx
+  92f43acfd91a145e 54-58
+web-ui/admin-ui/src/components/toolbar.tsx
+  92f43acfd91a145e 210-212,214-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "57be0ffdc56afe4dc8de48a42c7ff996df93906f",
+  "prompts": {
+    "92f43acfd91a145e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dcc157aa-4362-4ace-8efb-4f95c54f3efd",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 12,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}

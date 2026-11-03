@@ -64,10 +64,11 @@ export function Metric({
     <>
       {/* cell-header：icon 在 label 左侧，space-between 对齐 */}
       <div className="flex items-center justify-between">
-        {/* 标签必须单行省略：窄视口下换行会让整条指标条变高，数据到达后数值变宽再触发折行会造成页面跳动 */}
-        <div className={`flex min-w-0 items-center gap-1.5 truncate font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
+        {/* 标签必须单行省略：窄视口下换行会让整条指标条变高，数据到达后数值变宽再触发折行会造成页面跳动。
+            省略号须落在文本节点所在的元素上 —— 加在 flex 容器上只会硬切，不出现 … */}
+        <div className={`flex min-w-0 items-center gap-1.5 font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
           {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-[14px] [&>svg]:w-[14px]">{icon}</span>}
-          {label}
+          <span className="min-w-0 truncate">{label}</span>
         </div>
       </div>
       {children}

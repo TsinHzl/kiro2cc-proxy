@@ -208,14 +208,16 @@ export function UpdatedAgo({ dataUpdatedAt }: { dataUpdatedAt: number }) {
   }, [])
 
   // 无数据时也占位渲染：工具栏是 flex-wrap，手机端该 span 会独占一行，
-  // 条件渲染会让数据到达后凭空多出一行（390px 实测 +24.5px），整页下移
+  // 条件渲染会让数据到达后凭空多出一行（430/600/640/940/980px 实测 +24.5px），整页下移。
+  // 占位文本必须与首次渲染的「更新于 0 秒前」逐字同宽：固定宽度会在部分视口让工具栏常驻多出一行
   const ready = dataUpdatedAt > 0
+  const placeholder = t('credentials.updatedAgo', { time: t('credentials.secondsAgo', { count: 0 }) })
   return (
     <span
       className={`ml-auto shrink-0 text-[11px] text-ink-3 ${ready ? '' : 'invisible'}`}
       aria-hidden={ready ? undefined : true}
     >
-      {ready ? t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t) }) : ' '}
+      {ready ? t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t) }) : placeholder}
     </span>
   )
 }

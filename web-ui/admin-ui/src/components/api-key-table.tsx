@@ -51,9 +51,11 @@ export function ApiKeyTable({
 }) {
   const { t } = useTranslation()
   return (
-    <section className="mt-[13px] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
-      {/* .tscroll：sticky 表头依赖这里的滚动容器 */}
-      <div className="max-h-[70vh] min-h-0 flex-1 overflow-y-auto">
+    // min-h-[200px]：面板在数据未到达（空态/加载态）时先占住可用高度，避免数据到达后整页上移
+    <section className="mt-[13px] flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
+      {/* .tscroll：sticky 表头依赖这里的滚动容器。
+          md:max-h-none：桌面端由父级 flex 决定高度（面板内滚），70vh 上限只留给手机端内容流 */}
+      <div className="max-h-[70vh] min-h-[199px] flex-1 overflow-y-auto md:max-h-none">
         <table className="w-full border-separate border-spacing-0">
           <colgroup>
             {COLUMN_WIDTHS.map((width, index) => (

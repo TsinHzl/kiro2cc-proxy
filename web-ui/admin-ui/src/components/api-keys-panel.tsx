@@ -566,7 +566,10 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     })
 
   return (
-    <div>
+    // 桌面端转为列向 flex 并锁定视口高度：ApiKeyTable 的 flex-1 依赖父级为 flex 容器，
+    // 否则面板高度随行数变化，数据到达瞬间表格由「空态 199px」缩为「2 行 157px」造成整页位移。
+    // 手机端保持内容流（表格本身就是长列表，不内滚），由既有 <768px 媒体查询接管。
+    <div className="md:flex md:h-[calc(100vh-56px)] md:min-h-[560px] md:flex-col">
       {/* 页头（设计稿 .head）：面包屑 + 19px 标题 + 同基线副标题 + 右侧状态标签 */}
       <PageHead
         crumb={[t('dashboard.navMain'), t('apiKeys.pageTitle')]}

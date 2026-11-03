@@ -73,7 +73,8 @@ export function ApiKeyPanelFoot({
         </>
       )}
 
-      <div className="ml-auto flex flex-none items-center gap-2">
+      {/* min-h-6：无数据时 totalCount=0 不渲染 24px 分页钮，页脚会比有数据时矮 6.75px，补最小行高消除跳变 */}
+      <div className="ml-auto flex min-h-6 flex-none items-center gap-2">
         <span>{t(isFiltered ? 'apiKeys.footFiltered' : 'apiKeys.footTotal', { count: totalCount })}</span>
         {/* 筛选无结果时表体已给出空状态与清除入口，页码与每页条数在此无意义 */}
         {totalCount > 0 && (

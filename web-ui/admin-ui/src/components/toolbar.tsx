@@ -207,10 +207,15 @@ export function UpdatedAgo({ dataUpdatedAt }: { dataUpdatedAt: number }) {
     return () => clearInterval(timer)
   }, [])
 
-  if (dataUpdatedAt <= 0) return null
+  // 无数据时也占位渲染：工具栏是 flex-wrap，手机端该 span 会独占一行，
+  // 条件渲染会让数据到达后凭空多出一行（390px 实测 +24.5px），整页下移
+  const ready = dataUpdatedAt > 0
   return (
-    <span className="ml-auto shrink-0 text-[11px] text-ink-3">
-      {t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t) })}
+    <span
+      className={`ml-auto shrink-0 text-[11px] text-ink-3 ${ready ? '' : 'invisible'}`}
+      aria-hidden={ready ? undefined : true}
+    >
+      {ready ? t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t) }) : ' '}
     </span>
   )
 }

@@ -64,8 +64,9 @@ export function Metric({
     <>
       {/* cell-header：icon 在 label 左侧，space-between 对齐 */}
       <div className="flex items-center justify-between">
-        <div className={`flex items-center gap-1.5 font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
-          {icon && <span className="text-ink-3 [&>svg]:h-[14px] [&>svg]:w-[14px]">{icon}</span>}
+        {/* 标签必须单行省略：窄视口下换行会让整条指标条变高，数据到达后数值变宽再触发折行会造成页面跳动 */}
+        <div className={`flex min-w-0 items-center gap-1.5 truncate font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
+          {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-[14px] [&>svg]:w-[14px]">{icon}</span>}
           {label}
         </div>
       </div>
@@ -135,7 +136,8 @@ export function MetricValue({
 export function MetricFoot({ className = '', children }: { className?: string; children: ReactNode }) {
   const compact = useContext(CompactContext)
   return (
-    <div className={`flex items-center gap-2 ${compact ? 'text-[11px]' : 'text-[12px]'} text-ink-3 ${className}`}>
+    // 脚注同样禁止折行：窄视口下数据到达后数值变长会触发换行，把指标条整体顶高
+    <div className={`flex items-center gap-2 truncate ${compact ? 'text-[11px]' : 'text-[12px]'} text-ink-3 ${className}`}>
       {children}
     </div>
   )
@@ -278,7 +280,8 @@ export function Delta({ percent }: { percent: number }) {
   const flat = Math.abs(percent) < 0.05
   const tone = flat ? 'bg-surface-3 text-ink-3' : percent > 0 ? 'bg-danger-soft text-danger' : 'bg-ok-soft text-ok'
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded-[6px] px-[7px] py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>
+    // shrink-0 + self-center：胶囊不参与基线对齐，避免 20.5px 行盒把 28px 主值行从 30.8 顶到 31.5
+    <span className={`inline-flex shrink-0 items-center gap-0.5 self-center rounded-[6px] px-[7px] py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>
       {flat ? '—' : percent > 0 ? '↑' : '↓'} {Math.abs(percent).toFixed(1)}%
     </span>
   )

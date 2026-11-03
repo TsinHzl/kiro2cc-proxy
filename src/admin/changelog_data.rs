@@ -67,6 +67,20 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.1".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![Bilingual::new(
+                    "支持 Claude Fable 5.1（#60）：fable-5.1 / fable-5-1 等写法映射到上游 claude-fable-5.1，/v1/models 回退表新增对应条目。Kiro 仅对 Enterprise 客户开放该模型（需管理员通过模型治理启用，仅 us-east-1），能否使用取决于账号权限",
+                    "Added Claude Fable 5.1 support (#60): fable-5.1 / fable-5-1 and similar names are now routed to the upstream claude-fable-5.1 model, and the /v1/models fallback list gains matching entries. Kiro only offers this model to Enterprise customers (an administrator must enable it through model governance, us-east-1 only), so availability depends on your account's access",
+                )]),
+                improve_group(vec![Bilingual::new(
+                    "Fable 系列的 max_tokens 上限从 64K 调整为官方的 128K",
+                    "The max_tokens cap for the Fable family is raised from 64K to the official 128K",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.0".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![

@@ -168,7 +168,7 @@ pub fn has_cache_control(body: &serde_json::Value) -> bool {
 pub fn min_cacheable_tokens(kiro_model: &str) -> i32 {
     match kiro_model {
         "claude-opus-5.5" | "claude-opus-5" | "claude-sonnet-5.5" | "claude-fable-5"
-        | "claude-haiku-5.5" => 512,
+        | "claude-fable-5.1" | "claude-haiku-5.5" => 512,
         "claude-opus-4.7" => 2048,
         "claude-opus-4.6" | "claude-opus-4.5" | "claude-haiku-4.5" => 4096,
         _ => 1024,
@@ -904,6 +904,8 @@ mod tests {
     #[test]
     fn min_cacheable_tokens_per_model() {
         assert_eq!(min_cacheable_tokens("claude-opus-5.5"), 512);
+        assert_eq!(min_cacheable_tokens("claude-fable-5"), 512);
+        assert_eq!(min_cacheable_tokens("claude-fable-5.1"), 512);
         assert_eq!(min_cacheable_tokens("claude-opus-4.7"), 2048);
         assert_eq!(min_cacheable_tokens("claude-opus-4.6"), 4096);
         assert_eq!(min_cacheable_tokens("claude-haiku-4.5"), 4096);

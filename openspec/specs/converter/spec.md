@@ -68,6 +68,13 @@
 - **WHEN** 调用 `infer_cache_read_tokens` 传入 `model` 包含子串 `"opus-4-6"` 或 `"opus-4.6"`
 - **THEN** 内部 `(k_ref, input_price, output_price)` 取 `(2.60, 15.0, 75.0)`，与 opus-4.7/4.8 同（依据：官方单价均 .00 / .00）
 
+#### 场景：fable-5.1 映射到独立的上游模型 ID
+- **WHEN** 调用 `map_model` 传入包含 `fable` 且版本号为 5.1 的模型名（`fable-5.1` / `fable-5-1` / `Fable 5.1`，可带 `-thinking` 或日期后缀）
+- **THEN** 返回 `claude-fable-5.1`
+- **AND** 其他 fable 名（`fable-5`、`fable-5-10` 等）仍返回 `claude-fable-5`
+- **AND** `model_max_output_tokens` 对 fable 返回 128K，`min_cacheable_tokens("claude-fable-5.1")` 为 512
+- **NOTE** Kiro 仅对特定账号 / 区域开放 Fable 5.1，能否使用由上游账号权限决定；静态模型表列出 `claude-fable-5-1` 与 `claude-fable-5-1-thinking`
+
 #### 场景：fable-5 沿用 opus 顶端 k_ref（占位）
 - **WHEN** 调用 `infer_cache_read_tokens` 传入 `model` 包含子串 `"fable"`
 - **THEN** 内部 `(k_ref, input_price, output_price)` 取 `(2.60, 15.0, 75.0)` 作为占位值

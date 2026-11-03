@@ -10,6 +10,13 @@ use crate::anthropic::types::MessagesRequest;
 use crate::kiro::model::requests::conversation::Message;
 
 #[test]
+fn test_model_max_output_tokens_fable() {
+    assert_eq!(model_max_output_tokens("claude-fable-5"), 128000);
+    assert_eq!(model_max_output_tokens("claude-fable-5.1"), 128000);
+    assert_eq!(model_max_output_tokens("claude-fable-5-1-thinking"), 128000);
+}
+
+#[test]
 fn test_model_max_output_tokens_opus_5() {
     assert_eq!(model_max_output_tokens("claude-opus-5"), 128000);
     assert_eq!(model_max_output_tokens("claude-opus-5-thinking"), 128000);

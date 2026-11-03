@@ -181,7 +181,7 @@ const OPUS_55: CreditRates = rates(19.286, 5.235, 296.7);
 
 /// 按上游实际使用的 Kiro 模型（`map_model` 映射结果）取实测费率。
 ///
-/// 未实测的模型（`claude-sonnet-4`、`claude-fable-5`）与非 Claude 模型返回 `None`，
+/// 未实测的模型（`claude-sonnet-4`、`claude-fable-5`、`claude-fable-5.1`）与非 Claude 模型返回 `None`，
 /// 跳过反推、保留静态前缀估算。新模型实测后在此追加分支。
 pub(crate) fn get_claude_credit_rates(model: &str, input_tokens: i32) -> Option<CreditRates> {
     let kiro_model = crate::anthropic::converter::map_model(model)?;

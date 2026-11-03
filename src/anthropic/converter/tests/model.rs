@@ -227,6 +227,44 @@ fn test_map_model_fable_routes_to_kiro_fable() {
 }
 
 #[test]
+fn test_map_model_fable_5_1_routes_to_kiro_fable_5_1() {
+    for name in [
+        "claude-fable-5.1",
+        "claude-fable-5-1",
+        "claude-fable-5-1-thinking",
+        "claude-fable-5.1-thinking",
+        "Claude-Fable-5.1",
+        "Claude Fable 5.1",
+        "claude-fable-5_1",
+        "claude-fable-5-1-20260901",
+    ] {
+        assert_eq!(
+            map_model(name),
+            Some("claude-fable-5.1".to_string()),
+            "{name} 应映射到 claude-fable-5.1"
+        );
+    }
+}
+
+#[test]
+fn test_map_model_fable_5_does_not_match_5_1() {
+    // 回归：5 代际与带其他数字的名字不得误判为 5.1
+    for name in [
+        "claude-fable-5",
+        "claude-fable-5-thinking",
+        "claude-fable-5-20260101",
+        "claude-fable-5-10",
+        "claude-fable",
+    ] {
+        assert_eq!(
+            map_model(name),
+            Some("claude-fable-5".to_string()),
+            "{name} 应映射到 claude-fable-5"
+        );
+    }
+}
+
+#[test]
 fn test_map_model_opus_4_6_unchanged() {
     // 回归：opus-4-6 默认走 claude-opus-4.6
     assert_eq!(

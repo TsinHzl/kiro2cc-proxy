@@ -189,6 +189,26 @@ mod tests {
     }
 
     #[test]
+    fn test_fable_5_1_present() {
+        let m = find_by_id("claude-fable-5-1").expect("claude-fable-5-1 应存在");
+        assert_eq!(m.max_tokens, 128000);
+        assert_eq!(m.owned_by, "anthropic");
+        assert_eq!(m.display_name, "Claude Fable 5.1");
+        let mt = find_by_id("claude-fable-5-1-thinking").expect("claude-fable-5-1-thinking 应存在");
+        assert_eq!(mt.max_tokens, 128000);
+        assert_eq!(mt.display_name, "Claude Fable 5.1 (Thinking)");
+        // 静态列表里的 ID 必须能被映射到 5.1，而不是 5
+        assert_eq!(
+            crate::anthropic::converter::map_model(&m.id),
+            Some("claude-fable-5.1".to_string())
+        );
+        assert_eq!(
+            crate::anthropic::converter::map_model(&mt.id),
+            Some("claude-fable-5.1".to_string())
+        );
+    }
+
+    #[test]
     fn test_haiku_4_5_max_tokens_unchanged() {
         // 回归：haiku-4-5 max_tokens 维持 64000
         let m = find_by_id("claude-haiku-4-5-20251001").expect("haiku 条目缺失");

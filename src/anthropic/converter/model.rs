@@ -15,12 +15,27 @@ pub(crate) fn is_haiku_55(model_lower: &str) -> bool {
     model_lower.replace(['.', ' '], "-").contains("haiku-5-5")
 }
 
+/// 判断模型名是否属于 fable 5.1。
+///
+/// 把 `.` / 空格 / `_` 归一为 `-` 后匹配 `fable-5-1`，覆盖 `fable-5.1` / `fable-5-1` /
+/// `fable 5.1` 等写法；`fable-5-1` 之后紧跟数字（如 `fable-5-10`）不算，
+/// 避免把其他版本号误判为 5.1。
+pub(crate) fn is_fable_51(model_lower: &str) -> bool {
+    const KEY: &str = "fable-5-1";
+    let normalized = model_lower.replace(['.', ' ', '_'], "-");
+    normalized
+        .find(KEY)
+        .is_some_and(|i| !normalized[i + KEY.len()..].starts_with(|c: char| c.is_ascii_digit()))
+}
+
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
 /// - sonnet 5.5/5-5 → claude-sonnet-5.5
 /// - sonnet 4.6/4-6 → claude-sonnet-4.6
 /// - 其他 sonnet → claude-sonnet-4.5
+/// - fable 5.1/5-1 → claude-fable-5.1
+/// - 其他 fable → claude-fable-5
 /// - opus 5.5/5-5 → claude-opus-5.5
 /// - opus 5/5 → claude-opus-5
 /// - opus 4.5/4-5 → claude-opus-4.5
@@ -47,7 +62,13 @@ pub fn map_model(model: &str) -> Option<String> {
             Some("claude-sonnet-4.5".to_string())
         }
     } else if model_lower.contains("fable") {
-        Some("claude-fable-5".to_string())
+        if is_fable_51(&model_lower) {
+            // claude-fable-5.1：Kiro 仅对特定账号 / 区域（Enterprise，us-east-1）开放，
+            // 是否可用由上游账号权限决定；代理只负责把名字映射到正确的上游 ID
+            Some("claude-fable-5.1".to_string())
+        } else {
+            Some("claude-fable-5".to_string())
+        }
     } else if model_lower.contains("opus") {
         if model_lower.contains("5.5") || model_lower.contains("5-5") {
             // claude-opus-5.5：5.5 代际，Max Input 1M / Max Output 128K（档位沿用 5 代）

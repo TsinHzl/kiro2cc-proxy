@@ -27,6 +27,8 @@ pub(super) fn model_max_output_tokens(model: &str) -> i32 {
         || m.contains("opus 5")
         // haiku 5.5：与 5.5 代际同档 128K（1M 窗口代际）
         || is_haiku_55(&m)
+        // 所有 fable 变体（当前经 map_model 映射到 fable 5 / 5.1）：官方 Max Output 128K
+        || m.contains("fable")
     {
         MAX_OUTPUT_TOKENS_LARGE_WINDOW
     } else {

@@ -1,0 +1,45 @@
+web-ui/admin-ui/src/types/api.ts
+  92f43acfd91a145e 253-254
+web-ui/admin-ui/src/lib/model-family.ts
+  92f43acfd91a145e 68-91
+src/admin/types.rs
+  92f43acfd91a145e 862-863
+src/anthropic/handlers/tests/models.rs
+  92f43acfd91a145e 151
+src/anthropic/handlers/post_messages_cc/tests/models.rs
+  92f43acfd91a145e 168
+src/kiro/token_manager/tests/model_routing.rs
+  92f43acfd91a145e 217
+src/admin/service.rs
+  92f43acfd91a145e 50,66-67,778,839-853,857-861,915,1047,1054
+web-ui/admin-ui/src/components/model-list-page.tsx
+  92f43acfd91a145e 26,28,93-99,101-134,376,408,467-469
+web-ui/admin-ui/src/i18n/locales/zh.json
+  92f43acfd91a145e 744,762-766
+web-ui/admin-ui/src/i18n/locales/en.json
+  92f43acfd91a145e 744,762-766
+web-ui/admin-ui/src/components/models-dialog.tsx
+  92f43acfd91a145e 3,18,86-133
+src/kiro/model/available_models.rs
+  92f43acfd91a145e 31-34,44-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7e98ebf58e8f16304ebd36b120ecdc9a6ae3124c",
+  "prompts": {
+    "92f43acfd91a145e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dcc157aa-4362-4ace-8efb-4f95c54f3efd",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 230,
+      "total_deletions": 54,
+      "accepted_lines": 188,
+      "overriden_lines": 0
+    }
+  }
+}

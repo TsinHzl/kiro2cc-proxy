@@ -1,0 +1,25 @@
+README.en.md
+  92f43acfd91a145e 13
+README.md
+  92f43acfd91a145e 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "36f5c1942c4730e758bac88d99f97fbd7894ba9c",
+  "prompts": {
+    "92f43acfd91a145e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dcc157aa-4362-4ace-8efb-4f95c54f3efd",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

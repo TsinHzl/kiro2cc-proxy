@@ -741,6 +741,7 @@
     "colModelId": "模型 ID",
     "colDisplayName": "显示名称",
     "colProvider": "提供方",
+    "colInputTypes": "输入模态",
     "colMaxTokens": "最大输出",
     "colRateMultiplier": "费率倍率",
     "colStatus": "状态",
@@ -758,7 +759,11 @@
     "toastExported": "已导出 JSON",
     "cheapestBadge": "最低",
     "mostExpensiveBadge": "最高",
-    "badgeRecentlyAdded": "NEW"
+    "badgeRecentlyAdded": "NEW",
+    "inputText": "文本",
+    "inputImage": "图像",
+    "inputNone": "上游未返回该模型的输入模态",
+    "inputUnrecognized": "上游返回了无法识别的输入模态：{{values}}"
   },
   "login": {
     "description": "请输入 Admin Password 以访问管理面板",

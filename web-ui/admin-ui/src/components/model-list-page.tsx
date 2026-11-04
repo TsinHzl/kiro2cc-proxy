@@ -23,7 +23,9 @@ import {
   formatRateRange,
   groupByFamily,
   groupByFamilyWith,
+  inputModalities,
   rateRange,
+  type InputModality,
 } from '@/lib/model-family'
 
 /** 8192 → 8.2K、32000 → 32K（设计稿以 K 为单位展示 Token 上限；formatTokenCount 只做千分位） */
@@ -88,7 +90,48 @@ type ModelFilter = 'all' | RateStatus
 /** 指标卡脚注最多列出的家族数 */
 const FAMILY_PREVIEW = 3
 const EXPORT_FILE_NAME = 'kiro2cc-models.json'
-const COLUMN_WIDTHS: (number | undefined)[] = [44, undefined, 118, 96, 158, 108, 52]
+const COLUMN_WIDTHS: (number | undefined)[] = [44, undefined, 118, 124, 96, 158, 108, 52]
+
+/** 输入模态徽章：Text 走中性面、Image 走品牌软底 —— 均复用既有设计令牌，不新增色板 */
+const MODALITY_TAG: Readonly<Record<InputModality, { cls: string; labelKey: string }>> = {
+  text: { cls: 'bg-surface-3 text-ink-2', labelKey: 'models.inputText' },
+  image: { cls: 'bg-brand-soft text-brand-ink', labelKey: 'models.inputImage' },
+}
+
+/**
+ * 输入模态单元：未声明（含静态表回退）展示 `—`，声明了但全不可识别展示 `?`。
+ * 两种空态语义不同 —— 前者是上游没给，后者是上游给了本项目不认识的值，不能共用「未返回」文案。
+ */
+function InputTypesCell({ inputTypes }: { inputTypes?: string[] | null }) {
+  const { t } = useTranslation()
+  const modalities = inputModalities(inputTypes)
+  if (modalities.length === 0) {
+    const declared = (inputTypes?.length ?? 0) > 0
+    const hint = t(declared ? 'models.inputUnrecognized' : 'models.inputNone', {
+      values: declared ? (inputTypes ?? []).join(', ') : undefined,
+    })
+    return (
+      <span role="img" aria-label={hint} title={hint} className="font-mono text-[12px] text-ink-3">
+        {declared ? '?' : '—'}
+      </span>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1 whitespace-nowrap">
+      {modalities.map((modality) => {
+        const visual = MODALITY_TAG[modality]
+        return (
+          <span
+            key={modality}
+            className={`inline-flex h-5 flex-none items-center rounded-[5px] px-[6px] text-[10.5px] font-semibold ${visual.cls}`}
+          >
+            {t(visual.labelKey)}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 function downloadJson(models: ModelItem[]): void {
   const url = URL.createObjectURL(new Blob([JSON.stringify(models, null, 2)], { type: 'application/json' }))
@@ -330,6 +373,7 @@ export function ModelListPage() {
                 <th className={TH_BASE}>{t('models.colIndex')}</th>
                 <th className={TH_BASE}>{t('models.colModelId')}</th>
                 <th className={TH_BASE}>{t('models.colProvider')}</th>
+                <th className={TH_BASE}>{t('models.colInputTypes')}</th>
                 <th className={`${TH_BASE} text-right`}>{t('models.colMaxTokens')}</th>
                 <th className={TH_BASE}>{t('models.colRateMultiplier')}</th>
                 <th className={TH_BASE}>{t('models.colStatus')}</th>
@@ -361,7 +405,7 @@ export function ModelListPage() {
                   <Fragment key={group.name}>
                     {/* 设计稿 .grp 分组行：家族名 + 数量 + 该组倍率区间 */}
                     <tr className="bg-surface-2">
-                      <td colSpan={5} className="border-b-[0.5px] border-hairline px-3 py-[7px]">
+                      <td colSpan={6} className="border-b-[0.5px] border-hairline px-3 py-[7px]">
                         <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">
                           <Boxes className="size-[13px] flex-none text-ink-3" strokeWidth={1.7} aria-hidden="true" />
                           {familyLabel(group.name)}
@@ -419,6 +463,9 @@ export function ModelListPage() {
                               />
                               {model.owned_by}
                             </span>
+                          </td>
+                          <td className={CELL}>
+                            <InputTypesCell inputTypes={model.input_types} />
                           </td>
                           <td className={`${CELL} text-right`}>
                             <span

@@ -859,6 +859,8 @@ pub struct AdminModelItem {
     pub released_at: Option<String>,
     /// 官方模型描述；上游未返回或回退静态表时为 None
     pub description: Option<String>,
+    /// 上游声明的输入模态（`TEXT` / `IMAGE`）；上游未返回或回退静态表时为空数组
+    pub input_types: Vec<String>,
 }
 
 /// 支持模型列表响应

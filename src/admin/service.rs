@@ -47,6 +47,7 @@ fn live_model_to_admin_item(
         rate_multiplier: info.rate_multiplier,
         released_at: release.release_date(&info.model_id),
         description: info.description.clone(),
+        input_types: info.supported_input_types.clone(),
     }
 }
 
@@ -62,6 +63,8 @@ fn fallback_model_to_admin_item(
         model,
         rate_multiplier: None,
         description: None,
+        // 静态表不声明模态：不做猜测，交由前端展示「未返回」
+        input_types: Vec::new(),
     }
 }
 
@@ -772,6 +775,7 @@ mod tests {
             model_name: model_name.to_string(),
             description: None,
             rate_multiplier: rate,
+            supported_input_types: Vec::new(),
             token_limits: TokenLimits {
                 max_input_tokens: max_in,
                 max_output_tokens: max_out,
@@ -832,6 +836,29 @@ mod tests {
         assert_eq!(item.model.id, expected_id);
         assert_eq!(item.rate_multiplier, None);
         assert_eq!(item.description, None);
+        assert!(item.input_types.is_empty());
+    }
+
+    #[test]
+    fn test_live_model_to_admin_item_carries_input_types() {
+        let mut info = fake_info(
+            "claude-sonnet-5",
+            "Claude Sonnet 5",
+            Some(1.3),
+            1_000_000,
+            64_000,
+        );
+        info.supported_input_types = vec!["TEXT".to_string(), "IMAGE".to_string()];
+        let item = live_model_to_admin_item(&info, &ModelReleaseTracker::in_memory());
+        assert_eq!(item.input_types, vec!["TEXT", "IMAGE"]);
+    }
+
+    #[test]
+    fn test_available_models_tolerates_null_input_types() {
+        let raw = r#"{"models":[{"modelId":"x","supportedInputTypes":null}]}"#;
+        let parsed: AvailableModelsResponse =
+            serde_json::from_str(raw).expect("显式 null 不应导致整份列表解析失败");
+        assert!(parsed.models[0].supported_input_types.is_empty());
     }
 
     #[test]
@@ -885,6 +912,7 @@ mod tests {
                 rate_multiplier: None,
                 released_at: None,
                 description: None,
+                input_types: Vec::new(),
             }
         }
 
@@ -1016,12 +1044,14 @@ mod tests {
         let auto = &parsed.models[0];
         assert_eq!(auto.model_id, "auto");
         assert_eq!(auto.model_name, "Auto");
+        assert_eq!(auto.supported_input_types, vec!["TEXT"]);
         assert_eq!(auto.rate_multiplier, Some(1.0));
         assert_eq!(auto.token_limits.max_input_tokens, 1_000_000);
         assert_eq!(auto.token_limits.max_output_tokens, 64_000);
 
         let sonnet = &parsed.models[1];
         assert_eq!(sonnet.model_id, "claude-sonnet-5");
+        assert_eq!(sonnet.supported_input_types, vec!["TEXT", "IMAGE"]);
         assert_eq!(sonnet.rate_multiplier, Some(1.3));
 
         let opus5 = parsed

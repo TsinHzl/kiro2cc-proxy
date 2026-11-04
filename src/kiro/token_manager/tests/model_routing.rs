@@ -214,6 +214,7 @@ mod tests {
                     model_name: String::new(),
                     description: None,
                     rate_multiplier: None,
+                    supported_input_types: Vec::new(),
                     token_limits: TokenLimits::default(),
                     additional_model_request_fields_schema: None,
                 })

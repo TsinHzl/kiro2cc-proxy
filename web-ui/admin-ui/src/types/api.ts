@@ -250,6 +250,8 @@ export interface ModelItem {
   released_at?: string | null
   /** 官方模型描述；上游未返回或回退静态表时为 null */
   description?: string | null
+  /** 上游声明的输入模态（`TEXT` / `IMAGE`）；上游未返回或回退静态表时为空数组 */
+  input_types?: string[]
 }
 
 export interface ModelsResponse {

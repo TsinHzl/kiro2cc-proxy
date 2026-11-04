@@ -165,6 +165,7 @@ mod tests {
             model_name: "Claude Sonnet 4.6".to_string(),
             description: None,
             rate_multiplier: Some(1.3),
+            supported_input_types: Vec::new(),
             token_limits: TokenLimits {
                 max_input_tokens: 1_000_000,
                 max_output_tokens: 64_000,

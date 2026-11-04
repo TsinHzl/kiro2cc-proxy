@@ -741,6 +741,7 @@
     "colModelId": "Model ID",
     "colDisplayName": "Display Name",
     "colProvider": "Provider",
+    "colInputTypes": "Input Types",
     "colMaxTokens": "Max Output",
     "colRateMultiplier": "Rate Multiplier",
     "colStatus": "Status",
@@ -758,7 +759,11 @@
     "toastExported": "JSON exported",
     "cheapestBadge": "Lowest",
     "mostExpensiveBadge": "Highest",
-    "badgeRecentlyAdded": "NEW"
+    "badgeRecentlyAdded": "NEW",
+    "inputText": "Text",
+    "inputImage": "Image",
+    "inputNone": "Upstream did not report input modalities for this model",
+    "inputUnrecognized": "Upstream reported unrecognized input modalities: {{values}}"
   },
   "login": {
     "description": "Enter the Admin Password to access the admin panel",

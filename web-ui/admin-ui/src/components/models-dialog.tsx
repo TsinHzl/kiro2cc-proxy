@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useTranslation } from 'react-i18next'
+import { FileText, Image as ImageIcon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import {
   formatRate,
   formatRateRange,
   groupByFamily,
+  inputModalities,
   rateRange,
 } from '@/lib/model-family'
 
@@ -81,14 +83,54 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
                   </span>
                 </div>
                 <ul className="space-y-1">
-                  {group.models.map((model) => (
-                    <li key={model.id} className="flex items-center justify-between text-[12px]">
-                      <span className="font-mono text-ink-2 truncate">{model.id}</span>
-                      <span className="font-mono tabular-nums text-ink-3 ml-2 shrink-0">
-                        {model.rate_multiplier != null ? formatRate(model.rate_multiplier) : '—'}
-                      </span>
-                    </li>
-                  ))}
+                  {group.models.map((model) => {
+                    const modalities = inputModalities(model.input_types)
+                    const declared = (model.input_types?.length ?? 0) > 0
+                    const emptyHint = t(declared ? 'models.inputUnrecognized' : 'models.inputNone', {
+                      values: declared ? (model.input_types ?? []).join(', ') : undefined,
+                    })
+                    return (
+                      <li key={model.id} className="flex items-center justify-between text-[12px]">
+                        <span className="font-mono text-ink-2 truncate">{model.id}</span>
+                        <span className="ml-2 flex shrink-0 items-center gap-2">
+                          <span className="flex items-center gap-1">
+                            {modalities.length === 0 ? (
+                              /* 与列表页空态同口径：未声明 `—`、声明但全不可识别 `?`，均不猜测能力 */
+                              <span role="img" aria-label={emptyHint} title={emptyHint} className="text-ink-3">
+                                {declared ? '?' : '—'}
+                              </span>
+                            ) : (
+                              modalities.map((modality) => {
+                                const label = t(modality === 'image' ? 'models.inputImage' : 'models.inputText')
+                                return (
+                                  <span
+                                    key={modality}
+                                    role="img"
+                                    aria-label={label}
+                                    title={label}
+                                    className={`inline-flex size-[18px] items-center justify-center rounded-[4px] ${
+                                      modality === 'image'
+                                        ? 'bg-brand-soft text-brand-ink'
+                                        : 'bg-surface-3 text-ink-2'
+                                    }`}
+                                  >
+                                    {modality === 'image' ? (
+                                      <ImageIcon className="size-[11px]" aria-hidden="true" />
+                                    ) : (
+                                      <FileText className="size-[11px]" aria-hidden="true" />
+                                    )}
+                                  </span>
+                                )
+                              })
+                            )}
+                          </span>
+                          <span className="font-mono tabular-nums text-ink-3">
+                            {model.rate_multiplier != null ? formatRate(model.rate_multiplier) : '—'}
+                          </span>
+                        </span>
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}

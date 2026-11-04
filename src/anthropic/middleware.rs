@@ -82,9 +82,12 @@ impl AppState {
         }
     }
 
-    /// 设置 KiroProvider
-    pub fn with_kiro_provider(mut self, provider: KiroProvider) -> Self {
-        self.kiro_provider = Some(Arc::new(provider));
+    /// 设置 KiroProvider（共享 Arc）。
+    ///
+    /// 调用方持有同一个 `Arc<KiroProvider>`：Anthropic/OpenAI 路由与 `/native`
+    /// 原生直通路由必须共用同一账号池、并发信号量与限流状态。
+    pub fn with_kiro_provider_arc(mut self, provider: Arc<KiroProvider>) -> Self {
+        self.kiro_provider = Some(provider);
         self
     }
 

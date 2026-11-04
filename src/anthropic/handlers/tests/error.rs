@@ -83,7 +83,8 @@ mod tests {
             false,
         )
         .unwrap();
-        let state = AppState::new().with_kiro_provider(KiroProvider::new(Arc::new(manager)));
+        let state =
+            AppState::new().with_kiro_provider_arc(Arc::new(KiroProvider::new(Arc::new(manager))));
         for messages in [
             json!([
                 {"role": "user", "content": "task"},

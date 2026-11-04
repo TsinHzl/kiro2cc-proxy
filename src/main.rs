@@ -12,6 +12,7 @@ mod kiro;
 mod log_capture;
 mod logging;
 mod model;
+mod native;
 mod openai;
 pub mod token;
 mod user;
@@ -239,10 +240,14 @@ async fn main() {
         throttle_data_dir.join("failure_log.json")
     );
 
-    let kiro_provider = KiroProvider::with_proxy(token_manager.clone(), proxy_config.clone())
-        .with_rpm_tracker(rpm_tracker.clone())
-        .with_throttle_log_store(throttle_log_store.clone())
-        .with_failure_log_store(failure_log_store.clone());
+    // 共享同一个 provider 实例：Anthropic 兼容路由与 /native 原生直通路由
+    // 必须共用账号池、并发信号量与限流状态。
+    let kiro_provider = Arc::new(
+        KiroProvider::with_proxy(token_manager.clone(), proxy_config.clone())
+            .with_rpm_tracker(rpm_tracker.clone())
+            .with_throttle_log_store(throttle_log_store.clone())
+            .with_failure_log_store(failure_log_store.clone()),
+    );
 
     // 初始化 count_tokens 配置
     token::init_config(token::CountTokensConfig {
@@ -343,7 +348,7 @@ async fn main() {
 
     let anthropic_app = anthropic::create_router_with_provider_and_state(
         anthropic_app_state,
-        Some(kiro_provider),
+        Some(kiro_provider.clone()),
         first_credentials.profile_arn.clone(),
     );
 
@@ -414,6 +419,10 @@ async fn main() {
         anthropic_app
     };
 
+    // 原生 Kiro 直通入口：与 Anthropic/OpenAI/Admin 共用同一端口与 provider，
+    // 但路由/状态独立（不改动既有协议行为）。sub2api 原生转发层调用 POST /native。
+    let app = app.merge(native::create_router(kiro_provider.clone()));
+
     // 启动服务器
     let addr = format!("{}:{}", config.host, config.port);
     tracing::info!("启动 Anthropic API 端点: {}", addr);
@@ -423,6 +432,7 @@ async fn main() {
     tracing::info!("  POST /v1/messages/count_tokens");
     tracing::info!("  POST /v1/chat/completions  (OpenAI 兼容)");
     tracing::info!("  POST /v1/responses         (OpenAI 兼容 / Codex CLI)");
+    tracing::info!("  POST /native               (Kiro 原生协议直通，x-amz-target 分发)");
     if admin_key_valid {
         tracing::info!("Admin API:");
         tracing::info!("  GET  /api/admin/credentials");

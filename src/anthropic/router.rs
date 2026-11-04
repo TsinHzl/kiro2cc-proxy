@@ -37,13 +37,16 @@ const MAX_BODY_SIZE: usize = 200 * 1024 * 1024;
 /// - `kiro_provider`: 可选的 KiroProvider，用于调用上游 API
 ///
 /// 创建带有预构建 AppState 的 Anthropic API 路由
+///
+/// `kiro_provider` 以共享 `Arc` 传入：同一进程内的 `/native` 原生直通路由
+/// 也复用同一 provider（账号池/并发/限流状态必须一致）。
 pub fn create_router_with_provider_and_state(
     mut state: AppState,
-    kiro_provider: Option<KiroProvider>,
+    kiro_provider: Option<std::sync::Arc<KiroProvider>>,
     profile_arn: Option<String>,
 ) -> Router {
     if let Some(provider) = kiro_provider {
-        state = state.with_kiro_provider(provider);
+        state = state.with_kiro_provider_arc(provider);
     }
     if let Some(arn) = profile_arn {
         state = state.with_profile_arn(arn);

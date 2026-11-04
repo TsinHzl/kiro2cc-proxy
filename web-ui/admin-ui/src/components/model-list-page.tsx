@@ -529,7 +529,8 @@ export function ModelListPage() {
         <div className={PANEL_FOOT}>
           <span>{t('models.footRateNote')}</span>
           <span className="ml-auto">
-            {t('models.footTotals', { models: filtered.length, families: groups.length })}
+            {/* 家族数与顶部指标卡同口径（familyBrand 品牌分组、auto 不计入），避免同一页出现两个不同的数 */}
+            {t('models.footTotals', { models: filtered.length, families: familyGroups.length })}
           </span>
         </div>
       </section>

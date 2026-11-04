@@ -854,11 +854,20 @@ mod tests {
     }
 
     #[test]
-    fn test_available_models_tolerates_null_input_types() {
+    fn test_available_models_tolerates_malformed_input_types() {
         let raw = r#"{"models":[{"modelId":"x","supportedInputTypes":null}]}"#;
         let parsed: AvailableModelsResponse =
             serde_json::from_str(raw).expect("显式 null 不应导致整份列表解析失败");
         assert!(parsed.models[0].supported_input_types.is_empty());
+
+        // 数组内非法元素逐项丢弃，合法项保留 —— 不能让一个畸形元素拖垮整份列表
+        let raw = r#"{"models":[{"modelId":"y","supportedInputTypes":["TEXT",null,{"type":"IMAGE"},1,"image"]}]}"#;
+        let parsed: AvailableModelsResponse =
+            serde_json::from_str(raw).expect("数组内非法元素不应导致整份列表解析失败");
+        assert_eq!(
+            parsed.models[0].supported_input_types,
+            vec!["TEXT", "image"]
+        );
     }
 
     #[test]

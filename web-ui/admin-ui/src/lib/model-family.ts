@@ -89,6 +89,22 @@ export function inputModalities(inputTypes?: string[] | null): InputModality[] {
   return MODALITY_ORDER.filter((m) => found.has(m))
 }
 
+/** 空态语义：未声明（含静态表回退）/ 声明了但本项目一个都不认识 */
+export type ModalityEmptyState =
+  | { kind: 'none' }
+  | { kind: 'unrecognized'; values: string }
+
+/**
+ * 模态为空时的语义派生 —— 两种空态的文案与占位符不同，列表页与弹窗共用本函数，
+ * 避免「未返回」与「不认识」的口径在两处各自演化。
+ */
+export function modalityEmptyState(inputTypes?: string[] | null): ModalityEmptyState {
+  const declared = (inputTypes?.length ?? 0) > 0
+  return declared
+    ? { kind: 'unrecognized', values: (inputTypes ?? []).join(', ') }
+    : { kind: 'none' }
+}
+
 export interface RateRange {
   min: number
   max: number

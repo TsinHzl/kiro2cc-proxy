@@ -28,9 +28,9 @@ pub struct AvailableModelInfo {
     /// 官方费率倍率
     #[serde(default)]
     pub rate_multiplier: Option<f64>,
-    /// 上游声明的输入模态（如 `["TEXT", "IMAGE"]`）；未返回或为 null 时为空数组，
-    /// Admin 模型页据此展示「支持文本 / 图片」徽章
-    #[serde(default, deserialize_with = "deserialize_nullable_string_vec")]
+    /// 上游声明的输入模态（如 `["TEXT", "IMAGE"]`）；未返回、为 null 或含非法元素时
+    /// 只保留字符串项，Admin 模型页据此展示「支持文本 / 图片」徽章
+    #[serde(default, deserialize_with = "deserialize_lenient_string_vec")]
     pub supported_input_types: Vec<String>,
     /// token 上限
     #[serde(default)]
@@ -41,16 +41,21 @@ pub struct AvailableModelInfo {
     pub additional_model_request_fields_schema: Option<serde_json::Value>,
 }
 
-/// 把上游显式 `null` 归一为空数组。
+/// 把上游的模态字段宽松归一为字符串数组。
 ///
-/// `#[serde(default)]` 只覆盖「字段缺失」，不覆盖「字段为 null」；
-/// 上游若返回 `"supportedInputTypes": null`，`Vec<String>` 会以
-/// `invalid type: null, expected a sequence` 失败，进而让整份 `models[]` 解析失败。
-fn deserialize_nullable_string_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+/// 三重降级：字段缺失 → `#[serde(default)]` 兜底；顶层 `null` → 空数组；
+/// 数组内的 `null` / 对象 / 数字等非法元素 → 逐项丢弃，只保留字符串。
+/// 任一环节都不让该字段拖垮整份 `models[]` —— 否则 `list_admin_models` 会静默
+/// 回退静态表（倍率全丢），`model_support` 也会放弃按模型过滤。
+fn deserialize_lenient_string_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    Ok(Option::<Vec<String>>::deserialize(deserializer)?.unwrap_or_default())
+    let raw = Option::<Vec<serde_json::Value>>::deserialize(deserializer)?.unwrap_or_default();
+    Ok(raw
+        .into_iter()
+        .filter_map(|v| v.as_str().map(str::to_owned))
+        .collect())
 }
 
 /// 模型 token 上限

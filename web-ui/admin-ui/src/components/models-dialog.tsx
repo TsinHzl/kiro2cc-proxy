@@ -16,6 +16,7 @@ import {
   formatRateRange,
   groupByFamily,
   inputModalities,
+  modalityEmptyState,
   rateRange,
 } from '@/lib/model-family'
 
@@ -85,9 +86,9 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
                 <ul className="space-y-1">
                   {group.models.map((model) => {
                     const modalities = inputModalities(model.input_types)
-                    const declared = (model.input_types?.length ?? 0) > 0
-                    const emptyHint = t(declared ? 'models.inputUnrecognized' : 'models.inputNone', {
-                      values: declared ? (model.input_types ?? []).join(', ') : undefined,
+                    const empty = modalityEmptyState(model.input_types)
+                    const emptyHint = t(empty.kind === 'unrecognized' ? 'models.inputUnrecognized' : 'models.inputNone', {
+                      values: empty.kind === 'unrecognized' ? empty.values : undefined,
                     })
                     return (
                       <li key={model.id} className="flex items-center justify-between text-[12px]">
@@ -97,7 +98,7 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
                             {modalities.length === 0 ? (
                               /* 与列表页空态同口径：未声明 `—`、声明但全不可识别 `?`，均不猜测能力 */
                               <span role="img" aria-label={emptyHint} title={emptyHint} className="text-ink-3">
-                                {declared ? '?' : '—'}
+                                {empty.kind === 'unrecognized' ? '?' : '—'}
                               </span>
                             ) : (
                               modalities.map((modality) => {

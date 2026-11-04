@@ -24,6 +24,7 @@ import {
   groupByFamily,
   groupByFamilyWith,
   inputModalities,
+  modalityEmptyState,
   rateRange,
   type InputModality,
 } from '@/lib/model-family'
@@ -106,13 +107,13 @@ function InputTypesCell({ inputTypes }: { inputTypes?: string[] | null }) {
   const { t } = useTranslation()
   const modalities = inputModalities(inputTypes)
   if (modalities.length === 0) {
-    const declared = (inputTypes?.length ?? 0) > 0
-    const hint = t(declared ? 'models.inputUnrecognized' : 'models.inputNone', {
-      values: declared ? (inputTypes ?? []).join(', ') : undefined,
+    const empty = modalityEmptyState(inputTypes)
+    const hint = t(empty.kind === 'unrecognized' ? 'models.inputUnrecognized' : 'models.inputNone', {
+      values: empty.kind === 'unrecognized' ? empty.values : undefined,
     })
     return (
       <span role="img" aria-label={hint} title={hint} className="font-mono text-[12px] text-ink-3">
-        {declared ? '?' : '—'}
+        {empty.kind === 'unrecognized' ? '?' : '—'}
       </span>
     )
   }
@@ -405,7 +406,7 @@ export function ModelListPage() {
                   <Fragment key={group.name}>
                     {/* 设计稿 .grp 分组行：家族名 + 数量 + 该组倍率区间 */}
                     <tr className="bg-surface-2">
-                      <td colSpan={6} className="border-b-[0.5px] border-hairline px-3 py-[7px]">
+                      <td colSpan={COLUMN_WIDTHS.length - 2} className="border-b-[0.5px] border-hairline px-3 py-[7px]">
                         <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">
                           <Boxes className="size-[13px] flex-none text-ink-3" strokeWidth={1.7} aria-hidden="true" />
                           {familyLabel(group.name)}

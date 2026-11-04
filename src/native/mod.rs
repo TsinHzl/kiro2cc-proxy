@@ -47,6 +47,7 @@
 //! 不是真实上游 profile。详见 `docs/native-inbound.md`。
 
 mod aws_json;
+mod billing;
 mod control_plane;
 
 use std::sync::Arc;
@@ -227,15 +228,20 @@ async fn handle_native(
 
     match kind {
         NativeKind::Inference => {
+            // 计费口径：原生上游流没有 tokenUsage，这里用 tiktoken 估算输入 tokens，
+            // 在 metadataEvent 帧中注入 tokenUsage 供 sub2api 记账（输出 tokens 在
+            // 流式转发过程中累计）。
+            let input_tokens = billing::estimate_input_tokens(body_str);
             let result = state
                 .provider
                 .call_api_stream(body_str, false, false, &[])
                 .await;
-            forward_upstream_stream(result, target, started)
+            forward_upstream_stream(result, target, started, Some(input_tokens))
         }
         NativeKind::Mcp => {
+            // MCP 是 JSON-RPC 工具调用，不属于按 token 计费的推理请求。
             let result = state.provider.call_mcp(body_str, &[]).await;
-            forward_upstream_stream(result, target, started)
+            forward_upstream_stream(result, target, started, None)
         }
         NativeKind::Control(op) => control_plane::handle(&state.provider, op).await,
         NativeKind::Unknown => {
@@ -249,18 +255,21 @@ async fn handle_native(
     }
 }
 
-/// 把 KiroProvider 的上游响应原样转发给原生客户端。
+/// 把 KiroProvider 的上游响应转发给原生客户端。
 ///
 /// - 状态码原样保留（包括上游 4xx/5xx 的非流式错误体）；
 /// - 响应头按黑名单过滤 hop-by-hop / 长度 / 编码类头，其余（含
 ///   `x-amzn-codewhisperer-conversation-id`、`x-amzn-kiro-*`、`retry-after`）透传；
 /// - body 用 `reqwest::Response::bytes_stream()` 逐块转发，**不缓冲**：AWS EventStream
 ///   的帧边界/时序与直连 Kiro 一致，客户端可实时解析 tool/thinking/credit 事件；
+/// - `input_tokens=Some(..)` 时（推理请求）在流中间插入计费包装器：除
+///   `metadataEvent` 注入估算 tokenUsage 外，所有帧逐字节原样转发；
 /// - 客户端断开时 axum 丢弃 body stream，reqwest 随之关闭上游连接（天然取消传播）。
 fn forward_upstream_stream(
     result: anyhow::Result<(reqwest::Response, u64)>,
     target: &str,
     started: Instant,
+    input_tokens: Option<u64>,
 ) -> Response {
     match result {
         Ok((upstream, credential_id)) => {
@@ -270,13 +279,27 @@ fn forward_upstream_stream(
                 StatusCode::from_u16(upstream_status.as_u16()).unwrap_or(StatusCode::BAD_GATEWAY),
             );
             let builder = aws_json::copy_response_headers(builder, &header_map);
-            let body = Body::from_stream(upstream.bytes_stream());
+            let body = match input_tokens {
+                Some(input_tokens) => {
+                    tracing::debug!(
+                        target = %target,
+                        input_tokens,
+                        "native 计费：metadataEvent 将注入估算 tokenUsage"
+                    );
+                    Body::from_stream(billing::rewrite_event_stream(
+                        upstream.bytes_stream(),
+                        input_tokens,
+                    ))
+                }
+                None => Body::from_stream(upstream.bytes_stream()),
+            };
             tracing::info!(
                 target = %target,
                 credential_id,
                 status = %upstream_status,
+                estimated_input_tokens = input_tokens,
                 elapsed_ms = started.elapsed().as_millis() as u64,
-                "native inbound 上游流已建立，开始原样转发"
+                "native inbound 上游流已建立，开始转发"
             );
             builder.body(body).unwrap_or_else(|err| {
                 aws_json::error(

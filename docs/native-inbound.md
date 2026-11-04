@@ -58,6 +58,46 @@ sub2api 负责校验本地 Kiro 客户端携带的凭据（sub2api `sk-` key）�
 - 未设置：POC/本地模式放行，启动日志打印 WARN。**生产环境必须设置**，且只允许
   sub2api 访问本端口。
 
+### 2.2 计费 token（`metadataEvent.tokenUsage` 注入）
+
+原生 Kiro EventStream **没有 tokenUsage**（只有 `meteringEvent` credits 与
+`contextUsageEvent` 百分比），sub2api 无法按 token 记账。`/native` 推理路径
+（`*.GenerateAssistantResponse` / `*.SendMessage`）会在流式转发时做两件事：
+
+1. **输入 tokens 估算**（请求转发前，`crate::token::count_tokens` tiktoken
+   cl100k_base）：对 `conversationState.systemPrompt` / `history[].userInputMessage.content` /
+   `history[].assistantResponseMessage.content` / `currentMessage.userInputMessage.content` /
+   `toolResults[].content[].text|json` / `tools[].toolSpecification(name+description+inputSchema.json)` /
+   `assistantResponseMessage.toolUses[].input` / `additionalModelRequestFields` 逐段求和，
+   上限 1,000,000；图片 base64 不参与估算（避免严重高估）。估算失败/字段缺失按 0 处理。
+2. **流内累积输出 tokens**：`assistantResponseEvent.content` +
+   `reasoningContentEvent.text` + `toolUseEvent.input` 片段拼接后一次性 tiktoken 估算；
+   `meteringEvent.cacheReadInputTokens` / `cacheCreationInputTokens`
+   （camelCase 与 snake_case 均兼容）若出现则采集，否则 cache 字段记 0。
+
+在 `metadataEvent` 帧到达时，若 payload 已带 `tokenUsage`（上游未来版本可能提供）
+则**原样转发**；否则注入：
+
+```json
+"tokenUsage": {
+  "uncachedInputTokens": "max(0, input - cache_read - cache_write)",
+  "outputTokens": "out",
+  "totalTokens": "input + out",
+  "cacheReadInputTokens": "cache_read",
+  "cacheWriteInputTokens": "cache_write"
+}
+```
+
+注入只重建该帧（复用原 header 字节、重算长度与 CRC），其余帧逐字节原样转发。
+实现上使用增量 AWS EventStream 解析（`src/native/billing.rs`）：半帧留在 buffer、
+按 chunk flush、不缓冲整条响应；帧结构/CRC 异常时该帧原样转发并继续，长度非法则
+退化为整条流原样透传，绝不丢字节。若上游**没有** `metadataEvent`，整条流原样转发，
+sub2api 仍会看到 `kiro_native.usage_missing`。
+
+> 口径提醒：cl100k_base 与 Kiro 实际 tokenizer 存在系统性偏差（通常 cl100k 偏多/偏少
+> 视内容而定），因此数值是**估算**；上游 metering credits 仍是真实计费值。cache
+> 字段只有在上游 meteringEvent 提供时才有真实值，否则为 0。
+
 ## 3. 支持的 `x-amz-target`
 
 分类规则按操作名（最后一段）匹配，兼容 Kiro 2.36 的旧/新两代 service 前缀
@@ -131,7 +171,8 @@ reqwest 随之关闭上游连接（取消传播）。
 ## 5. 日志与可观测性
 
 - 请求：`target`、分类、body 字节数（**不记录请求体/凭据/prompt**）。
-- 上游：账号 id、HTTP 状态、首包耗时（`elapsed_ms`）；流式内容本身不落日志。
+- 上游：账号 id、HTTP 状态、估算输入 tokens（`estimated_input_tokens`）、首包耗时
+  （`elapsed_ms`）；流式内容本身不落日志。
 - 控制面：账号 id、模型数量、额度查询结果只记录计数，不记录数值明细。
 - 失败：`warn` 级别的顶层错误（不含完整上游 body）。
 
@@ -199,6 +240,13 @@ curl -sS -X POST http://127.0.0.1:5678/native \
 10. **客户端请求头不转发**：上游请求头由 KiroProvider 统一构造（UA、agent-mode
     由请求体推导），客户端自带的 `x-amzn-kiro-*` 透传头不会带到 Kiro；如需
     客户端级归因，后续可在 native 模块内显式透传白名单头。
+11. **计费 token 是估算而非上游真值**：`metadataEvent.tokenUsage` 由 tiktoken
+    cl100k_base 估算输入/输出 token；cacheRead/cacheWrite 仅当上游 meteringEvent
+    同时给出才非 0。若 meteringEvent 出现在 metadataEvent **之后**，该请求的
+    cache 字段会记为 0（帧顺序由上游决定，不会为计费而延迟 metadataEvent）。
+12. **未注入场景**：上游完全没有 `metadataEvent` 时无法注入（流原样转发，sub2api
+    继续记录 `kiro_native.usage_missing`）；metadataEvent payload 非 JSON 或帧 CRC
+    异常时同样跳过注入（只记 warn，不破坏客户端流）。
 
 ## 8. 测试
 
@@ -218,11 +266,15 @@ cargo check --all-targets
 - `classify_target`：旧/新两代推理、MCP、控制面 target 与未知 fallback；
 - `check_native_token`：未配置放行、配置后必须精确匹配（大小写/空值/缺失）；
 - `aws_json`：响应头黑名单、null 裁剪、错误分类、UTF-8 安全截断；
-- `control_plane`：模型/额度/Profile 合成、`daysUntilReset` 计算、空上游容错。
+- `control_plane`：模型/额度/Profile 合成、`daysUntilReset` 计算、空上游容错；
+- `billing`：输入估算（history/tools/system/toolResults/额外字段、图片跳过、1M 截断）、
+  EventStream 分帧解析（任意 chunk 边界/半帧/flush/垃圾流透传）、metadataEvent
+  tokenUsage 注入（CRC 合法、其余帧逐字节一致、已有 tokenUsage 不覆盖）、
+  metering cache 采集（camelCase/snake_case/负值）、uncached 下限 0。
 
 ## 9. 变更范围
 
-- 新增：`src/native/`（`mod.rs` / `aws_json.rs` / `control_plane.rs`）；
+- 新增：`src/native/`（`mod.rs` / `aws_json.rs` / `control_plane.rs` / `billing.rs`）；
 - 最小改动：`src/main.rs`（`mod native`、共享 `Arc<KiroProvider>`、`nest("/native")`）、
   `src/anthropic/middleware.rs` + `router.rs` + `mod.rs`（新增共享 provider 构造函数）；
 - 不修改：Anthropic/OpenAI/Admin 路由行为、converter、provider 既有逻辑、前端。

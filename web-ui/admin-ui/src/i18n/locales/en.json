@@ -807,7 +807,7 @@
     "dumpKiroBodyDesc": "Debug/forensics switch. When enabled, every final request body sent to Kiro is written to app/config/kiro-body-dump/ (file permission 0600) for troubleshooting protocol conversion issues; disabled by default. Hot-switchable, applies to new requests only; turn it off promptly after diagnosis to avoid unbounded disk growth.",
     "debugLogs": "DEBUG Logs",
     "debugLogsDesc": "When enabled, DEBUG-level events are emitted live to the console, the log file and the Log Viewer page (all three in sync, no restart needed). Off by default — turn it on temporarily for troubleshooting; log volume grows significantly, so it is recommended to switch it off after diagnosis. DEBUG entries already captured are retained when switched off.",
-    "clientTokenPassthroughDesc": "Controls whether the usage fields are reported 1:1 with real token consumption. When enabled, actual values are passed through, for third-party clients that compute context usage from returned usage; when disabled (default), values are scaled by 0.6657 for display. Regardless of the switch state, Claude Code's auto-compact trigger timing remains unchanged.",
+    "clientTokenPassthroughDesc": "Controls whether the usage fields are reported 1:1 with real token consumption. When enabled (default), actual values are passed through, for third-party clients that compute context usage from returned usage; when disabled, values are scaled by 0.6657 for display, which can appropriately delay Claude Code's existing auto-compact trigger timing.",
     "maxRpmPerCredential": "Per-Account RPM Limit",
     "maxRpmPerCredentialDesc": "Maximum requests per minute for each account; hot-applied on save (0 = unlimited).",
     "writeChunkingMaxLines": "Chunked-Write Line Limit",

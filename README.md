@@ -507,7 +507,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
 | `loadBalancingMode` | 否 | `priority` | `priority`（按优先级）或 `balanced`（轮询） |
 | `maxRpmPerCredential` | 否 | `0` | 单个账号每分钟最大请求数；`0` 表示不限。设置页保存后立即热生效并写入 `config.json` |
 | `forwardSuggestionMode` | 否 | `false` | Suggestion Mode 输入建议请求放行开关。`false`（默认）时服务端拦截 Claude Code 每轮对话后自动发起的全量上下文预测请求并返回空响应，不产生 Token 消耗；`true` 时正常转发上游，以展示输入建议，但每轮会额外产生一次全量上下文计费请求。可用环境变量 `FORWARD_SUGGESTION_MODE` 覆盖 |
-| `clientTokenPassthrough` | 否 | `false` | 客户端 token 直通：`true` 时返回给客户端的 `usage` 字段 1:1 上报真实值；`false`（默认）时按 `0.6657` 系数缩放展示。适用于按返回用量统计上下文占用的第三方客户端；无论开关状态如何，Claude Code 的 auto-compact 触发时机保持不变。可用环境变量 `CLIENT_TOKEN_PASSTHROUGH` 覆盖 |
+| `clientTokenPassthrough` | 否 | `true` | 客户端 token 直通：`true`（默认）时返回给客户端的 `usage` 字段 1:1 上报真实值；`false` 时按 `0.6657` 系数缩放展示。适用于按返回用量统计上下文占用的第三方客户端。注意：`true` 时 Claude Code 的 auto-compact 在真实上下文约 164K 时触发（`false` 时约 246K），需维持既有触发时机的用户请显式设为 `false`。可用环境变量 `CLIENT_TOKEN_PASSTHROUGH` 覆盖 |
 | `promptCacheAccounting` | 否 | `false` | 按 Anthropic `cache_control` 断点规则模拟缓存记账：`true` 时 `cache_read` / `cache_creation`（含 5m/1h 拆分）按请求中的断点、20 block 回看窗口与 TTL 计算，取代"除最后一条消息外全部计为缓存读、写入恒为 0"的前缀估算；不带 `cache_control` 的请求全部计为普通输入（OpenAI 兼容端点按自动前缀缓存计算）。缓存按 API Key 隔离（类似官方的 workspace 级隔离），模型按映射后的 Kiro 模型 ID 区分；缓存表落盘到配置目录 `prompt_cache.json`，重启后恢复。**这是本地模拟：只让下游账单的拆分口径贴近官方，不反映 Kiro 侧真实缓存命中与真实成本（真实成本以 credits 为准）。**适用于下游按 usage 计费的网关。可用环境变量 `PROMPT_CACHE_ACCOUNTING` 覆盖 |
 | `promptCacheMinTokens` | 否 | `0` | 断点记账最小可缓存长度的全局覆盖（token）。`0`（默认）按模型取 Anthropic 官方值：Opus 5.5 / Opus 5 / Sonnet 5.5 / Haiku 5.5 等为 512，Opus 4.7 为 2048，Opus 4.6 / Opus 4.5 / Haiku 4.5 为 4096，其余为 1024；`> 0` 时对所有模型统一使用该值。可用环境变量 `PROMPT_CACHE_MIN_TOKENS` 覆盖 |
 | `modelsOfficialAliases` | 否 | `false` | `true` 时 `/v1/models` 为上游点号模型 ID 追加官方连字符别名（如 `claude-opus-4.6` → `claude-opus-4-6`，4.5 代际再追加带日期的 ID），供按模型列表生成映射的下游网关使用；默认关闭，避免 Claude Code 模型选择器出现重复项。可用环境变量 `MODELS_OFFICIAL_ALIASES` 覆盖 |
@@ -532,7 +532,7 @@ Kiro 上游的 4 个接入端点（`ide` / `runtime` / `codewhisperer` / `amazon
   "loadBalancingMode": "priority",
   "maxRpmPerCredential": 0,
   "forwardSuggestionMode": false,
-  "clientTokenPassthrough": false,
+  "clientTokenPassthrough": true,
   "thinkingAsText": true,
   "debugLogs": false
 }

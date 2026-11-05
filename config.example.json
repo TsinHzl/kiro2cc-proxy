@@ -4,5 +4,5 @@
   "tlsBackend": "rustls",
   "region": "us-east-1",
   "adminPsw": "sk-admin-your-secret-key",
-  "clientTokenPassthrough": false
+  "clientTokenPassthrough": true
 }

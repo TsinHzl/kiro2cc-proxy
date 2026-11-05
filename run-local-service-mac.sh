@@ -79,13 +79,14 @@ setup_config() {
     fi
 
     echo ""
-    echo "  [客户端 token 直通] 开启后 usage 字段 1:1 上报真实值（第三方客户端适用；"
-    read -p "  Claude Code 用户建议关闭。是否启用？[y/N，默认 N]: " input_passthrough
+    echo "  [客户端 token 直通] 默认开启（usage 字段 1:1 上报真实值，第三方客户端适用）；"
+    echo "  需维持 Claude Code 既有 auto-compact 触发时机可关闭"
+    read -p "  是否关闭？[y/N，默认 N]: " input_passthrough
     PASSTHROUGH_BLOCK=",
-  \"clientTokenPassthrough\": false"
+  \"clientTokenPassthrough\": true"
     if [ "$input_passthrough" = "y" ] || [ "$input_passthrough" = "Y" ]; then
         PASSTHROUGH_BLOCK=",
-  \"clientTokenPassthrough\": true"
+  \"clientTokenPassthrough\": false"
     fi
 
     cat > "$CONFIG_FILE" <<EOF

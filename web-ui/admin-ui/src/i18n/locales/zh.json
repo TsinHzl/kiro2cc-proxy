@@ -807,7 +807,7 @@
     "dumpKiroBodyDesc": "调试取证开关。开启后，每个发往 Kiro 的最终请求体会写入 app/config/kiro-body-dump/ 目录（文件权限 0600），用于排查协议转换问题；默认关闭。热切换，仅对之后的新请求生效，定位问题后请及时关闭以免磁盘占用持续增长。",
     "debugLogs": "DEBUG 日志",
     "debugLogsDesc": "开启后，控制台、日志文件与「查看日志」页面将实时输出 DEBUG 级别事件（三处一致，无需重启）。默认关闭，排障时临时打开即可；日志量会显著增加，定位问题后建议关闭。已捕获的 DEBUG 记录在关闭后保留。",
-    "clientTokenPassthroughDesc": "控制接口 usage 字段是否 1:1 上报真实 Token 消耗。开启后透传实际数值，适配按返回用量统计上下文占用的第三方客户端；关闭（默认）则乘以 0.6657 系数缩放展示。无论开关状态如何，Claude Code 的 auto-compact 自动压缩触发时机均保持不变。",
+    "clientTokenPassthroughDesc": "控制接口 usage 字段是否 1:1 上报真实 Token 消耗。开启（默认）后透传实际数值，适配按返回用量统计上下文占用的第三方客户端；关闭则乘以 0.6657 系数缩放展示，可适当延迟 Claude Code 既有的 auto-compact 触发时机。",
     "maxRpmPerCredential": "每账号 RPM 上限",
     "maxRpmPerCredentialDesc": "单个账号每分钟最大请求数，保存后立即热生效（0 = 不限）。",
     "writeChunkingMaxLines": "分块写入行数上限",

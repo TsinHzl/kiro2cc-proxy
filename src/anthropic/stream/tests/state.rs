@@ -174,56 +174,47 @@ mod tests {
 
     #[test]
     fn test_scale_for_client_basic() {
-        // 默认模型（非 4.7/4.8）：× 0.6657
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 66_570);
-        assert_eq!(scale_for_client(85_000, "claude-sonnet-4-6"), 56_585);
-        // sonnet-5 与 sonnet-4.6 同档，不归入大窗口分支
-        assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);
-        assert_eq!(scale_for_client(0, "claude-opus-4-6"), 0);
-        assert_eq!(scale_for_client(1, "claude-opus-4-6"), 1);
-        assert_eq!(scale_for_client(-100, "claude-opus-4-6"), 0);
+        // 显式 passthrough=false 验证展示缩放口径（× 0.6657），不依赖全局默认值
+        assert_eq!(scale_for_client_with(100_000, false), 66_570);
+        assert_eq!(scale_for_client_with(85_000, false), 56_585);
+        assert_eq!(scale_for_client_with(0, false), 0);
+        assert_eq!(scale_for_client_with(1, false), 1);
+        assert_eq!(scale_for_client_with(-100, false), 0);
     }
 
     #[test]
     fn test_scale_for_client_opus_4_7_4_8_unified() {
-        // opus-4.7/4.8 已与其他模型统一为 × 0.6657（不再区分大窗口分支）
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 66_570);
-        assert_eq!(scale_for_client(200_000, "claude-opus-4-7"), 133_140);
-        assert_eq!(scale_for_client(1, "claude-opus-4-8"), 1);
-        assert_eq!(scale_for_client(0, "claude-opus-4-7"), 0);
+        // opus-4.7/4.8 与其他模型统一为 × 0.6657（不再区分大窗口分支）
+        assert_eq!(scale_for_client_with(100_000, false), 66_570);
+        assert_eq!(scale_for_client_with(200_000, false), 133_140);
+        assert_eq!(scale_for_client_with(1, false), 1);
+        assert_eq!(scale_for_client_with(0, false), 0);
     }
 
     #[test]
     fn test_scale_for_client_opus_5_unified() {
         // opus-5 系列同样统一为 × 0.6657
-        assert_eq!(scale_for_client(100_000, "claude-opus-5"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-5-thinking"), 66_570);
-        assert_eq!(scale_for_client(200_000, "Claude-Opus-5"), 133_140);
-        assert_eq!(scale_for_client(1, "claude-opus-5"), 1);
-        // opus-5 空格别名（如客户端发送 "Claude Opus 5"）
-        assert_eq!(scale_for_client(100_000, "Claude Opus 5"), 66_570);
-        // opus-5 点号别名（如客户端发送 "claude-opus.5"）
-        assert_eq!(scale_for_client(100_000, "claude-opus.5"), 66_570);
+        assert_eq!(scale_for_client_with(100_000, false), 66_570);
+        assert_eq!(scale_for_client_with(200_000, false), 133_140);
+        assert_eq!(scale_for_client_with(1, false), 1);
+    }
 
-        // 回归：sonnet-5 / opus-4.5 / opus-4.6 / opus-4.7 / opus-4.8 均同档
-        assert_eq!(scale_for_client(100_000, "claude-sonnet-5"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-5"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-6"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-7"), 66_570);
-        assert_eq!(scale_for_client(100_000, "claude-opus-4-8"), 66_570);
+    #[test]
+    fn test_scale_for_client_passthrough_is_one_to_one() {
+        // passthrough=true（当前默认）：1:1 上报真实值，负数截断为 0
+        assert_eq!(scale_for_client_with(100_000, true), 100_000);
+        assert_eq!(scale_for_client_with(1, true), 1);
+        assert_eq!(scale_for_client_with(0, true), 0);
+        assert_eq!(scale_for_client_with(-100, true), 0);
     }
 
     #[test]
     fn test_scale_for_client_non_round() {
         // 11 × 0.6657 = ceil(7.3227) = 8
-        assert_eq!(scale_for_client(11, "claude-opus-4-6"), 8);
-        assert_eq!(scale_for_client(11, "claude-opus-4-7"), 8);
+        assert_eq!(scale_for_client_with(11, false), 8);
         // i32::MAX 不溢出
-        let r = scale_for_client(i32::MAX, "claude-opus-4-6");
+        let r = scale_for_client_with(i32::MAX, false);
         assert!(r > 0 && r < i32::MAX);
-        let r2 = scale_for_client(i32::MAX, "claude-opus-4-8");
-        assert!(r2 > 0 && r2 < i32::MAX);
     }
 
     #[test]

@@ -43,16 +43,16 @@ pub(crate) const NEAR_EMPTY_OUTPUT_THRESHOLD: i32 = 30;
 /// Ctx 100%，已回滚 —— Claude Code 对 opus 的 Ctx% 分母同为 200K，不是 1M。
 const CLIENT_TOKEN_DISPLAY_SCALE: f64 = 0.6657;
 
-/// 客户端 token 直通开关（config `clientTokenPassthrough`，默认 false）。
+/// 客户端 token 直通开关（config `clientTokenPassthrough`，默认 true）。
 ///
-/// true 时 `scale_for_client` 跳过展示缩放、1:1 上报真实值——面向按显示值
+/// true（默认）时 `scale_for_client` 跳过展示缩放、1:1 上报真实值——面向按显示值
 /// 计算上下文占用的第三方客户端（Issue #44：缩放导致其统计严重偏低）。
-/// false（默认）维持 0.6657 缩放，Claude Code auto-compact 触发时机不变。
+/// false 维持 0.6657 缩放，Claude Code auto-compact 触发时机不变。
 /// 用 AtomicBool 而非纯 static bool 以支持无 &self 的调用点；
 /// main.rs 启动时按 config 初始化，Admin API（PUT /api/admin/config/client-token-passthrough）
 /// 运行时热切换。
 static CLIENT_TOKEN_PASSTHROUGH: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+    std::sync::atomic::AtomicBool::new(true);
 
 /// 设置客户端 token 直通开关（main.rs 启动时按 config 调用；Admin API 热切换后也经此更新）。
 pub fn set_client_token_passthrough(enabled: bool) {

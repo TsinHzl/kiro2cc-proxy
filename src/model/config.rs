@@ -164,8 +164,8 @@ pub struct Config {
     pub cache_simulation: CacheSimulationConfig,
 
     /// 客户端 token 直通（true 时 usage 字段 1:1 上报真实值，不再按
-    /// CLIENT_TOKEN_DISPLAY_SCALE 缩放）。默认 false 维持既有展示缩放。
-    #[serde(default)]
+    /// CLIENT_TOKEN_DISPLAY_SCALE 缩放）。默认 true。
+    #[serde(default = "default_true")]
     pub client_token_passthrough: bool,
 
     /// 按 Anthropic cache_control 断点规则模拟缓存记账（见 `cache::breakpoint`）
@@ -335,7 +335,7 @@ impl Default for Config {
             max_rpm_per_credential: default_max_rpm_per_credential(),
             model_cache_ttl_secs: default_model_cache_ttl_secs(),
             cache_simulation: CacheSimulationConfig::default(),
-            client_token_passthrough: false,
+            client_token_passthrough: default_true(),
             prompt_cache_accounting: false,
             prompt_cache_min_tokens: default_prompt_cache_min_tokens(),
             models_official_aliases: false,
@@ -564,10 +564,10 @@ mod tests {
     }
 
     #[test]
-    fn test_client_token_passthrough_default_false() {
-        // 缺省该字段时必须为 false（维持展示缩放，Issue #44 修复的默认零回归前提）
+    fn test_client_token_passthrough_default_true() {
+        // 缺省该字段时默认为 true（1:1 上报真实 token）
         let config: Config = serde_json::from_str("{}").unwrap();
-        assert!(!config.client_token_passthrough);
+        assert!(config.client_token_passthrough);
     }
 
     #[test]

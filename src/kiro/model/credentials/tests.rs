@@ -12,11 +12,11 @@ mod tests {
     use crate::model::config::Config;
 
     #[test]
-    fn test_supports_opus_requires_known_non_free_subscription() {
+    fn test_supports_opus_allows_unknown_but_rejects_free_subscription() {
         let cases = [
-            (None, false),
-            (Some(""), false),
-            (Some("   "), false),
+            (None, true),
+            (Some(""), true),
+            (Some("   "), true),
             (Some("KIRO FREE"), false),
             (Some("  Kiro Free  "), false),
             (Some("KIRO PRO"), true),

@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 /// 请求为等待模型探测完成最多阻塞的时长
 ///
-/// 只在探测结果缺失/过期时才会等待（每账号约每 30 分钟一次，或冷启动）。
+/// 只在探测结果缺失/过期时才会等待（成功结果缓存 24 小时，或冷启动）。
 pub(crate) const MODEL_SUPPORT_MAX_WAIT: Duration = Duration::from_secs(5);
 
 /// 这些模型 ID 不是具体模型，不做可用性过滤
@@ -129,8 +129,8 @@ impl MultiTokenManager {
 
     /// 确保范围内账号的模型可用性探测结果是新的（过期或缺失才会发起探测）
     ///
-    /// 在选账号之前调用。稳态下只是几次内存查找；每个账号每 30 分钟最多多一次
-    /// `ListAvailableModels`。最多等待 `MODEL_SUPPORT_MAX_WAIT`，见模块文档。
+    /// 在选账号之前调用。稳态下只是几次内存查找；成功结果缓存 24 小时。
+    /// 过期后查询 `ListAvailableModels`，最多等待 `MODEL_SUPPORT_MAX_WAIT`。
     pub async fn refresh_model_support_if_stale(
         self: &Arc<Self>,
         model: Option<&str>,

@@ -170,7 +170,7 @@ impl ModelSupport {
 }
 
 /// 模型可用性探测结果的有效期（账号模型权限极少变化）
-pub(crate) const MODEL_SUPPORT_TTL: StdDuration = StdDuration::from_secs(30 * 60);
+pub(crate) const MODEL_SUPPORT_TTL: StdDuration = StdDuration::from_secs(24 * 60 * 60);
 /// 探测失败后的重试间隔（避免上游异常时每个请求都重复探测）
 pub(crate) const MODEL_SUPPORT_FAILURE_TTL: StdDuration = StdDuration::from_secs(2 * 60);
 

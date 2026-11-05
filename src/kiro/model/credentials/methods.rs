@@ -171,11 +171,10 @@ impl KiroCredentials {
 
     /// 检查账号是否支持 Opus 模型
     ///
-    /// Free 或订阅等级未知的账号不支持 Opus，需要明确的非 Free 订阅
+    /// 仅拦截明确的 Free 订阅；未知订阅交给实际模型列表和上游判断。
     pub fn supports_opus(&self) -> bool {
-        self.subscription_title.as_deref().is_some_and(|title| {
-            let title = title.trim();
-            !title.is_empty() && !title.to_uppercase().contains("FREE")
-        })
+        self.subscription_title
+            .as_deref()
+            .is_none_or(|title| !title.to_uppercase().contains("FREE"))
     }
 }

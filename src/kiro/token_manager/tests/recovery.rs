@@ -201,7 +201,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn test_unknown_subscription_is_excluded_only_for_opus() {
+    async fn test_unknown_subscription_is_eligible_for_opus_and_sonnet() {
         let mut unknown = make_valid_cred("unknown-token");
         unknown.priority = 0;
         unknown.subscription_title = None;
@@ -224,7 +224,7 @@ pub(crate) mod tests {
             .acquire_context(Some("claude-opus-4-7"))
             .await
             .unwrap();
-        assert_eq!(opus.id, 2);
+        assert_eq!(opus.id, 1);
     }
 
     #[tokio::test]

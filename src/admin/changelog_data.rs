@@ -67,6 +67,42 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.2".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "Admin 模型页展示每个模型支持的输入模态徽章（TEXT / IMAGE 等），来自上游 ListAvailableModels 的 supportedInputTypes；上游返回 null 或数组内含非法元素时不会再让整份模型列表解析失败",
+                        "The Admin model page now shows an input-modality badge (TEXT / IMAGE, etc.) for each model, taken from supportedInputTypes in the upstream ListAvailableModels response. A null value or invalid array elements no longer make the whole model list fail to parse",
+                    ),
+                    Bilingual::new(
+                        "新增 [small-req] 诊断日志（#64）：对非流式且 max_tokens ≤ 8192 的请求输出 User-Agent、tools 数量与 system / 首末条消息的前 80 字符，用于识别未被 Suggestion Mode 拦截、仍被转发上游计费的辅助请求；只记录日志，不改变转发行为",
+                        "Added a [small-req] diagnostic log (#64): for non-streaming requests with max_tokens ≤ 8192 it records the User-Agent, tool count and the first 80 characters of the system block and of the first and last messages, to identify auxiliary requests that bypass the Suggestion Mode interception and are still billed upstream. It only logs and does not change forwarding",
+                    ),
+                ]),
+                improve_group(vec![
+                    Bilingual::new(
+                        "客户端 token 直通（clientTokenPassthrough）默认开启，未显式配置时返回给客户端的 usage 字段为真实值；如需恢复按系数缩放展示，可在设置页或 config.json 中关闭",
+                        "Client token passthrough (clientTokenPassthrough) is now on by default, so the usage returned to clients carries real values unless configured otherwise. Turn it off in the settings page or config.json to restore the scaled display",
+                    ),
+                    Bilingual::new(
+                        "使用日志的 User-Agent 完整展示（如 claude-cli/2.1.318 (external, claude-vscode, agent-sdk/0.3.318)），可直接区分 CLI 与 VS Code 扩展等客户端类型，不再只显示第一段",
+                        "The usage log now shows the full User-Agent (for example claude-cli/2.1.318 (external, claude-vscode, agent-sdk/0.3.318)), so CLI and VS Code extension clients can be told apart at a glance instead of only the first segment being shown",
+                    ),
+                ]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复 API Keys 页首次加载数据到达后的页面跳动，以及矮视口下页脚被裁剪的问题",
+                        "Fixed the layout jump on the API Keys page when data first arrives, and the footer being clipped in short viewports",
+                    ),
+                    Bilingual::new(
+                        "模型页页脚的家族数与顶部指标卡口径对齐，不再出现同一页两个不同的家族数",
+                        "The family count in the model page footer now matches the summary card, so the page no longer shows two different counts",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.1".to_string(),
             is_latest: false,
             groups: vec![

@@ -32,11 +32,6 @@ export function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`
 }
 
-/** UA 短标识：取首个空格前段（如 claude-cli/2.1.5），完整原文走 title 悬停展示 */
-function uaShort(ua: string): string {
-  return ua.split(/\s+/)[0] || ua
-}
-
 /**
  * 缓存命中百分比胶囊的展示开关。
  *
@@ -238,10 +233,10 @@ export function UsageLogTable({
                   {record.credentialLabel ?? <span className="text-ink-3">—</span>}
                   {record.userAgent && (
                     <span
-                      className="mt-px block truncate font-mono text-[10px] text-ink-3"
+                      className="mt-px block whitespace-normal break-words font-mono text-[10px] leading-tight text-ink-3"
                       title={record.userAgent}
                     >
-                      {uaShort(record.userAgent)}
+                      {record.userAgent}
                     </span>
                   )}
                 </td>

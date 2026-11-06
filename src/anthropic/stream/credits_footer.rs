@@ -336,12 +336,21 @@ fn format_elapsed(elapsed: Duration) -> String {
     }
 }
 
+/// credits 数值格式：保留 3 位小数，末位是 0 时省略该 0（0.060 → 0.06，0.123 → 0.123，1.000 → 1.00）
+fn format_credits(value: f64) -> String {
+    let mut s = format!("{value:.3}");
+    if s.ends_with('0') {
+        s.pop();
+    }
+    s
+}
+
 /// 汇总行正文（不含样式包裹）
 fn footer_body(snapshot: &CreditsSnapshot) -> String {
     format!(
-        "{FOOTER_PREFIX}{:.2}{FOOTER_SESSION_SEP}{:.2}{FOOTER_TIME_SEP}{}",
-        snapshot.turn,
-        snapshot.session,
+        "{FOOTER_PREFIX}{}{FOOTER_SESSION_SEP}{}{FOOTER_TIME_SEP}{}",
+        format_credits(snapshot.turn),
+        format_credits(snapshot.session),
         format_elapsed(snapshot.elapsed)
     )
 }
@@ -439,6 +448,29 @@ mod tests {
     fn footer_matches_kiro_cli_format() {
         let body = footer_body(&snap(0.86, 8.73, 12));
         assert_eq!(body, "▸ Credits: turn 0.86 • session 8.73 | Time: 12s");
+    }
+
+    #[test]
+    fn credits_use_three_decimals_and_drop_last_zero() {
+        assert_eq!(format_credits(0.06), "0.06");
+        assert_eq!(format_credits(0.0), "0.00");
+        assert_eq!(format_credits(1.0), "1.00");
+        assert_eq!(format_credits(0.123), "0.123");
+        assert_eq!(format_credits(8.7), "8.70");
+        assert_eq!(format_credits(0.1234), "0.123");
+        // 四舍五入后末位为 0 同样省略
+        assert_eq!(format_credits(0.0596), "0.06");
+        assert_eq!(format_credits(12.3456), "12.346");
+    }
+
+    #[test]
+    fn footer_with_three_decimals_is_still_stripped() {
+        let text = format!(
+            "答案{}",
+            render_footer(&snap(0.123, 8.456, 5), ThinkingTextStyle::Plain, "答案")
+        );
+        assert!(text.contains("turn 0.123 • session 8.456"), "text={text:?}");
+        assert_eq!(strip_credits_footer(&text), "答案");
     }
 
     #[test]

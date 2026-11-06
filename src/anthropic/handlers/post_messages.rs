@@ -21,7 +21,8 @@ use super::bridge::build_bridge_context;
 use super::error::parse_messages_request;
 use super::helpers::{
     extract_client_ip, extract_user_agent, is_suggestion_mode_request,
-    override_thinking_from_model_name, resolve_thinking_enabled, suggestion_mode_response,
+    log_small_request_fingerprint, override_thinking_from_model_name, resolve_thinking_enabled,
+    suggestion_mode_response,
 };
 use super::nonstream::handle_non_stream_request;
 use super::stream::handle_stream_request;
@@ -64,6 +65,7 @@ pub async fn post_messages(
         message_count = %payload.messages.len(),
         "Received POST /v1/messages request"
     );
+    log_small_request_fingerprint(&payload, &headers);
 
     // 记录 RPM（全局 + per-API-Key）
     if let Some(rpm_tracker) = &state.rpm_tracker {

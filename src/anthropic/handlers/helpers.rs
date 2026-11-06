@@ -259,6 +259,116 @@ pub(crate) fn is_suggestion_mode_request(payload: &MessagesRequest) -> bool {
         })
 }
 
+/// 取文本前 `max_chars` 个字符作预览：控制字符（换行、制表等）替换为空格，
+/// 超长时追加 `…`，保证单行日志可读且体积有界。
+fn preview_text(s: &str, max_chars: usize) -> String {
+    let mut out: String = s
+        .chars()
+        .take(max_chars)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    if s.chars().nth(max_chars).is_some() {
+        out.push('…');
+    }
+    out
+}
+
+/// 提取消息内容的预览：返回 (块类型列表, 首个文本的前 N 字符)。
+///
+/// content 为字符串时视为单个 text 块；为数组时按块顺序列出 type。
+fn message_content_preview(content: &serde_json::Value, max_chars: usize) -> (String, String) {
+    match content {
+        serde_json::Value::String(s) => ("text".to_string(), preview_text(s, max_chars)),
+        serde_json::Value::Array(blocks) => {
+            let types = blocks
+                .iter()
+                .map(|b| b.get("type").and_then(|v| v.as_str()).unwrap_or("?"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let text = blocks
+                .iter()
+                .find_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .map(|t| preview_text(t, max_chars))
+                .unwrap_or_default();
+            (types, text)
+        }
+        _ => ("?".to_string(), String::new()),
+    }
+}
+
+/// 小请求诊断：对 `max_tokens <= 8192 && !stream` 的请求输出一行特征日志。
+///
+/// 背景：部分客户端（如 VS Code 扩展）会发出体积很小、输出几个 token 的辅助请求
+/// （标题 / 摘要 / 输入建议等），未命中 Suggestion Mode 拦截时会被全价转发上游。
+/// 为确认其真实类型，这里仅记录识别所需的最少特征，不改变任何转发行为。
+///
+/// 隐私：只截取 system 首块与首/末条消息各前 80 字符，控制字符折叠为空格；
+/// 仅小请求触发，主对话请求不受影响。
+pub(crate) fn log_small_request_fingerprint(
+    payload: &MessagesRequest,
+    headers: &axum::http::HeaderMap,
+) {
+    const PREVIEW_CHARS: usize = 80;
+    // 8192 同时覆盖 issue #64 观察到的 max_tokens=64 与 8192 两种变体；
+    // Claude Code 主对话恒为流式，非流式小上限请求基本只来自辅助调用
+    const MAX_TOKENS_LIMIT: i32 = 8192;
+    if payload.max_tokens > MAX_TOKENS_LIMIT || payload.stream {
+        return;
+    }
+
+    let ua = extract_user_agent(headers).unwrap_or_default();
+    let beta = headers
+        .get("anthropic-beta")
+        .map(|v| {
+            String::from_utf8_lossy(v.as_bytes())
+                .chars()
+                .take(200)
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    let system_head = payload
+        .system
+        .as_ref()
+        .and_then(|s| s.first())
+        .map(|s| preview_text(&s.text, PREVIEW_CHARS))
+        .unwrap_or_default();
+    let (first_types, first_text, first_role) = payload
+        .messages
+        .first()
+        .map(|m| {
+            let (t, p) = message_content_preview(&m.content, PREVIEW_CHARS);
+            (t, p, m.role.as_str())
+        })
+        .unwrap_or_default();
+    let (last_types, last_text, last_role) = payload
+        .messages
+        .last()
+        .map(|m| {
+            let (t, p) = message_content_preview(&m.content, PREVIEW_CHARS);
+            (t, p, m.role.as_str())
+        })
+        .unwrap_or_default();
+
+    tracing::info!(
+        user_agent = %ua,
+        anthropic_beta = %beta,
+        model = %payload.model,
+        max_tokens = %payload.max_tokens,
+        message_count = %payload.messages.len(),
+        tools = %payload.tools.as_ref().map_or(0, |t| t.len()),
+        system_blocks = %payload.system.as_ref().map_or(0, |s| s.len()),
+        has_thinking = %payload.thinking.is_some(),
+        system_head = %system_head,
+        first_role = %first_role,
+        first_blocks = %first_types,
+        first_text = %first_text,
+        last_role = %last_role,
+        last_blocks = %last_types,
+        last_text = %last_text,
+        "[small-req] 小请求特征（max_tokens<=8192 非流式，用于识别未被拦截的辅助请求）"
+    );
+}
+
 /// 估算缓存前缀 tokens 并按 `prefix_cached` 门控 cache_read 口径。
 ///
 /// 返回 `(raw_prefix_tokens, prefix_estimated_tokens)`：
@@ -531,6 +641,61 @@ mod tests {
             None
         );
         assert_eq!(resolve_recorded_effort(false, None), None);
+    }
+
+    #[test]
+    fn preview_text_folds_control_chars_and_truncates() {
+        assert_eq!(preview_text("ab\ncd\te", 10), "ab cd e");
+        assert_eq!(preview_text("abcdef", 3), "abc…");
+        // 恰好等于上限不追加省略号
+        assert_eq!(preview_text("abc", 3), "abc");
+        // 按字符而非字节截断，多字节不应 panic
+        assert_eq!(preview_text("你好世界", 2), "你好…");
+    }
+
+    #[test]
+    fn message_content_preview_handles_string_and_blocks() {
+        let (t, p) = message_content_preview(&json!("hello"), 80);
+        assert_eq!((t.as_str(), p.as_str()), ("text", "hello"));
+
+        let content = json!([
+            {"type": "tool_result", "content": "x"},
+            {"type": "text", "text": "first text"},
+            {"type": "text", "text": "second"}
+        ]);
+        let (t, p) = message_content_preview(&content, 80);
+        assert_eq!(t, "tool_result,text,text");
+        assert_eq!(p, "first text");
+
+        let (t, p) = message_content_preview(&json!(null), 80);
+        assert_eq!((t.as_str(), p.as_str()), ("?", ""));
+    }
+
+    #[test]
+    fn small_request_fingerprint_does_not_panic_on_edge_payloads() {
+        // 无 system / 无消息 / 流式 / 大 max_tokens：均不应 panic
+        let mk = |max_tokens: i32, stream: bool, msgs: serde_json::Value| -> MessagesRequest {
+            serde_json::from_value(json!({
+                "model": "claude-sonnet-5",
+                "max_tokens": max_tokens,
+                "stream": stream,
+                "messages": msgs
+            }))
+            .unwrap()
+        };
+        let headers = axum::http::HeaderMap::new();
+        log_small_request_fingerprint(&mk(64, false, json!([])), &headers);
+        log_small_request_fingerprint(
+            &mk(
+                64,
+                false,
+                json!([{"role": "user", "content": "你好\n世界"}]),
+            ),
+            &headers,
+        );
+        log_small_request_fingerprint(&mk(64, true, json!([])), &headers);
+        log_small_request_fingerprint(&mk(8192, false, json!([])), &headers);
+        log_small_request_fingerprint(&mk(128000, false, json!([])), &headers);
     }
 
     fn headers_with_ua(ua: &str) -> axum::http::HeaderMap {

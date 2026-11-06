@@ -62,7 +62,6 @@ function buildCustomWindow(data: DailySummary[] | undefined, from: string, to: s
       credits: row?.totalCredits ?? 0,
       cost: row?.totalCost ?? 0,
       requests: row?.totalRequests ?? 0,
-      saved: row?.totalCreditsSaved ?? 0,
     }
   })
 }
@@ -506,7 +505,7 @@ function SummaryTable({
                   <td className={CELL}>
                     <span className="whitespace-nowrap text-[11.5px] text-ink-3">{weekdayLabel(row.date)}</span>
                   </td>
-                  {/* 设计稿 .quota：绝对值 + 占区间百分比 + .bar；USD 与省额降为副行，保证费用信息不丢 */}
+                  {/* 设计稿 .quota：绝对值 + 占区间百分比 + .bar；USD 降为副行，保证费用信息不丢 */}
                   <td className={CELL}>
                     <div className="flex min-w-[190px] flex-col gap-[5px]">
                       <div className="flex items-baseline justify-between gap-2 font-mono text-[11.5px] tabular-nums">
@@ -526,11 +525,6 @@ function SummaryTable({
                       </span>
                       <span className="font-mono text-[10px] tabular-nums text-ink-3">
                         ${row.cost.toFixed(4)}
-                        {row.saved > 0 && (
-                          <span className="ml-1.5 text-ok">
-                            {t('common.savedPrefix', { amount: row.saved.toFixed(4) })}
-                          </span>
-                        )}
                       </span>
                     </div>
                   </td>

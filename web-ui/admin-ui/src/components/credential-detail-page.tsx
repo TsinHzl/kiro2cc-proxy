@@ -65,15 +65,14 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
   const pageOutput = records.reduce((s, r) => s + r.outputTokens, 0)
   const pageCost = records.reduce((s, r) => s + r.estimatedCost, 0)
   const pageCredits = records.reduce((s, r) => s + recordCredits(r), 0)
-  const pageSaved = records.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
-  const todaySaved = todaySummary?.totalCreditsSaved ?? 0
+  const avgCost = records.length > 0 ? pageCost / records.length : 0
+  const avgCredits = records.length > 0 ? pageCredits / records.length : 0
   const todayRequests = todaySummary?.totalRequests ?? 0
 
   // 全量总计：与该页「总请求数」同口径，只统计仍留存于明细缓冲的记录
   const totalTokens = (usageSummary?.totalInputTokens ?? 0) + (usageSummary?.totalOutputTokens ?? 0)
   const totalCost = usageSummary?.totalCost ?? 0
   const totalCredits = usageSummary?.totalCredits ?? 0
-  const totalCreditsSaved = usageSummary?.totalCreditsSaved ?? 0
   const hasUsageSummary = usageSummary !== undefined
 
   // refetch 默认不抛异常，失败只体现在返回结果上，须显式检查（与 API Key 详情页同口径）。
@@ -95,13 +94,6 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
       setRefreshing(false)
     }
   }
-
-  const savedTrailing = (amount: number) =>
-    amount > 0 ? (
-      <span className="text-[11px] font-medium text-ok">
-        {t('common.savedPrefix', { amount: amount.toFixed(4) })}
-      </span>
-    ) : undefined
 
   return (
     <div className="flex h-[calc(100vh-56px)] min-h-[480px] flex-col">
@@ -131,6 +123,11 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
       <MetricsBar cols={8}>
         <Metric label={t('common.statTotalRequests')}>
           <MetricValue value={totalRequests.toLocaleString(localeTag())} />
+          <MetricFoot className="min-w-0">
+            <span className="min-w-0 truncate">
+              {t('common.pageInfoSimple', { current: page, total: totalPages })}
+            </span>
+          </MetricFoot>
         </Metric>
         <Metric label={t('dailyStats.metricTotalTokensLabel')}>
           <MetricValue value={hasUsageSummary ? tokenText(totalTokens) : '—'} />
@@ -149,8 +146,6 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             <span className="min-w-0 truncate" title={t('dailyStats.totalCreditsHint')}>
               {t('dailyStats.totalCreditsHint')}
             </span>
-            {totalCreditsSaved > 0 && <FootSep />}
-            {savedTrailing(totalCreditsSaved)}
           </MetricFoot>
         </Metric>
         <Metric label={t('dailyStats.metricTotalCostLabel')}>
@@ -171,21 +166,31 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
         </Metric>
         <Metric label={t('common.pageCredits')}>
           <MetricValue value={creditsText(pageCredits)} unit={t('dailyStats.unitCredits')} />
-          <MetricFoot>{savedTrailing(pageSaved)}</MetricFoot>
+          <MetricFoot className="min-w-0">
+            <span className="min-w-0 truncate">
+              {t('dailyStats.detailAvgCredits')}{' '}
+              <b className="font-semibold text-ink-2">{creditsText(avgCredits)}</b>
+            </span>
+          </MetricFoot>
         </Metric>
         <Metric label={t('common.pageCost')}>
           <MetricValue value={formatCost(pageCost)} />
+          <MetricFoot className="min-w-0">
+            <span className="min-w-0 truncate">
+              {t('dailyStats.detailAvgCost')}{' '}
+              <b className="font-semibold text-ink-2">{formatCost(avgCost)}</b>
+            </span>
+          </MetricFoot>
         </Metric>
         <Metric label={t('credentials.todayCredits')}>
           <MetricValue
             value={creditsText(todaySummary?.totalCredits ?? 0)}
             unit={t('dailyStats.unitCredits')}
           />
-          <MetricFoot>
-            {savedTrailing(todaySaved)}
-            {todayRequests > 0 && (
-              <span>{t('credentials.todayRequestsCount', { count: todayRequests })}</span>
-            )}
+          <MetricFoot className="min-w-0">
+            <span className="min-w-0 truncate">
+              {t('credentials.todayRequestsCount', { count: todayRequests })}
+            </span>
           </MetricFoot>
         </Metric>
       </MetricsBar>

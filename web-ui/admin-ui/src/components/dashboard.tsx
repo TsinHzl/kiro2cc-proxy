@@ -218,8 +218,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const requestTrend = recent7.map(d => d.totalRequests)
   // 今日 credits 消耗：口径与 todayRequests 一致（未加载为 null，已加载但无当日记录为 0）
   const todayCredits = dailyUsageData ? todayStats?.totalCredits ?? 0 : null
-  // 后端偶发负值（缓存基线漂移），「已节省」语义下负数无意义，统一裁剪到 0
-  const todayCreditsSaved = dailyUsageData ? Math.max(0, todayStats?.totalCreditsSaved ?? 0) : null
   // credits 是浮点量，分母仅守 > 0 会让极小基线（如 0.001）放大出无意义的百分比；抬到 0.5 起算
   const creditsDeltaPercent = todayCredits !== null && yesterdayStats && yesterdayStats.totalCredits >= CREDITS_DELTA_MIN_BASE
     ? ((todayCredits - yesterdayStats.totalCredits) / yesterdayStats.totalCredits) * 100
@@ -871,7 +869,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
           requestsDeltaPercent={requestsDeltaPercent}
           requestTrend={requestTrend}
           todayCredits={todayCredits}
-          todayCreditsSaved={todayCreditsSaved}
           todayCacheRatePercent={todayCacheRatePercent}
           creditsDeltaPercent={creditsDeltaPercent}
           creditsTrend={creditsTrend}

@@ -43,8 +43,6 @@ export interface AccountMetricsProps {
   requestTrend: number[]
   /** 今日消耗 credits；null = 日用量数据未加载 */
   todayCredits: number | null
-  /** 今日经缓存命中节省的 credits，须为非负（后端偶发负值由调用方裁剪）；null = 日用量数据未加载 */
-  todayCreditsSaved: number | null
   /** 今日缓存命中率（%），口径 = cacheRead / input；null = 日用量数据未加载或今日无输入 tokens */
   todayCacheRatePercent: number | null
   /** 今日 credits 相对昨日的环比百分比；null = 无昨日基线 */
@@ -88,7 +86,6 @@ export function AccountMetrics({
   requestsDeltaPercent,
   requestTrend,
   todayCredits,
-  todayCreditsSaved,
   todayCacheRatePercent,
   creditsDeltaPercent,
   creditsTrend,
@@ -102,7 +99,6 @@ export function AccountMetrics({
   const avg = Number.isFinite(avgRemainingPercent) ? avgRemainingPercent! : null
   const consumed = Number.isFinite(consumedCreditsTotal) ? consumedCreditsTotal! : null
   const usedCredits = Number.isFinite(todayCredits) ? todayCredits! : null
-  const savedCredits = Number.isFinite(todayCreditsSaved) ? todayCreditsSaved! : null
   const cacheRate = Number.isFinite(todayCacheRatePercent) ? todayCacheRatePercent! : null
   return (
     <MetricsBar cols={5}>
@@ -210,13 +206,6 @@ export function AccountMetrics({
           {creditsTrend.length >= 2 && <Sparkline values={creditsTrend} tone="ok" />}
         </MetricBody>
         <MetricFoot>
-          <span className="truncate">
-            {t('credentials.metricCreditsSavedPrefix')}{' '}
-            <b className={savedCredits !== null && savedCredits > 0 ? 'font-medium text-ink-2' : 'font-medium'}>
-              {savedCredits === null ? '—' : savedCredits.toFixed(1)}
-            </b>
-          </span>
-          <FootSep />
           <span className="truncate">
             {t('credentials.metricCacheHitPrefix')}{' '}
             <b className={cacheRate !== null ? 'font-medium text-ink-2' : 'font-medium'}>

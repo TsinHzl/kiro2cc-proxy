@@ -25,20 +25,17 @@ interface ModelAgg {
   outputTokens: number
   cost: number
   credits: number
-  creditsSaved: number
 }
 
 // 逐模型聚合仅覆盖当前页（全量聚合需后端新接口），标题文案已含「（当前页）」限定
 function aggregateByModel(records: UsageRecord[]): Record<string, ModelAgg> {
   return records.reduce<Record<string, ModelAgg>>((acc, r) => {
-    const entry =
-      acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0, credits: 0, creditsSaved: 0 }
+    const entry = acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0, credits: 0 }
     entry.requests += 1
     entry.inputTokens += r.inputTokens
     entry.outputTokens += r.outputTokens
     entry.cost += r.estimatedCost
     entry.credits += recordCredits(r)
-    entry.creditsSaved += r.creditsSaved ?? 0
     acc[r.model] = entry
     return acc
   }, {})
@@ -114,11 +111,6 @@ export function ModelAggPanel({ records }: { records: UsageRecord[] }) {
                     </td>
                     <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
                       {m.credits.toFixed(4)}
-                      {m.creditsSaved > 0 && (
-                        <small className="block text-[10px] font-normal text-ok">
-                          {t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })}
-                        </small>
-                      )}
                     </td>
                   </tr>
                 ))}

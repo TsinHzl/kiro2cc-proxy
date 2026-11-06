@@ -76,7 +76,6 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
 
   const pageCost = allRecords.reduce((s, r) => s + r.estimatedCost, 0)
   const pageCredits = allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0)
-  const pageCreditsSaved = allRecords.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,11 +143,6 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                     <div className="text-2xl font-bold text-ok">
                       {pageCredits.toFixed(4)}
                     </div>
-                    {pageCreditsSaved > 0 && (
-                      <div className="text-xs text-ok mt-0.5">
-                        省 {pageCreditsSaved.toFixed(4)}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
                 <Card>
@@ -273,11 +267,6 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                               <td className={`${CELL} text-right tabular-nums font-medium text-[12px] text-ok`}>
                                 {r.creditsUsed != null ? r.creditsUsed.toFixed(4) : (r.estimatedCost / 0.72).toFixed(4)}
                                 {r.creditsUsed != null && <span className="ml-1 text-xs text-ok">✓</span>}
-                                {r.creditsSaved != null && r.creditsSaved > 0 && (
-                                  <span className="ml-1 text-xs text-ok">
-                                    (省 {r.creditsSaved.toFixed(4)})
-                                  </span>
-                                )}
                               </td>
                             </tr>
                           )

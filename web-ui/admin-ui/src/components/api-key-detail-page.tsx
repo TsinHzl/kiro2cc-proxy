@@ -69,7 +69,6 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
   const records = recordsData?.records ?? []
   const totalRecords = recordsData?.total ?? 0
   const totalPages = Math.max(1, recordsData?.totalPages ?? 1)
-  const savedCredits = summary?.totalCreditsSaved ?? 0
 
   // refetch 默认不抛异常，失败只体现在返回结果上，须显式检查（与列表页刷新同口径）
   const handleRefresh = async () => {
@@ -123,13 +122,6 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
           <MetricValue
             value={fallbackCredits(summary?.totalCost ?? 0).toFixed(4)}
             unit="cr"
-            trailing={
-              savedCredits > 0 ? (
-                <span className="text-[11px] font-medium text-ok">
-                  {t('common.savedPrefix', { amount: savedCredits.toFixed(4) })}
-                </span>
-              ) : undefined
-            }
           />
         </Metric>
         <Metric label={t('apiKeys.totalCostLabel')}>
@@ -191,11 +183,6 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                       </td>
                       <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
                         {m.credits.toFixed(4)}
-                        {m.creditsSaved > 0 && (
-                          <small className="block text-[10px] font-normal text-ok">
-                            {t('common.savedPrefix', { amount: m.creditsSaved.toFixed(4) })}
-                          </small>
-                        )}
                       </td>
                     </tr>
                   ))}

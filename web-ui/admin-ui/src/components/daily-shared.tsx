@@ -78,12 +78,12 @@ export function UsageMetricsBar({
   const hasDaily = daily !== undefined
   const pageCost = records.reduce((s, r) => s + r.estimatedCost, 0)
   const pageCredits = records.reduce((s, r) => s + recordCredits(r), 0)
-  const pageSaved = records.reduce((s, r) => s + (r.creditsSaved ?? 0), 0)
   const pageTokens = records.reduce((s, r) => s + r.inputTokens + r.outputTokens, 0)
   const pageInput = records.reduce((s, r) => s + r.inputTokens, 0)
   const pageCacheRead = records.reduce((s, r) => s + (r.cacheReadInputTokens ?? 0), 0)
   const cacheShare = pageInput > 0 ? (pageCacheRead / pageInput) * 100 : 0
   const avgCost = records.length > 0 ? pageCost / records.length : 0
+  const avgCredits = records.length > 0 ? pageCredits / records.length : 0
   const note = isDailyError
     ? t(hasDaily ? 'dailyStats.totalsRefreshFailed' : 'common.loadFailed')
     : isDailyLoading
@@ -140,13 +140,10 @@ export function UsageMetricsBar({
         <Metric label={t('common.pageCredits')}>
           <MetricValue value={creditsText(pageCredits)} unit={t('dailyStats.unitCredits')} />
           <MetricFoot className="min-w-0">
-            {pageSaved > 0 ? (
-              <span className="min-w-0 truncate text-ok">
-                {t('common.savedPrefix', { amount: pageSaved.toFixed(4) })}
-              </span>
-            ) : (
-              <FootText>{t('dailyStats.detailNoSaving')}</FootText>
-            )}
+            <FootText>
+              {t('dailyStats.detailAvgCredits')}{' '}
+              <b className="font-semibold text-ink-2">{creditsText(avgCredits)}</b>
+            </FootText>
           </MetricFoot>
         </Metric>
         <Metric label={t('common.pageCost')}>
@@ -181,7 +178,6 @@ export interface DayRow {
   credits: number
   cost: number
   requests: number
-  saved: number
 }
 
 /**
@@ -200,7 +196,6 @@ export function buildWindow(data: DailySummary[] | undefined, days: number, offs
       credits: row?.totalCredits ?? 0,
       cost: row?.totalCost ?? 0,
       requests: row?.totalRequests ?? 0,
-      saved: row?.totalCreditsSaved ?? 0,
     }
   })
 }

@@ -320,11 +320,6 @@ export function UsageLogTable({
                 <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
                   {recordCredits(record).toFixed(4)}
                   {record.creditsUsed != null && <span className="ml-1 text-[11px] text-ok">✓</span>}
-                  {record.creditsSaved != null && record.creditsSaved > 0 && (
-                    <small className="block text-[10px] font-normal text-ok">
-                      {t('common.savedPrefix', { amount: record.creditsSaved.toFixed(4) })}
-                    </small>
-                  )}
                 </td>
               </tr>
             )

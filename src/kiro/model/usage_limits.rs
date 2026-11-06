@@ -230,6 +230,12 @@ impl FreeTrialInfo {
     }
 }
 
+/// 订阅类型串是否带有可判断等级的标记（FREE / PRO / POWER，不区分大小写）
+fn has_tier_marker(subscription_type: &str) -> bool {
+    let upper = subscription_type.to_uppercase();
+    ["FREE", "PRO", "POWER"].iter().any(|m| upper.contains(m))
+}
+
 impl UsageLimitsResponse {
     /// 获取订阅标题
     pub fn subscription_title(&self) -> Option<&str> {
@@ -243,16 +249,25 @@ impl UsageLimitsResponse {
     ///
     /// 部分账号（如企业版 IdC）只返回 `type`；回退后账号才算「订阅已知」，
     /// 且类型串含 FREE 时仍会被 `supports_opus` 识别为 Free。
+    ///
+    /// 回退只接受能判断等级的类型串（含 FREE / PRO / POWER）。不带等级后缀的裸类型
+    /// （如 `Q_DEVELOPER_STANDALONE`，KAM 示例里对应 Free）无法区分免费与付费，
+    /// 若直接当标题写回，`supports_opus` 的 FREE 关键字判断会把免费号放进 Opus 池；
+    /// 因此按「等级未知」返回 `None`，由调用方走既有的未知等级处理
+    /// （企业版 IdC 租户账号仍由 `is_tenant_idc` 兜底）。
     pub fn resolved_subscription_title(&self) -> Option<&str> {
         let info = self.subscription_info.as_ref()?;
-        [
-            info.subscription_title.as_deref(),
-            info.subscription_type.as_deref(),
-        ]
-        .into_iter()
-        .flatten()
-        .map(str::trim)
-        .find(|s| !s.is_empty())
+        let title = info
+            .subscription_title
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        title.or_else(|| {
+            info.subscription_type
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| has_tier_marker(s))
+        })
     }
 
     /// 获取第一个使用量明细
@@ -510,6 +525,24 @@ mod tests {
             (
                 r#"{"subscriptionInfo": {"type": "Q_DEVELOPER_STANDALONE_FREE"}}"#,
                 Some("Q_DEVELOPER_STANDALONE_FREE"),
+            ),
+            (
+                r#"{"subscriptionInfo": {"type": "Q_DEVELOPER_STANDALONE_POWER"}}"#,
+                Some("Q_DEVELOPER_STANDALONE_POWER"),
+            ),
+            // 不带等级后缀的裸类型无法区分免费 / 付费，按等级未知处理
+            (
+                r#"{"subscriptionInfo": {"type": "Q_DEVELOPER_STANDALONE"}}"#,
+                None,
+            ),
+            (
+                r#"{"subscriptionInfo": {"subscriptionTitle": " ", "type": "Q_DEVELOPER_STANDALONE"}}"#,
+                None,
+            ),
+            // 有标题时标题优先，即使类型是裸串
+            (
+                r#"{"subscriptionInfo": {"subscriptionTitle": "KIRO FREE", "type": "Q_DEVELOPER_STANDALONE"}}"#,
+                Some("KIRO FREE"),
             ),
             (
                 r#"{"subscriptionInfo": {"subscriptionTitle": "", "type": " "}}"#,

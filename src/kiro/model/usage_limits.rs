@@ -238,6 +238,23 @@ impl UsageLimitsResponse {
             .and_then(|info| info.subscription_title.as_deref())
     }
 
+    /// 用于写回账号订阅等级的标题：优先 `subscriptionTitle`，缺失或为空白时回退到
+    /// 原始订阅类型 `type`（如 Q_DEVELOPER_STANDALONE_PRO）。
+    ///
+    /// 部分账号（如企业版 IdC）只返回 `type`；回退后账号才算「订阅已知」，
+    /// 且类型串含 FREE 时仍会被 `supports_opus` 识别为 Free。
+    pub fn resolved_subscription_title(&self) -> Option<&str> {
+        let info = self.subscription_info.as_ref()?;
+        [
+            info.subscription_title.as_deref(),
+            info.subscription_type.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|s| !s.is_empty())
+    }
+
     /// 获取第一个使用量明细
     fn primary_breakdown(&self) -> Option<&UsageBreakdown> {
         self.usage_breakdown_list.first()
@@ -475,6 +492,44 @@ mod tests {
         let resp: UsageLimitsResponse = serde_json::from_str("{}").unwrap();
         assert_eq!(resp.usage_limit(), 0.0);
         assert_eq!(resp.current_usage(), 0.0);
+        assert!(resp.subscription_title().is_none());
+    }
+
+    #[test]
+    fn resolved_subscription_title_prefers_title_then_falls_back_to_type() {
+        let cases = [
+            // (subscriptionInfo JSON, 期望)
+            (
+                r#"{"subscriptionInfo": {"subscriptionTitle": "KIRO PRO", "type": "Q_DEVELOPER_STANDALONE_PRO"}}"#,
+                Some("KIRO PRO"),
+            ),
+            (
+                r#"{"subscriptionInfo": {"subscriptionTitle": "   ", "type": "Q_DEVELOPER_STANDALONE_PRO"}}"#,
+                Some("Q_DEVELOPER_STANDALONE_PRO"),
+            ),
+            (
+                r#"{"subscriptionInfo": {"type": "Q_DEVELOPER_STANDALONE_FREE"}}"#,
+                Some("Q_DEVELOPER_STANDALONE_FREE"),
+            ),
+            (
+                r#"{"subscriptionInfo": {"subscriptionTitle": "", "type": " "}}"#,
+                None,
+            ),
+            (r#"{"subscriptionInfo": {}}"#, None),
+            ("{}", None),
+        ];
+        for (json, expected) in cases {
+            let resp: UsageLimitsResponse = serde_json::from_str(json).unwrap();
+            assert_eq!(resp.resolved_subscription_title(), expected, "json={json}");
+        }
+    }
+
+    #[test]
+    fn subscription_title_getter_does_not_fall_back_to_type() {
+        // 余额弹窗仍展示原始标题：回退只作用于账号等级写回
+        let resp: UsageLimitsResponse =
+            serde_json::from_str(r#"{"subscriptionInfo": {"type": "Q_DEVELOPER_STANDALONE_PRO"}}"#)
+                .unwrap();
         assert!(resp.subscription_title().is_none());
     }
 

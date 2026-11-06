@@ -228,6 +228,31 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn test_tenant_idc_without_title_is_eligible_for_opus() {
+        // 企业版 IdC 租户账号无订阅标题时可调度 Opus；同优先级之外的未知账号仍被排除
+        let mut unknown = make_valid_cred("unknown-token");
+        unknown.priority = 0;
+        unknown.subscription_title = None;
+
+        let mut tenant = make_valid_cred("tenant-token");
+        tenant.priority = 1;
+        tenant.auth_method = Some("idc".to_string());
+        tenant.profile_arn =
+            Some("arn:aws:codewhisperer:us-east-1:123456789012:profile/TENANTPROFILE".to_string());
+        tenant.subscription_title = None;
+
+        let manager =
+            MultiTokenManager::new(Config::default(), vec![unknown, tenant], None, None, false)
+                .unwrap();
+
+        let opus = manager
+            .acquire_context(Some("claude-opus-4-7"))
+            .await
+            .unwrap();
+        assert_eq!(opus.id, 2);
+    }
+
+    #[tokio::test]
     async fn test_priority_current_id_excludes_free_account_for_opus() {
         let mut free = make_valid_cred("free-token");
         free.priority = 0;

@@ -169,13 +169,28 @@ impl KiroCredentials {
         }
     }
 
+    /// 是否企业版 IdC 租户账号：IdC 登录且持有租户自己的真实 profileArn
+    ///
+    /// 这类账号由组织授权，不会是 Free；个人 BuilderId 使用的是代理占位 ARN，不在此列。
+    /// 企业版的 `getUsageLimits` 可能不返回订阅标题，此时用它判断账号等级。
+    pub fn is_tenant_idc(&self) -> bool {
+        self.is_idc() && !self.has_no_real_profile_arn()
+    }
+
     /// 检查账号是否支持 Opus 模型
     ///
-    /// Free 或订阅等级未知的账号不支持 Opus，需要明确的非 Free 订阅
+    /// - 有订阅标题：非 Free 才支持（标题含 FREE 一律不支持）
+    /// - 无订阅标题：仅企业版 IdC 租户账号（见 [`Self::is_tenant_idc`]）支持，
+    ///   其余等级未知的账号（含个人 BuilderId）仍不支持
     pub fn supports_opus(&self) -> bool {
-        self.subscription_title.as_deref().is_some_and(|title| {
-            let title = title.trim();
-            !title.is_empty() && !title.to_uppercase().contains("FREE")
-        })
+        match self
+            .subscription_title
+            .as_deref()
+            .map(str::trim)
+            .filter(|title| !title.is_empty())
+        {
+            Some(title) => !title.to_uppercase().contains("FREE"),
+            None => self.is_tenant_idc(),
+        }
     }
 }

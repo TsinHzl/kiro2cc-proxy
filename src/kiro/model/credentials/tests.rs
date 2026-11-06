@@ -11,8 +11,11 @@ mod tests {
     };
     use crate::model::config::Config;
 
+    const TENANT_ARN: &str = "arn:aws:codewhisperer:us-east-1:123456789012:profile/TENANTPROFILE";
+
     #[test]
-    fn test_supports_opus_requires_known_non_free_subscription() {
+    fn test_supports_opus_non_idc_requires_known_non_free_subscription() {
+        // 无租户 IdC 身份的账号：等级未知（None / 空 / 空白）一律不支持，只有明确的非 Free 才支持
         let cases = [
             (None, false),
             (Some(""), false),
@@ -31,6 +34,67 @@ mod tests {
             };
             assert_eq!(credentials.supports_opus(), expected, "title={title:?}");
         }
+    }
+
+    #[test]
+    fn test_supports_opus_tenant_idc_without_title_is_allowed() {
+        // 企业版 IdC（真实租户 profileArn）上游可能不返回标题：无标题 / 空白标题视为支持
+        for title in [None, Some(""), Some("   ")] {
+            let credentials = KiroCredentials {
+                auth_method: Some("idc".to_string()),
+                profile_arn: Some(TENANT_ARN.to_string()),
+                subscription_title: title.map(str::to_string),
+                ..Default::default()
+            };
+            assert!(credentials.is_tenant_idc());
+            assert!(credentials.supports_opus(), "title={title:?}");
+        }
+    }
+
+    #[test]
+    fn test_supports_opus_tenant_idc_with_explicit_free_title_is_rejected() {
+        // 明确的 Free 标题优先于租户身份
+        let credentials = KiroCredentials {
+            auth_method: Some("idc".to_string()),
+            profile_arn: Some(TENANT_ARN.to_string()),
+            subscription_title: Some("KIRO FREE".to_string()),
+            ..Default::default()
+        };
+        assert!(!credentials.supports_opus());
+    }
+
+    #[test]
+    fn test_supports_opus_idc_without_real_profile_arn_stays_rejected() {
+        // 个人 BuilderId（占位 ARN）、企业备用 ARN、无 ARN 都不是租户身份，等级未知时不支持
+        for arn in [
+            None,
+            Some(""),
+            Some(BUILDER_ID_PLACEHOLDER_PROFILE_ARN),
+            Some(ENTERPRISE_FALLBACK_PROFILE_ARN_US),
+            Some(ENTERPRISE_FALLBACK_PROFILE_ARN_EU),
+        ] {
+            let credentials = KiroCredentials {
+                auth_method: Some("idc".to_string()),
+                profile_arn: arn.map(str::to_string),
+                subscription_title: None,
+                ..Default::default()
+            };
+            assert!(!credentials.is_tenant_idc(), "arn={arn:?}");
+            assert!(!credentials.supports_opus(), "arn={arn:?}");
+        }
+    }
+
+    #[test]
+    fn test_supports_opus_social_with_profile_arn_and_no_title_stays_rejected() {
+        // social 账号即便带 profileArn 也不是 IdC 租户
+        let credentials = KiroCredentials {
+            auth_method: Some("social".to_string()),
+            profile_arn: Some(TENANT_ARN.to_string()),
+            subscription_title: None,
+            ..Default::default()
+        };
+        assert!(!credentials.is_tenant_idc());
+        assert!(!credentials.supports_opus());
     }
 
     #[test]

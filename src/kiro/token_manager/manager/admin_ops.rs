@@ -320,7 +320,8 @@ impl MultiTokenManager {
                 .iter()
                 .find(|e| e.id == id)
                 .ok_or_else(|| anyhow::anyhow!("账号不存在: {}", id))?;
-            Self::has_known_subscription(&entry.credentials)
+            // 企业版 IdC 租户账号上游可能既无标题也无类型，凭真实 profileArn 视为已知
+            Self::has_known_subscription(&entry.credentials) || entry.credentials.is_tenant_idc()
         };
 
         anyhow::ensure!(
@@ -521,9 +522,7 @@ impl MultiTokenManager {
             };
 
         // 仅允许查询期间身份未变化的结果回写，防止旧凭据恢复过期订阅等级
-        let subscription_title = usage_limits
-            .subscription_title()
-            .filter(|title| !title.trim().is_empty());
+        let subscription_title = usage_limits.resolved_subscription_title();
         let changed = self.commit_subscription_title_if_identity_matches(
             id,
             &credentials,

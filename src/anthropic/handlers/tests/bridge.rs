@@ -4,8 +4,8 @@
 pub(crate) mod tests {
 
     use super::super::super::bridge::{
-        BridgeContext, BridgePhase, BridgeState, bridge_handle_event, build_bridge_context,
-        build_continuation_request, build_search_tool_result,
+        BridgeContext, BridgePhase, BridgeState, PendingSearch, bridge_handle_event,
+        build_bridge_context, build_continuation_request, build_search_tool_result,
     };
 
     use crate::anthropic::stream::StreamContext;
@@ -359,6 +359,13 @@ pub(crate) mod tests {
         }
     }
 
+    fn pending(tool_use_id: &str, query: &str) -> PendingSearch {
+        PendingSearch {
+            tool_use_id: tool_use_id.to_string(),
+            query: query.to_string(),
+        }
+    }
+
     pub(crate) fn sample_search_results() -> crate::anthropic::websearch::WebSearchResults {
         crate::anthropic::websearch::WebSearchResults {
             results: vec![crate::anthropic::websearch::WebSearchResult {
@@ -390,6 +397,7 @@ pub(crate) mod tests {
         let kiro_request = build_continuation_request(
             &ctx,
             Some(ctx.conversation_state.clone()),
+            &pending("tu-kiro-new-1", "rust"),
             vec![tool_result],
         );
         let body = serde_json::to_string(&kiro_request.conversation_state).unwrap();
@@ -405,15 +413,25 @@ pub(crate) mod tests {
         assert_eq!(value["agentContinuationId"], serde_json::json!("cont-456"));
         assert_eq!(value["agentTaskType"], serde_json::json!("vibe"));
         assert_eq!(value["chatTriggerType"], serde_json::json!("MANUAL"));
+        // 原 history 是新 history 的前缀（逐字节不变），其后追加「原问题 + web_search toolUse」一对
+        let history = value["history"].as_array().unwrap();
+        let base_history = serde_json::to_value(&ctx.conversation_state.history).unwrap();
+        let base_history = base_history.as_array().unwrap();
+        assert_eq!(history.len(), base_history.len() + 2);
+        assert_eq!(&history[..base_history.len()], &base_history[..]);
         assert_eq!(
-            value["history"],
-            serde_json::to_value(&ctx.conversation_state.history).unwrap(),
-            "history 必须逐字节不变"
+            history[base_history.len()]["userInputMessage"]["content"],
+            serde_json::json!("搜索一下今天的新闻"),
+            "原用户问题沉入 history"
         );
-        // current_message 的 content 不变，tool_results 回填为 1 条
+        let tool_use = &history[base_history.len() + 1]["assistantResponseMessage"]["toolUses"][0];
+        assert_eq!(tool_use["toolUseId"], serde_json::json!("tu-kiro-new-1"));
+        assert_eq!(tool_use["name"], serde_json::json!("web_search"));
+        assert_eq!(tool_use["input"], serde_json::json!({"query": "rust"}));
+        // current_message 只承载 tool_results，content 为中性占位
         assert_eq!(
             value["currentMessage"]["userInputMessage"]["content"],
-            serde_json::json!("搜索一下今天的新闻")
+            serde_json::json!("(tool result above)")
         );
         let tool_results =
             &value["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
@@ -428,8 +446,7 @@ pub(crate) mod tests {
             tool_results[0].get("isError").is_none(),
             "success 路径不应序列化 isError"
         );
-        // 回填只改 tool_results，其余部分与基底完全一致
-        assert_ne!(body, baseline, "tool_results 回填后应与基底不同");
+        assert_ne!(body, baseline, "续请求应与基底不同");
         // profile_arn / additional_model_request_fields 同参序列化
         assert_eq!(
             serde_json::to_string(&kiro_request.profile_arn).unwrap(),
@@ -449,6 +466,7 @@ pub(crate) mod tests {
         let round1 = build_continuation_request(
             &ctx,
             Some(ctx.conversation_state.clone()),
+            &pending("tu-round-1", "rust"),
             vec![build_search_tool_result(
                 "tu-round-1",
                 "rust",
@@ -459,6 +477,7 @@ pub(crate) mod tests {
         let round2 = build_continuation_request(
             &ctx,
             Some(round1.conversation_state.clone()),
+            &pending("tu-round-2", "tokio"),
             vec![build_search_tool_result(
                 "tu-round-2",
                 "tokio",
@@ -473,18 +492,36 @@ pub(crate) mod tests {
             serde_json::from_str(&serde_json::to_string(&round2.conversation_state).unwrap())
                 .unwrap();
 
-        // 第 2 轮 history 与第 1 轮一致（中间轮 toolResults 不追加进 history）
-        assert_eq!(v2["history"], v1["history"], "多轮 history 必须逐字节不变");
+        // 第 2 轮 history 在第 1 轮基础上再追加一对：第 1 轮的 tool_result 消息 + 第 2 轮 toolUse
+        let h1 = v1["history"].as_array().unwrap();
+        let h2 = v2["history"].as_array().unwrap();
+        assert_eq!(h2.len(), h1.len() + 2);
+        assert_eq!(&h2[..h1.len()], &h1[..], "第 1 轮 history 是第 2 轮的前缀");
+        assert_eq!(
+            h2[h1.len()]["userInputMessage"]["userInputMessageContext"]["toolResults"][0]["toolUseId"],
+            serde_json::json!("tu-round-1"),
+            "第 1 轮的 tool_result 沉入 history"
+        );
+        assert_eq!(
+            h2[h1.len() + 1]["assistantResponseMessage"]["toolUses"][0]["toolUseId"],
+            serde_json::json!("tu-round-2")
+        );
+        assert!(
+            h2[h1.len()]["userInputMessage"]["userInputMessageContext"]
+                .get("tools")
+                .is_none(),
+            "tools 定义不沉入 history"
+        );
         assert_eq!(v2["conversationId"], v1["conversationId"]);
         assert_eq!(v2["agentContinuationId"], v1["agentContinuationId"]);
         // 第 2 轮 tool_results 替换为本轮结果（承载最新 toolUseId）
         let tr2 =
             &v2["currentMessage"]["userInputMessage"]["userInputMessageContext"]["toolResults"];
         assert_eq!(tr2[0]["toolUseId"], serde_json::json!("tu-round-2"));
-        // 第 2 轮的其余字段与第 1 轮状态一致（基于第 1 轮演进，非从原始 clone 重新出发）
+        // 第 2 轮的 content 与第 1 轮一致（均为中性占位）
         assert_eq!(
             v2["currentMessage"]["userInputMessage"]["content"],
-            v1["currentMessage"]["userInputMessage"]["content"]
+            serde_json::json!("(tool result above)")
         );
     }
 
@@ -497,6 +534,7 @@ pub(crate) mod tests {
         let kiro_request = build_continuation_request(
             &ctx,
             Some(ctx.conversation_state.clone()),
+            &pending("tu-fail-1", "rust"),
             vec![tool_result],
         );
         let value: serde_json::Value =
@@ -513,10 +551,10 @@ pub(crate) mod tests {
             text.contains("Web search failed for query: rust"),
             "error 文案应说明搜索失败，实际: {text}"
         );
-        // 降级路径不变量保持：history/会话标识仍逐字节不变
+        // 降级路径同样补全 toolUse 配对，会话标识不变
         assert_eq!(
-            value["history"],
-            serde_json::to_value(&ctx.conversation_state.history).unwrap()
+            value["history"].as_array().unwrap().len(),
+            ctx.conversation_state.history.len() + 2
         );
         assert_eq!(
             value["conversationId"],
@@ -532,7 +570,8 @@ pub(crate) mod tests {
         let results = sample_search_results();
 
         let tool_result = build_search_tool_result("tu-fb-1", "rust", &Some(results));
-        let kiro_request = build_continuation_request(&ctx, None, vec![tool_result]);
+        let kiro_request =
+            build_continuation_request(&ctx, None, &pending("tu-fb-1", "rust"), vec![tool_result]);
         let value: serde_json::Value =
             serde_json::from_str(&serde_json::to_string(&kiro_request.conversation_state).unwrap())
                 .unwrap();

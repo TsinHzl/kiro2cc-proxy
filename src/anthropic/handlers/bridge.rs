@@ -5,14 +5,18 @@ use super::stream::stream_interrupted_error_event;
 use crate::anthropic::stream::{SseEvent, StreamContext};
 
 use crate::kiro::model::events::Event;
-use crate::kiro::model::requests::conversation::ConversationState;
+use crate::kiro::model::requests::conversation::{
+    AssistantMessage, ConversationState, HistoryAssistantMessage, HistoryUserMessage, Message,
+    UserInputMessageContext, UserMessage,
+};
 use crate::kiro::model::requests::kiro::KiroRequest;
-use crate::kiro::model::requests::tool::ToolResult;
+use crate::kiro::model::requests::tool::{ToolResult, ToolUseEntry};
 use crate::kiro::parser::decoder::EventStreamDecoder;
 use bytes::Bytes;
 use serde_json::json;
 use std::collections::VecDeque;
 
+use super::super::converter::EMPTY_USER_CONTENT_PLACEHOLDER;
 use super::super::websearch;
 
 #[derive(Debug, Clone)]
@@ -309,9 +313,18 @@ pub(crate) fn build_web_search_result_events(
 /// 构建续请求体（D3：手工构建，绕过 validate_tool_pairing）
 ///
 /// 基于演进基底 clone（多轮时为上一轮续请求所用状态，首轮为
-/// `BridgeContext.conversation_state`），仅替换 `current_message` 的
-/// `tool_results` 为本轮结果；`conversation_id` / `agent_continuation_id` /
-/// `history` / `agent_task_type` / `chat_trigger_type` 逐字节不变。
+/// `BridgeContext.conversation_state`）。上游（Bedrock 系模型）要求每个 `tool_result`
+/// 都能在紧邻的上一条消息里找到对应的 `tool_use`，否则返回 400
+/// `TOOL_USE_RESULT_MISMATCH`，所以续请求在原 history 之后追加一对消息：
+/// 1. 把基底的 `current_message` 沉入 history 作为 user 消息（首轮是用户原问题，
+///    后续轮是上一轮的 tool_result 消息；`tools` 定义留在 current_message，不进 history）；
+/// 2. 追加一条 assistant 消息，携带本轮截获的 `web_search` toolUse（id、query 与
+///    Kiro 流中截获的一致）。
+///
+/// 随后 `current_message` 只承载本轮 `tool_results`（content 使用与普通 tool_result
+/// 消息相同的中性占位）。`conversation_id` / `agent_continuation_id` /
+/// `agent_task_type` / `chat_trigger_type` 逐字节不变，原 history 是新 history 的前缀，
+/// 前缀缓存不受影响。模型在 toolUse 之前已输出的文本/thinking 不回填。
 ///
 /// MCP 失败（`search_results == None`）→ `ToolResult::error` 降级，
 /// 仍发续请求让模型自行告知用户搜索失败，流不中断。
@@ -321,15 +334,46 @@ pub(crate) fn build_web_search_result_events(
 pub(crate) fn build_continuation_request(
     bridge_ctx: &BridgeContext,
     evolution_base: Option<ConversationState>,
+    pending: &PendingSearch,
     tool_results: Vec<ToolResult>,
 ) -> KiroRequest {
     let mut conversation_state =
         evolution_base.unwrap_or_else(|| bridge_ctx.conversation_state.clone());
+
+    let current = &mut conversation_state.current_message.user_input_message;
+    let tools = std::mem::take(&mut current.user_input_message_context.tools);
+    let prev_tool_results = std::mem::take(&mut current.user_input_message_context.tool_results);
+    let history_user = UserMessage {
+        content: std::mem::take(&mut current.content),
+        model_id: current.model_id.clone(),
+        origin: current.origin.clone(),
+        images: std::mem::take(&mut current.images),
+        user_input_message_context: UserInputMessageContext {
+            tool_results: prev_tool_results,
+            tools: Vec::new(),
+        },
+    };
+    current.content = EMPTY_USER_CONTENT_PLACEHOLDER.to_string();
+    current.user_input_message_context = UserInputMessageContext {
+        tool_results,
+        tools,
+    };
+
+    // assistant 侧空 content 用单个空格占位，与 converter 对「只有 tool_use」的历史消息一致
+    let assistant = AssistantMessage::new(" ").with_tool_uses(vec![
+        ToolUseEntry::new(&pending.tool_use_id, "web_search")
+            .with_input(json!({ "query": pending.query })),
+    ]);
     conversation_state
-        .current_message
-        .user_input_message
-        .user_input_message_context
-        .tool_results = tool_results;
+        .history
+        .push(Message::User(HistoryUserMessage {
+            user_input_message: history_user,
+        }));
+    conversation_state
+        .history
+        .push(Message::Assistant(HistoryAssistantMessage {
+            assistant_response_message: assistant,
+        }));
 
     KiroRequest {
         conversation_state,
@@ -425,8 +469,12 @@ pub(crate) async fn bridge_execute_round(
     // 2. 基于演进基底构建续请求（D3 多轮语义：第 N+1 轮 clone 第 N 轮所用状态）
     let tool_result =
         build_search_tool_result(&pending.tool_use_id, &pending.query, &search_results);
-    let kiro_request =
-        build_continuation_request(bridge_ctx, bridge.evolution_base.take(), vec![tool_result]);
+    let kiro_request = build_continuation_request(
+        bridge_ctx,
+        bridge.evolution_base.take(),
+        &pending,
+        vec![tool_result],
+    );
     let request_body = match serde_json::to_string(&kiro_request) {
         Ok(body) => body,
         Err(e) => {

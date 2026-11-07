@@ -493,12 +493,12 @@ pub(crate) async fn handle_non_stream_request(
             &search_results,
         ));
 
-        // 2. 构建续请求（D3：仅替换 current_message.tool_results，
-        //    conversationId/agentContinuationId/history 逐字节不变）
+        // 2. 构建续请求（D3：conversationId/agentContinuationId 不变，history 追加
+        //    本轮 toolUse 配对消息，current_message 只承载本轮 tool_results）
         let tool_result =
             build_search_tool_result(&pending.tool_use_id, &pending.query, &search_results);
         let kiro_request =
-            build_continuation_request(ctx, evolution_base.take(), vec![tool_result]);
+            build_continuation_request(ctx, evolution_base.take(), &pending, vec![tool_result]);
         let request_body = match serde_json::to_string(&kiro_request) {
             Ok(body) => body,
             Err(e) => {

@@ -35,7 +35,7 @@ fn sanitize_rendered_history_text(text: &str) -> String {
 ///
 /// 用中性提示明示"上方为工具结果"，避免用 "Continue" 让模型误判为"用户让我继续"。
 /// assistant 侧的空 content 占位符策略不同，不使用该常量。
-pub(super) const EMPTY_USER_CONTENT_PLACEHOLDER: &str = "(tool result above)";
+pub(crate) const EMPTY_USER_CONTENT_PLACEHOLDER: &str = "(tool result above)";
 
 /// 把正文包进 `<system-reminder>` 块。
 pub(super) fn wrap_system_reminder(body: &str) -> String {

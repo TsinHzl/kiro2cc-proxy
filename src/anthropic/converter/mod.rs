@@ -103,6 +103,7 @@ mod tools;
 mod websearch;
 
 pub use convert::convert_request;
+pub(crate) use history::EMPTY_USER_CONTENT_PLACEHOLDER;
 pub(crate) use model::map_model;
 pub use result::{ConversionError, ConversionResult};
 pub use tools::{

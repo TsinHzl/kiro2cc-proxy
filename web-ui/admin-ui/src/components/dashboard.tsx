@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, useEffect, useMemo, useRef } from 'react'
-import {Server, Key, Settings, BarChart2, ScrollText, Boxes, Palette, Menu} from 'lucide-react'
+import {Server, Key, Settings, BarChart2, ScrollText, Boxes, Palette, Menu, MessageSquare} from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/toast'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,7 @@ import type { CustomRange } from '@/components/daily-shared'
 import { DailyStatsPage, type RangeKey } from '@/components/daily-stats-page'
 import { DailySummaryPage, type SummaryRangeKey } from '@/components/daily-summary-page'
 import { ModelListPage } from '@/components/model-list-page'
+import { PlaygroundPage } from '@/components/playground/playground-page'
 import { ChangelogPage } from '@/components/changelog-page'
 import { ThemeSettingsPage } from '@/components/theme-settings-page'
 import { DailyDetailPage } from '@/components/daily-detail-page'
@@ -52,7 +53,7 @@ interface DashboardProps {
 export function Dashboard({ onLogout }: DashboardProps) {
   const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
-  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog' | 'theme' | 'docs'>('credentials')
+  const [activeTab, setActiveTab] = useState<'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'chat' | 'changelog' | 'theme' | 'docs'>('credentials')
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(readStoredSidebarCollapsed)
   // 侧边栏内容（header/nav/footer 的 flex 方向、间距、文字显隐）无法被 CSS transition 平滑插值，
   // 故延迟到宽度动画半程、内容淡为透明时才瞬切，避免可见的布局跳变
@@ -709,6 +710,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         { key: 'apikeys', label: 'API Keys', icon: Key, count: apiKeys && apiKeys.length > 0 ? apiKeys.length : undefined, active: activeTab === 'apikeys', onClick: () => { setActiveTab('apikeys'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
         { key: 'daily', label: t('dashboard.navDailyStats'), icon: BarChart2, count: undefined, active: dailyView !== null, onClick: () => { resetDailyStatsView(); setDailyFromSidebar(true) } },
         { key: 'models', label: t('dashboard.navModels'), icon: Boxes, count: undefined, active: activeTab === 'models', onClick: () => { setActiveTab('models'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
+        { key: 'chat', label: t('dashboard.navChat'), icon: MessageSquare, count: undefined, active: activeTab === 'chat', onClick: () => { setActiveTab('chat'); setDetailKeyId(null); setDetailCredentialId(null); setDailyView(null) } },
       ],
     },
     {
@@ -793,6 +795,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
           />
         ) : activeTab === 'models' ? (
           <ModelListPage />
+        ) : activeTab === 'chat' ? (
+          <PlaygroundPage />
         ) : activeTab === 'changelog' ? (
           <ChangelogPage onBack={() => setActiveTab('settings')} />
         ) : activeTab === 'apikeys' ? (

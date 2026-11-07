@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DropdownMenu = DropdownMenuPrimitive.Root
@@ -68,14 +69,15 @@ const DropdownMenuRadioItem = React.forwardRef<
     className={cn(
       'flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[6px] text-[11.5px] font-medium outline-none transition-colors',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      'text-ink data-[highlighted]:bg-surface-3 data-[highlighted]:text-ink data-[state=checked]:text-ink',
+      'text-ink data-[highlighted]:bg-surface-3 data-[highlighted]:text-ink data-[state=checked]:bg-brand-soft data-[state=checked]:font-semibold data-[highlighted]:data-[state=checked]:bg-surface-3',
       className,
     )}
     {...props}
   >
-    <span className="flex size-3 flex-none items-center justify-center">
+    {/* 选中标记：内层必须是块级/图标元素，行内 span 会让 size 失效导致圆点不可见 */}
+    <span className="flex size-3.5 flex-none items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <span className="size-[5px] rounded-full bg-brand" />
+        <Check className="size-3.5 text-brand" strokeWidth={2.5} />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}

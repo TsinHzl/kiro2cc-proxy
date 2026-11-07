@@ -5,7 +5,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { getCredentialBalance } from '@/api/credentials'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
 
-type DashboardTab = 'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'changelog' | 'theme' | 'docs'
+type DashboardTab = 'credentials' | 'apikeys' | 'settings' | 'logs' | 'models' | 'chat' | 'changelog' | 'theme' | 'docs'
 
 interface UseBalanceFetcherParams {
   credentials: CredentialStatusItem[] | undefined

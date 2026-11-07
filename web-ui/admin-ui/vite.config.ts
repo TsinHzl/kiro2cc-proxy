@@ -16,6 +16,11 @@ export default defineConfig({
         target: 'http://localhost:5678',
         changeOrigin: true,
       },
+      // 对话页直接调用 Anthropic 兼容端点
+      '/v1': {
+        target: 'http://localhost:5678',
+        changeOrigin: true,
+      },
     },
   },
   build: {

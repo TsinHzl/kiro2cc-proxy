@@ -123,7 +123,14 @@ impl ChatSessionStore {
 
         let mut index = HashMap::new();
         for entry in fs::read_dir(&dir)? {
-            let path = entry?.path();
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!("读取对话会话目录条目失败，已跳过: {}", e);
+                    continue;
+                }
+            };
+            let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
             }
@@ -195,7 +202,15 @@ impl ChatSessionStore {
         if !self.index.lock().contains_key(id) {
             return Err(ChatSessionError::NotFound);
         }
-        let bytes = fs::read(self.path_of(id)).map_err(|e| ChatSessionError::Io(e.to_string()))?;
+        let bytes = match fs::read(self.path_of(id)) {
+            Ok(bytes) => bytes,
+            // 与 delete/clear 对齐：文件已被外部删除按「不存在」处理，并清掉索引里的残留项
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                self.index.lock().remove(id);
+                return Err(ChatSessionError::NotFound);
+            }
+            Err(e) => return Err(ChatSessionError::Io(e.to_string())),
+        };
         serde_json::from_slice(&bytes).map_err(|e| ChatSessionError::Io(e.to_string()))
     }
 
@@ -358,6 +373,21 @@ mod tests {
             Err(ChatSessionError::NotFound)
         ));
         assert!(store.list().is_empty());
+    }
+
+    #[test]
+    fn get_after_external_file_removal_is_not_found_and_drops_index_entry() {
+        let tmp = TempDir::new();
+        let store = ChatSessionStore::load(&tmp.0).unwrap();
+        let meta = store.create("a", msgs(1)).unwrap();
+
+        fs::remove_file(tmp.0.join(format!("{}.json", meta.id))).unwrap();
+
+        assert!(matches!(
+            store.get(&meta.id),
+            Err(ChatSessionError::NotFound)
+        ));
+        assert!(store.list().is_empty(), "残留的索引项应被清掉");
     }
 
     #[test]

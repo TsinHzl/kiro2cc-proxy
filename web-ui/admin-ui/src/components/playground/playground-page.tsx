@@ -160,7 +160,7 @@ export function PlaygroundPage() {
               keyId={activeKey?.id ?? null}
               models={modelIds}
               model={model}
-              effort={config.effort}
+              effort={effort}
               webSearch={webSearch}
               isGenerating={isGenerating}
               sendDisabled={!canChat}

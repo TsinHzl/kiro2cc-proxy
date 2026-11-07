@@ -1,4 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
+import { newId } from '@/lib/id'
 import type { Attachment } from './types'
 
 /** 单条消息最多携带的附件数 */
@@ -23,10 +24,6 @@ export class AttachmentError extends Error {
   ) {
     super(`${code}: ${fileName}`)
   }
-}
-
-function newId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

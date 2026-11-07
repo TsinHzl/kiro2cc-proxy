@@ -7,6 +7,7 @@ const MAX_OUTPUT_TOKENS = 16384
 const WEB_SEARCH_MAX_USES = 5
 /** 让代理走「模型自主决定是否搜索」的桥接路径，见后端 websearch::wants_model_driven_search */
 const WEB_SEARCH_MODE_HEADER = 'x-web-search-mode'
+const STREAM_TRUNCATED_MESSAGE = 'Response stream ended unexpectedly, the reply may be incomplete. Please retry'
 
 export interface StreamParams {
   apiKey: string
@@ -31,6 +32,8 @@ export interface StreamHandlers {
 /** 流式解析过程中的状态：按 content block 下标跟踪 server_tool_use 的 input_json 分片 */
 interface ParseState {
   searchBlocks: Map<number, { id: string; json: string }>
+  /** 是否收到 message_stop；传输层正常结束但没收到它，说明回复被截断 */
+  messageStopped: boolean
 }
 
 function toSearchResults(content: unknown): WebSearchResult[] {
@@ -139,6 +142,9 @@ function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState
     case 'message_delta':
       handlers.onUsage(toUsage(event.usage, true))
       break
+    case 'message_stop':
+      state.messageStopped = true
+      break
     case 'error':
       throw new Error(event.error?.message ?? 'Upstream stream error')
   }
@@ -179,7 +185,7 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
-  const state: ParseState = { searchBlocks: new Map() }
+  const state: ParseState = { searchBlocks: new Map(), messageStopped: false }
   let buffer = ''
 
   const flushBlock = (block: string) => {
@@ -204,4 +210,6 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
     if (done) break
   }
   if (buffer.trim() !== '') flushBlock(buffer)
+  // 代理在所有正常收尾路径都会发 message_stop；没收到说明连接被中途干净地关掉了（如反向代理超时）
+  if (!state.messageStopped) throw new Error(STREAM_TRUNCATED_MESSAGE)
 }

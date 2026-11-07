@@ -157,3 +157,36 @@ pub async fn delete_chat_session(
     with_store(&state, move |s| s.delete(&id)).await?;
     Ok(Json(SuccessResponse::new("会话已删除")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_variants_map_to_http_status() {
+        let cases = [
+            (ChatApiError::Disabled, StatusCode::SERVICE_UNAVAILABLE),
+            (
+                ChatApiError::Store(ChatSessionError::NotFound),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                ChatApiError::Store(ChatSessionError::Invalid("bad".into())),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                ChatApiError::Store(ChatSessionError::Io("disk".into())),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ];
+        for (err, expected) in cases {
+            assert_eq!(err.into_response().status(), expected);
+        }
+    }
+
+    #[test]
+    fn store_error_converts_into_api_error() {
+        let err: ChatApiError = ChatSessionError::NotFound.into();
+        assert_eq!(err.into_response().status(), StatusCode::NOT_FOUND);
+    }
+}

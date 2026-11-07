@@ -21,7 +21,8 @@ type Block =
   | { type: 'paragraph'; text: string }
 
 const FENCE = /^\s*```\s*([\w+#.-]*)\s*$/
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
+// 闭合井号必须与正文之间有空白，否则 "# C#" 里的 # 会被误当作闭合标记吞掉
+const HEADING = /^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/
 const HR = /^\s*([-*_])(\s*\1){2,}\s*$/
 const QUOTE = /^\s*>\s?(.*)$/
 const UL = /^(\s*)[-*+]\s+(.*)$/

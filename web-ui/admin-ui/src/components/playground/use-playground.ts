@@ -10,6 +10,7 @@ import {
   updateChatSession,
 } from '@/api/credentials'
 import { CHAT_SESSIONS_KEY } from '@/hooks/use-credentials'
+import { newId } from '@/lib/id'
 import { toast } from '@/lib/toast'
 import { extractErrorMessage } from '@/lib/utils'
 import { streamMessage } from './stream'
@@ -34,10 +35,6 @@ const LEGACY_MESSAGES_KEY = 'playground:v1:messages'
 const TITLE_MAX_CHARS = 40
 
 const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null, webSearch: true }
-
-function newId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-}
 
 /** 仍在等待结果的搜索不会再收到结果（流已结束或被中断），改记为已中断 */
 function settleSearches(m: ChatMessage): ChatMessage {
@@ -204,10 +201,14 @@ export function usePlayground() {
       const epoch = epochRef.current
       const task = async (): Promise<string | null> => {
         try {
-          if (id) {
-            await updateChatSession(id, msgs)
+          // 排队期间前一个任务可能刚创建好会话（如首次创建未返回就离开页面）：
+          // 在任务真正执行时再取当前会话 ID，同一对话不会重复建出多条记录。
+          // 用户中途切走（epoch 变了）时 activeIdRef 属于别的会话，不能复用
+          const targetId = id ?? (epoch === epochRef.current ? activeIdRef.current : null)
+          if (targetId) {
+            await updateChatSession(targetId, msgs)
             void refreshList()
-            return id
+            return targetId
           }
           const meta = await createChatSession(deriveTitle(msgs), msgs)
           if (epoch === epochRef.current) setActive(meta.id)
@@ -285,6 +286,8 @@ export function usePlayground() {
   useEffect(
     () => () => {
       if (!abortRef.current) return
+      // 先放出打字机里已收到但还没显示的内容（会同步写入 messagesRef），再取快照保存
+      typewriterRef.current?.flush()
       abortRef.current.abort()
       const msgs = normalizeMessages(messagesRef.current)
       void saveSessionRef.current(activeIdRef.current, msgs)
@@ -299,8 +302,14 @@ export function usePlayground() {
     void saveSession(activeIdRef.current, messages)
   }, [messages, isGenerating, saveSession])
 
+  /**
+   * 修改一条消息。基于 messagesRef 计算并同步写回它：卸载清理函数需要立刻读到
+   * 最新内容（含 flush 打字机放出的部分），不能等 React 下一次渲染
+   */
   const patchMessage = useCallback((id: string, patch: (m: ChatMessage) => ChatMessage) => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? patch(m) : m)))
+    const next = messagesRef.current.map((m) => (m.id === id ? patch(m) : m))
+    messagesRef.current = next
+    setMessages(next)
   }, [])
 
   /** base 必须以 user 消息结尾；追加一条空的 assistant 消息并开始流式填充 */
@@ -308,7 +317,9 @@ export function usePlayground() {
     async (base: ChatMessage[], { apiKey, model, effort, webSearch }: RunOptions) => {
       if (!apiKey) return
       const assistant: ChatMessage = { id: newId(), role: 'assistant', content: '', status: 'streaming', model }
-      setMessages([...base, assistant])
+      const initial = [...base, assistant]
+      messagesRef.current = initial
+      setMessages(initial)
 
       const controller = new AbortController()
       abortRef.current = controller

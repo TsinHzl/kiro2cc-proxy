@@ -222,6 +222,21 @@ pub struct Config {
     #[serde(default)]
     pub show_session_credits: bool,
 
+    /// 账号保活：后台定期刷新长期闲置的账号，让 refreshToken 保持活跃
+    ///
+    /// 只有被用到的账号才会刷新 Token（含被禁用、备用优先级的账号不会），闲置账号的
+    /// refreshToken 一直没被使用，可能在服务端过期。开启后后台任务会对距上次刷新已满
+    /// `credentialKeepAliveHours` 的账号各刷新一次，并把轮换后的新 refreshToken 写回账号文件。
+    /// 账号之间错开时间；失败不重试；已被服务端撤销的账号会被跳过。
+    /// 注意：若过期来自服务端的绝对会话时限（如 IAM Identity Center 的 90 天），保活无法延长。
+    /// 默认 false。
+    #[serde(default)]
+    pub credential_keep_alive: bool,
+
+    /// 账号保活间隔（小时）。账号距上次刷新超过该时间才会被保活，默认 72；低于 24 按 24 处理
+    #[serde(default = "default_credential_keep_alive_hours")]
+    pub credential_keep_alive_hours: u32,
+
     /// 分块写入约束的行数上限（issue #46）
     ///
     /// 请求带 Write / Edit / MultiEdit 工具时，代理在系统提示末尾追加“单次工具调用参数不超过
@@ -260,6 +275,10 @@ pub struct Config {
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
+}
+
+fn default_credential_keep_alive_hours() -> u32 {
+    72
 }
 
 fn default_write_chunking_max_lines() -> u32 {
@@ -343,6 +362,8 @@ impl Default for Config {
             forward_suggestion_mode: false,
             thinking_as_text: true,
             show_session_credits: false,
+            credential_keep_alive: false,
+            credential_keep_alive_hours: default_credential_keep_alive_hours(),
             write_chunking_max_lines: default_write_chunking_max_lines(),
             dump_kiro_body: false,
             log_file: None,
@@ -504,6 +525,16 @@ impl Config {
         {
             self.show_session_credits = b;
         }
+        if let Ok(v) = env::var("CREDENTIAL_KEEP_ALIVE")
+            && let Ok(b) = v.parse::<bool>()
+        {
+            self.credential_keep_alive = b;
+        }
+        if let Ok(v) = env::var("CREDENTIAL_KEEP_ALIVE_HOURS")
+            && let Ok(n) = v.parse::<u32>()
+        {
+            self.credential_keep_alive_hours = n;
+        }
         if let Ok(v) = env::var("WRITE_CHUNKING_MAX_LINES")
             && let Ok(n) = v.parse::<u32>()
         {
@@ -601,6 +632,19 @@ mod tests {
         assert!(!config.show_session_credits);
         let config: Config = serde_json::from_str(r#"{"showSessionCredits": true}"#).unwrap();
         assert!(config.show_session_credits);
+    }
+
+    #[test]
+    fn test_credential_keep_alive_defaults() {
+        let config: Config = serde_json::from_str("{}").unwrap();
+        assert!(!config.credential_keep_alive);
+        assert_eq!(config.credential_keep_alive_hours, 72);
+        let config: Config = serde_json::from_str(
+            r#"{"credentialKeepAlive": true, "credentialKeepAliveHours": 48}"#,
+        )
+        .unwrap();
+        assert!(config.credential_keep_alive);
+        assert_eq!(config.credential_keep_alive_hours, 48);
     }
 
     #[test]

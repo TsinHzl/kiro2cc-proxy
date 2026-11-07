@@ -604,6 +604,22 @@ pub struct SetShowSessionCreditsRequest {
     pub enabled: bool,
 }
 
+/// 账号保活开关
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialKeepAliveResponse {
+    /// 是否定期刷新闲置账号以保持 refreshToken 活跃
+    pub enabled: bool,
+    /// 当前生效的保活间隔（小时），只能在 config.json 中修改
+    pub hours: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetCredentialKeepAliveRequest {
+    pub enabled: bool,
+}
+
 /// Kiro 请求体落盘取证开关查询响应
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

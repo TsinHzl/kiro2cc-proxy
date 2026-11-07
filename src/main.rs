@@ -206,6 +206,17 @@ async fn main() {
     });
     let token_manager = Arc::new(token_manager);
 
+    // 账号保活：后台定期刷新长期闲置的账号（默认关闭，可在 Admin 设置页热切换）
+    kiro::token_manager::set_keep_alive_hours(config.credential_keep_alive_hours);
+    kiro::token_manager::set_keep_alive_enabled(config.credential_keep_alive);
+    if config.credential_keep_alive {
+        tracing::info!(
+            "账号保活已开启（credentialKeepAlive=true）：距上次刷新超过 {} 小时的闲置账号将被定期刷新",
+            kiro::token_manager::keep_alive_hours()
+        );
+    }
+    token_manager.spawn_keep_alive();
+
     // 创建 RPM 追踪器
     let rpm_tracker = Arc::new(model::rpm::RpmTracker::new());
 

@@ -52,12 +52,12 @@
 #### Scenario: 续请求保持缓存不变量
 - **WHEN** 桥接构建续请求
 - **THEN** 续请求的 conversationId 与 agentContinuationId 与首次请求完全一致
-- **AND** history 与首次请求逐字节一致
+- **AND** 原 history 作为新 history 的前缀逐字节不变，其后恰好追加「基底 current_message」与「携带本轮 web_search toolUse 的 assistant 消息」两条
 
 #### Scenario: 多轮桥接状态演进
 - **WHEN** 单请求内发生第 2 轮及后续轮次桥接
 - **THEN** 每轮续请求基于上一轮续请求所用的 ConversationState 演进（`current_message.tool_results` 替换为本轮结果）
-- **AND** 所有轮次的 history 与首次请求逐字节一致（中间轮 toolResults 不沉入 history）
+- **AND** 每轮在上一轮 history 末尾追加一对消息（上一轮 current_message 沉入 history + 本轮 web_search toolUse），已有 history 保持逐字节前缀不变
 
 #### Scenario: 续流块索引单调
 - **WHEN** 续流事件链入同一客户端 SSE 流

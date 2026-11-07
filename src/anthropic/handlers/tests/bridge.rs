@@ -13,6 +13,7 @@ pub(crate) mod tests {
     use crate::kiro::model::events::Event;
     use crate::kiro::model::events::ToolUseEvent;
     use crate::kiro::model::requests::conversation::ConversationState;
+    use crate::kiro::model::requests::conversation::KiroImage;
     use crate::kiro::model::requests::conversation::Message;
 
     use crate::anthropic::converter as converter_mod;
@@ -387,7 +388,8 @@ pub(crate) mod tests {
     #[test]
     fn test_continuation_request_invariants() {
         // 续请求体不变量（D3）：conversationId/agentContinuationId/agentTaskType/
-        // chatTriggerType/history 逐字节不变；仅 current_message.tool_results 回填，
+        // chatTriggerType 逐字节不变；原 history 保持前缀，末尾追加「原问题 +
+        // web_search toolUse」一对；current_message 只承载本轮 tool_results，
         // toolUseId 用 Kiro 流截获的 tu.tool_use_id（非 create_mcp_request 的 srvtoolu_ id）
         let ctx = bridge_ctx_for_continuation();
         let baseline = serde_json::to_string(&ctx.conversation_state).unwrap();
@@ -458,7 +460,8 @@ pub(crate) mod tests {
     #[test]
     fn test_continuation_request_multiround_evolution() {
         // 多轮演进语义（D3）：第 2 轮续请求基于第 1 轮所用状态演进（bridge_execute_round
-        // 把本轮 kiro_request.conversation_state 写回 evolution_base），history 仍逐字节不变
+        // 把本轮 kiro_request.conversation_state 写回 evolution_base），
+        // 第 1 轮 history 逐字节保持为第 2 轮 history 的前缀
         let ctx = bridge_ctx_for_continuation();
         let results = sample_search_results();
 
@@ -522,6 +525,40 @@ pub(crate) mod tests {
         assert_eq!(
             v2["currentMessage"]["userInputMessage"]["content"],
             serde_json::json!("(tool result above)")
+        );
+    }
+
+    #[test]
+    fn test_continuation_request_images_sink_into_history() {
+        // 首轮用户图片随原问题沉入 history，current_message 不重复携带
+        let mut ctx = bridge_ctx_for_continuation();
+        ctx.conversation_state
+            .current_message
+            .user_input_message
+            .images = vec![KiroImage::from_base64("png", "iVBORw0KGgo=")];
+
+        let request = build_continuation_request(
+            &ctx,
+            Some(ctx.conversation_state.clone()),
+            &pending("tu-img-1", "rust"),
+            vec![build_search_tool_result(
+                "tu-img-1",
+                "rust",
+                &Some(sample_search_results()),
+            )],
+        );
+        let state = &request.conversation_state;
+        let Message::User(sunk) = &state.history[state.history.len() - 2] else {
+            panic!("锚点消息应为 user 消息");
+        };
+        assert_eq!(
+            sunk.user_input_message.images.len(),
+            1,
+            "用户图片应随原问题沉入 history"
+        );
+        assert!(
+            state.current_message.user_input_message.images.is_empty(),
+            "current_message 不应重复携带已沉入的图片"
         );
     }
 

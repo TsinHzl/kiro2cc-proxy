@@ -77,7 +77,8 @@ pub(crate) struct BridgeState {
     pub(crate) pending: VecDeque<PendingSearch>,
     /// 多轮桥接的演进基底（D3）：初始为 BridgeContext.conversation_state 的 clone；
     /// 每轮续请求基于上一轮续请求所用的状态演进，保证 conversationId/
-    /// agentContinuationId/history 跨轮次逐字节不变
+    /// agentContinuationId 跨轮次不变；history 逐轮在末尾追加配对消息，
+    /// 各轮 history 互为前缀（详见 `build_continuation_request`）
     pub(crate) evolution_base: Option<ConversationState>,
 }
 
@@ -337,6 +338,16 @@ pub(crate) fn build_continuation_request(
     pending: &PendingSearch,
     tool_results: Vec<ToolResult>,
 ) -> KiroRequest {
+    // assistant 消息只携带 pending 的单个 toolUse，tool_results 与之失配
+    // 会静默触发上游 400 TOOL_USE_RESULT_MISMATCH
+    debug_assert_eq!(tool_results.len(), 1, "续请求恰好回填 1 条 tool_result");
+    debug_assert!(
+        tool_results
+            .iter()
+            .all(|r| r.tool_use_id == pending.tool_use_id),
+        "tool_result 的 toolUseId 必须与 pending.tool_use_id 一致"
+    );
+
     let mut conversation_state =
         evolution_base.unwrap_or_else(|| bridge_ctx.conversation_state.clone());
 
@@ -440,9 +451,9 @@ pub(crate) type InFlightRound = (
 ///
 /// 流程：
 /// 1. `call_mcp_api` 真实搜索；失败 → `ToolResult::error` 降级，流不中断
-/// 2. 基于演进基底 clone 构建 KiroRequest（仅替换 current_message 的
-///    tool_results，conversationId/agentContinuationId/history 逐字节不变，
-///    绕过 validate_tool_pairing）
+/// 2. 基于演进基底 clone 构建 KiroRequest（基底 current_message 沉入 history
+///    并追加本轮 web_search toolUse 配对消息，conversationId/agentContinuationId
+///    不变且原 history 保持前缀，绕过 validate_tool_pairing）
 /// 3. `call_api_stream` 续流；失败 → `Failed(search_results)`（调用方收尾）
 #[allow(clippy::type_complexity)]
 pub(crate) async fn bridge_execute_round(

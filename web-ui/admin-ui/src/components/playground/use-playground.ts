@@ -33,7 +33,7 @@ const ACTIVE_KEY = 'playground:v2:active'
 const LEGACY_MESSAGES_KEY = 'playground:v1:messages'
 const TITLE_MAX_CHARS = 40
 
-const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null, webSearch: false }
+const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null, webSearch: true }
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -90,7 +90,8 @@ function loadConfig(): PlaygroundConfig {
       model: typeof parsed.model === 'string' ? parsed.model : '',
       effort: EFFORT_OPTIONS.includes(parsed.effort as Effort) ? (parsed.effort as Effort) : 'off',
       keyId: typeof parsed.keyId === 'number' ? parsed.keyId : null,
-      webSearch: parsed.webSearch === true,
+      // 默认开启；只有用户在本地明确关闭过才保持关闭
+      webSearch: typeof parsed.webSearch === 'boolean' ? parsed.webSearch : DEFAULT_CONFIG.webSearch,
     }
   } catch {
     return DEFAULT_CONFIG
@@ -369,10 +370,14 @@ export function usePlayground() {
                   s.id === id ? { ...s, status: failed ? 'error' : 'done', results } : s,
                 ),
               })),
-            onUsage: ({ input, output }) =>
+            onUsage: ({ input, output, cached }) =>
               patchMessage(assistant.id, (m) => ({
                 ...m,
-                usage: { input: input ?? m.usage?.input ?? 0, output: output ?? m.usage?.output ?? 0 },
+                usage: {
+                  input: input ?? m.usage?.input ?? 0,
+                  output: output ?? m.usage?.output ?? 0,
+                  cached: cached ?? m.usage?.cached,
+                },
               })),
           },
         )

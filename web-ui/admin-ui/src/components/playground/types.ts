@@ -49,7 +49,11 @@ export interface ChatMessage {
   error?: string
   /** 产出该回复所用的模型 */
   model?: string
-  usage?: { input: number; output: number }
+  /**
+   * input 为整次请求的输入总量（含缓存部分），cached 为其中命中缓存的部分。
+   * 接口返回的 input_tokens 只含未命中缓存的新增部分，所以这里要把缓存字段加回去。
+   */
+  usage?: { input: number; output: number; cached?: number }
 }
 
 export interface PlaygroundConfig {

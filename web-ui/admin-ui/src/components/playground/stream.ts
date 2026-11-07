@@ -21,7 +21,7 @@ export interface StreamParams {
 export interface StreamHandlers {
   onThinking: (delta: string) => void
   onText: (delta: string) => void
-  onUsage: (usage: { input?: number; output?: number }) => void
+  onUsage: (usage: { input?: number; output?: number; cached?: number }) => void
   /** 模型发起了一次搜索（查询词已完整） */
   onSearchCall: (id: string, query: string) => void
   /** 搜索返回结果；error 表示上游报告了搜索错误 */
@@ -76,6 +76,25 @@ async function readHttpError(res: Response): Promise<string> {
   return raw.trim() !== '' ? `${raw.trim().slice(0, 300)} (HTTP ${res.status})` : `HTTP ${res.status}`
 }
 
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
+/**
+ * Anthropic 口径的 input_tokens 只含未命中缓存的部分，
+ * 真正的输入总量要再加上缓存读取与缓存写入。
+ */
+function toUsage(
+  usage: Record<string, unknown> | undefined,
+  withOutput: boolean
+): { input?: number; output?: number; cached?: number } {
+  const fresh = num(usage?.input_tokens)
+  const cached = num(usage?.cache_read_input_tokens)
+  const created = num(usage?.cache_creation_input_tokens)
+  const input = fresh === undefined ? undefined : fresh + (cached ?? 0) + (created ?? 0)
+  return { input, cached, output: withOutput ? num(usage?.output_tokens) : undefined }
+}
+
 /** 处理一条 SSE 事件的 data 负载；遇到上游 error 事件时抛出 */
 function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState): void {
   let event: Record<string, any>
@@ -87,7 +106,7 @@ function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState
 
   switch (event.type) {
     case 'message_start':
-      handlers.onUsage({ input: event.message?.usage?.input_tokens })
+      handlers.onUsage(toUsage(event.message?.usage, false))
       break
     case 'content_block_start': {
       const block = event.content_block ?? {}
@@ -118,7 +137,7 @@ function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState
       break
     }
     case 'message_delta':
-      handlers.onUsage({ input: event.usage?.input_tokens, output: event.usage?.output_tokens })
+      handlers.onUsage(toUsage(event.usage, true))
       break
     case 'error':
       throw new Error(event.error?.message ?? 'Upstream stream error')

@@ -2,6 +2,8 @@
 import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
   Brain,
   Check,
   ChevronRight,
@@ -15,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/clipboard'
 import { toast } from '@/lib/toast'
 import { AttachmentView } from './attachment-view'
+import { estimateTokens } from './estimate-tokens'
 import { Markdown } from './markdown'
 import type { ChatMessage, WebSearchCall } from './types'
 
@@ -161,6 +164,35 @@ function SearchBlock({ search }: { search: WebSearchCall }) {
   )
 }
 
+/** 用量：↑ 输入 tokens（发给模型的）、↓ 输出 tokens（模型回复的）；含义放在悬停提示里 */
+function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usage']>; reasoning?: string }) {
+  const { t } = useTranslation()
+  const n = (v: number) => v.toLocaleString()
+  const inputTip = usage.cached
+    ? t('playground.usageInputCachedTip', { total: n(usage.input), cached: n(usage.cached) })
+    : t('playground.usageInputTip', { total: n(usage.input) })
+  const outputTip = t('playground.usageOutputTip', { total: n(usage.output) })
+  const thinkingTokens = reasoning ? estimateTokens(reasoning) : 0
+  const thinkingTip = t('playground.usageThinkingTip', { total: n(thinkingTokens) })
+  return (
+    <>
+      <span className="inline-flex shrink-0 items-center gap-0.5" title={inputTip} aria-label={inputTip}>
+        <ArrowUp className="size-3" aria-hidden="true" />
+        {n(usage.input)} tokens
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-0.5" title={outputTip} aria-label={outputTip}>
+        <ArrowDown className="size-3" aria-hidden="true" />
+        {n(usage.output)} tokens
+      </span>
+      {thinkingTokens > 0 && (
+        <span className="inline-flex shrink-0 items-center gap-0.5" title={thinkingTip} aria-label={thinkingTip}>
+          <Brain className="size-3" aria-hidden="true" />≈{n(thinkingTokens)} tokens
+        </span>
+      )}
+    </>
+  )
+}
+
 interface MessageItemProps {
   message: ChatMessage
   canRegenerate: boolean
@@ -183,7 +215,7 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
 
   if (message.role === 'user') {
     return (
-      <div className="flex flex-col items-end gap-2 py-2.5">
+      <div className="group flex flex-col items-end gap-2 py-2.5">
         {message.attachments && message.attachments.length > 0 && (
           <div className="flex max-w-[85%] flex-wrap justify-end gap-2">
             {message.attachments.map((a) => (
@@ -192,9 +224,17 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
           </div>
         )}
         {message.content !== '' && (
-          <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-surface-3 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
-            {message.content}
-          </div>
+          <>
+            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-surface-3 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
+              {message.content}
+            </div>
+            {/* 悬停或键盘聚焦时显示；触屏设备没有悬停，始终显示 */}
+            <div className="-mt-1 flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+              <ActionButton label={copied ? t('common.copied') : t('common.copy')} onClick={handleCopy}>
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              </ActionButton>
+            </div>
+          </>
         )}
       </div>
     )
@@ -243,13 +283,9 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
             </ActionButton>
           )}
           {(message.model || message.usage) && (
-            <span className="ml-2 truncate font-mono text-[10.5px] text-ink-3">
-              {[
-                message.model,
-                message.usage ? `${message.usage.input} → ${message.usage.output} tokens` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+            <span className="ml-2 flex min-w-0 items-center gap-2.5 text-[11px] text-ink-3">
+              {message.model && <span className="truncate">{message.model}</span>}
+              {message.usage && <UsageStats usage={message.usage} reasoning={message.reasoning} />}
             </span>
           )}
         </div>

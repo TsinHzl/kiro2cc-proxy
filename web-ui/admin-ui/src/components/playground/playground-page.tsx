@@ -1,20 +1,43 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { Loader2, PanelLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { PageHead } from '@/components/page-head'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { useApiKeys, useModels } from '@/hooks/use-credentials'
+import { useApiKeys, useChatSessions, useModels } from '@/hooks/use-credentials'
+import type { ChatSessionMeta } from '@/types/api'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
+import { SessionsSidebar } from './sessions-sidebar'
 import { modelSupportsEffort, type Effort } from './types'
 import { usePlayground } from './use-playground'
 
-/** 对话页：用所选子 API Key 调用本代理的 /v1/messages，在线试用各模型与思考力度 */
+/** 与 Tailwind 的 md 断点一致：窄屏下历史列表以浮层形式出现，默认收起 */
+const DESKTOP_QUERY = '(min-width: 768px)'
+
+/** 对话页：用所选子 API Key 调用本代理的 /v1/messages，在线试用各模型与思考力度；会话保存在后端 */
 export function PlaygroundPage() {
   const { t } = useTranslation()
-  const { messages, config, isGenerating, send, regenerate, stop, clear, updateConfig } = usePlayground()
+  const {
+    messages,
+    config,
+    isGenerating,
+    loading,
+    activeId,
+    viewKey,
+    send,
+    regenerate,
+    stop,
+    startNew,
+    selectSession,
+    deleteSession,
+    clearSessions,
+    updateConfig,
+  } = usePlayground()
   const { data: modelsData } = useModels()
   const { data: apiKeys } = useApiKeys()
+  const { data: sessions, isLoading: sessionsLoading } = useChatSessions()
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia(DESKTOP_QUERY).matches)
 
   const modelIds = useMemo(() => (modelsData?.data ?? []).map((m) => m.id), [modelsData])
   // 已保存的模型不在当前列表（被下线 / 首次使用）时，回退到列表第一项；只做派生，不回写配置
@@ -25,16 +48,37 @@ export function PlaygroundPage() {
 
   const effort: Effort = modelSupportsEffort(model) ? config.effort : 'off'
   const runOptions = { apiKey: activeKey?.key ?? null, model, effort }
-  const canChat = activeKey !== null && model !== ''
+  const canChat = activeKey !== null && model !== '' && !loading
+
+  const activeTitle = sessions?.find((s) => s.id === activeId)?.title
 
   const handleRegenerate = useCallback(
     () => regenerate({ apiKey: activeKey?.key ?? null, model, effort }),
     [regenerate, activeKey?.key, model, effort],
   )
 
-  const handleNewChat = async () => {
-    if (messages.length === 0) return
-    if (await confirmDialog(t('playground.confirmNewChat'))) clear()
+  /** 窄屏下选择完成后收起浮层，露出对话 */
+  const closeOverlay = () => {
+    if (!window.matchMedia(DESKTOP_QUERY).matches) setSidebarOpen(false)
+  }
+
+  const handleSelect = (id: string) => {
+    selectSession(id)
+    closeOverlay()
+  }
+
+  const handleNew = () => {
+    startNew()
+    closeOverlay()
+  }
+
+  const handleDelete = async (session: ChatSessionMeta) => {
+    const name = session.title || t('playground.untitled')
+    if (await confirmDialog(t('playground.confirmDelete', { title: name }))) await deleteSession(session.id)
+  }
+
+  const handleClearAll = async () => {
+    if (await confirmDialog(t('playground.confirmClearAll'))) await clearSessions()
   }
 
   return (
@@ -45,30 +89,78 @@ export function PlaygroundPage() {
         note={t('playground.headNote')}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border-[0.5px] border-hairline bg-surface shadow-hair">
-        <MessageList
-          messages={messages}
-          isGenerating={isGenerating}
-          hasKey={activeKey !== null}
-          onRegenerate={handleRegenerate}
-        />
-        <div className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
-          <Composer
-            keys={enabledKeys}
-            keyId={activeKey?.id ?? null}
-            models={modelIds}
-            model={model}
-            effort={config.effort}
-            isGenerating={isGenerating}
-            sendDisabled={!canChat}
-            hasMessages={messages.length > 0}
-            onKeyChange={(value) => updateConfig('keyId', value)}
-            onModelChange={(value) => updateConfig('model', value)}
-            onEffortChange={(value) => updateConfig('effort', value)}
-            onSend={(text) => send(text, runOptions)}
-            onStop={stop}
-            onNewChat={handleNewChat}
-          />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[14px] border-[0.5px] border-hairline bg-surface shadow-hair">
+        {sidebarOpen && (
+          <>
+            {/* 窄屏浮层的点击遮罩 */}
+            <div
+              aria-hidden
+              onClick={() => setSidebarOpen(false)}
+              className="absolute inset-0 z-10 bg-black/30 md:hidden"
+            />
+            <SessionsSidebar
+              className="max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-20 max-md:shadow-panel"
+              sessions={sessions}
+              isLoading={sessionsLoading}
+              activeId={activeId}
+              locked={isGenerating}
+              onNew={handleNew}
+              onSelect={handleSelect}
+              onDelete={handleDelete}
+              onClearAll={handleClearAll}
+            />
+          </>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b-[0.5px] border-hairline px-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              title={t('playground.toggleHistory')}
+              aria-label={t('playground.toggleHistory')}
+              aria-pressed={sidebarOpen}
+              className="grid size-8 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink aria-pressed:text-ink"
+            >
+              <PanelLeft className="size-4" />
+            </button>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">
+              {activeId ? activeTitle || t('playground.untitled') : t('playground.newChat')}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="grid min-h-0 flex-1 place-items-center text-ink-3">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          ) : (
+            <MessageList
+              key={viewKey}
+              messages={messages}
+              isGenerating={isGenerating}
+              hasKey={activeKey !== null}
+              onRegenerate={handleRegenerate}
+            />
+          )}
+
+          <div className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
+            <Composer
+              keys={enabledKeys}
+              keyId={activeKey?.id ?? null}
+              models={modelIds}
+              model={model}
+              effort={config.effort}
+              isGenerating={isGenerating}
+              sendDisabled={!canChat}
+              hasMessages={messages.length > 0}
+              onKeyChange={(value) => updateConfig('keyId', value)}
+              onModelChange={(value) => updateConfig('model', value)}
+              onEffortChange={(value) => updateConfig('effort', value)}
+              onSend={(text) => send(text, runOptions)}
+              onStop={stop}
+              onNewChat={handleNew}
+            />
+          </div>
         </div>
       </div>
     </div>

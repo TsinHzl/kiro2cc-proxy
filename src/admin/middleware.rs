@@ -18,6 +18,7 @@ use super::types::AdminErrorResponse;
 use crate::common::auth;
 use crate::log_capture::LogCapture;
 use crate::model::api_key::ApiKeyManager;
+use crate::model::chat_session::ChatSessionStore;
 use crate::model::failure_log::FailureLogStore;
 use crate::model::geo::GeoResolver;
 use crate::model::rpm::RpmTracker;
@@ -41,6 +42,8 @@ pub struct AdminState {
     pub throttle_log_store: Option<Arc<ThrottleLogStore>>,
     /// 失败日志存储（可选）
     pub failure_log_store: Option<Arc<FailureLogStore>>,
+    /// 对话页会话存储（可选）
+    pub chat_session_store: Option<Arc<ChatSessionStore>>,
     /// 日志捕获器（可选）
     pub log_capture: Option<Arc<LogCapture>>,
     /// 配置文件路径（用于持久化修改）
@@ -64,6 +67,7 @@ impl AdminState {
             rpm_tracker: None,
             throttle_log_store: None,
             failure_log_store: None,
+            chat_session_store: None,
             log_capture: None,
             config_path: None,
             geo_resolver: None,
@@ -99,6 +103,11 @@ impl AdminState {
 
     pub fn with_config_path(mut self, path: PathBuf) -> Self {
         self.config_path = Some(path);
+        self
+    }
+
+    pub fn with_chat_session_store(mut self, store: Arc<ChatSessionStore>) -> Self {
+        self.chat_session_store = Some(store);
         self
     }
 

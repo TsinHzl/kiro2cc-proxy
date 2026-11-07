@@ -110,7 +110,7 @@ export function Composer({
         <button
           type="button"
           onClick={onNewChat}
-          disabled={!hasMessages}
+          disabled={!hasMessages || isGenerating}
           title={t('playground.newChat')}
           aria-label={t('playground.newChat')}
           className="grid size-9 shrink-0 place-items-center rounded-full border-[0.5px] border-hairline-2 text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink disabled:pointer-events-none disabled:opacity-50"

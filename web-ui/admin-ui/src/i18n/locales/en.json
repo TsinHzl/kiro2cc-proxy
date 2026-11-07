@@ -719,7 +719,6 @@
     "send": "Send",
     "stop": "Stop generating",
     "newChat": "New chat",
-    "confirmNewChat": "Clear the current conversation and start a new one?",
     "regenerate": "Regenerate",
     "generating": "Generating",
     "stopped": "Generation stopped",
@@ -729,7 +728,19 @@
     "thoughtNoTime": "Reasoning",
     "effortTitle": "Thinking effort",
     "effortUnsupported": "This model does not support extended thinking",
-    "effortPill": "Thinking: {{level}}"
+    "effortPill": "Thinking: {{level}}",
+    "history": "History",
+    "historyEmpty": "No conversations yet. Your first message is saved to the server automatically.",
+    "untitled": "Untitled chat",
+    "messageCount": "{{count}} messages",
+    "deleteSession": "Delete chat",
+    "clearAll": "Clear all history",
+    "toggleHistory": "Show / hide history",
+    "confirmDelete": "Delete \"{{title}}\"? This cannot be undone.",
+    "confirmClearAll": "Clear all chat history? This cannot be undone.",
+    "saveFailed": "Failed to save chat: {{message}}",
+    "loadFailed": "Failed to load chat: {{message}}",
+    "deleteFailed": "Delete failed: {{message}}"
   },
   "models": {
     "pageTitle": "Supported Models",

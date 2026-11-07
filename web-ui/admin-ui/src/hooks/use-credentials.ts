@@ -28,6 +28,9 @@ import {
   setLoadBalancingMode,
   getServerInfo,
   getApiKeys,
+  getChatSessions,
+  deleteChatSession,
+  clearChatSessions,
   createApiKey,
   updateApiKey,
   deleteApiKey,
@@ -605,5 +608,32 @@ export function useThrottleLogs(id: number, page: number, pageSize = 50) {
     queryKey: ['throttleLogs', id, page, pageSize],
     queryFn: () => getThrottleLogs(id, page, pageSize),
     enabled: id > 0,
+  })
+}
+
+// ============ 对话会话 Hooks ============
+
+export const CHAT_SESSIONS_KEY = ['chatSessions'] as const
+
+export function useChatSessions() {
+  return useQuery({
+    queryKey: CHAT_SESSIONS_KEY,
+    queryFn: getChatSessions,
+  })
+}
+
+export function useDeleteChatSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteChatSession(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: CHAT_SESSIONS_KEY }),
+  })
+}
+
+export function useClearChatSessions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => clearChatSessions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: CHAT_SESSIONS_KEY }),
   })
 }

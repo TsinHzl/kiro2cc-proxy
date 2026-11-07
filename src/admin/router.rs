@@ -2,7 +2,9 @@
 //! Admin 路由装配：create_admin_router 将凭据、API Key、模型、日志、负载均衡等端点挂载到 /api/admin。
 
 use axum::{
-    Router, middleware,
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
     routing::{delete, get, post, put},
 };
 
@@ -16,6 +18,10 @@ use super::{
         list_api_keys, reset_key_usage, update_api_key,
     },
     changelog::get_changelog,
+    chat_session_handler::{
+        clear_chat_sessions, create_chat_session, delete_chat_session, get_chat_session,
+        list_chat_sessions, update_chat_session,
+    },
     dump_handler::{download_dump_archive, download_dump_file, list_dump_files_handler},
     handlers::{
         add_credential, delete_credential, get_all_credentials, get_auth_keys,
@@ -29,6 +35,9 @@ use super::{
     log_handler::{download_logs, snapshot_logs, stream_logs},
     middleware::{AdminState, admin_auth_middleware},
 };
+
+/// 对话会话接口的请求体上限（32MB）
+const CHAT_SESSION_BODY_LIMIT: usize = 32 * 1024 * 1024;
 
 /// 创建 Admin API 路由
 pub fn create_admin_router(state: AdminState) -> Router {
@@ -133,7 +142,28 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/logs/stream", get(stream_logs))
         .route("/logs/snapshot", get(snapshot_logs))
         .route("/logs/download", get(download_logs))
-        .with_state(state);
+        .with_state(state.clone());
 
-    protected.merge(log_routes)
+    // 对话会话：消息正文（含思考内容）可能较大，单独放宽请求体上限（axum 默认 2MB）
+    let chat_routes = Router::new()
+        .route(
+            "/chat/sessions",
+            get(list_chat_sessions)
+                .post(create_chat_session)
+                .delete(clear_chat_sessions),
+        )
+        .route(
+            "/chat/sessions/{id}",
+            get(get_chat_session)
+                .put(update_chat_session)
+                .delete(delete_chat_session),
+        )
+        .layer(DefaultBodyLimit::max(CHAT_SESSION_BODY_LIMIT))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            admin_auth_middleware,
+        ))
+        .with_state(state.clone());
+
+    protected.merge(chat_routes).merge(log_routes)
 }

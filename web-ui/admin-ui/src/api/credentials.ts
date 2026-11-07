@@ -23,6 +23,8 @@ import type {
   ThrottleLogsResponse,
   FailureLogsResponse,
   ModelsResponse,
+  ChatSession,
+  ChatSessionMeta,
   ReleaseNotesResponse,
   DumpFilesResponse,
 } from '@/types/api'
@@ -365,6 +367,42 @@ export async function getModels(): Promise<ModelsResponse> {
 // 获取指定账号支持的模型
 export async function getCredentialModels(id: number): Promise<ModelsResponse> {
   const { data } = await api.get<ModelsResponse>(`/credentials/${id}/models`)
+  return data
+}
+
+// ============ 对话会话 ============
+
+export async function getChatSessions(): Promise<ChatSessionMeta[]> {
+  const { data } = await api.get<ChatSessionMeta[]>('/chat/sessions')
+  return data
+}
+
+export async function getChatSession<M>(id: string): Promise<ChatSession<M>> {
+  const { data } = await api.get<ChatSession<M>>(`/chat/sessions/${id}`)
+  return data
+}
+
+export async function createChatSession(title: string, messages: unknown[]): Promise<ChatSessionMeta> {
+  const { data } = await api.post<ChatSessionMeta>('/chat/sessions', { title, messages })
+  return data
+}
+
+export async function updateChatSession(
+  id: string,
+  messages: unknown[],
+  title?: string
+): Promise<ChatSessionMeta> {
+  const { data } = await api.put<ChatSessionMeta>(`/chat/sessions/${id}`, { title, messages })
+  return data
+}
+
+export async function deleteChatSession(id: string): Promise<SuccessResponse> {
+  const { data } = await api.delete<SuccessResponse>(`/chat/sessions/${id}`)
+  return data
+}
+
+export async function clearChatSessions(): Promise<{ success: boolean; removed: number }> {
+  const { data } = await api.delete<{ success: boolean; removed: number }>('/chat/sessions')
   return data
 }
 

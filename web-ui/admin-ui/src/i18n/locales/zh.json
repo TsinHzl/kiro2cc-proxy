@@ -719,7 +719,6 @@
     "send": "发送",
     "stop": "停止生成",
     "newChat": "新对话",
-    "confirmNewChat": "清空当前对话并开始新对话？",
     "regenerate": "重新生成",
     "generating": "生成中",
     "stopped": "已停止生成",
@@ -729,7 +728,19 @@
     "thoughtNoTime": "思考过程",
     "effortTitle": "深度思考力度",
     "effortUnsupported": "当前模型不支持深度思考",
-    "effortPill": "思考：{{level}}"
+    "effortPill": "思考：{{level}}",
+    "history": "历史对话",
+    "historyEmpty": "还没有历史对话。发送第一条消息后会自动保存到服务器。",
+    "untitled": "未命名对话",
+    "messageCount": "{{count}} 条消息",
+    "deleteSession": "删除对话",
+    "clearAll": "清空全部历史对话",
+    "toggleHistory": "显示 / 隐藏历史对话",
+    "confirmDelete": "删除对话「{{title}}」？删除后无法恢复。",
+    "confirmClearAll": "清空全部历史对话？该操作无法恢复。",
+    "saveFailed": "对话保存失败：{{message}}",
+    "loadFailed": "加载对话失败：{{message}}",
+    "deleteFailed": "删除失败：{{message}}"
   },
   "models": {
     "pageTitle": "支持模型",

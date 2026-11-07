@@ -3,6 +3,7 @@
 
 pub mod api_key;
 pub mod arg;
+pub mod chat_session;
 pub mod config;
 pub mod failure_log;
 pub mod geo;

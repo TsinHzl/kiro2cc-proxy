@@ -259,6 +259,19 @@ export interface ModelsResponse {
   data: ModelItem[]
 }
 
+// 对话会话（后端 chat_session.rs；消息结构由前端 playground/types.ts 定义，后端不解析）
+export interface ChatSessionMeta {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  messageCount: number
+}
+
+export interface ChatSession<M = unknown> extends Omit<ChatSessionMeta, 'messageCount'> {
+  messages: M[]
+}
+
 // 更新日志（字段名与后端 AdminReleaseNote 结构体保持一致，非 camelCase）
 export interface BilingualText {
   zh: string

@@ -278,39 +278,76 @@ Region [默认: us-east-1]:
 
 ## 🐧 服务器部署（Linux）
 
-### 方式一：Docker（最简单，推荐）
+### 方式一：Docker Compose + GHCR 预构建镜像（推荐）
 
-**前置要求**：服务器已安装 Docker 和 Docker Compose。
+推荐直接使用 `ghcr.io/tsinhzl/kiro2cc-proxy` 预构建镜像部署，无需克隆仓库、安装 Rust / Node.js 或本地编译。镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择匹配的架构。
+
+**前置要求**：服务器已安装 Docker 和 Docker Compose（支持 `docker compose` 命令），并能访问 `ghcr.io`。
+
+#### 1. 创建部署目录
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
+mkdir -p /opt/kiro2cc-proxy/data
 cd /opt/kiro2cc-proxy
-
-# 2. 创建配置文件（注意：配置文件在 data/ 目录下，不是 data/config/）
-mkdir -p data
-cp config.example.json data/config.json
-nano data/config.json   # 填入 adminPsw
 ```
 
-`data/config.json` 最小配置：
+#### 2. 创建 Compose 文件
 
-```json
+执行以下命令，在部署目录中新建 `docker-compose.yml` 并写入默认配置。此命令会覆盖同名文件；已有部署请先备份并保留自定义配置，不要直接执行。
+
+```bash
+cd /opt/kiro2cc-proxy
+cat > docker-compose.yml <<'EOF'
+services:
+  kiro2cc-proxy:
+    image: ghcr.io/tsinhzl/kiro2cc-proxy:latest
+    container_name: kiro2cc-proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "0.0.0.0:5678:5678"
+    volumes:
+      - ./data:/app/config
+    restart: unless-stopped
+EOF
+```
+
+镜像标签说明：
+
+| 标签 | 用途 |
+|------|------|
+| `latest` | 最近一次正式发布构建的镜像，适合跟随正式版本更新 |
+| `vX.Y.Z` | 对应已发布的版本标签；生产环境建议固定实际存在的版本，便于控制升级 |
+| `beta` | 普通主分支构建的滚动测试镜像，不推荐用于生产环境 |
+
+#### 3. 创建配置文件
+
+先将下方 `your-admin-password` 替换为自己的强密码，再执行命令创建 `data/config.json` 并写入最小配置。此命令会覆盖同名文件；已有部署请保留原文件，不要直接执行。
+
+```bash
+cd /opt/kiro2cc-proxy
+mkdir -p data
+cat > data/config.json <<'EOF'
 {
   "host": "0.0.0.0",
   "port": 5678,
   "region": "us-east-1",
   "adminPsw": "your-admin-password"
 }
+EOF
 ```
 
 > ⚠️ **【重要】`port` 字段必须是整数**，不能填写 Docker 端口映射格式（如 `"0.0.0.0:5678:5678"`），否则服务启动失败。正确写法：`"port": 5678`。
 
-```bash
-# 3. 创建账号文件（也可启动后在管理面板添加）
-echo "[]" > data/credentials.json
+容器内的 `host` 必须保持 `0.0.0.0`，否则 Docker 端口映射无法访问服务。配置文件位于宿主机的 `data/` 目录，不是 `data/config/`。
 
-# 4. 启动
+启动时会自动创建缺失的 `data/credentials.json`，之后可在管理面板添加账号；也可以在启动前放入已有账号文件。不要将已有账号文件覆盖为空数组。
+
+#### 4. 拉取镜像并启动
+
+```bash
+cd /opt/kiro2cc-proxy
+docker compose pull
 docker compose up -d
 
 # 查看日志
@@ -320,22 +357,82 @@ docker compose logs -f
 docker compose down
 ```
 
-服务启动后访问 `http://服务器IP:5678/admin` 进入管理面板。
+服务启动后访问 `http://服务器IP:5678/admin`，使用 `adminPsw` 登录管理面板，添加 Kiro 账号并创建客户端使用的 API Key。
 
-> **注意**：`docker-compose.yml` 中 `ports` 默认为 `"5678:5678"`，监听所有网卡。如需限制只允许本机访问，可改为 `"127.0.0.1:5678:5678"`。同时确保云服务商安全组（腾讯云/阿里云等）已开放 5678 端口的入站规则，否则外网无法访问。
+> **网络访问**：上述端口映射监听宿主机所有 IPv4 网卡。远程访问时需按需放行防火墙和云安全组的 TCP 5678 端口，建议限制来源 IP；公网使用建议通过 HTTPS 反向代理访问。若仅供宿主机访问，可将 `ports` 改为 `"127.0.0.1:5678:5678"`，容器内的 `host` 仍保持 `0.0.0.0`。
+
+> **数据持久化**：`./data:/app/config` 保存配置、账号、API Key 和用量等数据。升级或重建容器时必须沿用原部署目录与挂载，且保持目录可写；不要删除或公开分享 `data/`。
 
 #### 更新到最新版本
+
+升级前先备份整个 `data/` 目录。使用 `latest` 标签时执行：
+
+```bash
+cd /opt/kiro2cc-proxy
+docker compose pull
+docker compose up -d
+```
+
+执行 `pull` 只下载镜像，随后 `up -d` 会在镜像变化时重建容器并保留挂载数据，无需 `git pull` 或先执行 `docker compose down`。固定版本部署需先将 `image` 的标签改为目标已发布版本，再执行上述命令。
+
+### 方式二：克隆仓库 + Docker Compose
+
+保留原有的仓库克隆部署方式，适合希望直接复用仓库配置文件的用户。此方式默认同样拉取 `ghcr.io/tsinhzl/kiro2cc-proxy:latest`，不会在本地编译镜像；无需仓库文件时，优先使用上面的推荐方式。
+
+**前置要求**：已安装 Git、Docker 和 Docker Compose，并能访问 GitHub 和 `ghcr.io`。
+
+#### 1. 克隆仓库
+
+以下命令用于首次部署，目标目录应不存在；已有仓库直接进入原目录，不要重复克隆。两种 Docker 方式任选其一，不要在同一部署目录混用初始化步骤。
+
+```bash
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
+cd /opt/kiro2cc-proxy
+```
+
+#### 2. 创建配置文件
+
+```bash
+mkdir -p data
+if [ ! -f data/config.json ]; then
+  cp config.example.json data/config.json
+fi
+nano data/config.json
+```
+
+将 `host` 从示例中的 `127.0.0.1` 改为 `0.0.0.0`，将 `adminPsw` 设置为自己的强密码，保留整数端口 `"port": 5678`。最小配置与上面的推荐方式相同，文件位置是 `data/config.json`，不是 `data/config/config.json`。
+
+账号文件 `data/credentials.json` 缺失时由容器自动创建，启动后可在管理面板添加账号；已有账号文件请保留，不要覆盖为空数组。
+
+#### 3. 启动和管理
+
+```bash
+docker compose pull
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止
+docker compose down
+```
+
+访问 `http://服务器IP:5678/admin`，使用 `adminPsw` 登录。端口访问限制、HTTPS 和 `data/` 持久化要求与上面的推荐方式相同。
+
+#### 更新仓库与镜像
+
+升级前备份整个 `data/` 目录；如有自行修改的仓库文件，先检查并处理本地改动，再更新仓库：
 
 ```bash
 cd /opt/kiro2cc-proxy
 git pull
 docker compose pull
-docker compose down && docker compose up -d
+docker compose up -d
 ```
 
-> **说明**：每次推送新 tag（如 `v1.x.x`）后，GitHub Actions 会自动构建并推送新镜像到 `ghcr.io`。`docker compose pull` 会拉取最新的 `latest` 镜像。
+仅更新镜像时可省略 `git pull`。仓库 Compose 默认使用 `latest`；若通过 `IMAGE_OWNER` / `IMAGE_TAG` 环境变量或 `.env` 覆盖默认值，请先确认实际镜像来源和标签。固定版本需先将 `IMAGE_TAG` 改为目标已发布版本，再拉取并重建容器。
 
-### 方式二：systemd 一键安装
+### 方式三：systemd 一键安装
 
 适合不想用 Docker、希望直接跑二进制的场景。
 
@@ -361,7 +458,7 @@ systemctl stop kiro2cc-proxy         # 停止
 journalctl -u kiro2cc-proxy -f       # 实时日志
 ```
 
-### 方式三：手动后台运行（无 systemd）
+### 方式四：手动后台运行（无 systemd）
 
 ```bash
 bash start_server.sh start     # 后台启动
@@ -896,12 +993,15 @@ lsof -ti:5678 | xargs kill -9
 
 **Q：如何更新到最新版本（Docker 部署）**
 
+使用 GHCR 镜像部署时，无需更新源码。先备份 `data/`，然后执行：
+
 ```bash
 cd /opt/kiro2cc-proxy
-git pull
 docker compose pull
-docker compose down && docker compose up -d
+docker compose up -d
 ```
+
+使用固定版本标签时，先将 `docker-compose.yml` 中的 `image` 标签改为目标已发布版本；保留原 `data/` 挂载。
 
 **Q：如何更新到最新版本（本地部署）**
 

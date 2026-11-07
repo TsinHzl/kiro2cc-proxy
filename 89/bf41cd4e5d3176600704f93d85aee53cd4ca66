@@ -1,0 +1,51 @@
+README.md
+  339d8cb0f9058c10 281,283,285-287,290,292,294-309,312,314-318,320-322,335-337,339,341-343,353,355,357,361,366,368-369,371,373-418,423,426,428,454,989-990,994,997
+README.en.md
+  339d8cb0f9058c10 277,279,281-283,286,288,290-305,308,310-314,316-318,331,333,335-339,349,351,353,357,362,364-365,367,369-414,419,422,424,450,968-969,973,976
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "89bf41cd4e5d3176600704f93d85aee53cd4ca66",
+  "prompts": {
+    "339d8cb0f9058c10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cb84ecb-8114-4400-8fc0-dc7e7ed26040",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 236,
+      "total_deletions": 50,
+      "accepted_lines": 230,
+      "overriden_lines": 0
+    },
+    "ae8fba54d63e43c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11793dcd-18b0-4370-ac32-438c0fb83951",
+        "model": "glm-5.3"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    },
+    "e69c1e4a66f517ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1ae10acc-ab7a-4081-8b07-a5573857250b",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 203,
+      "overriden_lines": 0
+    }
+  }
+}

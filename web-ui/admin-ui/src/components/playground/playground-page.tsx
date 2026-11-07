@@ -47,14 +47,15 @@ export function PlaygroundPage() {
   const activeKey = enabledKeys.find((k) => k.id === config.keyId) ?? enabledKeys[0] ?? null
 
   const effort: Effort = modelSupportsEffort(model) ? config.effort : 'off'
-  const runOptions = { apiKey: activeKey?.key ?? null, model, effort }
+  const webSearch = config.webSearch
+  const runOptions = { apiKey: activeKey?.key ?? null, model, effort, webSearch }
   const canChat = activeKey !== null && model !== '' && !loading
 
   const activeTitle = sessions?.find((s) => s.id === activeId)?.title
 
   const handleRegenerate = useCallback(
-    () => regenerate({ apiKey: activeKey?.key ?? null, model, effort }),
-    [regenerate, activeKey?.key, model, effort],
+    () => regenerate({ apiKey: activeKey?.key ?? null, model, effort, webSearch }),
+    [regenerate, activeKey?.key, model, effort, webSearch],
   )
 
   /** 窄屏下选择完成后收起浮层，露出对话 */
@@ -90,27 +91,37 @@ export function PlaygroundPage() {
       />
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[14px] border-[0.5px] border-hairline bg-surface shadow-hair">
-        {sidebarOpen && (
-          <>
-            {/* 窄屏浮层的点击遮罩 */}
-            <div
-              aria-hidden
-              onClick={() => setSidebarOpen(false)}
-              className="absolute inset-0 z-10 bg-black/30 md:hidden"
-            />
-            <SessionsSidebar
-              className="max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-20 max-md:shadow-panel"
-              sessions={sessions}
-              isLoading={sessionsLoading}
-              activeId={activeId}
-              locked={isGenerating}
-              onNew={handleNew}
-              onSelect={handleSelect}
-              onDelete={handleDelete}
-              onClearAll={handleClearAll}
-            />
-          </>
-        )}
+        {/* 窄屏浮层的点击遮罩：淡入淡出，收起时不拦截点击 */}
+        <div
+          aria-hidden
+          onClick={() => setSidebarOpen(false)}
+          className={`absolute inset-0 z-10 bg-black/30 transition-opacity duration-300 motion-reduce:transition-none md:hidden ${
+            sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        />
+        {/*
+          始终挂载，用样式做动画：桌面端宽度 16rem ↔ 0（内层固定宽度，内容不会随之重排），
+          窄屏端整体平移滑入 / 滑出。invisible 的 visibility 会在动画结束时才生效，
+          收起后既不可见也不会被 Tab 聚焦到。
+        */}
+        <div
+          className={`shrink-0 overflow-hidden transition-[width,transform,visibility] duration-300 ease-out motion-reduce:transition-none max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-20 max-md:w-64 ${
+            sidebarOpen
+              ? 'visible md:w-64 max-md:shadow-panel'
+              : 'invisible md:w-0 max-md:-translate-x-full'
+          }`}
+        >
+          <SessionsSidebar
+            sessions={sessions}
+            isLoading={sessionsLoading}
+            activeId={activeId}
+            locked={isGenerating}
+            onNew={handleNew}
+            onSelect={handleSelect}
+            onDelete={handleDelete}
+            onClearAll={handleClearAll}
+          />
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b-[0.5px] border-hairline px-3">
@@ -150,15 +161,15 @@ export function PlaygroundPage() {
               models={modelIds}
               model={model}
               effort={config.effort}
+              webSearch={webSearch}
               isGenerating={isGenerating}
               sendDisabled={!canChat}
-              hasMessages={messages.length > 0}
               onKeyChange={(value) => updateConfig('keyId', value)}
               onModelChange={(value) => updateConfig('model', value)}
               onEffortChange={(value) => updateConfig('effort', value)}
-              onSend={(text) => send(text, runOptions)}
+              onWebSearchChange={(value) => updateConfig('webSearch', value)}
+              onSend={(text, attachments) => send(text, runOptions, attachments)}
               onStop={stop}
-              onNewChat={handleNew}
             />
           </div>
         </div>

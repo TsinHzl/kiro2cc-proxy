@@ -1,13 +1,19 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import type { ApiMessage, Effort } from './types'
+import type { ApiMessage, Effort, WebSearchResult } from './types'
 
 /** 单次回复的输出上限；后端会再按模型能力裁剪 */
 const MAX_OUTPUT_TOKENS = 16384
+/** 单次回复内模型最多可发起的搜索次数（后端另有 5 次的硬上限） */
+const WEB_SEARCH_MAX_USES = 5
+/** 让代理走「模型自主决定是否搜索」的桥接路径，见后端 websearch::wants_model_driven_search */
+const WEB_SEARCH_MODE_HEADER = 'x-web-search-mode'
 
 export interface StreamParams {
   apiKey: string
   model: string
   effort: Effort
+  /** 允许模型联网搜索 */
+  webSearch: boolean
   messages: ApiMessage[]
   signal: AbortSignal
 }
@@ -16,6 +22,40 @@ export interface StreamHandlers {
   onThinking: (delta: string) => void
   onText: (delta: string) => void
   onUsage: (usage: { input?: number; output?: number }) => void
+  /** 模型发起了一次搜索（查询词已完整） */
+  onSearchCall: (id: string, query: string) => void
+  /** 搜索返回结果；error 表示上游报告了搜索错误 */
+  onSearchResult: (id: string, results: WebSearchResult[], error: boolean) => void
+}
+
+/** 流式解析过程中的状态：按 content block 下标跟踪 server_tool_use 的 input_json 分片 */
+interface ParseState {
+  searchBlocks: Map<number, { id: string; json: string }>
+}
+
+function toSearchResults(content: unknown): WebSearchResult[] {
+  if (!Array.isArray(content)) return []
+  return content.flatMap((item): WebSearchResult[] => {
+    if (!item || typeof item !== 'object') return []
+    const r = item as Record<string, unknown>
+    if (typeof r.url !== 'string') return []
+    return [
+      {
+        url: r.url,
+        title: typeof r.title === 'string' && r.title !== '' ? r.title : r.url,
+        snippet: typeof r.encrypted_content === 'string' ? r.encrypted_content : '',
+      },
+    ]
+  })
+}
+
+function parseSearchQuery(json: string): string {
+  try {
+    const query = (JSON.parse(json) as { query?: unknown }).query
+    return typeof query === 'string' ? query : ''
+  } catch {
+    return ''
+  }
 }
 
 interface AnthropicErrorBody {
@@ -37,7 +77,7 @@ async function readHttpError(res: Response): Promise<string> {
 }
 
 /** 处理一条 SSE 事件的 data 负载；遇到上游 error 事件时抛出 */
-function dispatchEvent(data: string, handlers: StreamHandlers): void {
+function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState): void {
   let event: Record<string, any>
   try {
     event = JSON.parse(data)
@@ -49,10 +89,32 @@ function dispatchEvent(data: string, handlers: StreamHandlers): void {
     case 'message_start':
       handlers.onUsage({ input: event.message?.usage?.input_tokens })
       break
+    case 'content_block_start': {
+      const block = event.content_block ?? {}
+      if (block.type === 'server_tool_use' && block.name === 'web_search' && typeof block.id === 'string') {
+        state.searchBlocks.set(event.index, { id: block.id, json: '' })
+      } else if (block.type === 'web_search_tool_result' && typeof block.tool_use_id === 'string') {
+        // 成功时 content 是结果数组；搜索出错时是 { type: 'web_search_tool_result_error' } 对象
+        handlers.onSearchResult(block.tool_use_id, toSearchResults(block.content), !Array.isArray(block.content))
+      }
+      break
+    }
     case 'content_block_delta': {
       const delta = event.delta ?? {}
       if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') handlers.onThinking(delta.thinking)
       else if (delta.type === 'text_delta' && typeof delta.text === 'string') handlers.onText(delta.text)
+      else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+        const search = state.searchBlocks.get(event.index)
+        if (search) search.json += delta.partial_json
+      }
+      break
+    }
+    case 'content_block_stop': {
+      const search = state.searchBlocks.get(event.index)
+      if (search) {
+        state.searchBlocks.delete(event.index)
+        handlers.onSearchCall(search.id, parseSearchQuery(search.json))
+      }
       break
     }
     case 'message_delta':
@@ -80,14 +142,19 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
     body.thinking = { type: 'adaptive' }
     body.output_config = { effort: params.effort }
   }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-api-key': params.apiKey,
+    'anthropic-version': '2023-06-01',
+  }
+  if (params.webSearch) {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: WEB_SEARCH_MAX_USES }]
+    headers[WEB_SEARCH_MODE_HEADER] = 'model'
+  }
 
   const res = await fetch('/v1/messages', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': params.apiKey,
-      'anthropic-version': '2023-06-01',
-    },
+    headers,
     body: JSON.stringify(body),
     signal: params.signal,
   })
@@ -96,6 +163,7 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
+  const state: ParseState = { searchBlocks: new Map() }
   let buffer = ''
 
   const flushBlock = (block: string) => {
@@ -104,7 +172,7 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
       .filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).trimStart())
       .join('\n')
-    if (data !== '') dispatchEvent(data, handlers)
+    if (data !== '') dispatchEvent(data, handlers, state)
   }
 
   for (;;) {

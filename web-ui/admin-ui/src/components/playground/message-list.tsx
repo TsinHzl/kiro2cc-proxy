@@ -1,11 +1,22 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { AlertCircle, Brain, Check, ChevronRight, Copy, Loader2, MessageSquarePlus, RotateCw } from 'lucide-react'
+import {
+  AlertCircle,
+  Brain,
+  Check,
+  ChevronRight,
+  Copy,
+  Globe,
+  Loader2,
+  MessageSquarePlus,
+  RotateCw,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/clipboard'
 import { toast } from '@/lib/toast'
+import { AttachmentView } from './attachment-view'
 import { Markdown } from './markdown'
-import type { ChatMessage } from './types'
+import type { ChatMessage, WebSearchCall } from './types'
 
 /** 距底部小于该值视为「正在跟随最新消息」，新内容到达时自动滚到底 */
 const STICK_THRESHOLD_PX = 80
@@ -63,6 +74,82 @@ function ReasoningBlock({ message }: { message: ChatMessage }) {
   )
 }
 
+/** 只允许 http(s) 链接可点击；搜索结果来自外部网页，不能把 javascript: 之类的地址放进 href */
+function isHttpUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url)
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function SearchBlock({ search }: { search: WebSearchCall }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const searching = search.status === 'searching'
+  const query = search.query || '…'
+  const label = searching
+    ? t('playground.searching', { query })
+    : t('playground.searched', { query })
+  const detail =
+    search.status === 'error'
+      ? t('playground.searchFailed')
+      : search.status === 'stopped'
+        ? t('playground.searchStopped')
+        : searching
+          ? null
+          : search.results.length === 0
+            ? t('playground.searchNoResults')
+            : t('playground.searchResultCount', { count: search.results.length })
+  const expandable = search.results.length > 0
+
+  return (
+    <div className="mb-2">
+      <button
+        type="button"
+        onClick={() => expandable && setOpen(!open)}
+        aria-expanded={expandable ? open : undefined}
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-md py-1 text-[12px] text-ink-3 transition-colors ${
+          expandable ? 'hover:text-ink-2' : 'cursor-default'
+        }`}
+      >
+        {searching ? <Loader2 className="size-3.5 shrink-0 animate-spin" /> : <Globe className="size-3.5 shrink-0" />}
+        <span className="min-w-0 truncate">{label}</span>
+        {detail && <span className="shrink-0 text-ink-3/80">· {detail}</span>}
+        {expandable && (
+          <ChevronRight className={`size-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+        )}
+      </button>
+      {open && expandable && (
+        <ul className="mt-1 max-h-72 space-y-2 overflow-y-auto border-l-2 border-hairline-2 pl-3">
+          {search.results.map((r, i) => (
+            <li key={`${r.url}-${i}`} className="min-w-0 text-[12.5px] leading-[1.6]">
+              {isHttpUrl(r.url) ? (
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block truncate font-medium text-ink-2 hover:text-brand hover:underline"
+                >
+                  {r.title}
+                </a>
+              ) : (
+                <span className="block truncate font-medium text-ink-2">{r.title}</span>
+              )}
+              <div className="truncate text-[11px] text-ink-3">{hostOf(r.url)}</div>
+              {r.snippet && <p className="line-clamp-2 break-words text-ink-3">{r.snippet}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 interface MessageItemProps {
   message: ChatMessage
   canRegenerate: boolean
@@ -85,20 +172,32 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
 
   if (message.role === 'user') {
     return (
-      <div className="flex justify-end py-2.5">
-        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-surface-3 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
-          {message.content}
-        </div>
+      <div className="flex flex-col items-end gap-2 py-2.5">
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-2">
+            {message.attachments.map((a) => (
+              <AttachmentView key={a.id} attachment={a} large />
+            ))}
+          </div>
+        )}
+        {message.content !== '' && (
+          <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-surface-3 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
+            {message.content}
+          </div>
+        )}
       </div>
     )
   }
 
   const streaming = message.status === 'streaming'
-  const waiting = streaming && message.content === '' && !message.reasoning
+  // 搜索进行中时搜索块自带转圈，不再叠加跳动的圆点
+  const searchPending = message.searches?.some((s) => s.status === 'searching') ?? false
+  const waiting = streaming && message.content === '' && !message.reasoning && !searchPending
 
   return (
     <div className="group py-2.5">
       {message.reasoning && <ReasoningBlock message={message} />}
+      {message.searches?.map((s) => <SearchBlock key={s.id} search={s} />)}
       {message.content !== '' && <Markdown text={message.content} />}
       {waiting && (
         <div className="flex items-center gap-1 py-2" aria-label={t('playground.generating')}>

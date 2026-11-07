@@ -15,10 +15,13 @@ import { extractErrorMessage } from '@/lib/utils'
 import { streamMessage } from './stream'
 import {
   EFFORT_OPTIONS,
+  type ApiContentBlock,
   type ApiMessage,
+  type Attachment,
   type ChatMessage,
   type Effort,
   type PlaygroundConfig,
+  type WebSearchCall,
 } from './types'
 
 /** 模型 / 思考力度 / Key 的选择仍存浏览器本地；会话本身存后端 */
@@ -29,16 +32,22 @@ const ACTIVE_KEY = 'playground:v2:active'
 const LEGACY_MESSAGES_KEY = 'playground:v1:messages'
 const TITLE_MAX_CHARS = 40
 
-const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null }
+const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null, webSearch: false }
 
 function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+/** 仍在等待结果的搜索不会再收到结果（流已结束或被中断），改记为已中断 */
+function settleSearches(m: ChatMessage): ChatMessage {
+  if (!m.searches?.some((s) => s.status === 'searching')) return m
+  return { ...m, searches: m.searches.map((s) => (s.status === 'searching' ? { ...s, status: 'stopped' } : s)) }
+}
+
 /** 流式中途被中断（刷新 / 离开页面）而遗留的 streaming 状态不会再有后续数据，改记为已中断 */
 function normalizeMessages(raw: unknown): ChatMessage[] {
   if (!Array.isArray(raw)) return []
-  return (raw as ChatMessage[]).map((m) => (m.status === 'streaming' ? { ...m, status: 'stopped' } : m))
+  return (raw as ChatMessage[]).map((m) => settleSearches(m.status === 'streaming' ? { ...m, status: 'stopped' } : m))
 }
 
 function readLegacyMessages(): ChatMessage[] {
@@ -66,9 +75,10 @@ function writeActiveId(id: string | null): void {
   }
 }
 
-/** 会话标题取第一条用户消息的开头 */
+/** 会话标题取第一条用户消息的开头；只发了附件时用第一个附件的文件名 */
 function deriveTitle(messages: ChatMessage[]): string {
-  const first = messages.find((m) => m.role === 'user')?.content ?? ''
+  const firstUser = messages.find((m) => m.role === 'user')
+  const first = firstUser?.content.trim() ? firstUser.content : (firstUser?.attachments?.[0]?.name ?? '')
   return Array.from(first.replace(/\s+/g, ' ').trim()).slice(0, TITLE_MAX_CHARS).join('')
 }
 
@@ -79,6 +89,7 @@ function loadConfig(): PlaygroundConfig {
       model: typeof parsed.model === 'string' ? parsed.model : '',
       effort: EFFORT_OPTIONS.includes(parsed.effort as Effort) ? (parsed.effort as Effort) : 'off',
       keyId: typeof parsed.keyId === 'number' ? parsed.keyId : null,
+      webSearch: parsed.webSearch === true,
     }
   } catch {
     return DEFAULT_CONFIG
@@ -93,19 +104,45 @@ function persistConfig(config: PlaygroundConfig): void {
   }
 }
 
+/** 单条消息的内容块：图片在前，文本文件随后，用户输入的文字放最后（Anthropic 推荐的顺序） */
+function toContentBlocks(m: ChatMessage): ApiContentBlock[] {
+  const blocks: ApiContentBlock[] = []
+  const attachments = m.attachments ?? []
+  for (const a of attachments) {
+    if (a.kind === 'image') {
+      blocks.push({ type: 'image', source: { type: 'base64', media_type: a.mediaType, data: a.data } })
+    }
+  }
+  for (const a of attachments) {
+    if (a.kind === 'text') {
+      const name = a.name.replace(/"/g, "'")
+      blocks.push({ type: 'text', text: `<attachment name="${name}">\n${a.data}\n</attachment>` })
+    }
+  }
+  if (m.content.trim() !== '') blocks.push({ type: 'text', text: m.content })
+  return blocks
+}
+
 /**
- * 转成 Anthropic messages：丢弃没有正文的回复（失败 / 中断且无输出），
+ * 转成 Anthropic messages：丢弃没有内容的回复（失败 / 中断且无输出），
  * 并合并相邻同角色消息 —— 上游要求 user / assistant 交替出现。
+ * 只有文本的消息仍用字符串形式，与未支持附件时发出的请求一致。
  */
 function toApiMessages(messages: ChatMessage[]): ApiMessage[] {
-  const out: ApiMessage[] = []
+  const merged: { role: 'user' | 'assistant'; blocks: ApiContentBlock[] }[] = []
   for (const m of messages) {
-    if (m.content.trim() === '') continue
-    const last = out[out.length - 1]
-    if (last && last.role === m.role) last.content += `\n\n${m.content}`
-    else out.push({ role: m.role, content: m.content })
+    const blocks = toContentBlocks(m)
+    if (blocks.length === 0) continue
+    const last = merged[merged.length - 1]
+    if (last && last.role === m.role) last.blocks.push(...blocks)
+    else merged.push({ role: m.role, blocks })
   }
-  return out
+  return merged.map(({ role, blocks }) => {
+    if (blocks.every((b) => b.type === 'text')) {
+      return { role, content: blocks.map((b) => (b.type === 'text' ? b.text : '')).join('\n\n') }
+    }
+    return { role, content: blocks }
+  })
 }
 
 export interface RunOptions {
@@ -113,6 +150,8 @@ export interface RunOptions {
   model: string
   /** 已按模型能力折算后的实际力度（模型不支持时应传 off） */
   effort: Effort
+  /** 允许模型联网搜索 */
+  webSearch: boolean
 }
 
 export function usePlayground() {
@@ -262,7 +301,7 @@ export function usePlayground() {
 
   /** base 必须以 user 消息结尾；追加一条空的 assistant 消息并开始流式填充 */
   const run = useCallback(
-    async (base: ChatMessage[], { apiKey, model, effort }: RunOptions) => {
+    async (base: ChatMessage[], { apiKey, model, effort, webSearch }: RunOptions) => {
       if (!apiKey) return
       const assistant: ChatMessage = { id: newId(), role: 'assistant', content: '', status: 'streaming', model }
       setMessages([...base, assistant])
@@ -290,6 +329,7 @@ export function usePlayground() {
             apiKey,
             model,
             effort,
+            webSearch,
             messages: toApiMessages(base),
             signal: controller.signal,
           },
@@ -302,6 +342,18 @@ export function usePlayground() {
               closeThinking()
               patchMessage(assistant.id, (m) => ({ ...m, content: m.content + delta }))
             },
+            onSearchCall: (id, query) => {
+              closeThinking()
+              const call: WebSearchCall = { id, query, status: 'searching', results: [] }
+              patchMessage(assistant.id, (m) => ({ ...m, searches: [...(m.searches ?? []), call] }))
+            },
+            onSearchResult: (id, results, failed) =>
+              patchMessage(assistant.id, (m) => ({
+                ...m,
+                searches: (m.searches ?? []).map((s) =>
+                  s.id === id ? { ...s, status: failed ? 'error' : 'done', results } : s,
+                ),
+              })),
             onUsage: ({ input, output }) =>
               patchMessage(assistant.id, (m) => ({
                 ...m,
@@ -310,15 +362,17 @@ export function usePlayground() {
           },
         )
         closeThinking()
-        patchMessage(assistant.id, (m) => ({ ...m, status: 'done' }))
+        patchMessage(assistant.id, (m) => settleSearches({ ...m, status: 'done' }))
       } catch (error) {
         closeThinking()
         const aborted = error instanceof DOMException && error.name === 'AbortError'
-        patchMessage(assistant.id, (m) => ({
-          ...m,
-          status: aborted ? 'stopped' : 'error',
-          error: aborted ? undefined : error instanceof Error ? error.message : String(error),
-        }))
+        patchMessage(assistant.id, (m) =>
+          settleSearches({
+            ...m,
+            status: aborted ? 'stopped' : 'error',
+            error: aborted ? undefined : error instanceof Error ? error.message : String(error),
+          }),
+        )
       } finally {
         if (abortRef.current === controller) {
           abortRef.current = null
@@ -330,10 +384,16 @@ export function usePlayground() {
   )
 
   const send = useCallback(
-    (text: string, opts: RunOptions) => {
+    (text: string, opts: RunOptions, attachments: Attachment[] = []) => {
       const content = text.trim()
-      if (content === '' || abortRef.current) return
-      const user: ChatMessage = { id: newId(), role: 'user', content, status: 'done' }
+      if ((content === '' && attachments.length === 0) || abortRef.current) return
+      const user: ChatMessage = {
+        id: newId(),
+        role: 'user',
+        content,
+        status: 'done',
+        ...(attachments.length > 0 ? { attachments } : {}),
+      }
       void run([...messagesRef.current, user], opts)
     },
     [run],

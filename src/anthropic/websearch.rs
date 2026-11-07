@@ -112,6 +112,24 @@ pub fn has_web_search_tool(req: &MessagesRequest) -> bool {
     })
 }
 
+/// 请求头：声明单一 web_search 工具的请求由模型自行决定是否搜索
+pub const WEB_SEARCH_MODE_HEADER: &str = "x-web-search-mode";
+/// [`WEB_SEARCH_MODE_HEADER`] 的取值：走桥接路径（模型决定是否调用搜索，搜索后继续作答）
+const WEB_SEARCH_MODE_MODEL: &str = "model";
+
+/// 请求是否要求模型自主调用 web_search（而不是走纯 WebSearch 快捷路径）
+///
+/// 纯 WebSearch 路径面向 Claude Code 的 WebSearch 子调用：tools 只有 web_search 时，
+/// 直接拿第一条消息当查询词并返回结果摘要，不经过模型，也不看后续轮次。
+/// 多轮对话客户端（如 Admin 的对话页）需要模型根据上下文决定搜索词并解读结果，
+/// 通过该请求头选择走桥接路径。不带该请求头的请求行为不变。
+pub fn wants_model_driven_search(headers: &axum::http::HeaderMap) -> bool {
+    headers
+        .get(WEB_SEARCH_MODE_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case(WEB_SEARCH_MODE_MODEL))
+}
+
 /// 从消息中提取搜索查询
 ///
 /// 读取 messages 的第一条消息的第一个内容块
@@ -590,6 +608,23 @@ mod tests {
 
         // 多个工具时不应该被识别为纯 websearch 请求
         assert!(!has_web_search_tool(&req));
+    }
+
+    #[test]
+    fn test_wants_model_driven_search() {
+        use axum::http::{HeaderMap, HeaderValue};
+
+        let mut headers = HeaderMap::new();
+        assert!(!wants_model_driven_search(&headers), "无请求头保持原行为");
+
+        headers.insert(WEB_SEARCH_MODE_HEADER, HeaderValue::from_static("model"));
+        assert!(wants_model_driven_search(&headers));
+
+        headers.insert(WEB_SEARCH_MODE_HEADER, HeaderValue::from_static(" Model "));
+        assert!(wants_model_driven_search(&headers), "忽略大小写与首尾空白");
+
+        headers.insert(WEB_SEARCH_MODE_HEADER, HeaderValue::from_static("other"));
+        assert!(!wants_model_driven_search(&headers));
     }
 
     #[test]

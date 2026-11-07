@@ -42,7 +42,7 @@ export function SessionsSidebar({
   const list = sessions ?? []
 
   return (
-    <aside className={`flex min-h-0 w-64 shrink-0 flex-col border-r-[0.5px] border-hairline bg-surface-2 ${className}`}>
+    <aside className={`flex h-full min-h-0 w-64 shrink-0 flex-col border-r-[0.5px] border-hairline bg-surface-2 ${className}`}>
       <div className="flex shrink-0 items-center gap-2 p-3">
         <button
           type="button"

@@ -274,22 +274,48 @@ Press `Ctrl+C` in the PowerShell window, or close the window.
 
 ## 🐧 Server Deployment (Linux)
 
-### Option 1: Docker (Simplest, Recommended)
+### Option 1: Docker Compose + GHCR Prebuilt Image (Recommended)
 
-**Requirements**: Docker and Docker Compose installed on the server.
+Deploy directly with the prebuilt `ghcr.io/tsinhzl/kiro2cc-proxy` image. No repository clone, Rust / Node.js installation, or local compilation is required. Images support `linux/amd64` and `linux/arm64`; Docker automatically selects the matching architecture.
+
+**Requirements**: Docker and Docker Compose (supporting the `docker compose` command) installed on the server, with network access to `ghcr.io`.
+
+#### 1. Create the Deployment Directory
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
+mkdir -p /opt/kiro2cc-proxy/data
 cd /opt/kiro2cc-proxy
-
-# 2. Create config file (note: config lives in data/, not data/config/)
-mkdir -p data
-cp config.example.json data/config.json
-nano data/config.json   # Fill in adminPsw
 ```
 
-Minimal `data/config.json`:
+#### 2. Create the Compose File
+
+Create `docker-compose.yml` in the deployment directory:
+
+```yaml
+services:
+  kiro2cc-proxy:
+    image: ghcr.io/tsinhzl/kiro2cc-proxy:latest
+    container_name: kiro2cc-proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "0.0.0.0:5678:5678"
+    volumes:
+      - ./data:/app/config
+    restart: unless-stopped
+```
+
+Available image tags:
+
+| Tag | Purpose |
+|-----|---------|
+| `latest` | Image from the most recent release build, for following release updates |
+| `vX.Y.Z` | A published version tag; pin an existing version in production to control upgrades |
+| `beta` | Rolling test image from regular main-branch builds; not recommended for production |
+
+#### 3. Create the Configuration File
+
+Write the following minimal configuration to `data/config.json`, replacing `adminPsw` with your own strong password. For an existing deployment, preserve the original file instead of overwriting it:
 
 ```json
 {
@@ -302,11 +328,15 @@ Minimal `data/config.json`:
 
 > ⚠️ **`port` must be an integer**, not a Docker port-mapping string (e.g. `"0.0.0.0:5678:5678"`). Correct: `"port": 5678`. The service will fail to start if this is wrong.
 
-```bash
-# 3. Create accounts file (or add via admin panel after startup)
-echo "[]" > data/credentials.json
+Keep the container's `host` set to `0.0.0.0` so the service is reachable through Docker's port mapping. The configuration file belongs in the host's `data/` directory, not `data/config/`.
 
-# 4. Start
+If `data/credentials.json` is missing, it is created automatically at startup. You can then add accounts through the admin panel, or place an existing credentials file there before starting. Do not overwrite an existing credentials file with an empty array.
+
+#### 4. Pull the Image and Start
+
+```bash
+cd /opt/kiro2cc-proxy
+docker compose pull
 docker compose up -d
 
 # View logs
@@ -316,22 +346,82 @@ docker compose logs -f
 docker compose down
 ```
 
-Access the admin panel at `http://your-server-ip:5678/admin`.
+Open `http://your-server-ip:5678/admin`, sign in with `adminPsw`, add Kiro accounts, and create an API Key for your clients.
 
-> **Note**: `docker-compose.yml` binds to `5678:5678` (all interfaces) by default. To restrict to localhost only, change `ports` to `"127.0.0.1:5678:5678"`. Also make sure your cloud provider's security group (Tencent Cloud / Alibaba Cloud etc.) has an inbound rule allowing port 5678, otherwise external access will be refused.
+> **Network access**: The mapping above listens on all host IPv4 interfaces. For remote access, allow TCP port 5678 through the firewall and cloud security group as needed, preferably restricting source IPs. Use an HTTPS reverse proxy for public access. For host-only access, change `ports` to `"127.0.0.1:5678:5678"` while keeping the container's `host` set to `0.0.0.0`.
+
+> **Data persistence**: `./data:/app/config` stores configuration, accounts, API Keys, usage records, and other data. Keep the original deployment directory and mount when upgrading or recreating the container, and ensure the directory remains writable. Do not delete or publicly share `data/`.
 
 #### Updating to the Latest Version
+
+Back up the entire `data/` directory before upgrading. When using the `latest` tag, run:
+
+```bash
+cd /opt/kiro2cc-proxy
+docker compose pull
+docker compose up -d
+```
+
+The `pull` command only downloads the image. The subsequent `up -d` recreates the container if the image has changed, preserving mounted data. Neither `git pull` nor a preceding `docker compose down` is required. For a pinned version, first change the `image` tag to the desired published version, then run the commands above.
+
+### Option 2: Repository Clone + Docker Compose
+
+The original repository-clone workflow remains available for users who prefer to reuse the repository's configuration files. It also pulls `ghcr.io/tsinhzl/kiro2cc-proxy:latest` by default, without building the image locally. Prefer the recommended option above if you do not need the repository files.
+
+**Requirements**: Git, Docker, and Docker Compose installed, with access to GitHub and `ghcr.io`.
+
+#### 1. Clone the Repository
+
+These commands are for a new deployment; the target directory should not already exist. For an existing clone, enter its original directory instead. Choose one Docker deployment method rather than mixing initialization steps in the same directory.
+
+```bash
+git clone https://github.com/TsinHzl/kiro2cc-proxy.git /opt/kiro2cc-proxy
+cd /opt/kiro2cc-proxy
+```
+
+#### 2. Create the Configuration File
+
+```bash
+mkdir -p data
+if [ ! -f data/config.json ]; then
+  cp config.example.json data/config.json
+fi
+nano data/config.json
+```
+
+Change `host` from the example's `127.0.0.1` to `0.0.0.0`, set `adminPsw` to your own strong password, and keep the integer port `"port": 5678`. The minimal configuration is the same as in the recommended option above. The file belongs at `data/config.json`, not `data/config/config.json`.
+
+The container automatically creates `data/credentials.json` if it is missing. Add accounts through the admin panel after startup; preserve any existing credentials file instead of overwriting it with an empty array.
+
+#### 3. Start and Manage the Service
+
+```bash
+docker compose pull
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+Open `http://your-server-ip:5678/admin` and sign in with `adminPsw`. The port access restrictions, HTTPS guidance, and `data/` persistence requirements from the recommended option also apply here.
+
+#### Updating the Repository and Image
+
+Back up the entire `data/` directory before upgrading. If you have modified repository files, review and handle those local changes before updating the repository:
 
 ```bash
 cd /opt/kiro2cc-proxy
 git pull
 docker compose pull
-docker compose down && docker compose up -d
+docker compose up -d
 ```
 
-> Each time a new tag (e.g. `v1.x.x`) is pushed, GitHub Actions automatically builds and pushes a new image to `ghcr.io`. `docker compose pull` fetches the latest `latest` image.
+Skip `git pull` if you only need to update the image. The repository's Compose file defaults to `latest`. If you override `IMAGE_OWNER` / `IMAGE_TAG` through environment variables or `.env`, check the actual image source and tag first. For a pinned version, change `IMAGE_TAG` to the desired published version before pulling and recreating the container.
 
-### Option 2: systemd One-Click Install
+### Option 3: systemd One-Click Install
 
 For running the binary directly without Docker.
 
@@ -357,7 +447,7 @@ systemctl stop kiro2cc-proxy         # Stop
 journalctl -u kiro2cc-proxy -f       # Live logs
 ```
 
-### Option 3: Manual Background Process (No systemd)
+### Option 4: Manual Background Process (No systemd)
 
 ```bash
 bash start_server.sh start     # Start in background
@@ -875,12 +965,15 @@ Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the por
 
 **Q: How to update to the latest version (Docker deployment)**
 
+GHCR image deployments do not require source updates. Back up `data/`, then run:
+
 ```bash
 cd /opt/kiro2cc-proxy
-git pull
 docker compose pull
-docker compose down && docker compose up -d
+docker compose up -d
 ```
+
+For a pinned version, first change the `image` tag in `docker-compose.yml` to the desired published version. Keep the original `data/` mount.
 
 **Q: How to update to the latest version (local deployment)**
 

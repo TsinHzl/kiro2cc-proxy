@@ -154,7 +154,7 @@ export function PlaygroundPage() {
             />
           )}
 
-          <div className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
+          <div className="mx-auto w-full shrink-0 px-4 pb-4 md:w-[95%] md:px-0">
             <Composer
               keys={enabledKeys}
               keyId={activeKey?.id ?? null}

@@ -42,10 +42,18 @@ function ActionButton({ label, onClick, children }: { label: string; onClick: ()
 function ReasoningBlock({ message }: { message: ChatMessage }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<boolean | null>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
   const streaming = message.status === 'streaming'
-  // 还没开始输出正文时默认展开，让用户看到思考过程；用户手动切换后以其选择为准
-  const isOpen = open ?? (streaming && message.content === '')
-  const thinking = streaming && message.content === ''
+  // reasoningMs 在思考文字全部显示完之后才会写入，所以思考期间展开、打完自动折叠；
+  // 用户手动切换后以其选择为准
+  const thinking = streaming && message.reasoningMs === undefined
+  const isOpen = open ?? thinking
+
+  // 思考文字逐字增长，超出框高后让框内容跟着滚到最新一行
+  useLayoutEffect(() => {
+    const el = boxRef.current
+    if (thinking && el) el.scrollTop = el.scrollHeight
+  }, [message.reasoning, thinking, isOpen])
 
   return (
     <div className="mb-2">
@@ -66,7 +74,10 @@ function ReasoningBlock({ message }: { message: ChatMessage }) {
         <ChevronRight className={`size-3 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
       </button>
       {isOpen && (
-        <div className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-hairline-2 pl-3 text-[12.5px] leading-[1.7] text-ink-3">
+        <div
+          ref={boxRef}
+          className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-hairline-2 pl-3 text-[12.5px] leading-[1.7] text-ink-3"
+        >
           {message.reasoning}
         </div>
       )}
@@ -293,7 +304,7 @@ export function MessageList({ messages, isGenerating, hasKey, onRegenerate }: Me
 
   return (
     <div ref={containerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto h-full w-full max-w-4xl px-4 py-4">
+      <div className="mx-auto h-full w-full px-4 py-4 md:w-[95%] md:px-0">
         {messages.length === 0 ? (
           <EmptyState hasKey={hasKey} />
         ) : (

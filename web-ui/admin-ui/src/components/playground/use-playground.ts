@@ -13,6 +13,7 @@ import { CHAT_SESSIONS_KEY } from '@/hooks/use-credentials'
 import { toast } from '@/lib/toast'
 import { extractErrorMessage } from '@/lib/utils'
 import { streamMessage } from './stream'
+import { createTypewriter, type Typewriter } from './typewriter'
 import {
   EFFORT_OPTIONS,
   type ApiContentBlock,
@@ -167,6 +168,8 @@ export function usePlayground() {
   const [loading, setLoading] = useState(() => readActiveId() !== null || readLegacyMessages().length > 0)
 
   const abortRef = useRef<AbortController | null>(null)
+  /** 当前这轮生成的打字机队列，停止按钮据此立即放出积压 */
+  const typewriterRef = useRef<Typewriter | null>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const activeIdRef = useRef(activeId)
@@ -315,12 +318,24 @@ export function usePlayground() {
       if (activeIdRef.current) void saveSession(activeIdRef.current, base)
       else await saveSession(null, base)
 
+      // 思考与正文先排队再匀速放出，上游攒成一大块下发时也呈现逐字输出
+      const typewriter = createTypewriter((reasoning, text) =>
+        patchMessage(assistant.id, (m) => ({
+          ...m,
+          ...(reasoning !== '' ? { reasoning: (m.reasoning ?? '') + reasoning } : {}),
+          ...(text !== '' ? { content: m.content + text } : {}),
+        })),
+      )
+      typewriterRef.current = typewriter
+
       let thinkStartedAt: number | null = null
       const closeThinking = () => {
         if (thinkStartedAt === null) return
         const elapsed = Date.now() - thinkStartedAt
         thinkStartedAt = null
-        patchMessage(assistant.id, (m) => ({ ...m, reasoningMs: elapsed }))
+        // 耗时按上游实际思考时长计，但要等排队的思考文字全部显示完才写入：
+        // 界面据此判断思考结束并自动折叠
+        typewriter.after(() => patchMessage(assistant.id, (m) => ({ ...m, reasoningMs: elapsed })))
       }
 
       try {
@@ -336,11 +351,11 @@ export function usePlayground() {
           {
             onThinking: (delta) => {
               thinkStartedAt ??= Date.now()
-              patchMessage(assistant.id, (m) => ({ ...m, reasoning: (m.reasoning ?? '') + delta }))
+              typewriter.push('reasoning', delta)
             },
             onText: (delta) => {
               closeThinking()
-              patchMessage(assistant.id, (m) => ({ ...m, content: m.content + delta }))
+              typewriter.push('text', delta)
             },
             onSearchCall: (id, query) => {
               closeThinking()
@@ -362,9 +377,12 @@ export function usePlayground() {
           },
         )
         closeThinking()
+        // 上游已发完，但排队的内容可能还没打完：等它放完再标记完成（点停止会立即放完）
+        await typewriter.idle()
         patchMessage(assistant.id, (m) => settleSearches({ ...m, status: 'done' }))
       } catch (error) {
         closeThinking()
+        typewriter.flush()
         const aborted = error instanceof DOMException && error.name === 'AbortError'
         patchMessage(assistant.id, (m) =>
           settleSearches({
@@ -374,6 +392,7 @@ export function usePlayground() {
           }),
         )
       } finally {
+        if (typewriterRef.current === typewriter) typewriterRef.current = null
         if (abortRef.current === controller) {
           abortRef.current = null
           setIsGenerating(false)
@@ -417,7 +436,11 @@ export function usePlayground() {
     [run],
   )
 
-  const stop = useCallback(() => abortRef.current?.abort(), [])
+  const stop = useCallback(() => {
+    // 先放出已收到但还在排队的内容，再中止请求
+    typewriterRef.current?.flush()
+    abortRef.current?.abort()
+  }, [])
 
   /** 回到空白的新对话；已有会话保留在历史中。生成中不可用 */
   const startNew = useCallback(() => {

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import type { ApiMessage, Effort, WebSearchResult } from './types'
+import { thinkingRequestFields, type ApiMessage, type Effort, type WebSearchResult } from './types'
 
 /** 单次回复的输出上限；后端会再按模型能力裁剪 */
 const MAX_OUTPUT_TOKENS = 16384
@@ -138,10 +138,7 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
     stream: true,
     messages: params.messages,
   }
-  if (params.effort !== 'off') {
-    body.thinking = { type: 'adaptive' }
-    body.output_config = { effort: params.effort }
-  }
+  Object.assign(body, thinkingRequestFields(params.model, params.effort))
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     'x-api-key': params.apiKey,

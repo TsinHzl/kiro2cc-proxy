@@ -71,9 +71,44 @@ export interface ApiMessage {
   content: string | ApiContentBlock[]
 }
 
-/** 当前模型是否会真正应用 thinking / effort（与后端 additional_fields_skipped 的口径一致） */
-export function modelSupportsEffort(modelId: string): boolean {
+/**
+ * 深度思考的两种实现，由后端能否接受 additionalModelRequestFields 决定：
+ * - effort：Claude 4.6+ / GPT 系，请求带 thinking: adaptive + output_config.effort，上游原生推理；
+ * - budget：Claude 4.5 代际与国产模型（kimi / glm / deepseek / qwen / minimax 等），上游拒绝上述字段，
+ *   改发 thinking: enabled + budget_tokens，代理把它转成提示词里的思考标签，再从输出里拆出思考内容。
+ */
+export type ThinkingMode = 'effort' | 'budget'
+
+/** Claude 4.5 代际（含 claude-opus-4-5-20251101 这类带日期的连字符别名） */
+const CLAUDE_45_RE = /^claude-.*-4[.-]5($|-)/
+
+export function thinkingMode(modelId: string): ThinkingMode {
   const id = modelId.toLowerCase()
-  if (id.endsWith('4.5')) return false
-  return id.startsWith('claude-') || id.startsWith('gpt-')
+  if (CLAUDE_45_RE.test(id)) return 'budget'
+  return id.startsWith('claude-') || id.startsWith('gpt-') ? 'effort' : 'budget'
+}
+
+/** budget 模式只提供三档，对应思考预算 */
+const BUDGET_EFFORT_OPTIONS: readonly Effort[] = ['off', 'low', 'medium', 'high']
+
+/** 各档位的 thinking.budget_tokens（后端上限 24576） */
+const BUDGET_TOKENS: Partial<Record<Effort, number>> = { low: 4096, medium: 10240, high: 20000 }
+
+export function effortOptionsFor(modelId: string): readonly Effort[] {
+  return thinkingMode(modelId) === 'budget' ? BUDGET_EFFORT_OPTIONS : EFFORT_OPTIONS
+}
+
+/** 把已保存的档位收敛到当前模型可选的范围内（xhigh / max 在 budget 模式下按 high 处理） */
+export function normalizeEffort(modelId: string, effort: Effort): Effort {
+  if (effortOptionsFor(modelId).includes(effort)) return effort
+  return 'high'
+}
+
+/** 请求体里的 thinking / output_config；off 时两者都不带 */
+export function thinkingRequestFields(modelId: string, effort: Effort): Record<string, unknown> {
+  if (effort === 'off') return {}
+  if (thinkingMode(modelId) === 'budget') {
+    return { thinking: { type: 'enabled', budget_tokens: BUDGET_TOKENS[effort] ?? BUDGET_TOKENS.high } }
+  }
+  return { thinking: { type: 'adaptive' }, output_config: { effort } }
 }

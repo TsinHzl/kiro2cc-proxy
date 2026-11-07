@@ -741,7 +741,7 @@
     "attachTooLarge": "File too large: {{name}} (text files are limited to {{limit}})",
     "attachFailed": "Could not read: {{name}}",
     "effortTitle": "Thinking effort",
-    "effortUnsupported": "This model does not support extended thinking",
+    "effortBudgetTitle": "Thinking budget (prompt-based)",
     "effortPill": "Thinking: {{level}}",
     "history": "History",
     "historyEmpty": "No conversations yet. Your first message is saved to the server automatically.",

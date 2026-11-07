@@ -9,7 +9,7 @@ import type { ChatSessionMeta } from '@/types/api'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
 import { SessionsSidebar } from './sessions-sidebar'
-import { modelSupportsEffort, type Effort } from './types'
+import { normalizeEffort, type Effort } from './types'
 import { usePlayground } from './use-playground'
 
 /** 与 Tailwind 的 md 断点一致：窄屏下历史列表以浮层形式出现，默认收起 */
@@ -46,7 +46,7 @@ export function PlaygroundPage() {
   const enabledKeys = useMemo(() => (apiKeys ?? []).filter((k) => k.enabled), [apiKeys])
   const activeKey = enabledKeys.find((k) => k.id === config.keyId) ?? enabledKeys[0] ?? null
 
-  const effort: Effort = modelSupportsEffort(model) ? config.effort : 'off'
+  const effort: Effort = normalizeEffort(model, config.effort)
   const webSearch = config.webSearch
   const runOptions = { apiKey: activeKey?.key ?? null, model, effort, webSearch }
   const canChat = activeKey !== null && model !== '' && !loading

@@ -741,7 +741,7 @@
     "attachTooLarge": "文件过大：{{name}}（文本文件上限 {{limit}}）",
     "attachFailed": "无法读取：{{name}}",
     "effortTitle": "深度思考力度",
-    "effortUnsupported": "当前模型不支持深度思考",
+    "effortBudgetTitle": "思考预算（提示词引导）",
     "effortPill": "思考：{{level}}",
     "history": "历史对话",
     "historyEmpty": "还没有历史对话。发送第一条消息后会自动保存到服务器。",

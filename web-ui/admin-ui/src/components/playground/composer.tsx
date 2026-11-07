@@ -19,7 +19,7 @@ import {
   formatFileSize,
   processFile,
 } from './attachments'
-import { EFFORT_OPTIONS, modelSupportsEffort, type Attachment, type Effort } from './types'
+import { effortOptionsFor, thinkingMode, type Attachment, type Effort } from './types'
 
 const TEXTAREA_MAX_HEIGHT_PX = 220
 
@@ -77,7 +77,8 @@ export function Composer({
   const [processing, setProcessing] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const effortSupported = modelSupportsEffort(model)
+  const effortOptions = effortOptionsFor(model)
+  const budgetMode = thinkingMode(model) === 'budget'
   const canSend =
     (text.trim() !== '' || attachments.length > 0) && processing === 0 && !sendDisabled && !isGenerating
   const attachFull = attachments.length + processing >= MAX_ATTACHMENTS
@@ -140,7 +141,7 @@ export function Composer({
   }
 
   // 思考力度档位名在所有语言下都直接显示英文原值（off / low / medium / high / xhigh / max）
-  const pillLabel = t('playground.effortPill', { level: effortSupported ? effort : 'off' })
+  const pillLabel = t('playground.effortPill', { level: effort })
   const hasKeys = keys.length > 0
 
   return (
@@ -195,8 +196,7 @@ export function Composer({
             <button
               type="button"
               className={PILL}
-              disabled={!effortSupported}
-              title={effortSupported ? t('playground.effortTitle') : t('playground.effortUnsupported')}
+              title={budgetMode ? t('playground.effortBudgetTitle') : t('playground.effortTitle')}
             >
               <Brain className="size-4 shrink-0" />
               <span className="truncate">{pillLabel}</span>
@@ -205,10 +205,10 @@ export function Composer({
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
             <div className="px-2 pb-1 pt-1.5 text-[10.5px] font-semibold tracking-[.04em] text-ink-3">
-              {t('playground.effortTitle')}
+              {budgetMode ? t('playground.effortBudgetTitle') : t('playground.effortTitle')}
             </div>
             <DropdownMenuRadioGroup value={effort} onValueChange={(v) => onEffortChange(v as Effort)}>
-              {EFFORT_OPTIONS.map((value) => (
+              {effortOptions.map((value) => (
                 <DropdownMenuRadioItem key={value} value={value}>
                   {value}
                 </DropdownMenuRadioItem>

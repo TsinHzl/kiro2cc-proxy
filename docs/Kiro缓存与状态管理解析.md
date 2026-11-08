@@ -160,6 +160,37 @@
 
 源码依据：`src/anthropic/handlers/bridge.rs:314–411`、`src/anthropic/handlers/post_messages.rs:105–124`。
 
+#### 1.3.6 按顺序看发送消息中存储的内容
+
+下图选用“存在系统配对，完成一次 Read 图片工具往返，然后用户继续追问”的典型场景。示例文字用于展示内容位置，不是真实聊天记录；带“可选”的内容只有满足条件才出现。
+
+![图2·发送消息内容顺序](diagrams/02-kiro-message-order.svg)
+
+图中从上到下表示**对话逻辑顺序和 history 数组下标顺序**，不是 JSON 对象成员顺序，也不是多次 HTTP 发送：所有框属于同一个 Kiro 请求体。`currentMessage` 与 `history` 是并列字段；Rust 结构体声明中 currentMessage 甚至位于 history 之前，不能据此解读对话先后。
+
+**系统消息 content 的内部顺序**：
+1. 可选的 enabled thinking 控制前缀。
+2. 顶层 system 中经分流后保留的稳定文本块，维持原顺序。
+3. 内联 system 中经分流后保留的稳定文本块，维持原顺序。
+4. 可选的分块写入提示：配置启用且包含 Write/Edit/MultiEdit 工具；若被基线识别为新增块，则改走动态分流，不留在此处。
+5. 可选的 luna 反伪标签引导语；它与第 1 项的自动 thinking 前缀不会同时生成。
+
+稳定块之间以 `\n` 连接；前缀和引导语也通过 `\n` 接入。上述内容再进行 cch 规范化与 PREV_H0 复用；provider 的账号级处理可能去掉 thinking 前缀。这里描述非空稳定系统正文的主分支，空 system 等例外见 §2.1。
+
+**当前消息 content 的内部顺序**：
+1. 无法就地挂靠的动态块，包括顶层动态通知和预算提示，包在 `<system-reminder>` 中。
+2. 挂靠在当前 user 前面的内联通知，另包一组 `<system-reminder>`。
+3. 当前 user 的原正文；没有正文且没有其他补充时按实际分支使用占位词。
+4. 匹配时追加的 `<recent_knowledge_reference>` 近期知识提示。
+5. 请求指定 json_schema 时追加的 `<response_format>` 输出约束。
+6. 挂靠在当前 user 后面的内联通知，包在 `<system-reminder>` 中。
+
+当前正文先追加第 4、5 项，再被第 2、6 项包围，最后前置第 1 项。非空组之间通常以 `\n\n` 连接；用户原始 text 块本身以 `\n` 连接。图片、toolResults 和 tools **不是这段正文的后续文本**，而是同条消息内的并列字段。
+
+注意：图中的 history[2] 到 history[5] 只是本例的下标，不是固定槽位；无系统配对时整体前移，连续同角色消息合并后条数也会变化。更多对话按同样方式继续追加，最后一条 user 才成为 currentMessage。若历史末尾是 user，则追加 assistant `"OK"`；若是工具结果刚返回的这一轮，结果直接放 current，不会凭空生成图中的后续助手回答。
+
+源码依据：`src/anthropic/converter/convert.rs:53–127,155–231`、`history.rs:86–105,142–290,292–343`、`prompt.rs:89–117,164–204`、`src/kiro/model/requests/conversation.rs:13–31`。
+
 ---
 
 ## 2. 跨轮次前缀稳定（系统基线与 PREV_H0）

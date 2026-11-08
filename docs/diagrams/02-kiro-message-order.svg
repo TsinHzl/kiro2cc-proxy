@@ -1,0 +1,95 @@
+<svg viewBox="0 0 900 1800" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="width:100%;max-width:900px;font-family:sans-serif">
+  <title id="title">图2·发送消息内容顺序</title>
+  <desc id="desc">按对话逻辑顺序展开同一请求中的系统提示、固定确认、历史问题、工具调用、图片结果、历史回答和当前消息，并标出正文内部顺序与并列字段。</desc>
+  <defs>
+    <marker id="next" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#525252"/></marker>
+    <style>
+      text { fill:#171717; font-size:11px; }
+      .title { font-size:14px; font-weight:700; }
+      .heading { font-size:12px; font-weight:700; }
+      .note { fill:#525252; font-size:9px; }
+      .node { fill:#ffffff; stroke:#a3a3a3; }
+      .arrow { fill:none; stroke:#525252; stroke-width:1.5; marker-end:url(#next); }
+      .badge { fill:#ffffff; stroke:#525252; }
+    </style>
+  </defs>
+  <rect width="900" height="1800" fill="#fafafa"/>
+  <text x="24" y="28" class="title">图2 · 发送消息里究竟放了什么，先后顺序是什么？</text>
+  <text x="24" y="50">典型场景：系统提示 + 一次 Read 图片工具往返 + 用户继续追问；所有消息在同一个请求体内。</text>
+  <text x="24" y="70" class="note">箭头表示逻辑对话顺序，不表示 JSON 对象键顺序；示例文本不是实际请求，可选内容不一定同时存在。</text>
+  <rect x="24" y="90" width="852" height="1214" rx="10" fill="none" stroke="#737373"/>
+  <text x="40" y="112" class="heading">conversationState.history[] · 已发生的消息，按数组顺序排列</text>
+  <rect x="72" y="128" width="780" height="270" rx="8" class="node"/>
+  <circle cx="48" cy="154" r="12" class="badge"/><text x="45" y="158">1</text>
+  <text x="88" y="153" class="heading">history[0].userInputMessage · 把系统提示作为一条 user 保存</text>
+  <text x="88" y="176">content 内部从前到后：</text>
+  <text x="104" y="198">① 可选 thinking 前缀（非 luna、enabled 且未重复注入）：</text>
+  <text x="120" y="216">&lt;thinking_mode&gt;enabled&lt;/thinking_mode&gt;&lt;max_thinking_length&gt;N&lt;/max_thinking_length&gt;</text>
+  <text x="104" y="238">② 顶层 system 保留下来的稳定文本：身份设定、规则、环境等原始内容，按原顺序</text>
+  <text x="104" y="260">③ 内联 system 保留下来的稳定文本块，按它们在原 messages 中出现的顺序</text>
+  <text x="104" y="282">④ 可选分块写入提示：启用配置 + 含 Write/Edit/MultiEdit + 本轮未被动态分流</text>
+  <text x="104" y="304">⑤ 可选 luna 反伪标签引导语（仅 luna 且请求启用 thinking）</text>
+  <text x="88" y="326" class="note">① 与 ⑤ 的自动注入条件互斥。动态分流的块不留在 ②③④，改放历史 user 或 current。</text>
+  <text x="88" y="346">稳定块及附加提示以换行连接 → 首个 cch 值归一为 0 → PREV_H0 内容复用</text>
+  <text x="88" y="368">并列字段：modelId = 映射模型；origin = "AI_EDITOR"；本条没有 tools 定义</text>
+  <text x="88" y="386" class="note">发送前账号关闭 thinking 可剥前缀；没有系统正文的条件分支见正文 §2.1。</text>
+  <path d="M462 398 V438" class="arrow"/>
+  <rect x="72" y="446" width="780" height="80" rx="8" class="node"/>
+  <circle cx="48" cy="472" r="12" class="badge"/><text x="45" y="476">2</text>
+  <text x="88" y="471" class="heading">history[1].assistantResponseMessage · 代理插入的系统确认</text>
+  <text x="88" y="495">content = "I will follow these instructions."</text>
+  <text x="88" y="513" class="note">不设置 messageId，不带 toolUses；系统配对不存在时，本图前两条也不存在。</text>
+  <path d="M462 526 V566" class="arrow"/>
+  <rect x="72" y="574" width="780" height="130" rx="8" class="node"/>
+  <circle cx="48" cy="600" r="12" class="badge"/><text x="45" y="604">3</text>
+  <text x="88" y="599" class="heading">history[2].userInputMessage · 较早一轮用户问题</text>
+  <text x="88" y="622">content = [可选前置通知] + "读取 example.png 并解释图片" + [可选后置通知]</text>
+  <text x="88" y="644">通知包在 &lt;system-reminder&gt; 中；正文保留当时的用户文本，不是系统摘要</text>
+  <text x="88" y="666">并列字段：modelId、origin；若原消息有图片，也会有 images[]</text>
+  <text x="88" y="689" class="note">连续 user 先各自挂回通知，再以换行合并；这里只展示一条历史 user。</text>
+  <path d="M462 704 V744" class="arrow"/>
+  <rect x="72" y="752" width="780" height="140" rx="8" class="node"/>
+  <circle cx="48" cy="778" r="12" class="badge"/><text x="45" y="782">4</text>
+  <text x="88" y="777" class="heading">history[3].assistantResponseMessage · 助手回答和工具调用</text>
+  <text x="88" y="800">content = "我先读取图片。"；如果只有工具调用，没有回答文本，则为 " "</text>
+  <text x="88" y="822">toolUses[0] = {toolUseId:"call_1", name:"Read", input:{path:"example.png"}}</text>
+  <text x="88" y="844">messageId = 根据净化后的 content 与 toolUseId 派生的确定性 ID</text>
+  <text x="88" y="877" class="note">toolUses 与 content 并列，不拼入正文；原生 thinking 块丢弃，显示用尾注和样式被净化。</text>
+  <path d="M462 892 V932" class="arrow"/>
+  <rect x="72" y="940" width="780" height="190" rx="8" class="node"/>
+  <circle cx="48" cy="966" r="12" class="badge"/><text x="45" y="970">5</text>
+  <text x="88" y="965" class="heading">history[4].userInputMessage · 工具执行结果作为下一条 user 保存</text>
+  <text x="88" y="988">content = "(tool result above)"（本例没有另外的用户正文或挂靠通知）</text>
+  <text x="88" y="1010">userInputMessageContext.toolResults[0]：</text>
+  <text x="104" y="1032">toolUseId = "call_1"；status = "success"；成功时省略 isError</text>
+  <text x="104" y="1054">content = [{"text":"[Image 1 attached from tool_result call_1]"}]</text>
+  <text x="88" y="1076">images[0] = {format:"png", source:{bytes:"图片 base64"}}；与正文及 context 并列</text>
+  <text x="88" y="1098">并列字段：modelId、origin；图片从工具结果提升到 images，但结果中保留对应图号</text>
+  <text x="88" y="1117" class="note">call_1 与上一条调用配对；工具结果不是助手回复，也不是完整 tools Schema。</text>
+  <path d="M462 1130 V1170" class="arrow"/>
+  <rect x="72" y="1178" width="780" height="96" rx="8" class="node"/>
+  <circle cx="48" cy="1204" r="12" class="badge"/><text x="45" y="1208">6</text>
+  <text x="88" y="1203" class="heading">history[5].assistantResponseMessage · 助手看完结果后的历史回答</text>
+  <text x="88" y="1226">content = "图片中包含……"；messageId 按正文派生；本例不再调用工具，因此没有 toolUses</text>
+  <text x="88" y="1258" class="note">这些内容由客户端随下一轮请求带回；代理不会凭空生成这条回答。更多旧轮次继续接在后面。</text>
+  <path d="M462 1274 V1342" class="arrow"/>
+  <text x="482" y="1325" class="note">历史结束 → 本轮新增输入</text>
+  <rect x="24" y="1350" width="852" height="296" rx="8" class="node"/>
+  <text x="40" y="1376" class="heading">7 · currentMessage.userInputMessage · 最后一条 user，不属于 history 数组</text>
+  <text x="40" y="1398">content 内部从前到后（不存在的可选项直接跳过）：</text>
+  <text x="56" y="1420">① &lt;system-reminder&gt;无法就地挂靠的动态通知 / 预算提示&lt;/system-reminder&gt;（可选）</text>
+  <text x="56" y="1442">② &lt;system-reminder&gt;挂在当前 user 前的内联通知&lt;/system-reminder&gt;（可选）</text>
+  <text x="56" y="1464">③ "请继续分析"（本轮真实用户正文的示例）</text>
+  <text x="56" y="1486">④ &lt;recent_knowledge_reference&gt;匹配到的近期知识提示&lt;/recent_knowledge_reference&gt;（可选）</text>
+  <text x="56" y="1508">⑤ &lt;response_format&gt;JSON 输出规则 + 请求指定的 Schema&lt;/response_format&gt;（可选）</text>
+  <text x="56" y="1530">⑥ &lt;system-reminder&gt;挂在当前 user 后的内联通知&lt;/system-reminder&gt;（可选）</text>
+  <text x="40" y="1556">并列字段：modelId、origin；有图片才写 images；userInputMessageContext 即使为空也保留</text>
+  <text x="40" y="1578">context.tools[]：Read 等完整工具定义，包含 name、description、inputSchema.json，不写入历史</text>
+  <text x="40" y="1600">context.toolResults[]：若本轮是工具结果返回，则放通过配对校验的结果；本例是追问，所以省略</text>
+  <text x="40" y="1629" class="note">这些并列字段不是 content 的第⑦⑧段；图片 base64、工具参数、工具定义不会简单串成一段正文。</text>
+  <rect x="24" y="1680" width="852" height="100" rx="8" class="node"/>
+  <text x="40" y="1704" class="heading">读取边界 · 这些下标属于示例，不是协议固定槽位</text>
+  <text x="40" y="1726">无系统配对时历史下标前移；连续同角色消息会合并；历史末尾孤立 user 会补 assistant "OK"。</text>
+  <text x="40" y="1748">若当前刚拿到工具结果，结果就在 current，本例的第⑥条尚未发生；搜索桥接的追加方式另见 §1.3.5。</text>
+  <text x="40" y="1767" class="note">conversationId / agentContinuationId / agentTaskType / chatTriggerType 以及请求级参数不作为消息插入此序列。</text>
+</svg>

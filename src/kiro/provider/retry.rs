@@ -1,10 +1,14 @@
 //! 重试与故障转移：端点选择（select_endpoint）与 call_api_with_retry 多账号多轮重试。
+use std::time::Instant;
+
 use tokio::time::sleep;
 
 use crate::kiro::endpoint::{BUCKET_THROTTLE_DURATION, Endpoint, EndpointName};
+use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
 
 use super::core::{KiroProvider, MAX_RETRIES_PER_CREDENTIAL, MAX_TOTAL_RETRIES};
+use super::diagnostics;
 
 impl KiroProvider {
     pub(crate) fn select_endpoint(
@@ -195,12 +199,43 @@ impl KiroProvider {
                     continue;
                 }
             };
-            // 请求体可能含敏感上下文，禁止整包入日志，只记录 URL 与长度（cr-result C6）
-            tracing::debug!(
-                "[KIRO-REQUEST] url={} body_len={}",
-                url,
-                effective_body.len()
-            );
+            // 请求体可能含敏感上下文，禁止整包入日志，只记录 URL、长度与请求指纹（cr-result C6）。
+            // 指纹用于和 Kiro IDE 直连请求对比：不含 token、代理地址与原始 machine id。
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                let config = self.token_manager.config();
+                let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config);
+                let user_agent = headers
+                    .get(reqwest::header::USER_AGENT)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|ua| diagnostics::redact_machine_id(ua, &machine_id))
+                    .unwrap_or_default();
+                let profile_arn_source = if ctx.credentials.profile_arn.is_some() {
+                    "account"
+                } else if Self::fallback_profile_arn(&ctx.credentials).is_some() {
+                    "fallback"
+                } else {
+                    "none"
+                };
+                tracing::debug!(
+                    "[KIRO-REQUEST] credential={} attempt={}/{} endpoint={:?} url={} body_len={} model={:?} continuation={:?} kiro_version={} auth_method={} api_region={} profile_arn={} machine_id_hash={} proxy={} user_agent={}",
+                    ctx.id,
+                    attempt + 1,
+                    max_retries,
+                    endpoint.name,
+                    url,
+                    effective_body.len(),
+                    model,
+                    continuation_id,
+                    config.kiro_version,
+                    ctx.credentials.auth_method.as_deref().unwrap_or("social"),
+                    ctx.credentials.effective_api_region(config),
+                    profile_arn_source,
+                    diagnostics::hash_machine_id(&machine_id),
+                    diagnostics::proxy_label(&ctx.credentials, self.global_proxy.as_ref()),
+                    user_agent
+                );
+            }
+            let attempt_started = Instant::now();
             let response = match client
                 .post(&url)
                 .headers(headers)
@@ -226,6 +261,7 @@ impl KiroProvider {
             };
 
             let status = response.status();
+            let response_ms = attempt_started.elapsed().as_millis();
 
             // 成功响应
             if status.is_success() {
@@ -236,7 +272,8 @@ impl KiroProvider {
                 return Ok((response, ctx.id));
             }
 
-            // 失败响应：读取 body 用于日志/错误信息
+            // 失败响应：先保存响应头（诊断用），再读取 body 用于日志/错误信息
+            let failure_headers = response.headers().clone();
             let body = response.text().await.unwrap_or_default();
 
             // 402 Payment Required 且额度用尽：禁用账号并故障转移
@@ -351,6 +388,23 @@ impl KiroProvider {
                     max_retries,
                     status,
                     body
+                );
+                // 诊断：上游响应头（AWS 请求 ID、限流提示）+ 响应耗时 + 距离上次 token 刷新的时长。
+                // 用于判断 429 是否出现在刷新后的首个请求上，以及和 Kiro 直连的表现对比。
+                let since_refresh = self
+                    .token_manager
+                    .last_refreshed_elapsed(ctx.id)
+                    .map(|d| format!("{}ms", d.as_millis()))
+                    .unwrap_or_else(|| "never-in-process".to_string());
+                tracing::warn!(
+                    "[THROTTLE-DIAG] credential={} endpoint={:?} attempt={}/{} response_ms={} since_token_refresh={} upstream_headers=[{}]",
+                    ctx.id,
+                    endpoint.name,
+                    attempt + 1,
+                    max_retries,
+                    response_ms,
+                    since_refresh,
+                    diagnostics::format_upstream_headers(&failure_headers)
                 );
                 self.token_manager.report_throttled(ctx.id);
                 self.token_manager.report_throttled_for_rotation(ctx.id);

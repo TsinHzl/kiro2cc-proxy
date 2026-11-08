@@ -10,6 +10,7 @@
 
 mod api;
 mod core;
+mod diagnostics;
 mod errors;
 mod headers;
 mod retry;

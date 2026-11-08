@@ -20,6 +20,18 @@ use std::time::Instant;
 use tokio::sync::Mutex as TokioMutex;
 
 impl MultiTokenManager {
+    /// 距离该账号上一次成功刷新 Token 已过去的时间（本进程内）。
+    ///
+    /// 进程启动后尚未刷新过的账号返回 `None`。仅用于诊断日志。
+    pub(crate) fn last_refreshed_elapsed(&self, id: u64) -> Option<std::time::Duration> {
+        self.entries
+            .lock()
+            .iter()
+            .find(|e| e.id == id)
+            .and_then(|e| e.last_refreshed_at)
+            .map(|t| t.elapsed())
+    }
+
     /// 创建多账号 Token 管理器
     ///
     /// # Arguments
@@ -834,9 +846,33 @@ impl MultiTokenManager {
                 } else {
                     // 确实需要刷新
                     let effective_proxy = current_creds.effective_proxy(self.proxy.as_ref());
-                    let refreshed_creds =
-                        refresh_token(&current_creds, &self.config, effective_proxy.as_ref())
-                            .await?;
+                    let refresh_started = Instant::now();
+                    let refreshed_creds = match refresh_token(
+                        &current_creds,
+                        &self.config,
+                        effective_proxy.as_ref(),
+                    )
+                    .await
+                    {
+                        Ok(creds) => {
+                            tracing::info!(
+                                "[TOKEN-REFRESH] credential={} ok elapsed_ms={} auth_method={} expires_at={}",
+                                id,
+                                refresh_started.elapsed().as_millis(),
+                                current_creds.auth_method.as_deref().unwrap_or("social"),
+                                creds.expires_at.as_deref().unwrap_or("-")
+                            );
+                            creds
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "[TOKEN-REFRESH] credential={} failed elapsed_ms={}",
+                                id,
+                                refresh_started.elapsed().as_millis()
+                            );
+                            return Err(e);
+                        }
+                    };
 
                     if is_token_expired(&refreshed_creds) {
                         anyhow::bail!("刷新后的 Token 仍然无效或已过期");

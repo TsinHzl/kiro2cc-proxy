@@ -148,7 +148,7 @@ fn block_type(block: &serde_json::Value) -> Option<&str> {
     block.get("type").and_then(|t| t.as_str())
 }
 
-/// 最后一条消息是否是用户亲自发送的新一轮输入（对应 Claude Code 输出
+/// 末尾连续的 user 消息是否含用户亲自发送的新一轮输入（对应 Claude Code 输出
 /// `✻ Brewed for Ns` 的那个「轮」的起点）。
 ///
 /// 一轮 = Claude Code 的一次 query 循环，循环内部会多次请求上游，且最后一条 user 消息不一定带
@@ -159,27 +159,39 @@ fn block_type(block: &serde_json::Value) -> Option<&str> {
 /// - 含用户亲自输入的文本（见 [`has_human_text`]），或图片 / 文档块：新一轮。提醒块与
 ///   用户正文可能是独立文本块，也可能合并成同一段文本，两种形态都按此判断
 fn is_new_user_turn(messages: &[Message]) -> bool {
-    let Some(last) = messages.last() else {
-        return false;
-    };
-    if last.role != "user" {
+    // Claude Code 把用户输入与其后新注入的附件（deferred tools、MCP 指令等）拆成多条 user 消息，
+    // 所以只看最后一条会把「仅含附件」的消息误判为续请求。这里看末尾连续的 user 消息整体。
+    let trailing: Vec<&Message> = messages
+        .iter()
+        .rev()
+        .take_while(|m| m.role == "user")
+        .collect();
+    if trailing.iter().any(|m| has_tool_result(m)) {
         return false;
     }
-    match &last.content {
+    trailing.iter().any(|m| has_human_input(m))
+}
+
+/// 一条 user 消息是否带 tool_result（工具往返的续请求）
+fn has_tool_result(message: &Message) -> bool {
+    matches!(
+        &message.content,
+        serde_json::Value::Array(blocks) if blocks.iter().any(|b| block_type(b) == Some("tool_result"))
+    )
+}
+
+/// 一条 user 消息是否含用户亲自输入的内容（文本、图片或文档）
+fn has_human_input(message: &Message) -> bool {
+    match &message.content {
         serde_json::Value::String(s) => has_human_text(s),
-        serde_json::Value::Array(blocks) => {
-            if blocks.iter().any(|b| block_type(b) == Some("tool_result")) {
-                return false;
-            }
-            blocks.iter().any(|b| match block_type(b) {
-                Some("text") => b
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .is_some_and(has_human_text),
-                Some("image" | "document") => true,
-                _ => false,
-            })
-        }
+        serde_json::Value::Array(blocks) => blocks.iter().any(|b| match block_type(b) {
+            Some("text") => b
+                .get("text")
+                .and_then(|t| t.as_str())
+                .is_some_and(has_human_text),
+            Some("image" | "document") => true,
+            _ => false,
+        }),
         _ => false,
     }
 }
@@ -617,6 +629,46 @@ mod tests {
             json!([{"type": "text", "text": "x"}])
         )]));
         assert!(!is_new_user_turn(&[]));
+    }
+
+    #[test]
+    fn new_turn_looks_at_trailing_user_run_not_only_last_message() {
+        let text = |t: &str| json!({"type": "text", "text": t});
+        let reminder = |t: &str| text(&format!("<system-reminder>\n{t}\n</system-reminder>"));
+        let tool_result = json!({"type": "tool_result", "tool_use_id": "t1", "content": "ok"});
+
+        // 用户输入与其后新注入的附件被拆成两条 user 消息：最后一条只有附件，仍是新一轮
+        assert!(is_new_user_turn(&[
+            msg("user", json!("hi")),
+            msg("assistant", json!("你好")),
+            msg("user", json!("你是什么模型")),
+            msg("user", json!([reminder("deferred tools")])),
+        ]));
+        // 附件在用户输入之前的同一段内：仍是新一轮
+        assert!(is_new_user_turn(&[
+            msg("assistant", json!("你好")),
+            msg("user", json!([reminder("mcp")])),
+            msg("user", json!("你是谁")),
+        ]));
+
+        // 工具往返：assistant(tool_use) 之后的 user 段含 tool_result，附件拆分不改变结论
+        assert!(!is_new_user_turn(&[
+            msg("user", json!("查一下")),
+            msg("assistant", json!([{"type": "tool_use", "id": "t1"}])),
+            msg("user", json!([tool_result.clone()])),
+            msg("user", json!([reminder("deferred tools")])),
+        ]));
+        // Stop hook 等注入的纯提醒段：不是新一轮
+        assert!(!is_new_user_turn(&[
+            msg("user", json!("你好")),
+            msg("assistant", json!("回复")),
+            msg("user", json!([reminder("Stop hook blocking error")])),
+        ]));
+        // 最后是 assistant：没有待处理的用户输入
+        assert!(!is_new_user_turn(&[
+            msg("user", json!("你好")),
+            msg("assistant", json!("回复")),
+        ]));
     }
 
     #[test]

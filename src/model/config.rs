@@ -298,7 +298,7 @@ fn default_region() -> String {
 }
 
 fn default_kiro_version() -> String {
-    "2.2.2".to_string()
+    "1.4.121".to_string()
 }
 
 // 0 = 关闭单账号 RPM 硬限（仅依赖上游 429 + throttle_delay 兜底）

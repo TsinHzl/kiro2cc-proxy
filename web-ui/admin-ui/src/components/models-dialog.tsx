@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useTranslation } from 'react-i18next'
-import { FileText, Image as ImageIcon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ModalityIcons } from '@/components/modality-icons'
 import { useCredentialModels } from '@/hooks/use-credentials'
 import { parseError } from '@/lib/utils'
 import {
@@ -15,8 +15,6 @@ import {
   formatRate,
   formatRateRange,
   groupByFamily,
-  inputModalities,
-  modalityEmptyState,
   rateRange,
 } from '@/lib/model-family'
 
@@ -85,46 +83,11 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
                 </div>
                 <ul className="space-y-1">
                   {group.models.map((model) => {
-                    const modalities = inputModalities(model.input_types)
-                    const empty = modalityEmptyState(model.input_types)
-                    const emptyHint = t(empty.kind === 'unrecognized' ? 'models.inputUnrecognized' : 'models.inputNone', {
-                      values: empty.kind === 'unrecognized' ? empty.values : undefined,
-                    })
                     return (
                       <li key={model.id} className="flex items-center justify-between text-[12px]">
                         <span className="font-mono text-ink-2 truncate">{model.id}</span>
                         <span className="ml-2 flex shrink-0 items-center gap-2">
-                          <span className="flex items-center gap-1">
-                            {modalities.length === 0 ? (
-                              /* 与列表页空态同口径：未声明 `—`、声明但全不可识别 `?`，均不猜测能力 */
-                              <span role="img" aria-label={emptyHint} title={emptyHint} className="text-ink-3">
-                                {empty.kind === 'unrecognized' ? '?' : '—'}
-                              </span>
-                            ) : (
-                              modalities.map((modality) => {
-                                const label = t(modality === 'image' ? 'models.inputImage' : 'models.inputText')
-                                return (
-                                  <span
-                                    key={modality}
-                                    role="img"
-                                    aria-label={label}
-                                    title={label}
-                                    className={`inline-flex size-[18px] items-center justify-center rounded-[4px] ${
-                                      modality === 'image'
-                                        ? 'bg-brand-soft text-brand-ink'
-                                        : 'bg-surface-3 text-ink-2'
-                                    }`}
-                                  >
-                                    {modality === 'image' ? (
-                                      <ImageIcon className="size-[11px]" aria-hidden="true" />
-                                    ) : (
-                                      <FileText className="size-[11px]" aria-hidden="true" />
-                                    )}
-                                  </span>
-                                )
-                              })
-                            )}
-                          </span>
+                          <ModalityIcons inputTypes={model.input_types} />
                           <span className="font-mono tabular-nums text-ink-3">
                             {model.rate_multiplier != null ? formatRate(model.rate_multiplier) : '—'}
                           </span>

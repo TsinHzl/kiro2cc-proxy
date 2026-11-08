@@ -10,7 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ModalityIcons } from '@/components/modality-icons'
 import { toast } from '@/lib/toast'
+import type { ModelItem } from '@/types/api'
 import { AttachmentView } from './attachment-view'
 import {
   AttachmentError,
@@ -38,7 +40,7 @@ export interface KeyOption {
 interface ComposerProps {
   keys: KeyOption[]
   keyId: number | null
-  models: string[]
+  models: ModelItem[]
   model: string
   effort: Effort
   webSearch: boolean
@@ -267,9 +269,13 @@ export function Composer({
                 <div className="px-2 py-1.5 text-[12.5px] text-ink-3">{t('playground.noModel')}</div>
               )}
               <DropdownMenuRadioGroup value={model} onValueChange={onModelChange}>
-                {models.map((id) => (
-                  <DropdownMenuRadioItem key={id} value={id}>
-                    <span className="truncate">{id}</span>
+                {models.map((m) => (
+                  <DropdownMenuRadioItem key={m.id} value={m.id}>
+                    <span className="min-w-0 flex-1 truncate">{m.id}</span>
+                    {/* 与「支持模型」弹窗同口径：展示是否支持识别图片 */}
+                    <span className="ml-2 flex shrink-0 items-center">
+                      <ModalityIcons inputTypes={m.input_types} />
+                    </span>
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>

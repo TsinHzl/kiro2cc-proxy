@@ -39,7 +39,8 @@ export function PlaygroundPage() {
   const { data: sessions, isLoading: sessionsLoading } = useChatSessions()
   const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia(DESKTOP_QUERY).matches)
 
-  const modelIds = useMemo(() => (modelsData?.data ?? []).map((m) => m.id), [modelsData])
+  const modelItems = useMemo(() => modelsData?.data ?? [], [modelsData])
+  const modelIds = useMemo(() => modelItems.map((m) => m.id), [modelItems])
   // 已保存的模型不在当前列表（被下线 / 首次使用）时，回退到列表第一项；只做派生，不回写配置
   const model = modelIds.includes(config.model) ? config.model : (modelIds[0] ?? '')
 
@@ -158,7 +159,7 @@ export function PlaygroundPage() {
             <Composer
               keys={enabledKeys}
               keyId={activeKey?.id ?? null}
-              models={modelIds}
+              models={modelItems}
               model={model}
               effort={effort}
               webSearch={webSearch}

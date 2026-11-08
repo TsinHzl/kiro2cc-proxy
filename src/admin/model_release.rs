@@ -39,6 +39,8 @@ pub(crate) const SEEN_FILE_NAME: &str = "kiro_model_seen.json";
 const MODEL_RELEASE_DATES: &[(&str, &str)] = &[
     ("claude-opus-5.5", "2026-10-12"),
     ("claude-sonnet-5.5", "2026-10-12"),
+    ("claude-haiku-5.5", "2026-11-08"),
+    ("kimi-k3", "2026-11-08"),
 ];
 
 /// 查询手动覆盖的发布日期（未登记返回 `None`）
@@ -168,6 +170,8 @@ mod tests {
     fn override_date_returns_registered_date() {
         assert_eq!(override_date("claude-opus-5.5"), Some("2026-10-12"));
         assert_eq!(override_date("claude-sonnet-5.5"), Some("2026-10-12"));
+        assert_eq!(override_date("claude-haiku-5.5"), Some("2026-11-08"));
+        assert_eq!(override_date("kimi-k3"), Some("2026-11-08"));
         assert_eq!(override_date("claude-opus-5"), None);
         assert_eq!(override_date(""), None);
     }

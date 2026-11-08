@@ -1,0 +1,110 @@
+<svg viewBox="0 0 1200 1160" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" style="width:100%;max-width:1200px;font-family:sans-serif">
+  <title id="title">图1·请求 history 内容与演进</title>
+  <desc id="desc">展示 Kiro 请求 history 的两种条目、所有字段、系统与普通历史构造、currentMessage 边界、搜索续轮及本地缓存状态。字段规则和源码依据见配套文档第 1、2 节。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#525252"/></marker>
+    <style>
+      text { fill:#171717; font-size:11px; }
+      .heading { font-size:14px; font-weight:700; }
+      .subheading { font-size:12px; font-weight:700; }
+      .note { fill:#525252; font-size:9px; }
+      .panel { fill:#ffffff; stroke:#a3a3a3; }
+      .flow { fill:none; stroke:#525252; stroke-width:1.5; marker-end:url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="1160" fill="#fafafa"/>
+  <text x="24" y="30" class="heading">图1 · 请求 history 内容与演进</text>
+  <text x="24" y="51">阅读顺序：请求边界 → 两种消息字段 → 构造与 current → 搜索续轮与缓存边界 → provider 最终改写</text>
+  <rect x="24" y="70" width="1152" height="82" rx="8" class="panel"/>
+  <text x="40" y="92" class="subheading">请求边界 · conversationState</text>
+  <text x="40" y="113">会话字段：conversationId / agentContinuationId / agentTaskType / chatTriggerType；它们不属于单条 history 消息</text>
+  <text x="40" y="134">消息容器：history[] 与 currentMessage 并列；profileArn / additionalModelRequestFields 位于请求外层</text>
+  <path d="M264 152 V177" class="flow"/>
+  <path d="M936 152 V177" class="flow"/>
+  <rect x="24" y="180" width="480" height="290" rx="8" class="panel"/>
+  <text x="40" y="204" class="subheading">A · history[i].userInputMessage</text>
+  <text x="40" y="227">content：系统提示 / 用户正文 / PDF 文本 / 挂靠通知</text>
+  <text x="40" y="245">空正文占位："(tool result above)"</text>
+  <text x="40" y="263">modelId：本次映射模型；origin：正常为 "AI_EDITOR"</text>
+  <text x="40" y="281">images[]：空则省略</text>
+  <text x="58" y="299">format：jpeg / png / gif / webp；source.bytes：base64</text>
+  <text x="40" y="317">userInputMessageContext：工具与结果皆空则整个省略</text>
+  <text x="58" y="335">toolResults[]：空则省略</text>
+  <text x="76" y="353">toolUseId：配对调用 ID；content：[{"text":"结果"}]</text>
+  <text x="76" y="371">status："success" / "error"；isError：仅 true 输出</text>
+  <text x="58" y="389">tools[]：类型允许，当前 history 构造不填入</text>
+  <text x="40" y="415" class="note">图片来自顶层 image 或工具结果；不将 PDF 原始字节另存为字段。</text>
+  <text x="40" y="432" class="note">origin / status 在类型层面为可选；上列为正常构造器的取值。</text>
+  <text x="40" y="449" class="note">普通工具结果的 status 仍会写入；成功时不输出 isError:false。</text>
+  <rect x="696" y="180" width="480" height="290" rx="8" class="panel"/>
+  <text x="712" y="204" class="subheading">B · history[i].assistantResponseMessage</text>
+  <text x="712" y="227">content：净化后的回答；没有正文则为单个空格 " "</text>
+  <text x="712" y="245">messageId：普通历史消息按正文与调用 IDs 确定性生成</text>
+  <text x="712" y="263">toolUses[]：None 省略；清理后无调用则恢复为 None</text>
+  <text x="730" y="281">toolUseId：调用 ID</text>
+  <text x="730" y="299">name：工具名</text>
+  <text x="730" y="317">input：JSON 参数，缺失时默认 {}</text>
+  <text x="712" y="343">原生 thinking 块丢弃；文本化思考、credits、dim 依次净化</text>
+  <text x="712" y="361">系统 ACK："I will follow these instructions."</text>
+  <text x="712" y="379">历史末尾孤立 user 的自动配对："OK"</text>
+  <text x="712" y="397">系统 ACK / 自动 OK / 搜索桥接 assistant：不设置 messageId</text>
+  <text x="712" y="432" class="note">数组元素没有 role；没有独立 thinking / signature / cache_control。</text>
+  <text x="712" y="449" class="note">toolUses 是调用记录，不是 tools 定义；ID 与左侧结果关联。</text>
+  <path d="M696 353 H514" class="flow"/>
+  <text x="529" y="340" class="note">同一 toolUseId 配对</text>
+  <rect x="24" y="496" width="480" height="260" rx="8" class="panel"/>
+  <text x="40" y="520" class="subheading">C · 普通请求的数组构造顺序</text>
+  <text x="40" y="545">① 提取内联 system；去掉末尾连续 assistant prefill</text>
+  <text x="40" y="565">② 可选：[系统 user，固定 ACK assistant]</text>
+  <text x="58" y="585">稳定 system + 按需 thinking 标签 / luna 引导语</text>
+  <text x="58" y="605">动态块分流 → cch 归一化 → PREV_H0 内容复用</text>
+  <text x="40" y="625">③ 追加最后一条 user 之前的对话，同角色连续段合并</text>
+  <text x="58" y="645">user 用换行连接；assistant 多消息用双换行连接</text>
+  <text x="40" y="665">④ 历史以 user 段结束时，再追加 assistant "OK"</text>
+  <text x="40" y="685">⑤ 过滤 current 孤立/重复结果；删除历史未配对调用</text>
+  <text x="40" y="711" class="note">系统配对可不存在：history[0] 不保证是 system，history 也可为空。</text>
+  <text x="40" y="728" class="note">普通请求由客户端全量消息重建，不是从 PREV_H0 读取整个 history。</text>
+  <text x="40" y="745" class="note">该清理并非全历史 toolResult 邻接性、孤立性、唯一性的严格校验。</text>
+  <rect x="696" y="496" width="480" height="260" rx="8" class="panel"/>
+  <text x="712" y="520" class="subheading">D · currentMessage.userInputMessage（history 外）</text>
+  <text x="712" y="545">content：最后一条 user + 动态通知 + 按需输出约束等</text>
+  <text x="712" y="565">modelId / origin / images：同类字段；空 images 省略</text>
+  <text x="712" y="585">userInputMessageContext：空时仍保留容器 {}</text>
+  <text x="730" y="605">tools[]：完整转换后的定义；空则省略</text>
+  <text x="748" y="625">toolSpecification.name / description / inputSchema.json</text>
+  <text x="730" y="645">toolResults[]：本轮已通过配对校验的工具结果</text>
+  <text x="712" y="671">工具结果图片进入 images，结果文字保留图号与调用 ID</text>
+  <text x="712" y="691">历史缺失工具补占位定义；搜索桥接按条件补工具定义</text>
+  <text x="712" y="719" class="note">没有固定 tools history[2]/[3]，没有 slim_tools 路径。</text>
+  <text x="712" y="739" class="note">末条 user 不与前面的历史 user 合并；它的工具结果不提前沉入 history。</text>
+  <rect x="24" y="782" width="480" height="244" rx="8" class="panel"/>
+  <text x="40" y="806" class="subheading">E · 模型驱动 web_search 续轮</text>
+  <text x="40" y="831">H_next = H_old + [旧 current 转 user，本轮搜索 assistant]</text>
+  <text x="40" y="851">旧 current：正文、模型、origin、图片、旧结果一起沉入历史</text>
+  <text x="40" y="871">旧 current 的 tools 不进入 history，完整保留在新 current</text>
+  <text x="40" y="891">新增 assistant：content=" "；无 messageId</text>
+  <text x="58" y="911">单个 toolUses：Kiro 调用 ID / web_search / {"query":词}</text>
+  <text x="40" y="931">新 current：占位正文 + 本轮单个结果 + 完整 tools</text>
+  <text x="40" y="951">MCP 失败仍续答：status="error"，isError=true</text>
+  <text x="40" y="978" class="note">原 history 前缀和会话字段在桥接构造器中不变；多轮基于上一轮演进。</text>
+  <text x="40" y="995" class="note">不回填搜索调用前的回答/思考；纯 WebSearch 快捷路径不走此流程。</text>
+  <text x="40" y="1012" class="note">桥接直接构造续请求，不重新运行 converter 的工具配对校验。</text>
+  <rect x="696" y="782" width="480" height="244" rx="8" class="panel"/>
+  <text x="712" y="806" class="subheading">F · 本地状态 ≠ 完整 history ≠ 服务端 KV Cache</text>
+  <text x="712" y="831">PREV_H0：session + 系统内容哈希 → 系统正文字符串</text>
+  <text x="712" y="851">上限 1024 条；任意键淘汰；非严格 LRU；没有命中 TTL</text>
+  <text x="712" y="871">BASELINES：识别稳定系统块及后续新增块，不保存聊天记录</text>
+  <text x="712" y="891">prefix_cached = 存在预处理后历史消息 AND h0_frozen</text>
+  <text x="712" y="911">raw prefix：原始 system + tools + 除末条外的 messages</text>
+  <text x="712" y="931">原始前缀估算 ≠ 对实际 Kiro history 的逐字段 token 计数</text>
+  <text x="712" y="951">fingerprint / cache_control 断点账本：另两种本地记账状态</text>
+  <text x="712" y="978" class="note">挂回历史 user 的动态通知仍在 history；预算提示先放 current。</text>
+  <text x="712" y="995" class="note">该门控不校验全部 tools/history、实际账号、上游 TTL。</text>
+  <text x="712" y="1012" class="note">本地命中不能证明真实上游命中率、缓存寿命或计费折扣。</text>
+  <path d="M264 1026 V1048" class="flow"/>
+  <path d="M936 1026 V1048" class="flow"/>
+  <rect x="24" y="1052" width="1152" height="84" rx="8" class="panel"/>
+  <text x="40" y="1076" class="subheading">发送前最后一道处理 · provider 按实际账号 thinking 开关改写</text>
+  <text x="40" y="1097">关闭时：精确 enabled 前缀 + 紧邻固定 ACK 且无工具调用 → 去掉前缀；仅有前缀时删除整对系统消息；其他形态不动</text>
+  <text x="40" y="1118">重试/故障转移按新账号重新处理；因此 converter 的冻结结果，不保证等同于最终 wire history。源码索引与完整例外见配套文档。</text>
+</svg>

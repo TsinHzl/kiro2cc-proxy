@@ -1,22 +1,22 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-//! 模型「首次出现」日期自检
+//! 模型「新增」自检
 //!
-//! 上游 `ListAvailableModels` 不提供发布时间字段。这里改为由服务自己记录：
-//! 每次成功拉到实时模型列表，就把「之前没见过的模型 ID」连同当天日期写入
-//! `kiro_model_seen.json`（与 credentials.json 同目录）。后续新增的模型因此无需改代码
-//! 即可带上 `released_at`，前端据此在窗口期内展示 NEW 徽章。
+//! 记录文件 `kiro_model_seen.json`（与 credentials.json 同目录）保存「已见过的模型 ID」
+//! 及其登记日期。每次成功拉到实时模型列表时：
+//! - 文件中已有的模型保持不变；
+//! - 文件中没有的模型，以当天日期写入文件，前端在窗口期内展示 NEW 徽章。
 //!
-//! 「是否最近新增」仍由前端按当前时间实时判定（避免页面长时间停留后徽章不消失），
+//! 「是否仍在窗口期内」由前端按当前时间实时判定（避免页面长时间停留后徽章不消失），
 //! 窗口天数见 `web-ui/admin-ui/src/components/model-list-page.tsx` 的 `RECENT_WINDOW_DAYS`。
 //!
-//! # 首次运行的基线
-//! 记录文件不存在（首次升级到本版本，或文件被删/损坏）时，当前已有的全部模型只登记为
-//! 「基线」（日期为 `null`），不算新增，否则升级当天整张表都会亮 NEW。
-//! 基线之后才出现的模型才记当天日期。
+//! # 首次建立记录
+//! 记录文件不存在（首次升级，或文件被删/损坏）时，当前列表中的模型登记为「基线」（日期为 `null`，不算新增），
+//! 否则升级当天整张表都会亮 NEW。`ALWAYS_NEW_IDS` 中的模型不参与基线。
 //!
-//! # 手动覆盖
-//! `MODEL_RELEASE_DATES` 仍保留，用于：升级前已手动登记、需要保持徽章的模型，
-//! 或想把日期改成实际上线日。覆盖优先于自检记录。
+//! # 强制新增
+//! `ALWAYS_NEW_IDS` 中的模型不进入基线：无论何时首次出现，都以登记当天的日期写入，从而展示 NEW。
+//! 升级前旧记录里这些模型的条目会在加载时被移除一次（由记录格式版本号 `SEEN_VERSION` 控制），
+//! 之后按实际拉取日期重新登记。
 //!
 //! # 局限
 //! 记录的是「本代理第一次看到该模型的日期」，不是官方发布日期；
@@ -32,35 +32,51 @@ use serde::{Deserialize, Serialize};
 /// 记录文件名（位于 credentials.json 同目录）
 pub(crate) const SEEN_FILE_NAME: &str = "kiro_model_seen.json";
 
-/// 手动覆盖的发布日期（模型 ID → `YYYY-MM-DD`），优先于自检记录
-///
-/// 日期取该模型在本代理中「可调用」的日期（上线日），非官方发布日期。
-/// 一般无需再追加；新增模型由自检自动记录。
-const MODEL_RELEASE_DATES: &[(&str, &str)] = &[
-    ("claude-opus-5.5", "2026-10-12"),
-    ("claude-sonnet-5.5", "2026-10-12"),
-    ("claude-haiku-5.5", "2026-11-08"),
-    ("kimi-k3", "2026-11-08"),
+/// 当前记录格式版本。缺失版本号的旧文件视为 0，加载时执行一次迁移
+const SEEN_VERSION: u32 = 2;
+
+/// 强制按首次出现日期登记 NEW 的模型，不参与基线
+const ALWAYS_NEW_IDS: &[&str] = &[
+    "claude-sonnet-5.5",
+    "claude-opus-5.5",
+    "claude-haiku-5.5",
+    "kimi-k3",
 ];
 
-/// 查询手动覆盖的发布日期（未登记返回 `None`）
-fn override_date(model_id: &str) -> Option<&'static str> {
-    MODEL_RELEASE_DATES
-        .iter()
-        .find(|(id, _)| *id == model_id)
-        .map(|(_, date)| *date)
-}
-
-/// 持久化内容：模型 ID → 首次出现日期（`None` 表示基线，不算新增）
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// 持久化内容：模型 ID → 登记日期（`None` 表示基线，不算新增）
+#[derive(Debug, Serialize, Deserialize)]
 struct SeenState {
+    /// 记录格式版本；缺失即旧格式（0）
+    #[serde(default)]
+    version: u32,
     models: BTreeMap<String, Option<String>>,
 }
 
 impl SeenState {
+    /// 新建的当前版本记录（尚无任何模型）
+    fn fresh() -> Self {
+        Self {
+            version: SEEN_VERSION,
+            models: BTreeMap::new(),
+        }
+    }
+
+    /// 旧版本记录迁移：移除 `ALWAYS_NEW_IDS` 的旧条目，使其按当前拉取日期重新登记。
+    /// 返回是否有变化（需要落盘）
+    fn migrate(&mut self) -> bool {
+        if self.version >= SEEN_VERSION {
+            return false;
+        }
+        for id in ALWAYS_NEW_IDS {
+            self.models.remove(*id);
+        }
+        self.version = SEEN_VERSION;
+        true
+    }
+
     /// 登记本次看到的模型，返回是否有变化（需要落盘）
     ///
-    /// `baseline` 为 true 时，新模型登记为 `None`（不算新增）。
+    /// `baseline` 为 true 时，新模型登记为 `None`（不算新增），`ALWAYS_NEW_IDS` 除外。
     fn observe(&mut self, ids: &[&str], today: NaiveDate, baseline: bool) -> bool {
         let today = today.format("%Y-%m-%d").to_string();
         let mut changed = false;
@@ -68,7 +84,12 @@ impl SeenState {
             if id.is_empty() || self.models.contains_key(*id) {
                 continue;
             }
-            let first_seen = if baseline { None } else { Some(today.clone()) };
+            let always_new = ALWAYS_NEW_IDS.contains(id);
+            let first_seen = if baseline && !always_new {
+                None
+            } else {
+                Some(today.clone())
+            };
             self.models.insert((*id).to_string(), first_seen);
             changed = true;
         }
@@ -76,7 +97,7 @@ impl SeenState {
     }
 }
 
-/// 模型发布日期追踪器
+/// 模型新增日期追踪器
 pub(crate) struct ModelReleaseTracker {
     path: Option<PathBuf>,
     /// `None` 表示尚未建立基线
@@ -84,7 +105,8 @@ pub(crate) struct ModelReleaseTracker {
 }
 
 impl ModelReleaseTracker {
-    /// 从 `path` 加载记录；文件不存在或损坏时视为尚未建立基线
+    /// 从 `path` 加载记录；文件不存在或损坏时视为尚未建立基线。
+    /// 旧格式记录会在此完成一次迁移并立即落盘
     pub(crate) fn load(path: Option<PathBuf>) -> Self {
         let state = path.as_ref().and_then(|p| {
             let content = std::fs::read_to_string(p).ok()?;
@@ -96,10 +118,19 @@ impl ModelReleaseTracker {
                 }
             }
         });
-        Self {
+        let tracker = Self {
             path,
             state: Mutex::new(state),
+        };
+        {
+            let mut guard = tracker.state.lock();
+            if let Some(state) = guard.as_mut() {
+                if state.migrate() {
+                    tracker.save(state);
+                }
+            }
         }
+        tracker
     }
 
     /// 仅内存、不落盘（测试用）
@@ -122,18 +153,15 @@ impl ModelReleaseTracker {
         }
         let mut guard = self.state.lock();
         let baseline = guard.is_none();
-        let state = guard.get_or_insert_with(SeenState::default);
+        let state = guard.get_or_insert_with(SeenState::fresh);
         // 建立基线时即使没有任何新条目也要落盘（ids 非空，必有变化）
         if state.observe(ids, today, baseline) {
             self.save(state);
         }
     }
 
-    /// 查询模型发布日期：手动覆盖优先，其次自检记录；基线或未见过返回 `None`
+    /// 查询模型登记日期（未见过或属于基线返回 `None`）
     pub(crate) fn release_date(&self, model_id: &str) -> Option<String> {
-        if let Some(date) = override_date(model_id) {
-            return Some(date.to_string());
-        }
         self.state
             .lock()
             .as_ref()
@@ -166,26 +194,12 @@ mod tests {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
     }
 
-    #[test]
-    fn override_date_returns_registered_date() {
-        assert_eq!(override_date("claude-opus-5.5"), Some("2026-10-12"));
-        assert_eq!(override_date("claude-sonnet-5.5"), Some("2026-10-12"));
-        assert_eq!(override_date("claude-haiku-5.5"), Some("2026-11-08"));
-        assert_eq!(override_date("kimi-k3"), Some("2026-11-08"));
-        assert_eq!(override_date("claude-opus-5"), None);
-        assert_eq!(override_date(""), None);
-    }
-
-    #[test]
-    fn all_overrides_use_iso_date_format() {
-        // 前端 Date.parse 依赖 `YYYY-MM-DD`，格式错误会静默失效
-        for (id, date) in MODEL_RELEASE_DATES {
-            assert_eq!(date.len(), 10, "模型 {id} 的日期格式非法: {date}");
-            assert!(
-                NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok(),
-                "模型 {id} 的日期无法解析: {date}"
-            );
-        }
+    fn temp_path(tag: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("kiro_model_seen_{tag}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(SEEN_FILE_NAME)
     }
 
     #[test]
@@ -194,6 +208,18 @@ mod tests {
         t.observe_on(&["a", "b"], day("2026-10-13"));
         assert_eq!(t.release_date("a"), None);
         assert_eq!(t.release_date("b"), None);
+    }
+
+    #[test]
+    fn always_new_models_get_date_even_on_baseline() {
+        let t = ModelReleaseTracker::in_memory();
+        t.observe_on(&["a", "kimi-k3", "claude-haiku-5.5"], day("2026-11-08"));
+        assert_eq!(t.release_date("a"), None);
+        assert_eq!(t.release_date("kimi-k3").as_deref(), Some("2026-11-08"));
+        assert_eq!(
+            t.release_date("claude-haiku-5.5").as_deref(),
+            Some("2026-11-08")
+        );
     }
 
     #[test]
@@ -209,9 +235,10 @@ mod tests {
     fn first_seen_date_is_not_overwritten() {
         let t = ModelReleaseTracker::in_memory();
         t.observe_on(&["a"], day("2026-10-13"));
-        t.observe_on(&["a", "c"], day("2026-10-20"));
-        t.observe_on(&["a", "c"], day("2026-11-30"));
+        t.observe_on(&["a", "c", "kimi-k3"], day("2026-10-20"));
+        t.observe_on(&["a", "c", "kimi-k3"], day("2026-11-30"));
         assert_eq!(t.release_date("c").as_deref(), Some("2026-10-20"));
+        assert_eq!(t.release_date("kimi-k3").as_deref(), Some("2026-10-20"));
     }
 
     #[test]
@@ -224,47 +251,67 @@ mod tests {
     }
 
     #[test]
-    fn override_takes_priority_over_recorded_baseline() {
-        let t = ModelReleaseTracker::in_memory();
-        t.observe_on(&["claude-opus-5.5"], day("2026-10-13"));
-        assert_eq!(
-            t.release_date("claude-opus-5.5").as_deref(),
-            Some("2026-10-12")
-        );
-    }
-
-    #[test]
     fn persists_and_reloads_across_restarts() {
-        let dir = std::env::temp_dir().join(format!("kiro_model_seen_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(SEEN_FILE_NAME);
-        let _ = std::fs::remove_file(&path);
+        let path = temp_path("persist");
 
         let t = ModelReleaseTracker::load(Some(path.clone()));
         t.observe_on(&["a"], day("2026-10-13"));
         t.observe_on(&["a", "c"], day("2026-10-20"));
+        t.observe_on(&["a", "c", "kimi-k3"], day("2026-10-21"));
 
-        // 重启后：不再重建基线，c 的日期保留，新出现的 d 记当天
+        // 重启后：不再重建基线，c 与 kimi-k3 的日期保留，新出现的 d 记当天
         let t2 = ModelReleaseTracker::load(Some(path.clone()));
         assert_eq!(t2.release_date("c").as_deref(), Some("2026-10-20"));
-        t2.observe_on(&["a", "c", "d"], day("2026-10-25"));
+        assert_eq!(t2.release_date("kimi-k3").as_deref(), Some("2026-10-21"));
+        t2.observe_on(&["a", "c", "d", "kimi-k3"], day("2026-10-25"));
         assert_eq!(t2.release_date("a"), None);
         assert_eq!(t2.release_date("d").as_deref(), Some("2026-10-25"));
 
         assert!(!path.with_extension("json.tmp").exists());
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn legacy_file_is_migrated_once_and_always_new_entries_are_redated() {
+        let path = temp_path("migrate");
+        // 旧格式：无 version 字段，kimi-k3 / haiku 带旧日期，sonnet 为基线
+        std::fs::write(
+            &path,
+            r#"{"models":{"a":null,"kimi-k3":"2026-10-16","claude-haiku-5.5":"2026-10-24","claude-sonnet-5.5":null}}"#,
+        )
+        .unwrap();
+
+        let t = ModelReleaseTracker::load(Some(path.clone()));
+        assert_eq!(t.release_date("a"), None);
+        assert_eq!(t.release_date("kimi-k3"), None);
+        assert_eq!(t.release_date("claude-haiku-5.5"), None);
+        let saved: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(saved["version"], SEEN_VERSION);
+        assert!(saved["models"].get("kimi-k3").is_none());
+        assert!(saved["models"].get("claude-sonnet-5.5").is_none());
+
+        // 迁移后按拉取日期登记，且重启不会再次清空
+        t.observe_on(&["a", "kimi-k3", "claude-haiku-5.5"], day("2026-11-08"));
+        let t2 = ModelReleaseTracker::load(Some(path.clone()));
+        assert_eq!(t2.release_date("kimi-k3").as_deref(), Some("2026-11-08"));
+        assert_eq!(
+            t2.release_date("claude-haiku-5.5").as_deref(),
+            Some("2026-11-08")
+        );
+        assert_eq!(t2.release_date("a"), None);
+
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 
     #[test]
     fn corrupted_file_falls_back_to_new_baseline() {
-        let dir = std::env::temp_dir().join(format!("kiro_model_seen_bad_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(SEEN_FILE_NAME);
+        let path = temp_path("corrupt");
         std::fs::write(&path, "not json").unwrap();
 
-        let t = ModelReleaseTracker::load(Some(path));
+        let t = ModelReleaseTracker::load(Some(path.clone()));
         t.observe_on(&["a"], day("2026-10-13"));
         assert_eq!(t.release_date("a"), None);
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 }

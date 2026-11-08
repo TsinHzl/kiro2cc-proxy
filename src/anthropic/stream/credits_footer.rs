@@ -159,12 +159,15 @@ fn block_type(block: &serde_json::Value) -> Option<&str> {
 /// - 含用户亲自输入的文本（见 [`has_human_text`]），或图片 / 文档块：新一轮。提醒块与
 ///   用户正文可能是独立文本块，也可能合并成同一段文本，两种形态都按此判断
 fn is_new_user_turn(messages: &[Message]) -> bool {
-    // Claude Code 把用户输入与其后新注入的附件（deferred tools、MCP 指令等）拆成多条 user 消息，
-    // 所以只看最后一条会把「仅含附件」的消息误判为续请求。这里看末尾连续的 user 消息整体。
+    // Claude Code 把用户输入与其后新注入的附件（deferred tools、MCP 指令等）拆成独立消息，
+    // 附件可能是 user 消息，也可能是内联 `role:"system"` 消息（转换层把后者当作动态系统块处理）。
+    // 只看最后一条会把「仅含附件」的消息误判为续请求，所以向前跳过 system 消息，
+    // 看末尾连续的 user 消息整体，遇到 assistant 为止。
     let trailing: Vec<&Message> = messages
         .iter()
         .rev()
-        .take_while(|m| m.role == "user")
+        .take_while(|m| m.role == "user" || m.role == "system")
+        .filter(|m| m.role == "user")
         .collect();
     if trailing.iter().any(|m| has_tool_result(m)) {
         return false;
@@ -643,6 +646,26 @@ mod tests {
             msg("assistant", json!("你好")),
             msg("user", json!("你是什么模型")),
             msg("user", json!([reminder("deferred tools")])),
+        ]));
+        // 附件是内联 system 消息（排在用户输入之后）：仍是新一轮
+        assert!(is_new_user_turn(&[
+            msg("user", json!("hi")),
+            msg("assistant", json!("你好")),
+            msg("user", json!("你是什么模型")),
+            msg("system", json!([reminder("deferred tools")])),
+        ]));
+        // 内联 system 消息夹在工具往返之后：仍是续请求
+        assert!(!is_new_user_turn(&[
+            msg("user", json!("查一下")),
+            msg("assistant", json!([{"type": "tool_use", "id": "t1"}])),
+            msg("user", json!([tool_result.clone()])),
+            msg("system", json!("动态提示")),
+        ]));
+        // system 之前隔着 assistant：不跨过 assistant 回看
+        assert!(!is_new_user_turn(&[
+            msg("user", json!("你好")),
+            msg("assistant", json!("回复")),
+            msg("system", json!([reminder("mcp")])),
         ]));
         // 附件在用户输入之前的同一段内：仍是新一轮
         assert!(is_new_user_turn(&[

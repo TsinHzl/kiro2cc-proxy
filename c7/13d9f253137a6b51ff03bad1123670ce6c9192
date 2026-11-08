@@ -1,0 +1,25 @@
+docs/diagrams/01-kiro-history.svg
+  082b16803e07d25d 1-110
+docs/Kiro缓存与状态管理解析.md
+  082b16803e07d25d 5-8,13-14,24,29,31,44,49-50,53-161,165,167-192,194-208,210,212,214,216,218,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c713d9f253137a6b51ff03bad1123670ce6c9192",
+  "prompts": {
+    "082b16803e07d25d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b1a5666-48bf-44ee-a761-6912b261f1cd",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 287,
+      "total_deletions": 41,
+      "accepted_lines": 285,
+      "overriden_lines": 0
+    }
+  }
+}

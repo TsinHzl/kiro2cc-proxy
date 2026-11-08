@@ -101,14 +101,14 @@ export function PlaygroundPage() {
           }`}
         />
         {/*
-          始终挂载，用样式做动画：桌面端宽度 16rem ↔ 0（内层固定宽度，内容不会随之重排），
+          始终挂载，用样式做动画：桌面端宽度 14rem ↔ 0（内层固定宽度，内容不会随之重排），
           窄屏端整体平移滑入 / 滑出。invisible 的 visibility 会在动画结束时才生效，
           收起后既不可见也不会被 Tab 聚焦到。
         */}
         <div
           className={`shrink-0 overflow-hidden transition-[width,transform,visibility] duration-300 ease-out motion-reduce:transition-none max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-20 max-md:w-64 ${
             sidebarOpen
-              ? 'visible md:w-64 max-md:shadow-panel'
+              ? 'visible md:w-56 max-md:shadow-panel'
               : 'invisible md:w-0 max-md:-translate-x-full'
           }`}
         >

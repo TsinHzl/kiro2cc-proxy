@@ -857,8 +857,6 @@
     "thinkingAsTextDesc": "仅对 Claude Code 生效。开启后，深度思考内容会逐行流式显示（类似 Kiro CLI；终端入口 cli 为变暗灰色，其他入口为 Markdown 引用块 + 斜体），解决 Claude Code 默认折叠 thinking、长推理期间界面像卡住的问题；默认开启；关闭则保持原生 thinking 块。两种模式下 Claude Code 自身上下文都包含思考内容，但回传上游时都会整块丢弃（关闭：原生 thinking 块；开启：标记行、思考正文与时长行），上游上下文不含思考内容。热切换，仅对之后的新请求生效。",
     "showSessionCredits": "会话 Credits 汇总行",
     "showSessionCreditsDesc": "仅对 Claude Code 生效。开启后，每次对话真正结束时（不含工具调用中间步骤）会在回复最后一行追加消耗统计，格式如 “▸ Credits: turn 0.86 • session 8.73 | Time: 12s”：turn 为本轮（一次提问下的所有请求）消耗，session 为当前会话自开启以来的累计消耗，Time 为本轮耗时。累计值由代理按上游每个请求返回的 credits 逐次累加，重启服务后清零；终端入口为变暗灰色，其他入口为 Markdown 斜体。该行会在回传上游前自动剥离，不进入上游上下文，也不计入 output_tokens。不带工具定义的辅助请求（标题生成、压缩等）不追加；暂不支持非流式请求。默认关闭，热切换，仅对之后的新请求生效。",
-    "credentialKeepAlive": "账号保活",
-    "credentialKeepAliveDesc": "后台定期刷新长期闲置的账号（含被禁用、备用优先级的账号），让 refreshToken 保持活跃，减少账号因闲置而过期。只处理距上次刷新超过 {{hours}} 小时的账号（间隔可在 config.json 的 credentialKeepAliveHours 调整，下限 24），账号之间随机错开 30~120 秒，每小时最多处理 5 个；失败不重试，已被服务端撤销的账号会跳过。无法延长服务端的绝对会话时限（如 IAM Identity Center 的 90 天）。默认关闭，热切换，下一轮检查起生效。",
     "dumpKiroBody": "Kiro 请求体落盘取证(排除问题使用)",
     "dumpKiroBodyDesc": "调试取证开关。开启后，每个发往 Kiro 的最终请求体会写入 app/config/kiro-body-dump/ 目录（文件权限 0600），用于排查协议转换问题；默认关闭。热切换，仅对之后的新请求生效，定位问题后请及时关闭以免磁盘占用持续增长。",
     "debugLogs": "DEBUG 日志",

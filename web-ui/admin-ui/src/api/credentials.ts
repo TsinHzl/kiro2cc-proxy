@@ -197,18 +197,6 @@ export async function setShowSessionCredits(enabled: boolean): Promise<{ success
   return data
 }
 
-// 获取账号保活开关与间隔（小时）
-export async function getCredentialKeepAlive(): Promise<{ enabled: boolean; hours: number }> {
-  const { data } = await api.get<{ enabled: boolean; hours: number }>('/config/credential-keep-alive')
-  return data
-}
-
-// 设置账号保活开关
-export async function setCredentialKeepAlive(enabled: boolean): Promise<{ success: boolean; message: string }> {
-  const { data } = await api.put<{ success: boolean; message: string }>('/config/credential-keep-alive', { enabled })
-  return data
-}
-
 // 获取 Kiro 请求体落盘取证开关
 export async function getDumpKiroBody(): Promise<{ enabled: boolean }> {
   const { data } = await api.get<{ enabled: boolean }>('/config/dump-kiro-body')

@@ -376,46 +376,6 @@ fn persist_show_session_credits(
     })
 }
 
-/// GET /api/admin/config/credential-keep-alive
-/// 获取账号保活开关与间隔
-pub async fn get_credential_keep_alive() -> impl IntoResponse {
-    Json(super::types::CredentialKeepAliveResponse {
-        enabled: crate::kiro::token_manager::keep_alive_enabled(),
-        hours: crate::kiro::token_manager::keep_alive_hours(),
-    })
-}
-
-/// PUT /api/admin/config/credential-keep-alive
-/// 设置账号保活开关（运行时热切换并持久化到 config.json；下一轮检查起生效）
-pub async fn set_credential_keep_alive(
-    State(state): State<AdminState>,
-    Json(payload): Json<super::types::SetCredentialKeepAliveRequest>,
-) -> impl IntoResponse {
-    // 热更新在锁内执行，保证内存与磁盘写入顺序一致（见 set_suggestion_mode 注释）
-    let _guard = state.persist_lock.lock();
-    crate::kiro::token_manager::set_keep_alive_enabled(payload.enabled);
-    if let Some(ref config_path) = state.config_path
-        && let Err(e) = persist_config_field(config_path, |json| {
-            json["credentialKeepAlive"] = serde_json::Value::Bool(payload.enabled);
-        })
-    {
-        tracing::error!("持久化账号保活开关失败: {}", e);
-        let error = super::types::AdminErrorResponse::internal_error("持久化失败，但运行时已生效");
-        return (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!(error)),
-        )
-            .into_response();
-    }
-
-    Json(SuccessResponse::new(if payload.enabled {
-        "账号保活已开启"
-    } else {
-        "账号保活已关闭"
-    }))
-    .into_response()
-}
-
 /// GET /api/admin/config/dump-kiro-body
 /// 获取 Kiro 请求体落盘取证开关
 pub async fn get_dump_kiro_body() -> impl IntoResponse {

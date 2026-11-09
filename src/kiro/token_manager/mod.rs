@@ -26,9 +26,7 @@ mod refresh;
 mod types;
 
 pub use entry::{DisabledReason, HealthStatus};
-pub use manager::{
-    keep_alive_enabled, keep_alive_hours, set_keep_alive_enabled, set_keep_alive_hours,
-};
+pub use manager::{keep_alive_hours, set_keep_alive_hours};
 pub(crate) use refresh::UsageLimitsUnsupportedError;
 #[cfg(test)]
 pub(crate) use refresh::{is_token_expired, is_token_expiring_soon, refresh_token};

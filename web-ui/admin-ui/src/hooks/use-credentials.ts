@@ -18,8 +18,6 @@ import {
   setThinkingAsText,
   getShowSessionCredits,
   setShowSessionCredits,
-  getCredentialKeepAlive,
-  setCredentialKeepAlive,
   getDumpKiroBody,
   setDumpKiroBody,
   getDumpFiles,
@@ -273,25 +271,6 @@ export function useSetShowSessionCredits() {
     mutationFn: setShowSessionCredits,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['showSessionCredits'] })
-    },
-  })
-}
-
-// 获取账号保活开关与间隔
-export function useCredentialKeepAlive() {
-  return useQuery({
-    queryKey: ['credentialKeepAlive'],
-    queryFn: getCredentialKeepAlive,
-  })
-}
-
-// 设置账号保活开关
-export function useSetCredentialKeepAlive() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: setCredentialKeepAlive,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['credentialKeepAlive'] })
     },
   })
 }

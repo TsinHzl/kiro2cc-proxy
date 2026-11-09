@@ -6,6 +6,4 @@ mod model_support;
 mod reports;
 mod stats;
 
-pub use keep_alive::{
-    keep_alive_enabled, keep_alive_hours, set_keep_alive_enabled, set_keep_alive_hours,
-};
+pub use keep_alive::{keep_alive_hours, set_keep_alive_hours};

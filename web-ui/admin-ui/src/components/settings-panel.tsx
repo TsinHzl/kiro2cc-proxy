@@ -13,7 +13,6 @@ import {
   useClientTokenPassthrough, useSetClientTokenPassthrough,
   useThinkingAsText, useSetThinkingAsText,
   useShowSessionCredits, useSetShowSessionCredits,
-  useCredentialKeepAlive, useSetCredentialKeepAlive,
   useDumpKiroBody, useSetDumpKiroBody,
   useDebugLogs, useSetDebugLogs,
   useRuntimeConfig, useSetRuntimeConfig,
@@ -189,8 +188,6 @@ export function SettingsPanel({
   const { mutate: setThinkingAsText, isPending: isSettingThinkingAsText } = useSetThinkingAsText()
   const { data: showSessionCreditsData, isError: showSessionCreditsError, isLoading: isLoadingShowSessionCredits } = useShowSessionCredits()
   const { mutate: setShowSessionCredits, isPending: isSettingShowSessionCredits } = useSetShowSessionCredits()
-  const { data: keepAliveData, isError: keepAliveError, isLoading: isLoadingKeepAlive } = useCredentialKeepAlive()
-  const { mutate: setKeepAlive, isPending: isSettingKeepAlive } = useSetCredentialKeepAlive()
   const { data: dumpKiroBodyData, isError: dumpKiroBodyError, isLoading: isLoadingDumpKiroBody } = useDumpKiroBody()
   const { mutate: setDumpKiroBody, isPending: isSettingDumpKiroBody } = useSetDumpKiroBody()
   const { data: debugLogsData, isError: debugLogsError, isLoading: isLoadingDebugLogs } = useDebugLogs()
@@ -397,22 +394,6 @@ export function SettingsPanel({
               disabled={showSessionCreditsError || isLoadingShowSessionCredits || isSettingShowSessionCredits}
               onToggle={() =>
                 setShowSessionCredits(!showSessionCreditsData?.enabled, {
-                  onSuccess: (d) => toast.success(d.message),
-                  onError: (e) => toast.error(extractErrorMessage(e)),
-                })
-              }
-            />
-          </Row>
-          <Row
-            label={t('settings.credentialKeepAlive')}
-            desc={keepAliveError ? t('common.loadFailed') : t('settings.credentialKeepAliveDesc', { hours: keepAliveData?.hours ?? 72 })}
-          >
-            <Sw
-              label={t('settings.credentialKeepAlive')}
-              on={!!keepAliveData?.enabled}
-              disabled={keepAliveError || isLoadingKeepAlive || isSettingKeepAlive}
-              onToggle={() =>
-                setKeepAlive(!keepAliveData?.enabled, {
                   onSuccess: (d) => toast.success(d.message),
                   onError: (e) => toast.error(extractErrorMessage(e)),
                 })

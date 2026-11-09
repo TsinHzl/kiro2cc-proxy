@@ -5,7 +5,7 @@
 //! 并把服务端轮换出的新 refreshToken 写回账号文件。
 //!
 //! 为降低被风控的风险，做了以下约束：
-//! - 开关默认关闭，由 Admin 设置页（或 `credentialKeepAlive`）手动开启；
+//! - 始终开启，没有开关；
 //! - 间隔以天计（默认 72 小时，下限 24 小时），只处理距上次刷新已满间隔的账号；
 //! - 账号之间随机间隔 30~120 秒，每轮最多处理 [`MAX_PER_ROUND`] 个，不会批量同时刷新；
 //! - 失败不重试：同一账号失败后至少等满一个间隔才会再尝试；
@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration as StdDuration, Instant};
 
 use chrono::{DateTime, Duration, Utc};
@@ -36,20 +36,9 @@ const GAP_SECS: std::ops::RangeInclusive<u64> = 30..=120;
 /// 启动后首轮检查前的随机等待范围（秒），避免重启后立刻发请求
 const STARTUP_DELAY_SECS: std::ops::RangeInclusive<u64> = 120..=600;
 
-static KEEP_ALIVE_ENABLED: AtomicBool = AtomicBool::new(false);
 static KEEP_ALIVE_HOURS: AtomicU32 = AtomicU32::new(DEFAULT_KEEP_ALIVE_HOURS);
 
-/// 启动时由 main 根据配置设置，Admin 设置页热切换（进程级，与 `set_show_session_credits` 同模式）
-pub fn set_keep_alive_enabled(enabled: bool) {
-    KEEP_ALIVE_ENABLED.store(enabled, Ordering::Relaxed);
-}
-
-/// 账号保活是否开启
-pub fn keep_alive_enabled() -> bool {
-    KEEP_ALIVE_ENABLED.load(Ordering::Relaxed)
-}
-
-/// 设置保活间隔（小时），低于下限按下限处理
+/// 设置保活间隔（小时），低于下限按下限处理（启动时由 main 根据配置设置）
 pub fn set_keep_alive_hours(hours: u32) {
     KEEP_ALIVE_HOURS.store(hours.max(MIN_KEEP_ALIVE_HOURS), Ordering::Relaxed);
 }
@@ -133,7 +122,7 @@ impl MultiTokenManager {
         Ok(())
     }
 
-    /// 启动保活后台任务。任务常驻，每轮检查开关，关闭时什么都不做
+    /// 启动保活后台任务。任务常驻，每小时检查一轮
     pub fn spawn_keep_alive(self: &Arc<Self>) {
         let manager = Arc::clone(self);
         tokio::spawn(async move {
@@ -141,11 +130,7 @@ impl MultiTokenManager {
             let mut failed_at: HashMap<u64, Instant> = HashMap::new();
             tokio::time::sleep(StdDuration::from_secs(fastrand::u64(STARTUP_DELAY_SECS))).await;
             loop {
-                if keep_alive_enabled() {
-                    manager.keep_alive_round(&mut failed_at).await;
-                } else {
-                    failed_at.clear();
-                }
+                manager.keep_alive_round(&mut failed_at).await;
                 tokio::time::sleep(CHECK_INTERVAL).await;
             }
         });
@@ -171,10 +156,6 @@ impl MultiTokenManager {
         for (i, id) in candidates.into_iter().enumerate() {
             if i > 0 {
                 tokio::time::sleep(StdDuration::from_secs(fastrand::u64(GAP_SECS))).await;
-            }
-            // 等待期间用户可能关闭了开关
-            if !keep_alive_enabled() {
-                return;
             }
             match self.keep_alive_refresh(id).await {
                 Ok(()) => tracing::info!("账号 #{} 保活刷新成功", id),

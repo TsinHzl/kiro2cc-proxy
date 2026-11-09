@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ModalityIcons } from '@/components/modality-icons'
+import { formatRate } from '@/lib/model-family'
 import { toast } from '@/lib/toast'
 import type { ModelItem } from '@/types/api'
 import { AttachmentView } from './attachment-view'
@@ -247,7 +248,7 @@ export function Composer({
                 <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="end" className="max-h-[min(420px,60vh)] min-w-[220px] overflow-y-auto">
+            <DropdownMenuContent side="top" align="end" className="max-h-[min(420px,60vh)] min-w-[260px] overflow-y-auto">
               <div className="px-2 pb-1 pt-1.5 text-[10.5px] font-semibold tracking-[.04em] text-ink-3">
                 {t('playground.keyTitle')}
               </div>
@@ -272,9 +273,12 @@ export function Composer({
                 {models.map((m) => (
                   <DropdownMenuRadioItem key={m.id} value={m.id}>
                     <span className="min-w-0 flex-1 truncate">{m.id}</span>
-                    {/* 与「支持模型」弹窗同口径：展示是否支持识别图片 */}
-                    <span className="ml-2 flex shrink-0 items-center">
+                    {/* 与「支持模型」弹窗同口径：展示是否支持识别图片，以及倍率（未返回显示 —） */}
+                    <span className="ml-2 flex shrink-0 items-center gap-2">
                       <ModalityIcons inputTypes={m.input_types} />
+                      <span className="font-mono text-[11.5px] tabular-nums text-ink-3">
+                        {m.rate_multiplier != null ? formatRate(m.rate_multiplier) : '—'}
+                      </span>
                     </span>
                   </DropdownMenuRadioItem>
                 ))}

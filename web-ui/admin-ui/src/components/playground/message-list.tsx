@@ -164,7 +164,7 @@ function SearchBlock({ search }: { search: WebSearchCall }) {
   )
 }
 
-/** 用量：↑ 输入 tokens（发给模型的）、↓ 输出 tokens（模型回复的）；含义放在悬停提示里 */
+/** 用量：↓ 输入 tokens（发给模型的）、↑ 输出 tokens（模型回复的）；含义放在悬停提示里 */
 function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usage']>; reasoning?: string }) {
   const { t } = useTranslation()
   const n = (v: number) => v.toLocaleString()
@@ -177,11 +177,11 @@ function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usag
   return (
     <>
       <span className="inline-flex shrink-0 items-center gap-0.5" title={inputTip} aria-label={inputTip}>
-        <ArrowUp className="size-3" aria-hidden="true" />
+        <ArrowDown className="size-3" aria-hidden="true" />
         {n(usage.input)} tokens
       </span>
       <span className="inline-flex shrink-0 items-center gap-0.5" title={outputTip} aria-label={outputTip}>
-        <ArrowDown className="size-3" aria-hidden="true" />
+        <ArrowUp className="size-3" aria-hidden="true" />
         {n(usage.output)} tokens
       </span>
       {thinkingTokens > 0 && (

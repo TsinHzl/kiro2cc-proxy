@@ -67,6 +67,48 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.3".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "对话页新增历史会话能力，会话存储在后端，支持选择 API Key、模型与深度思考力度，新增侧边栏动画、联网搜索与图片/文本文件附件，思考与正文打字机式输出，用户消息可复制",
+                        "The chat page now supports persistent sessions stored on the backend, model / API-key / thinking-effort selection, sidebar animation, web search, image & text-file attachments, typewriter output for thinking and body, and copyable user messages",
+                    ),
+                    Bilingual::new(
+                        "新增模型 NEW 徽章自动判定（基于记录文件，拉取到的新模型展示一个月），并为 claude-haiku-5.5 与 kimi-k3 登记发布日期",
+                        "The model NEW badge is now determined from the record file (newly fetched models are highlighted for one month), and release dates are registered for claude-haiku-5.5 and kimi-k3",
+                    ),
+                    Bilingual::new(
+                        "对话页模型选择列表展示是否支持识别图片",
+                        "The chat model list now shows whether each model supports image input",
+                    ),
+                    Bilingual::new(
+                        "新增账号保活后台任务",
+                        "Added a background account keep-alive task",
+                    ),
+                    Bilingual::new(
+                        "新增诊断日志：429 限流诊断与 [small-req] 非流式小请求识别（Suggestion Mode 兜底）",
+                        "Added diagnostic logs: 429 rate-limit / token-refresh diagnostics, and [small-req] identification of non-streaming low-token auxiliary requests (Suggestion Mode fallback)",
+                    ),
+                ]),
+                improve_group(vec![Bilingual::new(
+                    "对话页展示速率倍率与模型代际/输入模态信息",
+                    "The chat page shows the rate multiplier and model generation / input-modality info",
+                )]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复 credits 新一轮判断：跳过内联 system 附件消息并查看末尾连续的 user 消息，修复附件拆分导致 turn 不清零",
+                        "Fixed the credits new-round detection: it now skips inline system attachment messages and examines trailing consecutive user messages, so turn counting no longer fails to reset when attachments are split",
+                    ),
+                    Bilingual::new(
+                        "修复 websearch 桥接续请求的 web_search toolUse 配对问题",
+                        "Fixed the web_search toolUse pairing in bridged continuation requests",
+                    ),
+                ]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.2".to_string(),
             is_latest: false,
             groups: vec![

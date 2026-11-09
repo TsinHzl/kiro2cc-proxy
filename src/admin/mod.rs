@@ -19,9 +19,9 @@
 //! ```
 
 mod api_keys;
-mod chat_session_handler;
 mod changelog;
 mod changelog_data;
+mod chat_session_handler;
 mod dump_handler;
 mod error;
 mod handlers;

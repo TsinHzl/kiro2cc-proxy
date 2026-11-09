@@ -377,7 +377,9 @@ async fn main() {
                 admin_state = admin_state.with_usage_tracker(tracker.clone());
             }
             // 对话页会话存储：失败只影响历史会话功能，不阻止代理服务启动
-            match model::chat_session::ChatSessionStore::load(throttle_data_dir.join("chat_sessions")) {
+            match model::chat_session::ChatSessionStore::load(
+                throttle_data_dir.join("chat_sessions"),
+            ) {
                 Ok(store) => admin_state = admin_state.with_chat_session_store(Arc::new(store)),
                 Err(e) => tracing::error!("加载对话会话失败，历史会话功能不可用: {}", e),
             }

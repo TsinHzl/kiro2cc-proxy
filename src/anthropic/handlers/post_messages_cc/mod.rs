@@ -106,9 +106,7 @@ pub async fn post_messages_cc(
         .unwrap_or_default();
 
     // 检查是否为 WebSearch 请求
-    if websearch::has_web_search_tool(&payload)
-        && !websearch::wants_model_driven_search(&headers)
-    {
+    if websearch::has_web_search_tool(&payload) && !websearch::wants_model_driven_search(&headers) {
         tracing::info!("检测到 WebSearch 工具，路由到 WebSearch 处理");
 
         // 估算输入 tokens

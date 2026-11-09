@@ -1,0 +1,25 @@
+src/admin/changelog_data.rs
+  67d242d3c16d4297 70-97,99-110
+Cargo.toml
+  67d242d3c16d4297 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "b9066c3116c7082e6ed3f3cf9153ce2f5701e025",
+  "prompts": {
+    "67d242d3c16d4297": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aaecb9f4-45e0-482e-bf63-b546b57a17e6",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 1,
+      "accepted_lines": 42,
+      "overriden_lines": 1
+    }
+  }
+}

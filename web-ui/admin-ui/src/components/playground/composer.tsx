@@ -257,7 +257,11 @@ export function Composer({
                 onValueChange={(v) => onKeyChange(Number(v))}
               >
                 {keys.map((k) => (
-                  <DropdownMenuRadioItem key={k.id} value={String(k.id)}>
+                  <DropdownMenuRadioItem
+                    key={k.id}
+                    value={String(k.id)}
+                    onSelect={(event) => event.preventDefault()}
+                  >
                     <span className="truncate">{k.name}</span>
                   </DropdownMenuRadioItem>
                 ))}

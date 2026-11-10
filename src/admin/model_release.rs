@@ -124,10 +124,10 @@ impl ModelReleaseTracker {
         };
         {
             let mut guard = tracker.state.lock();
-            if let Some(state) = guard.as_mut() {
-                if state.migrate() {
-                    tracker.save(state);
-                }
+            if let Some(state) = guard.as_mut()
+                && state.migrate()
+            {
+                tracker.save(state);
             }
         }
         tracker

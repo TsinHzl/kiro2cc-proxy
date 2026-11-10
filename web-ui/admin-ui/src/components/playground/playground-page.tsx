@@ -4,7 +4,7 @@ import { Loader2, PanelLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { PageHead } from '@/components/page-head'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { useApiKeys, useChatSessions, useModels } from '@/hooks/use-credentials'
+import { useApiKeys, useChatSessions, usePlaygroundModels } from '@/hooks/use-credentials'
 import type { ChatSessionMeta } from '@/types/api'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
@@ -34,18 +34,21 @@ export function PlaygroundPage() {
     clearSessions,
     updateConfig,
   } = usePlayground()
-  const { data: modelsData } = useModels()
   const { data: apiKeys } = useApiKeys()
   const { data: sessions, isLoading: sessionsLoading } = useChatSessions()
   const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia(DESKTOP_QUERY).matches)
 
-  const modelItems = useMemo(() => modelsData?.data ?? [], [modelsData])
-  const modelIds = useMemo(() => modelItems.map((m) => m.id), [modelItems])
-  // 已保存的模型不在当前列表（被下线 / 首次使用）时，回退到列表第一项；只做派生，不回写配置
-  const model = modelIds.includes(config.model) ? config.model : (modelIds[0] ?? '')
-
   const enabledKeys = useMemo(() => (apiKeys ?? []).filter((k) => k.enabled), [apiKeys])
   const activeKey = enabledKeys.find((k) => k.id === config.keyId) ?? enabledKeys[0] ?? null
+  const {
+    models: modelItems,
+    isPending: modelsLoading,
+    isError: modelsError,
+    refetch: refetchModels,
+  } = usePlaygroundModels(activeKey)
+  const modelIds = modelItems.map((m) => m.id)
+  // 已保存的模型不在当前 Key 的列表时回退；只做派生，不回写配置
+  const model = modelIds.includes(config.model) ? config.model : (modelIds[0] ?? '')
 
   const effort: Effort = normalizeEffort(model, config.effort)
   const webSearch = config.webSearch
@@ -55,8 +58,10 @@ export function PlaygroundPage() {
   const activeTitle = sessions?.find((s) => s.id === activeId)?.title
 
   const handleRegenerate = useCallback(
-    () => regenerate({ apiKey: activeKey?.key ?? null, model, effort, webSearch }),
-    [regenerate, activeKey?.key, model, effort, webSearch],
+    () => {
+      if (canChat) regenerate({ apiKey: activeKey?.key ?? null, model, effort, webSearch })
+    },
+    [canChat, regenerate, activeKey?.key, model, effort, webSearch],
   )
 
   /** 窄屏下选择完成后收起浮层，露出对话 */
@@ -156,10 +161,21 @@ export function PlaygroundPage() {
           )}
 
           <div className="mx-auto w-full shrink-0 px-4 pb-4 md:w-[95%] md:px-0">
+            {(modelsLoading || modelsError) && (
+              <div role="status" className="mb-2 flex items-center gap-2 text-xs text-ink-3">
+                <span>{t(modelsLoading ? 'common.loading' : 'common.loadFailed')}</span>
+                {modelsError && !modelsLoading && (
+                  <button type="button" className="underline" onClick={() => void refetchModels()}>
+                    {t('common.retry')}
+                  </button>
+                )}
+              </div>
+            )}
             <Composer
               keys={enabledKeys}
               keyId={activeKey?.id ?? null}
               models={modelItems}
+              modelsLoading={modelsLoading}
               model={model}
               effort={effort}
               webSearch={webSearch}

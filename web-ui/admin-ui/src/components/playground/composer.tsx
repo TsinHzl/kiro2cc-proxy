@@ -42,6 +42,7 @@ interface ComposerProps {
   keys: KeyOption[]
   keyId: number | null
   models: ModelItem[]
+  modelsLoading: boolean
   model: string
   effort: Effort
   webSearch: boolean
@@ -61,6 +62,7 @@ export function Composer({
   keys,
   keyId,
   models,
+  modelsLoading,
   model,
   effort,
   webSearch,
@@ -243,7 +245,7 @@ export function Composer({
                 title={hasKeys ? undefined : t('playground.noKeyHint')}
               >
                 <span className="truncate">
-                  {!hasKeys ? t('playground.noKey') : model || t('playground.noModel')}
+                  {!hasKeys ? t('playground.noKey') : modelsLoading ? t('common.loading') : model || t('playground.noModel')}
                 </span>
                 <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
               </button>
@@ -257,7 +259,11 @@ export function Composer({
                 onValueChange={(v) => onKeyChange(Number(v))}
               >
                 {keys.map((k) => (
-                  <DropdownMenuRadioItem key={k.id} value={String(k.id)}>
+                  <DropdownMenuRadioItem
+                    key={k.id}
+                    value={String(k.id)}
+                    onSelect={(event) => event.preventDefault()}
+                  >
                     <span className="truncate">{k.name}</span>
                   </DropdownMenuRadioItem>
                 ))}
@@ -266,7 +272,13 @@ export function Composer({
               <div className="px-2 pb-1 pt-1.5 text-[10.5px] font-semibold tracking-[.04em] text-ink-3">
                 {t('playground.modelTitle')}
               </div>
-              {models.length === 0 && (
+              {modelsLoading && (
+                <div role="status" className="flex items-center gap-2 px-2 py-3 text-[12.5px] text-ink-3">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  <span>{t('common.loading')}</span>
+                </div>
+              )}
+              {!modelsLoading && models.length === 0 && (
                 <div className="px-2 py-1.5 text-[12.5px] text-ink-3">{t('playground.noModel')}</div>
               )}
               <DropdownMenuRadioGroup value={model} onValueChange={onModelChange}>

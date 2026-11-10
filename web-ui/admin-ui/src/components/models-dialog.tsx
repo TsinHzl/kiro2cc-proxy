@@ -37,7 +37,7 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg sm:pr-4">
         <DialogHeader>
           <DialogTitle>
             {t('credentials.modelsDialogTitle', { id: credentialId })}
@@ -70,9 +70,9 @@ export function ModelsDialog({ credentialId, open, onOpenChange }: ModelsDialogP
         })()}
 
         {data && (
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {groups.map((group) => (
-              <div key={group.name} className="border border-transparent rounded-md p-3">
+              <div key={group.name} className="border border-transparent border-r-0 rounded-md p-3 pr-0">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[13px] font-semibold text-ink-1">
                     {familyLabel(group.name)}

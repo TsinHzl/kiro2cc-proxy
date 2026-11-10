@@ -2,6 +2,8 @@
 //! input item 遍历与转换：message / function_call / tool_result / compaction 等 item
 //! 分派到 system 块、消息累加器或工具收集器
 
+use std::collections::HashSet;
+
 use serde_json::{Value, json};
 
 use super::tools::{
@@ -22,6 +24,8 @@ pub(crate) fn convert_input_items(
     tools: &mut ToolCollector,
 ) -> bool {
     let mut is_compaction = false;
+    // 已转出 tool_use 的 id：工具输出只有在这里能找到对应调用时才能作为 tool_result 发出
+    let mut emitted_tool_use_ids: HashSet<String> = HashSet::new();
     for item in items {
         // 少数客户端省略 type，只给 role + content
         let item_type = match item.get("type").and_then(Value::as_str) {
@@ -37,18 +41,21 @@ pub(crate) fn convert_input_items(
             "message" => convert_message_item(item, system, acc),
             "function_call" => {
                 if let Some(block) = tool_use_block(item, ToolInputForm::Json) {
+                    record_tool_use_id(&block, &mut emitted_tool_use_ids);
                     acc.push("assistant", vec![block]);
                 }
             }
             "custom_tool_call" => {
                 if let Some(block) = tool_use_block(item, ToolInputForm::FreeText) {
+                    record_tool_use_id(&block, &mut emitted_tool_use_ids);
                     acc.push("assistant", vec![block]);
                 }
             }
             // 工具结果在 Anthropic 协议里属于 user 消息
             "function_call_output" | "custom_tool_call_output" => {
-                if let Some(block) = tool_result_block(item) {
-                    acc.push("user", vec![block]);
+                let blocks = tool_output_blocks(item, &emitted_tool_use_ids);
+                if !blocks.is_empty() {
+                    acc.push("user", blocks);
                 }
             }
             // Codex CLI 0.148 起把工具声明从顶层 `tools` 搬到了这个 developer item 里，
@@ -201,14 +208,71 @@ fn tool_use_block(item: &Value, form: ToolInputForm) -> Option<Value> {
     Some(json!({"type": "tool_use", "id": id, "name": name, "input": input}))
 }
 
-/// `function_call_output` / `custom_tool_call_output` → Anthropic `tool_result` block
-fn tool_result_block(item: &Value) -> Option<Value> {
-    let id = call_id(item)?;
-    Some(json!({
-        "type": "tool_result",
-        "tool_use_id": id,
-        "content": tool_output_content(item.get("output")),
-    }))
+/// 记录已转出的 `tool_use` block 的 id
+fn record_tool_use_id(block: &Value, ids: &mut HashSet<String>) {
+    if let Some(id) = block.get("id").and_then(Value::as_str) {
+        ids.insert(id.to_string());
+    }
+}
+
+/// `function_call_output` / `custom_tool_call_output` → user content blocks
+///
+/// 能在前文找到对应 `tool_use` 的输出转成 Anthropic `tool_result` block。
+///
+/// 找不到的是孤立输出（issue #66：Codex Desktop 0.167 每轮把界面状态以没有 `call_id`、
+/// 前面也没有 `function_call` 的 `function_call_output` 塞进历史）。作为 `tool_result`
+/// 发出会被上游以 `unexpected tool_use_id` 拒绝，而且它进入历史后每次请求都会重复这个
+/// 错误，会话就此卡死。这里改成带工具名标签的普通文本块，保留其中的上下文。
+fn tool_output_blocks(item: &Value, emitted_tool_use_ids: &HashSet<String>) -> Vec<Value> {
+    // 与 `tool_use_block` 的配对规则一致：优先 `call_id`，兼容只写 `id` 的客户端
+    let paired_id = ["call_id", "id"]
+        .iter()
+        .filter_map(|k| item.get(*k).and_then(Value::as_str))
+        .find(|s| !s.is_empty())
+        .filter(|id| emitted_tool_use_ids.contains(*id));
+
+    if let Some(id) = paired_id {
+        return vec![json!({
+            "type": "tool_result",
+            "tool_use_id": id,
+            "content": tool_output_content(item.get("output")),
+        })];
+    }
+
+    let label = orphan_output_label(item.get("name").and_then(Value::as_str));
+    tracing::warn!(
+        tool = %label,
+        "工具输出找不到对应的 tool_use，已降级为普通 user 文本"
+    );
+    match tool_output_content(item.get("output")) {
+        Value::String(text) if text.is_empty() => Vec::new(),
+        Value::String(text) => {
+            vec![json!({"type": "text", "text": format!("<{label}>{text}</{label}>")})]
+        }
+        Value::Array(blocks) if blocks.is_empty() => Vec::new(),
+        Value::Array(blocks) => {
+            let mut out = Vec::with_capacity(blocks.len() + 2);
+            out.push(json!({"type": "text", "text": format!("<{label}>")}));
+            out.extend(blocks);
+            out.push(json!({"type": "text", "text": format!("</{label}>")}));
+            out
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// 孤立输出的标签名：取工具名，只保留适合做 XML 标签的字符，缺失或为空时用通用名
+fn orphan_output_label(name: Option<&str>) -> String {
+    let cleaned: String = name
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        .collect();
+    if cleaned.is_empty() {
+        "tool_output".to_string()
+    } else {
+        cleaned
+    }
 }
 
 /// 工具输出 → `tool_result.content`

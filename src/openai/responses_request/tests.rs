@@ -240,9 +240,103 @@ mod tests {
                 {"type": "function_call_output", "output": "orphan"},
             ],
         }));
+        // 缺 call_id 的 function_call 被跳过；没有配对调用的输出降级为 user 文本，不丢上下文
+        assert_eq!(
+            r.anthropic_body["messages"],
+            json!([{"role": "user", "content": [
+                {"type": "text", "text": "go"},
+                {"type": "text", "text": "<tool_output>orphan</tool_output>"},
+            ]}])
+        );
+    }
+
+    // ---------- 孤立 function_call_output（issue #66：Codex Desktop 0.167 的界面状态注入） ----------
+
+    #[test]
+    fn orphan_function_call_output_becomes_user_text_in_history() {
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "input": [
+                {"type": "message", "role": "user", "content": "跑 ls"},
+                {
+                    "type": "function_call_output",
+                    "id": "fco_1",
+                    "name": "codex_apps_open_page",
+                    "namespace": "agent",
+                    "output": "{\"page_id\":null}",
+                },
+                {"type": "function_call", "call_id": "call_1", "name": "shell", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "call_1", "output": "total 0"},
+                {
+                    "type": "function_call_output",
+                    "id": "fco_2",
+                    "name": "browser_tabs",
+                    "namespace": "agent",
+                    "output": "tabs",
+                },
+            ],
+        }));
+        assert_eq!(
+            r.anthropic_body["messages"],
+            json!([
+                {"role": "user", "content": [
+                    {"type": "text", "text": "跑 ls"},
+                    {"type": "text", "text": "<codex_apps_open_page>{\"page_id\":null}</codex_apps_open_page>"},
+                ]},
+                {"role": "assistant", "content": [{
+                    "type": "tool_use", "id": "call_1", "name": "shell", "input": {},
+                }]},
+                {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "total 0"},
+                    {"type": "text", "text": "<browser_tabs>tabs</browser_tabs>"},
+                ]},
+            ])
+        );
+    }
+
+    #[test]
+    fn orphan_output_with_unknown_call_id_is_text_not_tool_result() {
+        // 有 call_id 但前文没有对应调用（历史被截断等），同样不能发成 tool_result
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "input": [
+                {"type": "message", "role": "user", "content": "go"},
+                {"type": "function_call_output", "call_id": "call_gone", "output": "late"},
+            ],
+        }));
+        let text = r.anthropic_body["messages"].to_string();
+        assert!(!text.contains("tool_result"), "{text}");
+        assert!(text.contains("<tool_output>late</tool_output>"), "{text}");
+    }
+
+    #[test]
+    fn orphan_output_with_empty_content_is_dropped() {
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "input": [
+                {"type": "message", "role": "user", "content": "go"},
+                {"type": "function_call_output", "id": "fco_1", "name": "x", "output": ""},
+            ],
+        }));
         assert_eq!(
             r.anthropic_body["messages"],
             json!([{"role": "user", "content": [{"type": "text", "text": "go"}]}])
+        );
+    }
+
+    #[test]
+    fn orphan_output_label_is_sanitized() {
+        let r = convert_ok(json!({
+            "model": "gpt-5-codex",
+            "input": [
+                {"type": "message", "role": "user", "content": "go"},
+                {"type": "function_call_output", "name": "a</b> <c>", "output": "x"},
+            ],
+        }));
+        assert!(
+            r.anthropic_body["messages"]
+                .to_string()
+                .contains("<abc>x</abc>")
         );
     }
 

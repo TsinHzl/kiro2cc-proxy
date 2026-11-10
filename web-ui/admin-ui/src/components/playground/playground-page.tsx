@@ -175,6 +175,7 @@ export function PlaygroundPage() {
               keys={enabledKeys}
               keyId={activeKey?.id ?? null}
               models={modelItems}
+              modelsLoading={modelsLoading}
               model={model}
               effort={effort}
               webSearch={webSearch}

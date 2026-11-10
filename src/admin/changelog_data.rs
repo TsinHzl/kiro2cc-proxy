@@ -67,6 +67,26 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.5".to_string(),
+            is_latest: false,
+            groups: vec![
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复日报、账号汇总及 API Key 累计费用/credits 等统计随明细记录条数上限被裁剪而倒退的问题（issue #67）：统计改读按日汇总（不裁剪），使用日志明细上限提高到 5 万条；升级后首次启动由现存明细回填，升级前已被裁剪的历史无法恢复",
+                        "Fixed daily reports, per-account totals and API key cumulative cost / credits shrinking when detail records were pruned (issue #67): statistics now read a daily aggregate that is never pruned, and the usage-log detail cap is raised to 50,000 records; on first start after upgrade the aggregate is backfilled from existing details, but history already pruned before the upgrade cannot be recovered",
+                    ),
+                    Bilingual::new(
+                        "修复会话页历史消息中 thinking 标签泄漏的问题",
+                        "Fixed thinking tags leaking into chat page history messages",
+                    ),
+                ]),
+                improve_group(vec![Bilingual::new(
+                    "Playground 侧边栏宽度由 232px 缩小为 208px",
+                    "The Playground sidebar is narrowed from 232px to 208px",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.4".to_string(),
             is_latest: false,
             groups: vec![

@@ -14,6 +14,7 @@ import { newId } from '@/lib/id'
 import { toast } from '@/lib/toast'
 import { extractErrorMessage } from '@/lib/utils'
 import { streamMessage } from './stream'
+import { normalizeMessages, settleSearches } from './history'
 import { createTypewriter, type Typewriter } from './typewriter'
 import {
   EFFORT_OPTIONS,
@@ -35,18 +36,6 @@ const LEGACY_MESSAGES_KEY = 'playground:v1:messages'
 const TITLE_MAX_CHARS = 40
 
 const DEFAULT_CONFIG: PlaygroundConfig = { model: '', effort: 'off', keyId: null, webSearch: true }
-
-/** 仍在等待结果的搜索不会再收到结果（流已结束或被中断），改记为已中断 */
-function settleSearches(m: ChatMessage): ChatMessage {
-  if (!m.searches?.some((s) => s.status === 'searching')) return m
-  return { ...m, searches: m.searches.map((s) => (s.status === 'searching' ? { ...s, status: 'stopped' } : s)) }
-}
-
-/** 流式中途被中断（刷新 / 离开页面）而遗留的 streaming 状态不会再有后续数据，改记为已中断 */
-function normalizeMessages(raw: unknown): ChatMessage[] {
-  if (!Array.isArray(raw)) return []
-  return (raw as ChatMessage[]).map((m) => settleSearches(m.status === 'streaming' ? { ...m, status: 'stopped' } : m))
-}
 
 function readLegacyMessages(): ChatMessage[] {
   try {

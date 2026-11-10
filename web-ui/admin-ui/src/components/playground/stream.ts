@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { thinkingRequestFields, type ApiMessage, type Effort, type WebSearchResult } from './types'
+import { ThinkingParser } from './thinking-parser'
 
 /** 单次回复的输出上限；后端会再按模型能力裁剪 */
 const MAX_OUTPUT_TOKENS = 16384
@@ -32,6 +33,7 @@ export interface StreamHandlers {
 /** 流式解析过程中的状态：按 content block 下标跟踪 server_tool_use 的 input_json 分片 */
 interface ParseState {
   searchBlocks: Map<number, { id: string; json: string }>
+  contentBlocks: Map<number, ThinkingParser> | null
   /** 是否收到 message_stop；传输层正常结束但没收到它，说明回复被截断 */
   messageStopped: boolean
 }
@@ -98,6 +100,26 @@ function toUsage(
   return { input, cached, output: withOutput ? num(usage?.output_tokens) : undefined }
 }
 
+function dispatchContent(
+  index: number,
+  type: 'text' | 'thinking',
+  text: string,
+  handlers: StreamHandlers,
+  state: ParseState
+): void {
+  if (!state.contentBlocks) {
+    if (type === 'thinking') handlers.onThinking(text)
+    else handlers.onText(text)
+    return
+  }
+  let parser = state.contentBlocks.get(index)
+  if (!parser) {
+    parser = new ThinkingParser(type, handlers)
+    state.contentBlocks.set(index, parser)
+  }
+  parser.push(text)
+}
+
 /** 处理一条 SSE 事件的 data 负载；遇到上游 error 事件时抛出 */
 function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState): void {
   let event: Record<string, any>
@@ -123,8 +145,11 @@ function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState
     }
     case 'content_block_delta': {
       const delta = event.delta ?? {}
-      if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') handlers.onThinking(delta.thinking)
-      else if (delta.type === 'text_delta' && typeof delta.text === 'string') handlers.onText(delta.text)
+      if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+        dispatchContent(event.index, 'thinking', delta.thinking, handlers, state)
+      } else if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+        dispatchContent(event.index, 'text', delta.text, handlers, state)
+      }
       else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
         const search = state.searchBlocks.get(event.index)
         if (search) search.json += delta.partial_json
@@ -132,6 +157,8 @@ function dispatchEvent(data: string, handlers: StreamHandlers, state: ParseState
       break
     }
     case 'content_block_stop': {
+      state.contentBlocks?.get(event.index)?.finish()
+      state.contentBlocks?.delete(event.index)
       const search = state.searchBlocks.get(event.index)
       if (search) {
         state.searchBlocks.delete(event.index)
@@ -185,7 +212,11 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
-  const state: ParseState = { searchBlocks: new Map(), messageStopped: false }
+  const state: ParseState = {
+    searchBlocks: new Map(),
+    contentBlocks: params.effort === 'off' ? null : new Map(),
+    messageStopped: false,
+  }
   let buffer = ''
 
   const flushBlock = (block: string) => {
@@ -197,19 +228,23 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
     if (data !== '') dispatchEvent(data, handlers, state)
   }
 
-  for (;;) {
-    const { done, value } = await reader.read()
-    // 对拼接后的整段缓冲做换行归一化，避免 "\r" 与 "\n" 被切到两个 chunk 时漏替换
-    buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, '\n')
-    let sep = buffer.indexOf('\n\n')
-    while (sep !== -1) {
-      flushBlock(buffer.slice(0, sep))
-      buffer = buffer.slice(sep + 2)
-      sep = buffer.indexOf('\n\n')
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      // 对拼接后的整段缓冲做换行归一化，避免 "\r" 与 "\n" 被切到两个 chunk 时漏替换
+      buffer = (buffer + decoder.decode(value, { stream: !done })).replace(/\r\n/g, '\n')
+      let sep = buffer.indexOf('\n\n')
+      while (sep !== -1) {
+        flushBlock(buffer.slice(0, sep))
+        buffer = buffer.slice(sep + 2)
+        sep = buffer.indexOf('\n\n')
+      }
+      if (done) break
     }
-    if (done) break
+    if (buffer.trim() !== '') flushBlock(buffer)
+    // 代理在所有正常收尾路径都会发 message_stop；没收到说明连接被中途干净地关掉了（如反向代理超时）
+    if (!state.messageStopped) throw new Error(STREAM_TRUNCATED_MESSAGE)
+  } finally {
+    for (const parser of state.contentBlocks?.values() ?? []) parser.finish()
   }
-  if (buffer.trim() !== '') flushBlock(buffer)
-  // 代理在所有正常收尾路径都会发 message_stop；没收到说明连接被中途干净地关掉了（如反向代理超时）
-  if (!state.messageStopped) throw new Error(STREAM_TRUNCATED_MESSAGE)
 }

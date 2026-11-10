@@ -79,7 +79,7 @@ export function Sidebar({
       )}
       <aside
         id="admin-sidebar"
-        className={`${sidebarCollapsed ? 'w-16' : 'w-[232px]'} max-md:w-[232px] max-md:z-40 ${mobileOpen ? 'max-md:visible max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'} bg-sidebar bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}
+        className={`${sidebarCollapsed ? 'w-16' : 'w-[208px]'} max-md:w-[208px] max-md:z-40 ${mobileOpen ? 'max-md:visible max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'} bg-sidebar bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}
       >
         {/* 内容区整体做一次透明度过渡：把 header/nav/footer 所有跟随收起态瞬时切换的布局
             （flex 方向、文字显隐、ml-auto）都藏在这次淡出淡入的不可见瞬间，避免逐处单独处理时互相错位 */}

@@ -771,7 +771,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       />
 
       {/* 主内容 */}
-      <main className={`${sidebarCollapsed ? 'ml-16' : 'ml-[232px]'} max-md:ml-0 flex-1 min-w-0 min-h-screen px-9 py-7 max-md:px-3.5 max-md:pt-[62px] max-md:pb-5 transition-all duration-200`}>
+      <main className={`${sidebarCollapsed ? 'ml-16' : 'ml-[208px]'} max-md:ml-0 flex-1 min-w-0 min-h-screen px-9 py-7 max-md:px-3.5 max-md:pt-[62px] max-md:pb-5 transition-all duration-200`}>
         {activeTab === 'logs' ? (
           <LogViewerPage />
         ) : activeTab === 'docs' ? (

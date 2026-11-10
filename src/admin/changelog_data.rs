@@ -67,6 +67,30 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.4".to_string(),
+            is_latest: false,
+            groups: vec![
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复 OpenAI Responses 端点中孤立的 function_call_output（Codex Desktop 0.167 注入的界面状态）导致会话在历史中持续 400 的问题（issue #66）：找不到对应 tool_use 的工具输出现在降级为带工具名标签的 user 文本，不再产出非法的 tool_result",
+                        "Fixed orphaned function_call_output items in the OpenAI Responses endpoint (UI state injected by Codex Desktop 0.167) causing every later request in the session to fail with 400 (issue #66): tool outputs without a matching tool_use are now sent as user text tagged with the tool name instead of an invalid tool_result",
+                    ),
+                    Bilingual::new(
+                        "修复 Playground 切换 API Key 时模型菜单关闭、模型列表未按所选 Key 更新的问题，并显示模型加载动画",
+                        "Fixed the Playground model menu closing when switching API keys and the model list not updating for the selected key; a loading animation is now shown while models load",
+                    ),
+                    Bilingual::new(
+                        "修复模型弹窗滚动条显示及右侧内容对齐问题",
+                        "Fixed the model dialog scrollbar visibility and right-side content alignment",
+                    ),
+                ]),
+                improve_group(vec![Bilingual::new(
+                    "Playground 侧边栏内容宽度固定，避免折叠动画期间重排",
+                    "The Playground sidebar content now has a fixed width, avoiding reflow during the collapse animation",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.3".to_string(),
             is_latest: false,
             groups: vec![

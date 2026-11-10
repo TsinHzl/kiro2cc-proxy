@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  0498798319032d3c 7,43-51,61-64,164-173
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  0498798319032d3c 54,507-540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f04f43c12391a49174fe77f9d1f05e940619368f",
+  "prompts": {
+    "0498798319032d3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5853a827-8613-4ce1-832b-cdd7e1b85d2a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 66,
+      "total_deletions": 17,
+      "accepted_lines": 66,
+      "overriden_lines": 0
+    }
+  }
+}

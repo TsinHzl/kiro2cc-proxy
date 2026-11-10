@@ -2,13 +2,14 @@
 use chrono::FixedOffset;
 use serde::Serialize;
 
+use super::aggregate::{DailyKey, DayTotals, cst_date_of};
 use super::pagination::{UsageRecordItem, UsageRecordsPage};
 use super::{UsageRecord, UsageTracker, get_k_ref};
 
 /// 单日明细查询的截断上限（既有行为，保持不变）
 const MAX_DAILY_TOTAL: usize = 2000;
-/// 区间明细查询的截断上限：降序保留最新 10000 条（与单 Key 存量上限
-/// MAX_RECORDS_PER_KEY 同量级；OpenSpec T6 用户裁决值）
+/// 区间明细查询的截断上限：降序保留最新 10000 条（OpenSpec T6 用户裁决值；
+/// 独立于单 Key 明细存量上限 MAX_RECORDS_PER_KEY）
 const MAX_RANGE_TOTAL: usize = 10_000;
 
 /// 按日期汇总的用量
@@ -48,8 +49,7 @@ pub struct CredentialDaySummary {
 
 /// 指定账号在 CST 最近 N 天（含今日）的用量汇总
 ///
-/// 与「累计」汇总同口径：仅统计仍留在明细缓冲内的记录（受 `MAX_RECORDS_PER_KEY`
-/// 裁剪约束），繁忙账号的 7/30 天汇总可能低于真实值。
+/// 数据源为日汇总，不受明细裁剪影响。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialRangeSummary {
@@ -69,10 +69,10 @@ pub struct CredentialRangeSummary {
     pub total_cache_read_tokens: u64,
 }
 
-/// 指定账号全部留存记录（受 MAX_RECORDS_PER_KEY 裁剪约束）的用量汇总
+/// 指定账号全部留存统计的用量汇总
 ///
-/// 与该页「总请求数」同口径：只统计当前仍留在明细缓冲里的记录，
-/// 不含已被裁剪的历史。费用为估算 USD，Credits 真实用量优先、缺失按模型回退估算。
+/// 数据源为日汇总（不受明细裁剪影响），覆盖日汇总上线以来的全部请求；
+/// 更早且已被旧版本裁剪的历史无法恢复。费用为估算 USD，Credits 真实用量优先、缺失按模型回退估算。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialUsageSummary {
@@ -89,45 +89,31 @@ pub struct CredentialUsageSummary {
 }
 
 impl UsageTracker {
-    /// 按账号聚合全部留存记录（不限日期）。
+    /// 汇总指定账号满足 `keep` 条件的日汇总行
+    fn sum_credential(&self, credential_id: u64, keep: impl Fn(&DailyKey) -> bool) -> DayTotals {
+        let mut total = DayTotals::default();
+        for (k, t) in self.daily.read().iter() {
+            if k.credential_id == Some(credential_id) && keep(k) {
+                total.merge(t);
+            }
+        }
+        total
+    }
+
+    /// 按账号聚合全部留存统计（不限日期）。
     ///
     /// 无记录时返回零值汇总（不报错），与 `get_today_summary_for_credential` 一致。
     pub fn get_summary_for_credential(&self, credential_id: u64) -> CredentialUsageSummary {
-        let mut requests: u64 = 0;
-        let mut input_tokens: u64 = 0;
-        let mut output_tokens: u64 = 0;
-        let mut cache_read_tokens: u64 = 0;
-        let mut cost: f64 = 0.0;
-        let mut credits: f64 = 0.0;
-        let mut credits_saved: f64 = 0.0;
-
-        let records = self.records.read();
-        for r in records.iter() {
-            if r.credential_id != Some(credential_id) {
-                continue;
-            }
-            requests += 1;
-            input_tokens = input_tokens.saturating_add(r.input_tokens.max(0) as u64);
-            output_tokens = output_tokens.saturating_add(r.output_tokens.max(0) as u64);
-            cache_read_tokens = cache_read_tokens
-                .saturating_add(r.cache_read_input_tokens.unwrap_or(0).max(0) as u64);
-            cost += r.estimated_cost;
-            let k_ref = get_k_ref(&r.model);
-            credits += r.credits_used.unwrap_or(r.estimated_cost * k_ref);
-            if let Some(cu) = r.credits_used {
-                credits_saved += r.estimated_cost * k_ref - cu;
-            }
-        }
-
+        let t = self.sum_credential(credential_id, |_| true);
         CredentialUsageSummary {
             credential_id,
-            total_requests: requests,
-            total_input_tokens: input_tokens,
-            total_output_tokens: output_tokens,
-            total_cache_read_tokens: cache_read_tokens,
-            total_cost: cost,
-            total_credits: credits,
-            total_credits_saved: credits_saved,
+            total_requests: t.requests,
+            total_input_tokens: t.input_tokens,
+            total_output_tokens: t.output_tokens,
+            total_cache_read_tokens: t.cache_read_tokens,
+            total_cost: t.cost,
+            total_credits: t.credits,
+            total_credits_saved: t.credits_saved,
         }
     }
 
@@ -136,56 +122,18 @@ impl UsageTracker {
     /// 返回结构包含今日的请求数、输入/输出 token、估算费用、credits 用量及节省值。
     /// 当 credential 在今日没有记录时返回零值汇总（不报错）。
     pub fn get_today_summary_for_credential(&self, credential_id: u64) -> CredentialDaySummary {
-        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
-        let today = chrono::Utc::now()
-            .with_timezone(&cst)
-            .format("%Y-%m-%d")
-            .to_string();
-
-        let mut requests: u64 = 0;
-        let mut input_tokens: u64 = 0;
-        let mut output_tokens: u64 = 0;
-        let mut cache_read_tokens: u64 = 0;
-        let mut cost: f64 = 0.0;
-        let mut credits: f64 = 0.0;
-        let mut credits_saved: f64 = 0.0;
-
-        let records = self.records.read();
-        for r in records.iter() {
-            if r.credential_id != Some(credential_id) {
-                continue;
-            }
-            let date = r
-                .created_at
-                .with_timezone(&cst)
-                .format("%Y-%m-%d")
-                .to_string();
-            if date != today {
-                continue;
-            }
-            requests += 1;
-            input_tokens = input_tokens.saturating_add(r.input_tokens.max(0) as u64);
-            output_tokens = output_tokens.saturating_add(r.output_tokens.max(0) as u64);
-            cache_read_tokens = cache_read_tokens
-                .saturating_add(r.cache_read_input_tokens.unwrap_or(0).max(0) as u64);
-            cost += r.estimated_cost;
-            let k_ref = get_k_ref(&r.model);
-            credits += r.credits_used.unwrap_or(r.estimated_cost * k_ref);
-            if let Some(cu) = r.credits_used {
-                credits_saved += r.estimated_cost * k_ref - cu;
-            }
-        }
-
+        let today = cst_date_of(&chrono::Utc::now());
+        let t = self.sum_credential(credential_id, |k| k.date == today);
         CredentialDaySummary {
             date: today,
             credential_id,
-            total_requests: requests,
-            total_input_tokens: input_tokens,
-            total_output_tokens: output_tokens,
-            total_cache_read_tokens: cache_read_tokens,
-            total_cost: cost,
-            total_credits: credits,
-            total_credits_saved: credits_saved,
+            total_requests: t.requests,
+            total_input_tokens: t.input_tokens,
+            total_output_tokens: t.output_tokens,
+            total_cache_read_tokens: t.cache_read_tokens,
+            total_cost: t.cost,
+            total_credits: t.credits,
+            total_credits_saved: t.credits_saved,
         }
     }
 
@@ -193,8 +141,6 @@ impl UsageTracker {
     ///
     /// 区间为 [今日 - (days-1), 今日]，闭区间按 CST 归属日比较；
     /// 聚合口径与 `get_today_summary_for_credential` 完全一致。
-    /// 统计范围仅限仍留在明细缓冲内的记录（受 `MAX_RECORDS_PER_KEY` 裁剪约束），
-    /// 已被裁剪的历史不计入。
     /// 无记录时返回零值汇总（不报错）。
     pub fn get_range_summary_for_credential(
         &self,
@@ -207,100 +153,47 @@ impl UsageTracker {
         let cst = FixedOffset::east_opt(8 * 3600).unwrap();
         let today = chrono::Utc::now().with_timezone(&cst).date_naive();
         let from = today - chrono::Duration::days((days - 1) as i64);
+        let from_s = from.format("%Y-%m-%d").to_string();
+        let to_s = today.format("%Y-%m-%d").to_string();
 
-        let mut requests: u64 = 0;
-        let mut input_tokens: u64 = 0;
-        let mut output_tokens: u64 = 0;
-        let mut cache_read_tokens: u64 = 0;
-        let mut cost: f64 = 0.0;
-        let mut credits: f64 = 0.0;
-        let mut credits_saved: f64 = 0.0;
-
-        let records = self.records.read();
-        for r in records.iter() {
-            if r.credential_id != Some(credential_id) {
-                continue;
-            }
-            let date = r.created_at.with_timezone(&cst).date_naive();
-            if date < from || date > today {
-                continue;
-            }
-            requests += 1;
-            input_tokens = input_tokens.saturating_add(r.input_tokens.max(0) as u64);
-            output_tokens = output_tokens.saturating_add(r.output_tokens.max(0) as u64);
-            cache_read_tokens = cache_read_tokens
-                .saturating_add(r.cache_read_input_tokens.unwrap_or(0).max(0) as u64);
-            cost += r.estimated_cost;
-            let k_ref = get_k_ref(&r.model);
-            credits += r.credits_used.unwrap_or(r.estimated_cost * k_ref);
-            if let Some(cu) = r.credits_used {
-                credits_saved += r.estimated_cost * k_ref - cu;
-            }
-        }
-
+        // YYYY-MM-DD 字典序即时间序
+        let t = self.sum_credential(credential_id, |k| {
+            from_s.as_str() <= k.date.as_str() && k.date.as_str() <= to_s.as_str()
+        });
         CredentialRangeSummary {
             credential_id,
-            from_date: from.format("%Y-%m-%d").to_string(),
-            to_date: today.format("%Y-%m-%d").to_string(),
-            total_requests: requests,
-            total_input_tokens: input_tokens,
-            total_output_tokens: output_tokens,
-            total_cache_read_tokens: cache_read_tokens,
-            total_cost: cost,
-            total_credits: credits,
-            total_credits_saved: credits_saved,
+            from_date: from_s,
+            to_date: to_s,
+            total_requests: t.requests,
+            total_input_tokens: t.input_tokens,
+            total_output_tokens: t.output_tokens,
+            total_cache_read_tokens: t.cache_read_tokens,
+            total_cost: t.cost,
+            total_credits: t.credits,
+            total_credits_saved: t.credits_saved,
         }
     }
 
-    /// 按 CST（UTC+8）日期聚合所有记录，返回按日期降序的汇总列表
+    /// 按 CST（UTC+8）日期聚合所有请求，返回按日期降序的汇总列表
+    ///
+    /// 读日汇总而非明细缓冲：已结束的日期不会随新请求到来而减少。
     pub fn get_daily_summaries(&self) -> Vec<DailySummary> {
         use std::collections::BTreeMap;
-        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
-        let records = self.records.read();
-        // 命名字段聚合器：避免 6 元组按位置索引在新增字段时错位
-        #[derive(Default)]
-        struct DayAgg {
-            requests: u64,
-            cost: f64,
-            credits: f64,
-            saved: f64,
-            inputs: u64,
-            outputs: u64,
-            cache_reads: u64,
-        }
-        let mut map: BTreeMap<String, DayAgg> = BTreeMap::new();
-        for r in records.iter() {
-            let date = r
-                .created_at
-                .with_timezone(&cst)
-                .format("%Y-%m-%d")
-                .to_string();
-            let entry = map.entry(date).or_default();
-            entry.requests += 1;
-            entry.cost += r.estimated_cost;
-            entry.credits += r
-                .credits_used
-                .unwrap_or(r.estimated_cost * get_k_ref(&r.model));
-            if let Some(cu) = r.credits_used {
-                entry.saved += r.estimated_cost * get_k_ref(&r.model) - cu;
-            }
-            entry.inputs = entry.inputs.saturating_add(r.input_tokens.max(0) as u64);
-            entry.outputs = entry.outputs.saturating_add(r.output_tokens.max(0) as u64);
-            entry.cache_reads = entry
-                .cache_reads
-                .saturating_add(r.cache_read_input_tokens.unwrap_or(0).max(0) as u64);
+        let mut map: BTreeMap<String, DayTotals> = BTreeMap::new();
+        for (k, t) in self.daily.read().iter() {
+            map.entry(k.date.clone()).or_default().merge(t);
         }
         let mut result: Vec<DailySummary> = map
             .into_iter()
-            .map(|(date, agg)| DailySummary {
+            .map(|(date, t)| DailySummary {
                 date,
-                total_requests: agg.requests,
-                total_cost: agg.cost,
-                total_credits: agg.credits,
-                total_credits_saved: agg.saved,
-                total_input_tokens: agg.inputs,
-                total_output_tokens: agg.outputs,
-                total_cache_read_tokens: agg.cache_reads,
+                total_requests: t.requests,
+                total_cost: t.cost,
+                total_credits: t.credits,
+                total_credits_saved: t.credits_saved,
+                total_input_tokens: t.input_tokens,
+                total_output_tokens: t.output_tokens,
+                total_cache_read_tokens: t.cache_read_tokens,
             })
             .collect();
         result.sort_by(|a, b| b.date.cmp(&a.date));

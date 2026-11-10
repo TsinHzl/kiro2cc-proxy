@@ -342,6 +342,7 @@ mod tests {
             is_stream: None,
             user_agent: None,
         };
+        tracker.daily.write().add(&record);
         tracker.records.write().push(record);
     }
 
@@ -382,6 +383,7 @@ mod tests {
             is_stream: None,
             user_agent: None,
         };
+        tracker.daily.write().add(&record);
         tracker.records.write().push(record);
     }
 
@@ -730,31 +732,161 @@ mod tests {
         cleanup_usage_path(&path);
     }
 
-    /// 回归：生命周期基数持久化后重启不丢（裁剪掉的部分仍计入请求数）
+    /// 轮询等待条件成立（后台刷盘是异步的，drop tracker 触发 shutdown 刷盘）
+    async fn wait_until(mut cond: impl FnMut() -> bool) -> bool {
+        for _ in 0..100 {
+            if cond() {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        false
+    }
+
+    /// 回归（issue #67）：明细被裁剪后，已结束日期的日报不能倒退。
+    /// 历史缺陷：日报直接聚合明细缓冲，高流量 Key 的历史记录被新请求逐条挤掉
     #[tokio::test]
-    async fn test_lifetime_base_persisted_across_reload() {
-        let path = temp_usage_path("lifetime_persisted");
+    async fn test_daily_history_not_shrunk_by_record_pruning() {
+        let path = temp_usage_path("daily_not_shrunk");
+        let tracker = UsageTracker::load(&path).unwrap();
+        // 一条「很久以前」的记录（Key 1），之后同 Key 写入超过上限的新记录
+        inject_credential_record_at(&tracker, 3, utc_at("2026-01-01T02:00:00Z"), 1.0, Some(2.0));
+        let extra = 5;
+        for _ in 0..(crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + extra) {
+            tracker.record(
+                1,
+                "claude-opus-4.6".to_string(),
+                10,
+                10,
+                RecordOptions {
+                    credits_used: Some(0.5),
+                    ..Default::default()
+                },
+            );
+        }
+        // 老记录确实已从明细缓冲中被挤掉
+        assert!(
+            !tracker
+                .records
+                .read()
+                .iter()
+                .any(|r| r.created_at == utc_at("2026-01-01T02:00:00Z"))
+        );
+        // 但日报仍保留它
+        let old = tracker
+            .get_daily_summaries()
+            .into_iter()
+            .find(|d| d.date == "2026-01-01")
+            .expect("历史日期不应因明细裁剪而消失");
+        assert_eq!(old.total_requests, 1);
+        assert!((old.total_credits - 2.0).abs() < 1e-9);
+        // 账号汇总同理
+        assert_eq!(tracker.get_summary_for_credential(3).total_requests, 1);
+        // 当天不再卡在上限：全部请求都计入
+        let today_total: u64 = tracker
+            .get_daily_summaries()
+            .iter()
+            .filter(|d| d.date != "2026-01-01")
+            .map(|d| d.total_requests)
+            .sum();
+        assert_eq!(
+            today_total,
+            (crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + extra) as u64
+        );
+        cleanup_usage_path(&path);
+    }
+
+    /// 回归（issue #67）：Key 累计 credits / 费用（额度判断数据源）不受明细裁剪影响
+    #[tokio::test]
+    async fn test_total_cost_and_credits_not_capped_by_record_pruning() {
+        let path = temp_usage_path("totals_not_capped");
+        let tracker = UsageTracker::load(&path).unwrap();
+        let n = crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 5;
+        for _ in 0..n {
+            tracker.record(
+                4,
+                "claude-opus-4.6".to_string(),
+                1000,
+                100,
+                RecordOptions {
+                    credits_used: Some(1.0),
+                    ..Default::default()
+                },
+            );
+        }
+        assert!((tracker.get_total_credits(4) - n as f64).abs() < 1e-6);
+        let one = calculate_cost("claude-opus-4.6", 1000, 100);
+        assert!((tracker.get_total_cost(4) - one * n as f64).abs() < 1e-6);
+        let summary = tracker.get_summary(4);
+        assert!((summary.total_credits - n as f64).abs() < 1e-6);
+        assert_eq!(summary.total_requests, n as u64);
+        assert_eq!(summary.total_input_tokens, 1000 * n as i64);
+        assert_eq!(summary.by_model.len(), 1);
+        assert_eq!(summary.by_model[0].requests, n as u64);
+        cleanup_usage_path(&path);
+    }
+
+    /// 账号维度裁剪会删除其他 Key 的明细，但不应影响这些 Key 的统计
+    #[tokio::test]
+    async fn test_credential_pruning_does_not_affect_other_keys_stats() {
+        let path = temp_usage_path("cred_prune_other_key");
+        let tracker = UsageTracker::load(&path).unwrap();
+        // Key 2 仅 1 条，且是该账号最老的一条
+        tracker.record(
+            2,
+            "claude-opus-4.6".to_string(),
+            10,
+            10,
+            RecordOptions {
+                credential_id: Some(9),
+                ..Default::default()
+            },
+        );
+        for _ in 0..(crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 1) {
+            tracker.record(
+                1,
+                "claude-opus-4.6".to_string(),
+                10,
+                10,
+                RecordOptions {
+                    credential_id: Some(9),
+                    ..Default::default()
+                },
+            );
+        }
+        assert!(!tracker.records.read().iter().any(|r| r.api_key_id == 2));
+        assert_eq!(tracker.get_summary(2).total_requests, 1);
+        assert_eq!(
+            tracker.get_summary_for_credential(9).total_requests,
+            (crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 2) as u64
+        );
+        cleanup_usage_path(&path);
+    }
+
+    /// 日汇总持久化后重启不丢：裁剪掉的部分仍计入请求数、credits 与日报
+    #[tokio::test]
+    async fn test_daily_aggregate_persisted_across_reload() {
+        let path = temp_usage_path("daily_persisted");
+        let n = crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 7;
         {
             let tracker = UsageTracker::load(&path).unwrap();
-            for _ in 0..(crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 7) {
+            for _ in 0..n {
                 tracker.record(
                     7,
                     "claude-opus-4.6".to_string(),
                     10,
                     10,
-                    RecordOptions::default(),
+                    RecordOptions {
+                        credits_used: Some(1.0),
+                        ..Default::default()
+                    },
                 );
             }
-            // 等待后台任务把脏数据落盘（周期 5s 太长，直接触发 shutdown 刷盘：
-            // drop tracker 即关闭通道，graceful shutdown 分支会执行落盘）
+            // drop tracker 关闭通道，后台任务走 graceful shutdown 刷盘
         }
-        // 轮询等待刷盘完成。不能仅等基数文件存在：后台先处理 interval tick 时
-        // （局部 dirty 尚为 false）可能只写基数、不写明细，此时明细文件可能
-        // 还未就绪；改为等待明细文件落盘且记录数达到上限，配合基数文件存在的
-        // 前置条件，两者都就绪才认为 shutdown 刷盘完成
-        let lifetime_path = path.parent().unwrap().join("api_key_lifetime.json");
-        let mut persisted = false;
-        for _ in 0..100 {
+        let daily_path = path.parent().unwrap().join("api_key_daily_usage.json");
+        let ready = wait_until(|| {
+            // 明细与日汇总都落盘后才算完成（两者由同一轮刷盘写出）
             let records_ready = std::fs::read_to_string(&path)
                 .map(|c| {
                     serde_json::from_str::<Vec<crate::model::usage::UsageRecord>>(&c)
@@ -762,23 +894,146 @@ mod tests {
                         .unwrap_or(false)
                 })
                 .unwrap_or(false);
-            if records_ready && lifetime_path.exists() {
-                persisted = true;
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        assert!(
-            persisted,
-            "lifetime base file should be written on shutdown"
-        );
+            records_ready && daily_path.exists()
+        })
+        .await;
+        assert!(ready, "日汇总应在 shutdown 时落盘");
+
         let tracker2 = UsageTracker::load(&path).unwrap();
-        // 精确断言：明细（上限条）+ 基数（裁剪掉的 7 条）完整持久化，
-        // 基数文件缺失或仅靠现存明细求和都会在此失败
-        assert_eq!(
-            tracker2.get_summary(7).total_requests,
-            (crate::model::usage::MAX_RECORDS_PER_KEY_FOR_TEST + 7) as u64
+        assert_eq!(tracker2.get_summary(7).total_requests, n as u64);
+        assert!((tracker2.get_total_credits(7) - n as f64).abs() < 1e-6);
+        let total_daily: u64 = tracker2
+            .get_daily_summaries()
+            .iter()
+            .map(|d| d.total_requests)
+            .sum();
+        assert_eq!(total_daily, n as u64);
+        cleanup_usage_path(&path);
+    }
+
+    /// 存量部署首次升级：日汇总文件缺失时由现存明细回填，并落盘供下次启动使用
+    #[tokio::test]
+    async fn test_daily_aggregate_backfilled_from_records_when_file_missing() {
+        let path = temp_usage_path("daily_backfill");
+        let daily_path = path.parent().unwrap().join("api_key_daily_usage.json");
+        // 构造「旧版本」状态：只有明细文件，没有日汇总文件
+        let seed_records = [("2026-10-01T02:00:00Z", 2.0), ("2026-10-02T02:00:00Z", 3.0)];
+        let records: Vec<crate::model::usage::UsageRecord> = seed_records
+            .iter()
+            .map(|(t, c)| crate::model::usage::UsageRecord {
+                api_key_id: 1,
+                credential_id: Some(5),
+                model: "claude-opus-4.6".to_string(),
+                input_tokens: 100,
+                output_tokens: 10,
+                estimated_cost: 1.0,
+                credits_used: Some(*c),
+                cache_read_input_tokens: None,
+                cache_creation_input_tokens: None,
+                cache_creation_5m_input_tokens: 0,
+                cache_creation_1h_input_tokens: 0,
+                created_at: utc_at(t),
+                client_ip: None,
+                effort: None,
+                first_token_ms: None,
+                duration_ms: None,
+                thinking_token_count: None,
+                is_stream: None,
+                user_agent: None,
+            })
+            .collect();
+        std::fs::write(&path, serde_json::to_string(&records).unwrap()).unwrap();
+        assert!(!daily_path.exists());
+
+        let tracker = UsageTracker::load(&path).unwrap();
+        let days = tracker.get_daily_summaries();
+        assert_eq!(days.len(), 2);
+        assert!((tracker.get_total_credits(1) - 5.0).abs() < 1e-9);
+        assert_eq!(tracker.get_summary_for_credential(5).total_requests, 2);
+
+        // 回填结果会落盘（无需等到下一次请求）
+        drop(tracker);
+        assert!(wait_until(|| daily_path.exists()).await, "回填后应落盘");
+        let tracker2 = UsageTracker::load(&path).unwrap();
+        assert_eq!(tracker2.get_daily_summaries().len(), 2);
+        cleanup_usage_path(&path);
+    }
+
+    /// 升级前由旧版本裁剪留下的遗留基数（api_key_lifetime.json）仍计入请求数/token，
+    /// 且新请求不会重复计数
+    #[tokio::test]
+    async fn test_legacy_lifetime_base_added_once() {
+        let path = temp_usage_path("legacy_base");
+        let lifetime = path.parent().unwrap().join("api_key_lifetime.json");
+        std::fs::write(
+            &lifetime,
+            r#"{"6":{"prunedRequests":100,"prunedInputTokens":1000,"prunedOutputTokens":500}}"#,
+        )
+        .unwrap();
+        let tracker = UsageTracker::load(&path).unwrap();
+        for _ in 0..3 {
+            tracker.record(
+                6,
+                "claude-opus-4.6".to_string(),
+                10,
+                10,
+                RecordOptions::default(),
+            );
+        }
+        let s = tracker.get_summary(6);
+        assert_eq!(s.total_requests, 103);
+        assert_eq!(s.total_input_tokens, 1030);
+        assert_eq!(s.total_output_tokens, 530);
+        // 仅剩遗留基数的 Key 也出现在概览里
+        assert!(
+            tracker
+                .get_all_summaries()
+                .iter()
+                .any(|s| s.api_key_id == 6)
         );
+        cleanup_usage_path(&path);
+    }
+
+    /// 日汇总文件损坏时拒绝启动，避免静默归零后覆盖历史汇总
+    #[tokio::test]
+    async fn test_corrupt_daily_file_rejected() {
+        let path = temp_usage_path("daily_corrupt");
+        std::fs::write(
+            path.parent().unwrap().join("api_key_daily_usage.json"),
+            "{not json",
+        )
+        .unwrap();
+        assert!(UsageTracker::load(&path).is_err());
+        cleanup_usage_path(&path);
+    }
+
+    /// reset 同时清除明细、日汇总与遗留基数，其他 Key 不受影响
+    #[tokio::test]
+    async fn test_reset_clears_daily_aggregate_only_for_target_key() {
+        let path = temp_usage_path("reset_daily");
+        let tracker = UsageTracker::load(&path).unwrap();
+        for key in [8, 9] {
+            tracker.record(
+                key,
+                "claude-opus-4.6".to_string(),
+                10,
+                10,
+                RecordOptions {
+                    credits_used: Some(1.0),
+                    ..Default::default()
+                },
+            );
+        }
+        tracker.reset(8).unwrap();
+        assert_eq!(tracker.get_total_credits(8), 0.0);
+        assert_eq!(tracker.get_summary(8).total_requests, 0);
+        assert!((tracker.get_total_credits(9) - 1.0).abs() < 1e-9);
+        let total_daily: u64 = tracker
+            .get_daily_summaries()
+            .iter()
+            .map(|d| d.total_requests)
+            .sum();
+        assert_eq!(total_daily, 1);
         cleanup_usage_path(&path);
     }
 

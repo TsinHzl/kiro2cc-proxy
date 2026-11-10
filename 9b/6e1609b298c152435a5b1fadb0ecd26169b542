@@ -1,0 +1,23 @@
+src/admin/model_release.rs
+  0498798319032d3c 127-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9b6e1609b298c152435a5b1fadb0ecd26169b542",
+  "prompts": {
+    "0498798319032d3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5853a827-8613-4ce1-832b-cdd7e1b85d2a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

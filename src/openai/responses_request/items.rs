@@ -240,7 +240,8 @@ fn tool_output_blocks(item: &Value, emitted_tool_use_ids: &HashSet<String>) -> V
     }
 
     let label = orphan_output_label(item.get("name").and_then(Value::as_str));
-    tracing::warn!(
+    // 孤立输出会进入历史并随每次请求重放，用 WARN 会按请求逐条刷日志（同 `reasoning` 的处理）
+    tracing::debug!(
         tool = %label,
         "工具输出找不到对应的 tool_use，已降级为普通 user 文本"
     );

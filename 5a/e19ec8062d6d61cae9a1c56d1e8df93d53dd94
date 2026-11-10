@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  0498798319032d3c 178
+web-ui/admin-ui/src/components/playground/composer.tsx
+  0498798319032d3c 45,65,248,275-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5ae19ec8062d6d61cae9a1c56d1e8df93d53dd94",
+  "prompts": {
+    "0498798319032d3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5853a827-8613-4ce1-832b-cdd7e1b85d2a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 2,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

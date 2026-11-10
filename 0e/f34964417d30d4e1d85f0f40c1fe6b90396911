@@ -1,0 +1,33 @@
+web-ui/admin-ui/scripts/playground-history.test.mjs
+  140c5fad28eeb01e 1-119
+web-ui/admin-ui/src/components/playground/history.ts
+  140c5fad28eeb01e 1-57
+web-ui/admin-ui/src/components/playground/stream.ts
+  140c5fad28eeb01e 3,36,103-122,148-152,160-161,215-219,231-242,244-248
+web-ui/admin-ui/src/components/playground/thinking-parser.ts
+  140c5fad28eeb01e 1-227
+web-ui/admin-ui/scripts/playground-stream.test.mjs
+  140c5fad28eeb01e 1-194
+web-ui/admin-ui/src/components/playground/use-playground.ts
+  140c5fad28eeb01e 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0ef34964417d30d4e1d85f0f40c1fe6b90396911",
+  "prompts": {
+    "140c5fad28eeb01e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6f665de9-f7b3-4a29-9d30-982536111ff4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 665,
+      "total_deletions": 112,
+      "accepted_lines": 799,
+      "overriden_lines": 0
+    }
+  }
+}

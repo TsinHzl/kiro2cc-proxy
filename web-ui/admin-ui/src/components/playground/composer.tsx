@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, Brain, ChevronDown, Globe, Loader2, Plus, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -117,9 +117,34 @@ export function Composer({
     }
   }
 
-  const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(event.target.files ?? [])
     event.target.value = '' // 清空后再次选择同一个文件也会触发 change
+    void addFiles(picked)
+  }
+
+  /** 粘贴截图：剪贴板里有图片就作为附件加入；纯文本粘贴不受影响 */
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null)
+    if (images.length === 0) return
+    e.preventDefault()
+    if (isGenerating) return
+    // 截图的文件名统一是 image.png，加上时间戳和序号以便区分
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
+    void addFiles(
+      images.map(
+        (f, i) =>
+          new File([f], `screenshot-${stamp}${images.length > 1 ? `-${i + 1}` : ''}.${f.type.split('/')[1] || 'png'}`, {
+            type: f.type,
+          }),
+      ),
+    )
+  }
+
+  const addFiles = async (picked: File[]) => {
     const room = Math.max(0, MAX_ATTACHMENTS - attachments.length - processing)
     if (picked.length > room) toast.error(t('playground.attachTooMany', { max: MAX_ATTACHMENTS }))
     const files = picked.slice(0, room)
@@ -176,6 +201,7 @@ export function Composer({
         rows={2}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={t('playground.placeholder')}
         autoComplete="off"
         spellCheck={false}

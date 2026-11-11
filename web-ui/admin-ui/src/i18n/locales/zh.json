@@ -714,7 +714,7 @@
     "noKeyHint": "请先在 API Keys 页面创建并启用一个 Key，对话请求将以该 Key 发起并计入其用量。",
     "emptyTitle": "开始一场对话",
     "emptyHint": "选择模型与思考力度，在下方输入你的问题。",
-    "placeholder": "随便问",
+    "placeholder": "输入消息，Enter 发送，Shift+Enter 换行",
     "noModel": "暂无模型",
     "send": "发送",
     "stop": "停止生成",

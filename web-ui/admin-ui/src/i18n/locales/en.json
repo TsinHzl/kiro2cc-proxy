@@ -714,7 +714,7 @@
     "noKeyHint": "Create and enable a key on the API Keys page first. Chat requests are sent with that key and count toward its usage.",
     "emptyTitle": "Start a conversation",
     "emptyHint": "Pick a model and thinking effort, then type your question below.",
-    "placeholder": "Ask anything",
+    "placeholder": "Type a message. Enter to send, Shift+Enter for a new line",
     "noModel": "No models",
     "send": "Send",
     "stop": "Stop generating",

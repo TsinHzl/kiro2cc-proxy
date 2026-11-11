@@ -140,7 +140,7 @@ pub struct ModelUsage {
 /// 每个 API Key / 账号的最大明细条数，超出时删除最老的记录
 ///
 /// 仅限制「使用日志」明细；统计口径读 `DailyStore`，不受此上限影响。
-const MAX_RECORDS_PER_KEY: usize = 50_000;
+const MAX_RECORDS_PER_KEY: usize = 100_000;
 /// 测试专用再导出（tests.rs 为独立文件，需经模块路径访问私有常量）
 #[cfg(test)]
 pub(crate) const MAX_RECORDS_PER_KEY_FOR_TEST: usize = MAX_RECORDS_PER_KEY;

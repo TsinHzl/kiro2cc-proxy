@@ -807,6 +807,14 @@ mod tests {
     }
 
     #[test]
+    fn test_live_model_to_admin_item_grok_4_7_is_xai_family() {
+        // 回归：grok-4.7 上游实时列表曾归为 unknown，落入模型页「其他」分组
+        let info = fake_info("grok-4.7", "Grok 4.7", Some(2.7), 1_000_000, 64_000);
+        let item = live_model_to_admin_item(&info, &ModelReleaseTracker::in_memory());
+        assert_eq!(item.model.owned_by, "xai");
+    }
+
+    #[test]
     fn test_live_model_to_admin_item_carries_description() {
         let mut info = fake_info(
             "claude-opus-5",

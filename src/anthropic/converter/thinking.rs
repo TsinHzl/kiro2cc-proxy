@@ -13,8 +13,9 @@ pub(crate) fn is_gpt_model(model_id: &str) -> bool {
 /// 1. "4.5" 代际（sonnet/opus/haiku）——Kiro 后端拒绝该字段；
 /// 2. 第三方非 Claude 模型——qwen3-coder-next / glm-5 / deepseek-3.2 /
 ///    minimax-m2.5（实测 400 "additionalModelRequestFields is not
-///    supported for this model"，2026-10-03）与 kimi-k3（2026-10-16 新增，
-///    未经逐模型实测，按惯例并入）；minimax-m2.1 为对照组，不跳过。
+///    supported for this model"，2026-10-03）与 kimi-k3（2026-10-16 新增）、
+///    grok-4.7（2026-11-11 新增），后两者未经逐模型实测，按惯例并入；
+///    minimax-m2.1 为对照组，不跳过。
 ///
 /// GPT 系不在此列：已改为发送 `reasoning.effort` 独立结构（见 `fields.rs`）。
 /// converter 侧 `build_additional_model_request_fields` 与 provider 侧
@@ -28,11 +29,16 @@ pub(crate) fn additional_fields_skipped(model_id: &str) -> bool {
     // deepseek-3.2 / minimax-m2.5 携带 additionalModelRequestFields 均被
     // Kiro 后端以 400 "additionalModelRequestFields is not supported for
     // this model" 拒绝；minimax-m2.1 实测可正常携带（对照组 200 OK），
-    // 故 m2.1 不在跳过之列。kimi-k3（2026-10-16 上游新增）未经逐模型实测，
-    // 按第三方模型惯例并入跳过名单。
+    // 故 m2.1 不在跳过之列。kimi-k3（2026-10-16 上游新增）与 grok-4.7
+    // （2026-11-11 上游新增）未经逐模型实测，按第三方模型惯例并入跳过名单。
     matches!(
         model_id,
-        "qwen3-coder-next" | "glm-5" | "deepseek-3.2" | "minimax-m2.5" | "kimi-k3"
+        "qwen3-coder-next"
+            | "glm-5"
+            | "deepseek-3.2"
+            | "minimax-m2.5"
+            | "kimi-k3"
+            | "grok-4.7"
     )
 }
 

@@ -132,6 +132,15 @@ fn test_map_model_kimi_k3() {
 }
 
 #[test]
+fn test_map_model_grok_4_7() {
+    // grok-4.7（上游 2026-11-11 新增）：-thinking 后缀、大小写与空格别名均归一到 grok-4.7
+    assert_eq!(map_model("grok-4.7").unwrap(), "grok-4.7");
+    assert_eq!(map_model("grok-4.7-thinking").unwrap(), "grok-4.7");
+    assert_eq!(map_model("Grok 4.7").unwrap(), "grok-4.7");
+    assert_eq!(map_model("xai/grok-4.7").unwrap(), "grok-4.7");
+}
+
+#[test]
 fn test_map_model_thinking_suffix_sonnet() {
     // thinking 后缀不应影响 sonnet 模型映射
     let result = map_model("claude-sonnet-4-5-20250929-thinking");

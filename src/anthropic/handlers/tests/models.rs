@@ -30,6 +30,7 @@ mod tests {
         assert_eq!(guess_owned_by("glm-5"), "glm");
         assert_eq!(guess_owned_by("qwen3-coder-next"), "qwen");
         assert_eq!(guess_owned_by("kimi-k3"), "kimi");
+        assert_eq!(guess_owned_by("grok-4.7"), "xai");
         assert_eq!(guess_owned_by("foo-model"), "unknown");
     }
 
@@ -233,6 +234,19 @@ mod tests {
 
         // 回归：相邻第三方条目不受影响
         assert!(list.iter().any(|m| m.id == "qwen3-coder-next"));
+        assert!(list.iter().any(|m| m.id == "gpt-5.6-sol"));
+    }
+
+    #[test]
+    fn test_build_model_list_includes_grok_4_7() {
+        let list = build_model_list();
+        let grok = list.iter().find(|m| m.id == "grok-4.7").unwrap();
+        assert_eq!(grok.owned_by, "xai");
+        assert_eq!(grok.display_name, "Grok 4.7");
+        assert_eq!(grok.max_tokens, 32000);
+
+        // 回归：相邻条目不受影响
+        assert!(list.iter().any(|m| m.id == "kimi-k3"));
         assert!(list.iter().any(|m| m.id == "gpt-5.6-sol"));
     }
 

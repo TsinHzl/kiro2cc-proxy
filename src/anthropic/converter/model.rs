@@ -112,6 +112,10 @@ pub fn map_model(model: &str) -> Option<String> {
     } else if model_lower.contains("kimi") {
         // kimi-k3（上游 2026-10-16 新增）；-thinking 后缀与别名同样归一到该 ID
         Some("kimi-k3".to_string())
+    } else if model_lower.contains("grok") {
+        // grok-4.7（上游 2026-11-11 新增，xAI Grok 4.7 实验预览）；
+        // -thinking 后缀与空格别名同样归一到该 ID
+        Some("grok-4.7".to_string())
     } else if model_lower.contains("gpt") {
         if model_lower.contains("terra") {
             Some("gpt-5.6-terra".to_string())

@@ -436,6 +436,9 @@ fn test_additional_fields_skipped_for_unsupported_third_party_models() {
         // kimi-k3（2026-10-16 新增）：按第三方惯例并入跳过名单
         "kimi-k3",
         "kimi-k3-thinking", // -thinking 后缀 → kimi-k3
+        // grok-4.7（2026-11-11 新增）：同样按第三方惯例并入跳过名单
+        "grok-4.7",
+        "grok-4.7-thinking", // -thinking 后缀 → grok-4.7
     ] {
         let mapped = map_model(model).unwrap_or_else(|| model.to_string());
         assert!(

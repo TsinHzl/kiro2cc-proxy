@@ -47,6 +47,7 @@ mod tests {
         assert_eq!(guess_owned_by("glm-5"), "glm");
         assert_eq!(guess_owned_by("qwen3-coder-next"), "qwen");
         assert_eq!(guess_owned_by("kimi-k3"), "kimi");
+        assert_eq!(guess_owned_by("grok-4.7"), "xai");
         assert_eq!(guess_owned_by("foo-model"), "unknown");
     }
 

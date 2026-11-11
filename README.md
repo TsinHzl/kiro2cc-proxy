@@ -10,7 +10,7 @@
 
 ![Admin 管理面板](docs/assets/admin-panel.png)
 
-> **✅ 支持模型**：Claude Sonnet 5.5 · Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 5.5 · Claude Opus 5 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Haiku 5.5 · Claude Haiku 4.5 · Claude Fable 5.1 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder-Next · Kimi K3 · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
+> **✅ 支持模型**：Claude Sonnet 5.5 · Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 5.5 · Claude Opus 5 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Haiku 5.5 · Claude Haiku 4.5 · Claude Fable 5.1 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder-Next · Kimi K3 · Grok 4.7 · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna
 
 ### 📖 快速导航
 
@@ -893,6 +893,7 @@ Authorization: Bearer your-api-key
 | `*minimax*`（其他） | `minimax-m2.1` |
 | `*qwen*` | `qwen3-coder-next` |
 | `*kimi*` | `kimi-k3` |
+| `*grok*` | `grok-4.7` |
 | `*gpt*`（含 terra） | `gpt-5.6-terra` |
 | `*gpt*`（含 luna） | `gpt-5.6-luna` |
 | `*gpt*`（含 sol，或含 5.6/5-6 但无具体变体名，默认落到旗舰档） | `gpt-5.6-sol` |

@@ -496,6 +496,15 @@ pub(crate) fn build_model_list() -> Vec<Model> {
             max_tokens: 32000,
         },
         Model {
+            id: "grok-4.7".to_string(),
+            object: "model".to_string(),
+            created: 1770314400,
+            owned_by: "xai".to_string(),
+            display_name: "Grok 4.7".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 32000,
+        },
+        Model {
             id: "gpt-5.6-sol".to_string(),
             object: "model".to_string(),
             created: 1770314400,
@@ -547,6 +556,8 @@ pub(crate) fn guess_owned_by(model_id: &str) -> &'static str {
         "qwen"
     } else if id.contains("kimi") {
         "kimi"
+    } else if id.contains("grok") {
+        "xai"
     } else {
         "unknown"
     }

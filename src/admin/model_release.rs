@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 pub(crate) const SEEN_FILE_NAME: &str = "kiro_model_seen.json";
 
 /// 当前记录格式版本。缺失版本号的旧文件视为 0，加载时执行一次迁移
-const SEEN_VERSION: u32 = 2;
+const SEEN_VERSION: u32 = 3;
 
 /// 强制按首次出现日期登记 NEW 的模型，不参与基线
 const ALWAYS_NEW_IDS: &[&str] = &[
@@ -41,6 +41,7 @@ const ALWAYS_NEW_IDS: &[&str] = &[
     "claude-opus-5.5",
     "claude-haiku-5.5",
     "kimi-k3",
+    "grok-4.7",
 ];
 
 /// 持久化内容：模型 ID → 登记日期（`None` 表示基线，不算新增）
@@ -213,8 +214,12 @@ mod tests {
     #[test]
     fn always_new_models_get_date_even_on_baseline() {
         let t = ModelReleaseTracker::in_memory();
-        t.observe_on(&["a", "kimi-k3", "claude-haiku-5.5"], day("2026-11-08"));
+        t.observe_on(
+            &["a", "kimi-k3", "claude-haiku-5.5", "grok-4.7"],
+            day("2026-11-08"),
+        );
         assert_eq!(t.release_date("a"), None);
+        assert_eq!(t.release_date("grok-4.7").as_deref(), Some("2026-11-08"));
         assert_eq!(t.release_date("kimi-k3").as_deref(), Some("2026-11-08"));
         assert_eq!(
             t.release_date("claude-haiku-5.5").as_deref(),

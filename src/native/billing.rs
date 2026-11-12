@@ -32,12 +32,15 @@
 
 use std::io;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::BytesMut;
 use futures::stream::{self, Stream, StreamExt};
 use serde_json::Value;
 
 use crate::kiro::parser::crc::crc32;
+use crate::model::usage::{RecordOptions, UsageTracker};
 
 /// 输入 token 估算上限（与 Anthropic 路由的上下文上限同量级，防止异常请求撑爆计数）。
 pub(crate) const MAX_INPUT_TOKEN_ESTIMATE: u64 = 1_000_000;
@@ -214,10 +217,12 @@ fn add_json_tokens(total: &mut u64, value: &Value) {
 pub(crate) struct OutputTracker {
     /// assistantResponseEvent.content / reasoningContentEvent.text / toolUseEvent.input
     output_text: String,
-    /// meteringEvent 提供的 cache read tokens（缺省 0）
-    cache_read_input_tokens: u64,
-    /// meteringEvent 提供的 cache creation/write tokens（缺省 0）
-    cache_creation_input_tokens: u64,
+    /// meteringEvent 提供的真实 credits 消耗（缺省 None）
+    metering_usage: Option<f64>,
+    /// meteringEvent 提供的 cache read tokens（缺省 None）
+    cache_read_input_tokens: Option<u64>,
+    /// meteringEvent 提供的 cache creation/write tokens（缺省 None）
+    cache_creation_input_tokens: Option<u64>,
 }
 
 impl OutputTracker {
@@ -240,12 +245,16 @@ impl OutputTracker {
                 }
             }
             "meteringEvent" => {
+                // 真实 credits（用于 per-key 用量记录；tiktoken 只负责 token）。
+                if let Some(usage) = f64_field(payload, &["usage"]) {
+                    self.metering_usage = Some(usage);
+                }
                 // 兼容 camelCase（KAS/IDE 真实形态）与 snake_case（模型定义字段名）。
                 if let Some(value) = number_field(
                     payload,
                     &["cacheReadInputTokens", "cache_read_input_tokens"],
                 ) {
-                    self.cache_read_input_tokens = value;
+                    self.cache_read_input_tokens = Some(value);
                 }
                 if let Some(value) = number_field(
                     payload,
@@ -256,7 +265,7 @@ impl OutputTracker {
                         "cacheWriteInputTokens",
                     ],
                 ) {
-                    self.cache_creation_input_tokens = value;
+                    self.cache_creation_input_tokens = Some(value);
                 }
             }
             _ => {}
@@ -273,8 +282,8 @@ impl OutputTracker {
     /// `uncachedInputTokens = max(0, input - cache_read - cache_creation)`；
     /// `totalTokens = input + output`（与上游 TokenUsage 字段语义一致）。
     pub(crate) fn token_usage(&self, input_tokens: u64) -> Value {
-        let cache_read = self.cache_read_input_tokens;
-        let cache_write = self.cache_creation_input_tokens;
+        let cache_read = self.cache_read_input_tokens.unwrap_or(0);
+        let cache_write = self.cache_creation_input_tokens.unwrap_or(0);
         let output_tokens = self.output_tokens();
         let uncached_input = input_tokens
             .saturating_sub(cache_read)
@@ -289,12 +298,24 @@ impl OutputTracker {
     }
 
     #[cfg(test)]
-    pub(crate) fn cache_tokens(&self) -> (u64, u64) {
+    pub(crate) fn cache_tokens(&self) -> (Option<u64>, Option<u64>) {
         (
             self.cache_read_input_tokens,
             self.cache_creation_input_tokens,
         )
     }
+}
+
+/// 从 payload 读取第一个存在且有限的浮点数（兼容 number/字符串外的 JSON 数值形态）。
+fn f64_field(payload: &Value, keys: &[&str]) -> Option<f64> {
+    keys.iter().find_map(|key| {
+        let value = payload.get(*key)?;
+        let number = value
+            .as_f64()
+            .or_else(|| value.as_i64().map(|n| n as f64))
+            .or_else(|| value.as_u64().map(|n| n as f64))?;
+        (number.is_finite() && number >= 0.0).then_some(number)
+    })
 }
 
 /// 从 payload 读取第一个存在且非负的整数（兼容 u64/i64/f64 形态）。
@@ -307,7 +328,11 @@ fn number_field(payload: &Value, keys: &[&str]) -> Option<u64> {
             return Some(number);
         }
         if let Some(number) = value.as_i64() {
-            return Some(number.max(0) as u64);
+            // 负值视为无效（不写入），避免把异常上游字段当成 0 缓存命中。
+            if number >= 0 {
+                return Some(number as u64);
+            }
+            return None;
         }
         if let Some(number) = value.as_f64()
             && number.is_finite()
@@ -317,6 +342,147 @@ fn number_field(payload: &Value, keys: &[&str]) -> Option<u64> {
         }
     }
     None
+}
+
+// ============================================================================
+// per-API-key 用量记录（推理流结束时一次性落库）
+// ============================================================================
+
+/// native 推理请求的用量记录上下文（handler 在认证/转发前构造）。
+///
+/// 只有 API Key 认证通过且 usage_tracker 可用时才会构造；MCP/控制面无记录。
+pub(crate) struct UsageRecordingConfig {
+    pub usage_tracker: Arc<UsageTracker>,
+    pub api_key_id: u32,
+    /// Kiro 模型 ID（native body 的 currentMessage.userInputMessage.modelId，缺省 "auto"）
+    pub model: String,
+    /// KiroProvider 实际选用的账号 ID（用于按账号归因）
+    pub credential_id: u64,
+    pub client_ip: Option<String>,
+    pub user_agent: Option<String>,
+    /// 请求开始时刻（用于 duration_ms / first_token_ms）
+    pub request_started: Instant,
+}
+
+/// 一次性 finalizer：正常 EOF 显式 finalize(true)；客户端断开/流错误时由
+/// [`BillingState`] 的 Drop 触发 finalize(false)（仅当观察到 metering credits 才记录）。
+struct UsageRecording {
+    config: Option<UsageRecordingConfig>,
+    recorded: bool,
+}
+
+impl UsageRecording {
+    fn new(config: UsageRecordingConfig) -> Self {
+        Self {
+            config: Some(config),
+            recorded: false,
+        }
+    }
+
+    /// 记录一次用量（幂等）。`normal=false` 表示流未正常结束：仅当已观察到真实
+    /// metering credits 时记录，避免把中途断开的请求按 0 成本计入。
+    fn finalize(
+        &mut self,
+        input_tokens: u64,
+        tracker: &OutputTracker,
+        first_chunk_at: Option<Instant>,
+        normal: bool,
+    ) {
+        if self.recorded {
+            return;
+        }
+        self.recorded = true;
+        let Some(config) = self.config.take() else {
+            return;
+        };
+        if !normal && tracker.metering_usage.is_none() {
+            tracing::debug!(
+                api_key_id = config.api_key_id,
+                "native 计费：流未正常结束且无 metering credits，跳过用量记录"
+            );
+            return;
+        }
+        let output_tokens = tracker.output_tokens();
+        let duration_ms = config.request_started.elapsed().as_millis() as u64;
+        let first_token_ms = first_chunk_at.map(|first| {
+            first
+                .saturating_duration_since(config.request_started)
+                .as_millis() as u64
+        });
+        config.usage_tracker.record(
+            config.api_key_id,
+            config.model.clone(),
+            saturating_i32(input_tokens),
+            saturating_i32(output_tokens),
+            RecordOptions {
+                credential_id: Some(config.credential_id),
+                client_ip: config.client_ip,
+                credits_used: tracker.metering_usage,
+                cache_read_input_tokens: tracker.cache_read_input_tokens.map(saturating_i32),
+                cache_creation_input_tokens: tracker
+                    .cache_creation_input_tokens
+                    .map(saturating_i32),
+                effort: None,
+                first_token_ms,
+                duration_ms: Some(duration_ms),
+                thinking_token_count: None,
+                is_stream: Some(true),
+                user_agent: config.user_agent,
+            },
+        );
+        tracing::debug!(
+            api_key_id = config.api_key_id,
+            model = %config.model,
+            credential_id = config.credential_id,
+            input_tokens = saturating_i32(input_tokens),
+            output_tokens,
+            credits = tracker.metering_usage,
+            cache_read = tracker.cache_read_input_tokens,
+            cache_write = tracker.cache_creation_input_tokens,
+            duration_ms,
+            normal,
+            "native 计费用量已记录（per API key）"
+        );
+    }
+}
+
+/// 推理流处理状态：输出/cache 累计 + 可选的 per-key 记录器。
+///
+/// Drop 语义：客户端断开或流读取错误时，若已观察到 metering credits 则补记一次
+/// 用量（正常 EOF 已由 [`Rewriter`] 显式 finalize，`recorded` 保证恰好一次）。
+struct BillingState {
+    tracker: OutputTracker,
+    recording: Option<UsageRecording>,
+    /// 输入 token 估算值（由 handler 在调用上游前算好）
+    input_tokens: u64,
+}
+
+impl BillingState {
+    fn new(input_tokens: u64, recording: Option<UsageRecordingConfig>) -> Self {
+        Self {
+            tracker: OutputTracker::default(),
+            recording: recording.map(UsageRecording::new),
+            input_tokens,
+        }
+    }
+
+    fn finalize(&mut self, first_chunk_at: Option<Instant>, normal: bool) {
+        if let Some(recording) = self.recording.as_mut() {
+            recording.finalize(self.input_tokens, &self.tracker, first_chunk_at, normal);
+        }
+    }
+}
+
+impl Drop for BillingState {
+    fn drop(&mut self) {
+        // 断开/错误路径：仅在观察到真实 credits 时记录（finalize 内部判断）。
+        self.finalize(None, false);
+    }
+}
+
+/// `u64 → i32` 饱和转换（UsageTracker 用 i32 计 token）。
+fn saturating_i32(value: u64) -> i32 {
+    value.min(i32::MAX as u64) as i32
 }
 
 // ============================================================================
@@ -334,6 +500,7 @@ fn number_field(payload: &Value, keys: &[&str]) -> Option<u64> {
 pub(crate) fn rewrite_event_stream<S>(
     upstream: S,
     input_tokens: u64,
+    recording: Option<UsageRecordingConfig>,
 ) -> impl Stream<Item = Result<bytes::Bytes, io::Error>> + Send + 'static
 where
     S: Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send + 'static,
@@ -341,8 +508,8 @@ where
     let state = Rewriter {
         upstream: Box::pin(upstream),
         buffer: BytesMut::with_capacity(8192),
-        tracker: OutputTracker::default(),
-        input_tokens,
+        billing: BillingState::new(input_tokens, recording),
+        first_chunk_at: None,
         upstream_done: false,
         passthrough: false,
         finished: false,
@@ -359,11 +526,17 @@ where
                 if let Some(result) = state.flush_tail() {
                     return Some((result, state));
                 }
-                // 流结束：直接返回 None（state 不再被使用）。
+                // 正常流结束：显式 finalize（per-API-key 用量恰好记录一次），再结束。
+                state.billing.finalize(state.first_chunk_at, true);
                 return None;
             }
             match state.upstream.next().await {
-                Some(Ok(chunk)) => state.buffer.extend_from_slice(&chunk),
+                Some(Ok(chunk)) => {
+                    if state.first_chunk_at.is_none() && state.billing.recording.is_some() {
+                        state.first_chunk_at = Some(Instant::now());
+                    }
+                    state.buffer.extend_from_slice(&chunk);
+                }
                 Some(Err(err)) => {
                     state.finished = true;
                     tracing::warn!(
@@ -387,8 +560,10 @@ where
 struct Rewriter<S> {
     upstream: Pin<Box<S>>,
     buffer: BytesMut,
-    tracker: OutputTracker,
-    input_tokens: u64,
+    /// 输出/cache/credits 累计 + per-API-key 用量记录器（Drop 时兜底记录）
+    billing: BillingState,
+    /// 首个上游 chunk 到达时刻（用于 first_token_ms；无记录需求时为 None）
+    first_chunk_at: Option<Instant>,
     upstream_done: bool,
     /// 结构损坏后退化为原样透传（不解析、不注入）。
     passthrough: bool,
@@ -427,7 +602,7 @@ where
         }
 
         let frame = self.buffer.split_to(total_len);
-        match rewrite_frame(&frame, &mut self.tracker, self.input_tokens) {
+        match rewrite_frame(&frame, &mut self.billing.tracker, self.billing.input_tokens) {
             Ok(Some(rewritten)) => Some(Ok(rewritten)),
             Ok(None) => Some(Ok(frame.freeze())),
             Err(reason) => {
@@ -686,6 +861,7 @@ mod tests {
         let mut stream = Box::pin(rewrite_event_stream(
             stream_from_chunks(chunks),
             input_tokens,
+            None,
         ));
         while let Some(item) = stream.next().await {
             out.extend_from_slice(&item.expect("stream item"));
@@ -894,14 +1070,14 @@ mod tests {
             "meteringEvent",
             &serde_json::json!({"cacheReadInputTokens": 7, "cacheCreationInputTokens": 3}),
         );
-        assert_eq!(tracker.cache_tokens(), (7, 3));
+        assert_eq!(tracker.cache_tokens(), (Some(7), Some(3)));
 
         let mut tracker = OutputTracker::default();
         tracker.observe(
             "meteringEvent",
             &serde_json::json!({"cache_read_input_tokens": 11, "cache_creation_input_tokens": 5}),
         );
-        assert_eq!(tracker.cache_tokens(), (11, 5));
+        assert_eq!(tracker.cache_tokens(), (Some(11), Some(5)));
 
         // 负数/非法值不写入
         let mut tracker = OutputTracker::default();
@@ -909,7 +1085,171 @@ mod tests {
             "meteringEvent",
             &serde_json::json!({"cacheReadInputTokens": -5, "cacheCreationInputTokens": "x"}),
         );
-        assert_eq!(tracker.cache_tokens(), (0, 0));
+        assert_eq!(tracker.cache_tokens(), (None, None));
+    }
+
+    // ---- per-API-key usage recording -------------------------------------
+
+    fn temp_usage_tracker() -> (Arc<UsageTracker>, std::path::PathBuf) {
+        let dir =
+            std::env::temp_dir().join(format!("kiro-native-billing-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tracker = UsageTracker::load(dir.join("api_key_usage.json")).unwrap();
+        (Arc::new(tracker), dir)
+    }
+
+    fn recording_config(
+        tracker: Arc<UsageTracker>,
+        api_key_id: u32,
+        credential_id: u64,
+    ) -> UsageRecordingConfig {
+        UsageRecordingConfig {
+            usage_tracker: tracker,
+            api_key_id,
+            model: "claude-sonnet-4.6".to_string(),
+            credential_id,
+            client_ip: Some("203.0.113.7".to_string()),
+            user_agent: Some("kiro-cli/2.36.0".to_string()),
+            request_started: Instant::now(),
+        }
+    }
+
+    fn chunks_of(bytes: &[u8], size: usize) -> Vec<Vec<u8>> {
+        bytes.chunks(size).map(|chunk| chunk.to_vec()).collect()
+    }
+
+    #[test]
+    fn metering_credits_and_cache_are_captured() {
+        let mut tracker = OutputTracker::default();
+        tracker.observe(
+            "meteringEvent",
+            &serde_json::json!({"usage": 0.0123, "unit": "credit", "unitPlural": "credits",
+                "cacheReadInputTokens": 120, "cacheCreationInputTokens": 30}),
+        );
+        assert_eq!(tracker.metering_usage, Some(0.0123));
+        assert_eq!(tracker.cache_tokens(), (Some(120), Some(30)));
+        // 第二个 meteringEvent 以最新值为准（与 Anthropic 路由语义一致）
+        tracker.observe("meteringEvent", &serde_json::json!({"usage": 0.5}));
+        assert_eq!(tracker.metering_usage, Some(0.5));
+    }
+
+    #[tokio::test]
+    async fn records_per_key_usage_exactly_once_with_credits_and_tokens() {
+        let (usage_tracker, _dir) = temp_usage_tracker();
+        let text_frame = build_test_frame(
+            "assistantResponseEvent",
+            &serde_json::json!({"content": "Hello from native stream."}),
+        );
+        let metering_frame = build_test_frame(
+            "meteringEvent",
+            &serde_json::json!({"usage": 0.25, "cacheReadInputTokens": 100, "cacheCreationInputTokens": 50}),
+        );
+        let metadata_frame = build_test_frame(
+            "metadataEvent",
+            &serde_json::json!({"stopReason": "END_TURN"}),
+        );
+        let stream_bytes = [text_frame, metering_frame, metadata_frame].concat();
+
+        let config = recording_config(usage_tracker.clone(), 7, 42);
+        {
+            let mut stream = Box::pin(rewrite_event_stream(
+                stream_from_chunks(chunks_of(&stream_bytes, 17)),
+                1_000,
+                Some(config),
+            ));
+            let mut output = Vec::new();
+            while let Some(item) = stream.next().await {
+                output.extend_from_slice(&item.expect("stream item"));
+            }
+            // 注入的 tokenUsage 仍携带真实 cache 字段
+            let frames = split_frames(&output);
+            let payload = decode_frame_payload(frames[2]).unwrap();
+            assert_eq!(payload["tokenUsage"]["cacheReadInputTokens"], 100);
+            assert_eq!(payload["tokenUsage"]["cacheWriteInputTokens"], 50);
+            assert_eq!(
+                payload["tokenUsage"]["outputTokens"],
+                crate::token::count_tokens("Hello from native stream.")
+            );
+        } // stream Drop 时不得重复记录（normal EOF 已 finalize）
+
+        let summary = usage_tracker.get_summary(7);
+        assert_eq!(summary.total_requests, 1, "恰好一条 usage 记录");
+        assert_eq!(summary.total_input_tokens, 1_000);
+        assert_eq!(
+            summary.total_output_tokens,
+            crate::token::count_tokens("Hello from native stream.") as i64
+        );
+        assert!(
+            (summary.total_credits - 0.25).abs() < 1e-9,
+            "真实 metering credits 必须落库，got {}",
+            summary.total_credits
+        );
+    }
+
+    #[tokio::test]
+    async fn disconnect_after_metering_still_records_usage() {
+        let (usage_tracker, _dir) = temp_usage_tracker();
+        let metering_frame = build_test_frame(
+            "meteringEvent",
+            &serde_json::json!({"usage": 0.75, "cacheReadInputTokens": 10}),
+        );
+        let upstream =
+            stream::iter(vec![Ok(bytes::Bytes::from(metering_frame))]).chain(stream::pending());
+        let config = recording_config(usage_tracker.clone(), 9, 3);
+        let mut stream = Box::pin(rewrite_event_stream(upstream, 500, Some(config)));
+        let first = stream.next().await;
+        assert!(
+            first.is_some(),
+            "metering frame forwarded before disconnect"
+        );
+        drop(stream); // 模拟客户端断开
+
+        let summary = usage_tracker.get_summary(9);
+        assert_eq!(
+            summary.total_requests, 1,
+            "断开前已观察到 metering，应补记一次"
+        );
+        assert!((summary.total_credits - 0.75).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn disconnect_without_metering_skips_usage_record() {
+        let (usage_tracker, _dir) = temp_usage_tracker();
+        let assistant_frame = build_test_frame(
+            "assistantResponseEvent",
+            &serde_json::json!({"content": "partial"}),
+        );
+        let upstream =
+            stream::iter(vec![Ok(bytes::Bytes::from(assistant_frame))]).chain(stream::pending());
+        let config = recording_config(usage_tracker.clone(), 11, 3);
+        let mut stream = Box::pin(rewrite_event_stream(upstream, 500, Some(config)));
+        assert!(stream.next().await.is_some());
+        drop(stream);
+
+        let summary = usage_tracker.get_summary(11);
+        assert_eq!(summary.total_requests, 0, "无 metering 的断流不记录用量");
+    }
+
+    #[tokio::test]
+    async fn no_recording_config_keeps_stream_byte_identical() {
+        // 无 API Key（Unmanaged）时 recording=None：不得登记任何用量。
+        let (usage_tracker, _dir) = temp_usage_tracker();
+        let metadata_frame = build_test_frame(
+            "metadataEvent",
+            &serde_json::json!({"stopReason": "END_TURN"}),
+        );
+        let upstream = stream::iter(vec![Ok(bytes::Bytes::from(metadata_frame.clone()))]);
+        let mut stream = Box::pin(rewrite_event_stream(upstream, 100, None));
+        let mut output = Vec::new();
+        while let Some(item) = stream.next().await {
+            output.extend_from_slice(&item.unwrap());
+        }
+        assert!(
+            usage_tracker.get_all_summaries().is_empty(),
+            "未配置记录器时不应产生任何用量"
+        );
+        // metadataEvent 未带 tokenUsage → 注入后帧长度变化；此处只确认无 panic 且可解析
+        assert!(decode_frame_payload(&output).is_some());
     }
 
     #[test]

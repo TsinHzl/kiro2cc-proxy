@@ -30,9 +30,19 @@
 //!
 //! # 认证
 //!
-//! 请求必须带内部令牌头 `X-Kiro-Native-Token`，值等于环境变量 `KIRO_NATIVE_TOKEN`。
-//! 未设置 `KIRO_NATIVE_TOKEN` 时（POC/本地模式）放行，生产必须设置，并保证
-//! `/native` 仅由集群内 sub2api 访问（ClusterIP + NetworkPolicy/ingress 限制）。
+//! 两层认证：
+//!
+//! 1. 内部令牌头 `X-Kiro-Native-Token`，值等于环境变量 `KIRO_NATIVE_TOKEN`。
+//!    未设置时（POC/本地模式）放行，生产必须设置，并保证 `/native` 仅由集群内
+//!    sub2api 访问（ClusterIP + NetworkPolicy/ingress 限制）。
+//! 2. kiro2cc API Key（`Authorization: Bearer <key>` / `x-api-key`），仅在
+//!    ApiKeyManager 可用时启用：认证/懒激活/额度检查与 Anthropic 路由一致，
+//!    并把 key 的 `bound_credential_ids` 传给 provider 限定账号池。
+//!
+//! # 用量记录
+//!
+//! 推理请求在流结束时按 API Key 记录一次 usage（token 估算 + 真实 metering
+//! credits/cache），见 `billing::UsageRecordingConfig`；MCP/控制面不记录。
 //!
 //! # 请求格式
 //!
@@ -61,7 +71,10 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use serde_json::json;
 
+use crate::common::auth;
 use crate::kiro::provider::KiroProvider;
+use crate::model::api_key::{ApiKeyAuthResult, ApiKeyManager};
+use crate::model::usage::UsageTracker;
 
 use control_plane::ControlOp;
 
@@ -77,6 +90,175 @@ struct NativeState {
     provider: Arc<KiroProvider>,
     /// `KIRO_NATIVE_TOKEN`；None = POC 模式不校验。
     token: Option<String>,
+    /// kiro2cc API Key 管理器（Admin 启用时存在）。None = 仅内部令牌鉴权（POC/本地）。
+    api_key_manager: Option<Arc<ApiKeyManager>>,
+    /// per-API-key 用量追踪器（与 Anthropic 路由共享）。None = 不落库用量。
+    usage_tracker: Option<Arc<UsageTracker>>,
+}
+
+/// 原生入口对 API Key 的认证结果。
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum NativeAuthOutcome {
+    /// 未配置 ApiKeyManager：仅内部令牌鉴权（POC/本地模式）。
+    Unmanaged,
+    /// 认证通过。
+    Authorized {
+        api_key_id: u32,
+        bound_credential_ids: Vec<u64>,
+    },
+    /// 认证失败，需返回给客户端的原生 JSON 错误。
+    Rejected(NativeAuthError),
+}
+
+/// 原生错误响应描述（不依赖 axum Response，便于单元测试）。
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct NativeAuthError {
+    pub status: StatusCode,
+    pub error_type: &'static str,
+    pub message: String,
+}
+
+impl NativeAuthError {
+    fn into_response(self) -> Response {
+        aws_json::error(self.status, self.error_type, &self.message)
+    }
+}
+
+/// 认证 native 请求携带的 kiro2cc API Key。
+///
+/// 语义与 `anthropic::middleware::auth_middleware` 保持一致：
+/// - 支持 `Authorization: Bearer <key>` 与 `x-api-key: <key>`；
+/// - 校验启用/过期/额度（spending_limit，credits 或 USD）；
+/// - 懒激活（activate_key）；
+/// - 返回 key 绑定的账号列表（bound_credential_ids），供 provider 限定账号池。
+///
+/// `manager=None` 时返回 [`NativeAuthOutcome::Unmanaged`]：保持 POC/本地
+/// （admin_psw 未配置、无 API Key 体系）行为不变，仅由 X-Kiro-Native-Token 保护。
+pub(crate) fn authenticate_native_api_key(
+    manager: Option<&ApiKeyManager>,
+    usage_tracker: Option<&UsageTracker>,
+    headers: &HeaderMap,
+) -> NativeAuthOutcome {
+    let Some(manager) = manager else {
+        return NativeAuthOutcome::Unmanaged;
+    };
+    let Some(key) = auth::extract_api_key_from_headers(headers) else {
+        return NativeAuthOutcome::Rejected(NativeAuthError {
+            status: StatusCode::UNAUTHORIZED,
+            error_type: "AuthenticationException",
+            message: "Missing API key. Provide Authorization: Bearer <key> or x-api-key."
+                .to_string(),
+        });
+    };
+    match manager.authenticate(key) {
+        ApiKeyAuthResult::Valid {
+            id,
+            name,
+            spending_limit,
+            limit_unit,
+            bound_credential_ids,
+        } => {
+            if let Err(err) = manager.activate_key(id) {
+                tracing::warn!(api_key_id = id, error = %err, "激活 API Key 失败");
+            }
+            if let (Some(limit), Some(tracker)) = (spending_limit, usage_tracker) {
+                let is_credits = limit_unit.eq_ignore_ascii_case("credits");
+                let used = if is_credits {
+                    tracker.get_total_credits(id)
+                } else {
+                    tracker.get_total_cost(id)
+                };
+                if used >= limit {
+                    tracing::warn!(
+                        api_key_id = id,
+                        api_key_name = %name,
+                        used,
+                        spending_limit = limit,
+                        limit_unit = %limit_unit,
+                        "native API Key 额度已用尽"
+                    );
+                    let message = if is_credits {
+                        format!(
+                            "API key spending limit exceeded. Used: {used:.2} credits, Limit: {limit:.2} credits"
+                        )
+                    } else {
+                        format!(
+                            "API key spending limit exceeded. Used: ${used:.2}, Limit: ${limit:.2}"
+                        )
+                    };
+                    return NativeAuthOutcome::Rejected(NativeAuthError {
+                        status: StatusCode::FORBIDDEN,
+                        error_type: "ForbiddenException",
+                        message,
+                    });
+                }
+            }
+            tracing::debug!(
+                api_key_id = id,
+                api_key_name = %name,
+                bound_credential_ids = bound_credential_ids.as_ref().map(Vec::len),
+                "native API Key 认证通过"
+            );
+            NativeAuthOutcome::Authorized {
+                api_key_id: id,
+                bound_credential_ids: bound_credential_ids.unwrap_or_default(),
+            }
+        }
+        ApiKeyAuthResult::Expired => NativeAuthOutcome::Rejected(NativeAuthError {
+            status: StatusCode::FORBIDDEN,
+            error_type: "ForbiddenException",
+            message: "API key has expired. Please contact the administrator to renew it."
+                .to_string(),
+        }),
+        ApiKeyAuthResult::Disabled => NativeAuthOutcome::Rejected(NativeAuthError {
+            status: StatusCode::FORBIDDEN,
+            error_type: "ForbiddenException",
+            message: "API key has been disabled. Please contact the administrator.".to_string(),
+        }),
+        ApiKeyAuthResult::NotFound => NativeAuthOutcome::Rejected(NativeAuthError {
+            status: StatusCode::UNAUTHORIZED,
+            error_type: "AuthenticationException",
+            message: "Invalid API key.".to_string(),
+        }),
+    }
+}
+
+/// 从请求头提取客户端 IP（x-forwarded-for 首个非空段，其次 x-real-ip）。
+pub(crate) fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+    if let Some(value) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+        && let Some(first) = value
+            .split(',')
+            .map(str::trim)
+            .find(|part| !part.is_empty())
+    {
+        return Some(first.to_string());
+    }
+    headers
+        .get("x-real-ip")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+/// 从请求头提取 User-Agent（截断至 256 字符，避免落库超长字段）。
+pub(crate) fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.chars().take(256).collect())
+}
+
+/// inference 请求的 per-API-key 用量记录上下文（credential_id 在拿到上游响应后补全）。
+struct PendingNativeUsage {
+    api_key_id: u32,
+    usage_tracker: Arc<UsageTracker>,
+    model: String,
+    client_ip: Option<String>,
+    user_agent: Option<String>,
+    request_started: Instant,
 }
 
 /// 原生请求分类。
@@ -126,7 +308,11 @@ pub(crate) fn check_native_token(expected: Option<&str>, provided: Option<&str>)
 ///
 /// 由 `main.rs` 挂载到现有 axum 服务的 `/native` 前缀；与 Anthropic/OpenAI/Admin
 /// 路由共享同一端口与进程，但路由/状态完全独立，不改变既有协议行为。
-pub fn create_router(provider: Arc<KiroProvider>) -> Router {
+pub fn create_router(
+    provider: Arc<KiroProvider>,
+    api_key_manager: Option<Arc<ApiKeyManager>>,
+    usage_tracker: Option<Arc<UsageTracker>>,
+) -> Router {
     let token = std::env::var("KIRO_NATIVE_TOKEN")
         .ok()
         .map(|value| value.trim().to_string())
@@ -151,7 +337,24 @@ pub fn create_router(provider: Arc<KiroProvider>) -> Router {
         "Native inbound 目标: 推理直通(GenerateAssistantResponse/SendMessage)、MCP 直通(InvokeMCP*)、控制面映射(GetProfile/ListAvailableModels/GetUsageLimits/ListAvailableProfiles/...)；未知 target 返回 {{}}"
     );
 
-    let state = NativeState { provider, token };
+    match (&api_key_manager, &usage_tracker) {
+        (Some(_), Some(_)) => tracing::info!(
+            "Native inbound API Key 认证已启用（Authorization: Bearer <kiro2cc key> / x-api-key；额度检查与 per-key 用量记录已启用）"
+        ),
+        (Some(_), None) => tracing::warn!(
+            "Native inbound API Key 认证已启用，但 usage_tracker 不可用：不落库 per-key 用量、不检查 spending_limit"
+        ),
+        (None, _) => tracing::warn!(
+            "Native inbound 未启用 API Key 认证（ApiKeyManager 不可用，admin_psw 未配置？）：仅 X-Kiro-Native-Token 保护，POC/本地模式"
+        ),
+    }
+
+    let state = NativeState {
+        provider,
+        token,
+        api_key_manager,
+        usage_tracker,
+    };
 
     // 路由以绝对路径定义并由 main.rs merge 到根路由（不用 nest）：
     // axum 的 nest 对 `/native/`（CLI 会在 endpoint 末尾追加 `/`）匹配不稳定，
@@ -209,6 +412,29 @@ async fn handle_native(
         );
     }
 
+    // API Key 认证（kiro2cc per-user key）：未配置 ApiKeyManager 时保持 POC 行为。
+    // 认证先于解析/转发：未授权请求不接触账号池，也不产生用量。
+    let auth_outcome = authenticate_native_api_key(
+        state.api_key_manager.as_deref(),
+        state.usage_tracker.as_deref(),
+        &headers,
+    );
+    let authorized = match auth_outcome {
+        NativeAuthOutcome::Unmanaged => None,
+        NativeAuthOutcome::Authorized {
+            api_key_id,
+            bound_credential_ids,
+        } => Some((api_key_id, bound_credential_ids)),
+        NativeAuthOutcome::Rejected(error) => {
+            tracing::warn!(target = %target, status = %error.status, "native API Key 认证失败");
+            return error.into_response();
+        }
+    };
+    let bound_ids: Vec<u64> = authorized
+        .as_ref()
+        .map(|(_, bound)| bound.clone())
+        .unwrap_or_default();
+
     let Ok(body_str) = std::str::from_utf8(&body) else {
         return aws_json::error(
             StatusCode::BAD_REQUEST,
@@ -230,18 +456,33 @@ async fn handle_native(
         NativeKind::Inference => {
             // 计费口径：原生上游流没有 tokenUsage，这里用 tiktoken 估算输入 tokens，
             // 在 metadataEvent 帧中注入 tokenUsage 供 sub2api 记账（输出 tokens 在
-            // 流式转发过程中累计）。
+            // 流式转发过程中累计）；流结束后按 API Key 落库一条 usage 记录。
             let input_tokens = billing::estimate_input_tokens(body_str);
             let result = state
                 .provider
-                .call_api_stream(body_str, false, false, &[])
+                .call_api_stream(body_str, false, false, &bound_ids)
                 .await;
-            forward_upstream_stream(result, target, started, Some(input_tokens))
+            // 仅当 API Key 认证通过且 usage tracker 可用时记录（MCP/控制面不记录）。
+            let pending_usage = authorized.as_ref().and_then(|(api_key_id, _)| {
+                state
+                    .usage_tracker
+                    .as_ref()
+                    .map(|tracker| PendingNativeUsage {
+                        api_key_id: *api_key_id,
+                        usage_tracker: tracker.clone(),
+                        model: KiroProvider::extract_model_from_request(body_str)
+                            .unwrap_or_else(|| "auto".to_string()),
+                        client_ip: extract_client_ip(&headers),
+                        user_agent: extract_user_agent(&headers),
+                        request_started: started,
+                    })
+            });
+            forward_upstream_stream(result, target, started, Some(input_tokens), pending_usage)
         }
         NativeKind::Mcp => {
-            // MCP 是 JSON-RPC 工具调用，不属于按 token 计费的推理请求。
-            let result = state.provider.call_mcp(body_str, &[]).await;
-            forward_upstream_stream(result, target, started, None)
+            // MCP 是 JSON-RPC 工具调用，不属于按 token 计费的推理请求（不记录用量）。
+            let result = state.provider.call_mcp(body_str, &bound_ids).await;
+            forward_upstream_stream(result, target, started, None, None)
         }
         NativeKind::Control(op) => control_plane::handle(&state.provider, op).await,
         NativeKind::Unknown => {
@@ -270,6 +511,7 @@ fn forward_upstream_stream(
     target: &str,
     started: Instant,
     input_tokens: Option<u64>,
+    pending_usage: Option<PendingNativeUsage>,
 ) -> Response {
     match result {
         Ok((upstream, credential_id)) => {
@@ -281,14 +523,25 @@ fn forward_upstream_stream(
             let builder = aws_json::copy_response_headers(builder, &header_map);
             let body = match input_tokens {
                 Some(input_tokens) => {
+                    let recording = pending_usage.map(|pending| billing::UsageRecordingConfig {
+                        usage_tracker: pending.usage_tracker,
+                        api_key_id: pending.api_key_id,
+                        model: pending.model,
+                        credential_id,
+                        client_ip: pending.client_ip,
+                        user_agent: pending.user_agent,
+                        request_started: pending.request_started,
+                    });
                     tracing::debug!(
                         target = %target,
                         input_tokens,
+                        record_usage = recording.is_some(),
                         "native 计费：metadataEvent 将注入估算 tokenUsage"
                     );
                     Body::from_stream(billing::rewrite_event_stream(
                         upstream.bytes_stream(),
                         input_tokens,
+                        recording,
                     ))
                 }
                 None => Body::from_stream(upstream.bytes_stream()),
@@ -403,5 +656,226 @@ mod tests {
         assert!(!check_native_token(Some("secret"), Some("Secret")));
         assert!(!check_native_token(Some("secret"), Some("")));
         assert!(!check_native_token(Some("secret"), None));
+    }
+    // ---- API Key 认证（per-user kiro2cc key） ---------------------------
+
+    use axum::http::HeaderValue;
+
+    fn temp_manager() -> (ApiKeyManager, std::path::PathBuf) {
+        let dir =
+            std::env::temp_dir().join(format!("kiro-native-auth-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let manager = ApiKeyManager::load(dir.join("api_keys.json")).unwrap();
+        (manager, dir)
+    }
+
+    fn bearer_headers(key: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {key}")).unwrap(),
+        );
+        headers
+    }
+
+    fn x_api_key_headers(key: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-api-key", HeaderValue::from_str(key).unwrap());
+        headers
+    }
+
+    fn create_key(
+        manager: &ApiKeyManager,
+        bound: Option<Vec<u64>>,
+    ) -> crate::model::api_key::ApiKey {
+        manager
+            .create(
+                "native-user".to_string(),
+                None,
+                None,
+                Some("usd".to_string()),
+                None,
+                bound,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn unmanaged_auth_keeps_poc_behavior() {
+        assert_eq!(
+            authenticate_native_api_key(None, None, &HeaderMap::new()),
+            NativeAuthOutcome::Unmanaged
+        );
+        // 即使带 key，无 manager 时也不拦截（仍受 X-Kiro-Native-Token 保护）
+        assert_eq!(
+            authenticate_native_api_key(None, None, &bearer_headers("sk-anything")),
+            NativeAuthOutcome::Unmanaged
+        );
+    }
+
+    #[test]
+    fn valid_api_key_authorizes_and_carries_bound_credential_ids() {
+        let (manager, _dir) = temp_manager();
+        let api_key = create_key(&manager, Some(vec![7, 8]));
+
+        let outcome =
+            authenticate_native_api_key(Some(&manager), None, &bearer_headers(&api_key.key));
+        assert_eq!(
+            outcome,
+            NativeAuthOutcome::Authorized {
+                api_key_id: api_key.id,
+                bound_credential_ids: vec![7, 8],
+            }
+        );
+
+        // x-api-key 与 Authorization: Bearer 等价
+        let outcome =
+            authenticate_native_api_key(Some(&manager), None, &x_api_key_headers(&api_key.key));
+        assert!(matches!(outcome, NativeAuthOutcome::Authorized { .. }));
+    }
+
+    #[test]
+    fn missing_or_invalid_api_key_is_rejected_without_leaking_the_key() {
+        let (manager, _dir) = temp_manager();
+
+        let missing = authenticate_native_api_key(Some(&manager), None, &HeaderMap::new());
+        match missing {
+            NativeAuthOutcome::Rejected(error) => {
+                assert_eq!(error.status, StatusCode::UNAUTHORIZED);
+                assert_eq!(error.error_type, "AuthenticationException");
+            }
+            other => panic!("expected rejection, got {other:?}"),
+        }
+
+        let secret = "sk-super-secret-key-that-must-not-leak";
+        let invalid = authenticate_native_api_key(Some(&manager), None, &bearer_headers(secret));
+        match invalid {
+            NativeAuthOutcome::Rejected(error) => {
+                assert_eq!(error.status, StatusCode::UNAUTHORIZED);
+                assert!(!error.message.contains(secret), "错误信息不得回显 API Key");
+            }
+            other => panic!("expected rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn expired_api_key_is_rejected_with_403() {
+        let (manager, _dir) = temp_manager();
+        let api_key = manager
+            .create(
+                "expired".to_string(),
+                Some(chrono::Utc::now() - chrono::Duration::days(1)),
+                None,
+                Some("usd".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+        let outcome =
+            authenticate_native_api_key(Some(&manager), None, &bearer_headers(&api_key.key));
+        match outcome {
+            NativeAuthOutcome::Rejected(error) => {
+                assert_eq!(error.status, StatusCode::FORBIDDEN);
+                assert!(!error.message.contains(&api_key.key));
+            }
+            other => panic!("expected rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn disabled_api_key_is_rejected_with_403() {
+        let (manager, _dir) = temp_manager();
+        let api_key = create_key(&manager, None);
+        manager
+            .update(api_key.id, None, Some(false), None, None, None, None, None)
+            .unwrap();
+        let outcome =
+            authenticate_native_api_key(Some(&manager), None, &bearer_headers(&api_key.key));
+        match outcome {
+            NativeAuthOutcome::Rejected(error) => {
+                assert_eq!(error.status, StatusCode::FORBIDDEN);
+                assert!(error.message.contains("disabled"));
+            }
+            other => panic!("expected rejection, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn spending_limit_credits_is_enforced_with_403() {
+        let (manager, dir) = temp_manager();
+        let api_key = manager
+            .create(
+                "limited".to_string(),
+                None,
+                Some(1.0),
+                Some("credits".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
+        let tracker = UsageTracker::load(dir.join("api_key_usage.json")).unwrap();
+        tracker.record(
+            api_key.id,
+            "claude-sonnet-4.6".to_string(),
+            0,
+            0,
+            crate::model::usage::RecordOptions {
+                credits_used: Some(2.0),
+                ..Default::default()
+            },
+        );
+
+        let outcome = authenticate_native_api_key(
+            Some(&manager),
+            Some(&tracker),
+            &bearer_headers(&api_key.key),
+        );
+        match outcome {
+            NativeAuthOutcome::Rejected(error) => {
+                assert_eq!(error.status, StatusCode::FORBIDDEN);
+                assert!(error.message.contains("spending limit"));
+                assert!(error.message.contains("credits"));
+            }
+            other => panic!("expected rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn client_ip_prefers_x_forwarded_for_then_x_real_ip() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("203.0.113.9, 10.0.0.1"),
+        );
+        headers.insert("x-real-ip", HeaderValue::from_static("10.0.0.2"));
+        assert_eq!(extract_client_ip(&headers), Some("203.0.113.9".to_string()));
+
+        let mut headers = HeaderMap::new();
+        headers.insert("x-real-ip", HeaderValue::from_static("10.0.0.2"));
+        assert_eq!(extract_client_ip(&headers), Some("10.0.0.2".to_string()));
+
+        assert_eq!(extract_client_ip(&HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn user_agent_is_truncated_to_256_chars() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::USER_AGENT,
+            HeaderValue::from_static("kiro-cli/2.36.0"),
+        );
+        assert_eq!(
+            extract_user_agent(&headers),
+            Some("kiro-cli/2.36.0".to_string())
+        );
+
+        let long = "a".repeat(400);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::USER_AGENT,
+            HeaderValue::from_str(&long).unwrap(),
+        );
+        assert_eq!(extract_user_agent(&headers).unwrap().chars().count(), 256);
+        assert_eq!(extract_user_agent(&HeaderMap::new()), None);
     }
 }

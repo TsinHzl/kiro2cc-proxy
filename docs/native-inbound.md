@@ -50,13 +50,30 @@ sub2api 负责校验本地 Kiro 客户端携带的凭据（sub2api `sk-` key）�
 自己的账号池。因此 `/native` 必须是集群内部入口（ClusterIP + 令牌 + 网络策略），
 绝不能直接暴露到公网。
 
-### 2.1 内部认证
+### 2.1 内部认证 + API Key 认证
 
-- 启动时读取环境变量 `KIRO_NATIVE_TOKEN`（trim 后非空才生效）。
-- 已设置：所有 POST 请求必须带 `X-Kiro-Native-Token`，且与配置值常量时间相等
-  （`common::auth::constant_time_eq`）；否则 `403 {"__type":"AccessDeniedException", ...}`。
-- 未设置：POC/本地模式放行，启动日志打印 WARN。**生产环境必须设置**，且只允许
-  sub2api 访问本端口。
+`/native` 有**两层**认证：
+
+1. **内部令牌（始终生效）**：启动时读取环境变量 `KIRO_NATIVE_TOKEN`（trim 后非空才生效）。
+   已设置时所有 POST 请求必须带 `X-Kiro-Native-Token`，且与配置值常量时间相等
+   （`common::auth::constant_time_eq`）；否则 `403 {"__type":"AccessDeniedException", ...}`。
+   未设置 = POC/本地模式放行（启动 WARN）。**生产环境必须设置**，且只允许
+   sub2api 访问本端口。
+2. **kiro2cc API Key（ApiKeyManager 可用时）**：支持 `Authorization: Bearer <key>` 或
+   `x-api-key: <key>`，语义与 Anthropic 路由一致：
+   - 校验 key 存在/启用/未过期，懒激活（`activate_key`）；
+   - 若配置了 `spending_limit`，按 `limit_unit`（`credits` 真实 credits / 其他按 USD
+     估算）比较 `UsageTracker` 累计值，超限返回 `403 ForbiddenException`；
+   - 认证通过后取得 API Key 的 `bound_credential_ids`，原样传给
+     `KiroProvider::call_api_stream` / `call_mcp`（限定该 key 可用的 Kiro 账号池）；
+   - 失败映射：缺 key / 不存在 → `401 AuthenticationException`；过期/禁用/超额 →
+     `403 ForbiddenException`；错误信息不回显 key。
+   - `ApiKeyManager` 不可用（未配置 `admin_psw`，POC/本地）时该层被跳过，保持旧行为
+     （仅内部令牌保护）。启动日志会明确打印当前模式。
+
+> 网关（sub2api 薄原生路由）应以**终端用户的 kiro2cc API Key** 作为
+> `Authorization: Bearer` 转发 native 请求，并同时携带内部 `X-Kiro-Native-Token`；
+> kiro2cc 由此完成 per-user 认证、额度限制与用量归因。
 
 ### 2.2 计费 token（`metadataEvent.tokenUsage` 注入）
 
@@ -97,6 +114,29 @@ sub2api 仍会看到 `kiro_native.usage_missing`。
 > 口径提醒：cl100k_base 与 Kiro 实际 tokenizer 存在系统性偏差（通常 cl100k 偏多/偏少
 > 视内容而定），因此数值是**估算**；上游 metering credits 仍是真实计费值。cache
 > 字段只有在上游 meteringEvent 提供时才有真实值，否则为 0。
+
+### 2.3 per-API-key 用量记录（推理请求）
+
+仅对推理请求（`*.GenerateAssistantResponse` / `*.SendMessage`）且 API Key 认证通过、
+`UsageTracker` 可用时记录一条 usage：
+
+- `api_key_id`：认证得到的 key；`model`：native body 的
+  `currentMessage.userInputMessage.modelId`（缺失回退 `"auto"`）；
+- `input_tokens` / `output_tokens`：同 §2.2 的 tiktoken 估算口径；
+- `credits_used`：真实 `meteringEvent.usage`（credits，仅在观察到时写入）；
+- `cache_read_input_tokens` / `cache_creation_input_tokens`：仅当 meteringEvent 提供；
+- `credential_id`：KiroProvider 实际选用的 Kiro 账号；
+- `duration_ms` / `first_token_ms`、`client_ip`（`x-forwarded-for` 首个地址，其次
+  `x-real-ip`）、`user_agent`（截断 256 字符）、`is_stream=true`。
+
+记录时机：**流正常结束（EOF）时恰好一次**；客户端断开/流读取错误时，**仅当已观察到
+真实 metering credits** 才补记一次（避免把失败请求按 0 成本计入）。记录不阻塞流式
+转发（在流终止时调用，落库为 UsageTracker 的常规异步持久化）。MCP 与控制面请求
+**不记录**。
+
+> 说明：原生流没有 `input_tokens/output_tokens` 真值，usage 中的 token 数为 tiktoken
+> 估算；credits 为上游 metering 真值。kiro2cc Admin 的 per-key 用量/credits 页面会显示
+> native 请求。
 
 ## 3. 支持的 `x-amz-target`
 
@@ -247,6 +287,11 @@ curl -sS -X POST http://127.0.0.1:5678/native \
 12. **未注入场景**：上游完全没有 `metadataEvent` 时无法注入（流原样转发，sub2api
     继续记录 `kiro_native.usage_missing`）；metadataEvent payload 非 JSON 或帧 CRC
     异常时同样跳过注入（只记 warn，不破坏客户端流）。
+13. **API Key 强制度**：`ApiKeyManager` 可用时 `/native` 强制要求有效 kiro2cc API Key；
+    未配置 `admin_psw`（无 ApiKeyManager）时仅内部令牌保护（POC/本地）。生产必须
+    配置 admin 体系并给每个用户发放 key。
+14. **用量只记推理**：MCP/控制面不产生 usage 记录；模型取 native body 的 modelId，
+    不是 Anthropic 模型名（Admin 统计按 Kiro 模型 ID 分组）。
 
 ## 8. 测试
 

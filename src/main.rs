@@ -421,7 +421,11 @@ async fn main() {
 
     // 原生 Kiro 直通入口：与 Anthropic/OpenAI/Admin 共用同一端口与 provider，
     // 但路由/状态独立（不改动既有协议行为）。sub2api 原生转发层调用 POST /native。
-    let app = app.merge(native::create_router(kiro_provider.clone()));
+    let app = app.merge(native::create_router(
+        kiro_provider.clone(),
+        api_key_manager.clone(),
+        usage_tracker.clone(),
+    ));
 
     // 启动服务器
     let addr = format!("{}:{}", config.host, config.port);

@@ -130,7 +130,8 @@ export function Composer({
       .map((item) => item.getAsFile())
       .filter((f): f is File => f !== null)
     if (images.length === 0) return
-    e.preventDefault()
+    // Excel / Word / 网页复制常同时带图片和文字：有文字时不拦截默认粘贴，文字照常进输入框
+    if (e.clipboardData.getData('text/plain').trim() === '') e.preventDefault()
     if (isGenerating) return
     // 截图的文件名统一是 image.png，加上时间戳和序号以便区分
     const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')

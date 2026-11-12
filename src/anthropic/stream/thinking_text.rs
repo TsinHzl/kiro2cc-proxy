@@ -952,8 +952,14 @@ mod tests {
             delta(0, "thinking_delta", "thinking", "想法"),
             stop(0),
         ]));
-        assert!(out.iter().any(|e| e.data["delta"]["type"] == "thinking_delta"));
-        assert!(out.iter().all(|e| e.data["delta"]["type"] != "signature_delta"));
+        assert!(
+            out.iter()
+                .any(|e| e.data["delta"]["type"] == "thinking_delta")
+        );
+        assert!(
+            out.iter()
+                .all(|e| e.data["delta"]["type"] != "signature_delta")
+        );
         assert_eq!(out.last().unwrap().event, "content_block_stop");
     }
 
@@ -967,9 +973,15 @@ mod tests {
             delta(0, "signature_delta", "signature", "SIG"),
             stop(0),
         ]));
-        assert!(out.iter().all(|e| e.data["content_block"]["type"] != "thinking"));
-        assert!(out.iter().all(|e| e.data["delta"]["type"] != "thinking_delta"
-            && e.data["delta"]["type"] != "signature_delta"));
+        assert!(
+            out.iter()
+                .all(|e| e.data["content_block"]["type"] != "thinking")
+        );
+        assert!(
+            out.iter()
+                .all(|e| e.data["delta"]["type"] != "thinking_delta"
+                    && e.data["delta"]["type"] != "signature_delta")
+        );
         assert_eq!(out.last().unwrap().event, "content_block_stop");
     }
 

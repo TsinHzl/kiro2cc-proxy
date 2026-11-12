@@ -16,6 +16,8 @@ import {
   setClientTokenPassthrough,
   getThinkingAsText,
   setThinkingAsText,
+  getThinkingCollapse,
+  setThinkingCollapse,
   getShowSessionCredits,
   setShowSessionCredits,
   getDumpKiroBody,
@@ -252,6 +254,25 @@ export function useSetThinkingAsText() {
     mutationFn: setThinkingAsText,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['thinkingAsText'] })
+    },
+  })
+}
+
+// 获取思考折叠开关
+export function useThinkingCollapse() {
+  return useQuery({
+    queryKey: ['thinkingCollapse'],
+    queryFn: getThinkingCollapse,
+  })
+}
+
+// 设置思考折叠开关
+export function useSetThinkingCollapse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: setThinkingCollapse,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['thinkingCollapse'] })
     },
   })
 }

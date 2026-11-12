@@ -120,6 +120,7 @@ async fn main() {
     anthropic::set_output_tokens_include_thinking(config.output_tokens_include_thinking);
     anthropic::set_models_official_aliases(config.models_official_aliases);
     anthropic::set_thinking_as_text(config.thinking_as_text);
+    anthropic::set_thinking_collapse(config.thinking_collapse);
     anthropic::set_show_session_credits(config.show_session_credits);
     if config.show_session_credits {
         tracing::info!(
@@ -146,6 +147,11 @@ async fn main() {
     if config.thinking_as_text {
         tracing::info!(
             "思考文本化已开启（thinkingAsText=true）：Claude Code 的 thinking 将以引用文本逐行展示"
+        );
+    }
+    if config.thinking_as_text && config.thinking_collapse {
+        tracing::info!(
+            "思考折叠已开启（thinkingCollapse=true）：cli 入口的思考结束后折叠为原生可折叠 thinking 块（Ctrl+O 展开）"
         );
     }
     if config.client_token_passthrough {

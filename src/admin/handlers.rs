@@ -329,6 +329,50 @@ fn persist_thinking_as_text(config_path: &std::path::Path, enabled: bool) -> any
     })
 }
 
+/// GET /api/admin/config/thinking-collapse
+/// 获取思考折叠开关
+pub async fn get_thinking_collapse() -> impl IntoResponse {
+    Json(super::types::ThinkingCollapseResponse {
+        enabled: crate::anthropic::thinking_collapse_enabled(),
+    })
+}
+
+/// PUT /api/admin/config/thinking-collapse
+/// 设置思考折叠开关（运行时热切换并持久化到 config.json；仅影响之后的新请求）
+pub async fn set_thinking_collapse(
+    State(state): State<AdminState>,
+    Json(payload): Json<super::types::SetThinkingCollapseRequest>,
+) -> impl IntoResponse {
+    // 热更新在锁内执行，保证内存与磁盘写入顺序一致（见 set_suggestion_mode 注释）
+    let _guard = state.persist_lock.lock();
+    crate::anthropic::set_thinking_collapse(payload.enabled);
+    if let Some(ref config_path) = state.config_path
+        && let Err(e) = persist_thinking_collapse(config_path, payload.enabled)
+    {
+        tracing::error!("持久化思考折叠开关失败: {}", e);
+        let error = super::types::AdminErrorResponse::internal_error("持久化失败，但运行时已生效");
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!(error)),
+        )
+            .into_response();
+    }
+
+    Json(SuccessResponse::new(if payload.enabled {
+        "思考折叠已开启"
+    } else {
+        "思考折叠已关闭"
+    }))
+    .into_response()
+}
+
+/// 将思考折叠开关写回 config.json
+fn persist_thinking_collapse(config_path: &std::path::Path, enabled: bool) -> anyhow::Result<()> {
+    persist_config_field(config_path, |json| {
+        json["thinkingCollapse"] = serde_json::Value::Bool(enabled);
+    })
+}
+
 /// GET /api/admin/config/show-session-credits
 /// 获取会话 credits 汇总行开关
 pub async fn get_show_session_credits() -> impl IntoResponse {
@@ -796,6 +840,29 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(json["thinkingAsText"], serde_json::Value::Bool(false));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_persist_thinking_collapse_roundtrip() {
+        let dir = temp_config_dir("tcl");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        std::fs::write(&path, r#"{"host":"127.0.0.1","thinkingAsText":true}"#).unwrap();
+
+        persist_thinking_collapse(&path, true).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(json["thinkingCollapse"], serde_json::Value::Bool(true));
+        // 不得影响相邻字段
+        assert_eq!(json["thinkingAsText"], serde_json::Value::Bool(true));
+        assert_eq!(json["host"], "127.0.0.1");
+
+        persist_thinking_collapse(&path, false).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(json["thinkingCollapse"], serde_json::Value::Bool(false));
 
         std::fs::remove_dir_all(&dir).ok();
     }

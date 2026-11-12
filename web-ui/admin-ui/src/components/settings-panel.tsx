@@ -12,6 +12,7 @@ import {
   useSuggestionMode, useSetSuggestionMode,
   useClientTokenPassthrough, useSetClientTokenPassthrough,
   useThinkingAsText, useSetThinkingAsText,
+  useThinkingCollapse, useSetThinkingCollapse,
   useShowSessionCredits, useSetShowSessionCredits,
   useDumpKiroBody, useSetDumpKiroBody,
   useDebugLogs, useSetDebugLogs,
@@ -186,6 +187,8 @@ export function SettingsPanel({
   const { mutate: setTokenPassthrough, isPending: isSettingTokenPassthrough } = useSetClientTokenPassthrough()
   const { data: thinkingAsTextData, isError: thinkingAsTextError, isLoading: isLoadingThinkingAsText } = useThinkingAsText()
   const { mutate: setThinkingAsText, isPending: isSettingThinkingAsText } = useSetThinkingAsText()
+  const { data: thinkingCollapseData, isError: thinkingCollapseError, isLoading: isLoadingThinkingCollapse } = useThinkingCollapse()
+  const { mutate: setThinkingCollapse, isPending: isSettingThinkingCollapse } = useSetThinkingCollapse()
   const { data: showSessionCreditsData, isError: showSessionCreditsError, isLoading: isLoadingShowSessionCredits } = useShowSessionCredits()
   const { mutate: setShowSessionCredits, isPending: isSettingShowSessionCredits } = useSetShowSessionCredits()
   const { data: dumpKiroBodyData, isError: dumpKiroBodyError, isLoading: isLoadingDumpKiroBody } = useDumpKiroBody()
@@ -381,6 +384,19 @@ export function SettingsPanel({
               disabled={thinkingAsTextError || isLoadingThinkingAsText || isSettingThinkingAsText}
               onToggle={() =>
                 setThinkingAsText(!thinkingAsTextData?.enabled, {
+                  onSuccess: (d) => toast.success(d.message),
+                  onError: (e) => toast.error(extractErrorMessage(e)),
+                })
+              }
+            />
+          </Row>
+          <Row label={t('settings.thinkingCollapse')} desc={thinkingCollapseError ? t('common.loadFailed') : t('settings.thinkingCollapseDesc')}>
+            <Sw
+              label={t('settings.thinkingCollapse')}
+              on={!!thinkingCollapseData?.enabled}
+              disabled={thinkingCollapseError || isLoadingThinkingCollapse || isSettingThinkingCollapse}
+              onToggle={() =>
+                setThinkingCollapse(!thinkingCollapseData?.enabled, {
                   onSuccess: (d) => toast.success(d.message),
                   onError: (e) => toast.error(extractErrorMessage(e)),
                 })

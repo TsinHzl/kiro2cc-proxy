@@ -75,6 +75,18 @@ pub fn thinking_as_text_enabled() -> bool {
     THINKING_AS_TEXT.load(Ordering::Relaxed)
 }
 
+static THINKING_COLLAPSE: AtomicBool = AtomicBool::new(false);
+
+/// 启动时由 main 根据配置设置，Admin 设置页热切换（进程级，与 [`set_thinking_as_text`] 同模式）
+pub fn set_thinking_collapse(enabled: bool) {
+    THINKING_COLLAPSE.store(enabled, Ordering::Relaxed);
+}
+
+/// 配置是否开启了思考块结束后折叠为原生 thinking 块（见 [`ThinkingTextRewriter::with_collapse`]）
+pub fn thinking_collapse_enabled() -> bool {
+    THINKING_COLLAPSE.load(Ordering::Relaxed)
+}
+
 /// 单行文本是否为渲染出的思考标记行（兼容 dim 转义包裹，以及 Plain 的引用 + 斜体包裹）
 fn is_rendered_header_line(line: &str) -> bool {
     let line = remove_ansi_style(line);
@@ -458,6 +470,10 @@ pub struct ThinkingTextRewriter {
     pending_ws: HashMap<i32, String>,
     /// 各思考块累计的思考正文原文（用于收尾统计 token 数；不含标记行与 ANSI 转义）
     thinking_text: HashMap<i32, String>,
+    /// 思考块结束后是否在同一 index 上补发原生 thinking 块（见 [`Self::with_collapse`]）
+    collapse: bool,
+    /// 折叠开启时各思考块累计的 signature（仅 `collapse` 为真时才累积）
+    signatures: HashMap<i32, String>,
 }
 
 impl ThinkingTextRewriter {
@@ -471,6 +487,21 @@ impl ThinkingTextRewriter {
             style,
             ..Self::default()
         }
+    }
+
+    /// 开启「结束后折叠」：思考块收尾时，在同一 index 上先补发原生 thinking 块
+    /// （`content_block_start(thinking)` + `thinking_delta` 全文 + `signature_delta`），再放行原 stop。
+    ///
+    /// Claude Code 收到第二个 `content_block_start` 会清空流式文本预览，并把该 index 的块状态
+    /// 原地替换为 thinking 块；`content_block_stop` 时只用最终的 thinking 块生成消息，
+    /// 之前的 text 块从未落地。效果是：思考期间文本实时可见，结束后变成原生可折叠的 thinking
+    /// 消息（默认折叠，Ctrl+O 展开），滚动区不再残留整段思考文本。
+    ///
+    /// 仅 [`ThinkingTextStyle::Ansi`]（`cli` 入口）生效：Desktop、`local-agent` 等入口的原生
+    /// thinking 默认不展示，折叠会让思考内容消失，所以 Plain 样式下忽略该选项。
+    pub fn with_collapse(mut self, collapse: bool) -> Self {
+        self.collapse = collapse && self.style == ThinkingTextStyle::Ansi;
+        self
     }
 
     /// 样式起始 / 复位：Ansi 为 dim + italic 转义，Plain 为引用块 + 斜体的 Markdown 标记
@@ -553,8 +584,16 @@ impl ThinkingTextRewriter {
                 ("content_block_delta", Some(i)) if self.indices.contains(&i) => {
                     match event.data["delta"]["type"].as_str() {
                         Some("thinking_delta") => {}
-                        // signature_delta 对 text 块无意义，丢弃
-                        Some("signature_delta") => continue,
+                        // signature_delta 对 text 块无意义，不转发；折叠开启时先累积，
+                        // 收尾补发的原生 thinking 块需要它
+                        Some("signature_delta") => {
+                            if self.collapse
+                                && let Some(sig) = event.data["delta"]["signature"].as_str()
+                            {
+                                self.signatures.entry(i).or_default().push_str(sig);
+                            }
+                            continue;
+                        }
                         // 已是改写后的 text_delta 等：原样透传（幂等）
                         _ => {
                             out.push(event);
@@ -640,6 +679,7 @@ impl ThinkingTextRewriter {
                     let had_output = self.header_sent.remove(&i);
                     // 无论是否追加时长行都要取出并清理累计正文，避免空块残留占用内存
                     let thinking_text = self.thinking_text.remove(&i).unwrap_or_default();
+                    let signature = self.signatures.remove(&i).unwrap_or_default();
                     self.pending_ws.remove(&i);
                     // 块在行中间结束时补一个复位（Ansi 的 DIM_OFF / Plain 的结束斜体 `*`），
                     // 避免样式泄漏到后续正文
@@ -691,6 +731,36 @@ impl ThinkingTextRewriter {
                                 )}
                             }),
                         ));
+                    }
+                    // 折叠：同 index 覆写为原生 thinking 块（必须在 stop 之前、文本预览全部发完之后）。
+                    // 空思考块（had_output 为假）没有发过 text 事件，不补发，保持 start/stop 配对不变。
+                    if self.collapse && had_output {
+                        out.push(SseEvent::new(
+                            "content_block_start",
+                            json!({
+                                "type": "content_block_start",
+                                "index": i,
+                                "content_block": {"type": "thinking", "thinking": "", "signature": ""}
+                            }),
+                        ));
+                        out.push(SseEvent::new(
+                            "content_block_delta",
+                            json!({
+                                "type": "content_block_delta",
+                                "index": i,
+                                "delta": {"type": "thinking_delta", "thinking": thinking_text}
+                            }),
+                        ));
+                        if !signature.is_empty() {
+                            out.push(SseEvent::new(
+                                "content_block_delta",
+                                json!({
+                                    "type": "content_block_delta",
+                                    "index": i,
+                                    "delta": {"type": "signature_delta", "signature": signature}
+                                }),
+                            ));
+                        }
                     }
                     out.push(event);
                 }
@@ -794,6 +864,150 @@ mod tests {
         ]);
         assert_eq!(out.len(), 2, "仅剩 start 与 stop");
         assert_eq!(text_of(&out), "");
+    }
+
+    /// 折叠开启时的完整事件序列：文本预览之后、stop 之前，同 index 覆写为原生 thinking 块
+    #[test]
+    fn collapse_overwrites_text_block_with_native_thinking_before_stop() {
+        let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Ansi).with_collapse(true);
+        let mut out = r.rewrite(vec![start(3, "thinking")]);
+        out.extend(r.rewrite(vec![
+            delta(3, "thinking_delta", "thinking", "first line\nsec"),
+            delta(3, "thinking_delta", "thinking", "ond"),
+            delta(3, "signature_delta", "signature", "SIG-"),
+            delta(3, "signature_delta", "signature", "NATURE"),
+            stop(3),
+        ]));
+
+        // 末尾四个事件：thinking start → thinking_delta(全文) → signature_delta(拼接) → stop
+        let n = out.len();
+        assert!(n >= 5);
+        let tail = &out[n - 4..];
+        assert_eq!(tail[0].event, "content_block_start");
+        assert_eq!(tail[0].data["index"], 3);
+        assert_eq!(
+            tail[0].data["content_block"],
+            json!({"type": "thinking", "thinking": "", "signature": ""})
+        );
+        assert_eq!(tail[1].data["delta"]["type"], "thinking_delta");
+        assert_eq!(tail[1].data["delta"]["thinking"], "first line\nsecond");
+        assert_eq!(tail[2].data["delta"]["type"], "signature_delta");
+        assert_eq!(tail[2].data["delta"]["signature"], "SIG-NATURE");
+        assert_eq!(tail[3].event, "content_block_stop");
+        assert!(tail.iter().all(|e| e.data["index"] == 3));
+
+        // 之前是 text 块：恰好一个 text start 在最前，且 text 预览（含时长行）完整发出
+        assert_eq!(out[0].data["content_block"]["type"], "text");
+        let starts = out
+            .iter()
+            .filter(|e| e.event == "content_block_start")
+            .count();
+        assert_eq!(starts, 2, "text start + thinking start");
+        let rendered = plain(&text_of(&out));
+        assert!(rendered.starts_with("💭 Thinking\nfirst line\nsecond\n💭 Thought for 1s ("));
+        // 覆写事件之前不得出现 thinking_delta/signature_delta（否则 CC 会在 text 块上报类型错误）
+        let first_thinking = out
+            .iter()
+            .position(|e| {
+                e.data["delta"]["type"] == "thinking_delta"
+                    || e.data["delta"]["type"] == "signature_delta"
+            })
+            .unwrap();
+        let thinking_start = out
+            .iter()
+            .position(|e| e.data["content_block"]["type"] == "thinking")
+            .unwrap();
+        assert!(thinking_start < first_thinking);
+    }
+
+    /// 折叠不改变文本预览：开关前后文本事件逐字节一致
+    #[test]
+    fn collapse_does_not_change_text_preview() {
+        let events = || {
+            vec![
+                start(0, "thinking"),
+                delta(0, "thinking_delta", "thinking", "ab\n\ncd"),
+                stop(0),
+            ]
+        };
+        let text_events = |collapse: bool| {
+            let mut r =
+                ThinkingTextRewriter::with_style(ThinkingTextStyle::Ansi).with_collapse(collapse);
+            let out = r.rewrite(events());
+            out.iter()
+                .filter(|e| e.data["delta"]["type"] == "text_delta")
+                .map(|e| e.data["delta"]["text"].as_str().unwrap().to_string())
+                // 时长行含 token 数但不含易变字段（耗时下限 1s），可直接比较
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(text_events(false), text_events(true));
+    }
+
+    /// 没有 signature 时不补发 signature_delta（CC 的 thinking 块 signature 初始即为空串）
+    #[test]
+    fn collapse_without_signature_emits_no_signature_delta() {
+        let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Ansi).with_collapse(true);
+        let mut out = r.rewrite(vec![start(0, "thinking")]);
+        out.extend(r.rewrite(vec![
+            delta(0, "thinking_delta", "thinking", "想法"),
+            stop(0),
+        ]));
+        assert!(out.iter().any(|e| e.data["delta"]["type"] == "thinking_delta"));
+        assert!(out.iter().all(|e| e.data["delta"]["type"] != "signature_delta"));
+        assert_eq!(out.last().unwrap().event, "content_block_stop");
+    }
+
+    /// Plain 样式（Desktop / local-agent 等）忽略折叠：这些入口的原生 thinking 默认不展示
+    #[test]
+    fn collapse_is_ignored_for_plain_style() {
+        let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Plain).with_collapse(true);
+        let mut out = r.rewrite(vec![start(0, "thinking")]);
+        out.extend(r.rewrite(vec![
+            delta(0, "thinking_delta", "thinking", "想法"),
+            delta(0, "signature_delta", "signature", "SIG"),
+            stop(0),
+        ]));
+        assert!(out.iter().all(|e| e.data["content_block"]["type"] != "thinking"));
+        assert!(out.iter().all(|e| e.data["delta"]["type"] != "thinking_delta"
+            && e.data["delta"]["type"] != "signature_delta"));
+        assert_eq!(out.last().unwrap().event, "content_block_stop");
+    }
+
+    /// 空思考块没有发过任何 text 事件，折叠不得补发 thinking 事件（保持 start/stop 配对）
+    #[test]
+    fn collapse_skips_empty_thinking_block() {
+        let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Ansi).with_collapse(true);
+        let out = r.rewrite(vec![
+            start(0, "thinking"),
+            delta(0, "thinking_delta", "thinking", ""),
+            delta(0, "signature_delta", "signature", "SIG"),
+            stop(0),
+        ]);
+        assert_eq!(out.len(), 2, "仅剩 text start 与 stop");
+        assert_eq!(out[0].data["content_block"]["type"], "text");
+    }
+
+    /// 多个思考块各自独立覆写，signature 不串块
+    #[test]
+    fn collapse_keeps_signatures_per_block() {
+        let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Ansi).with_collapse(true);
+        let mut out = r.rewrite(vec![start(0, "thinking")]);
+        out.extend(r.rewrite(vec![
+            delta(0, "thinking_delta", "thinking", "一"),
+            delta(0, "signature_delta", "signature", "S0"),
+            stop(0),
+            start(2, "thinking"),
+            delta(2, "thinking_delta", "thinking", "二"),
+            delta(2, "signature_delta", "signature", "S2"),
+            stop(2),
+        ]));
+        let sig_of = |idx: i64| {
+            out.iter()
+                .find(|e| e.data["delta"]["type"] == "signature_delta" && e.data["index"] == idx)
+                .map(|e| e.data["delta"]["signature"].as_str().unwrap().to_string())
+        };
+        assert_eq!(sig_of(0).as_deref(), Some("S0"));
+        assert_eq!(sig_of(2).as_deref(), Some("S2"));
     }
 
     #[test]

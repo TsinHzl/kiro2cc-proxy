@@ -41,7 +41,8 @@ pub use router::create_router_with_provider_and_state;
 pub use stream::{
     client_token_passthrough_enabled, set_client_token_passthrough,
     set_output_tokens_include_thinking, set_show_session_credits, set_thinking_as_text,
-    show_session_credits_enabled, thinking_as_text_enabled,
+    set_thinking_collapse, show_session_credits_enabled, thinking_as_text_enabled,
+    thinking_collapse_enabled,
 };
 
 #[cfg(test)]

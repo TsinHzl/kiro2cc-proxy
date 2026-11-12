@@ -229,7 +229,11 @@ impl StreamContext {
         mut self,
         style: Option<crate::anthropic::stream::ThinkingTextStyle>,
     ) -> Self {
-        self.thinking_text = style.map(crate::anthropic::stream::ThinkingTextRewriter::with_style);
+        // 折叠开关在构建改写器时读取一次：热切换只影响之后的新请求，同一请求内前后一致
+        self.thinking_text = style.map(|style| {
+            crate::anthropic::stream::ThinkingTextRewriter::with_style(style)
+                .with_collapse(crate::anthropic::stream::thinking_collapse_enabled())
+        });
         self
     }
 

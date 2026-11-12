@@ -185,6 +185,18 @@ export async function setThinkingAsText(enabled: boolean): Promise<{ success: bo
   return data
 }
 
+// 获取思考折叠开关
+export async function getThinkingCollapse(): Promise<{ enabled: boolean }> {
+  const { data } = await api.get<{ enabled: boolean }>('/config/thinking-collapse')
+  return data
+}
+
+// 设置思考折叠开关
+export async function setThinkingCollapse(enabled: boolean): Promise<{ success: boolean; message: string }> {
+  const { data } = await api.put<{ success: boolean; message: string }>('/config/thinking-collapse', { enabled })
+  return data
+}
+
 // 获取会话 credits 汇总行开关
 export async function getShowSessionCredits(): Promise<{ enabled: boolean }> {
   const { data } = await api.get<{ enabled: boolean }>('/config/show-session-credits')

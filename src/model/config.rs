@@ -212,6 +212,16 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub thinking_as_text: bool,
 
+    /// 思考块结束后折叠为 Claude Code 原生可折叠 thinking 块（依赖 `thinkingAsText`）
+    ///
+    /// 开启后，思考过程仍以文本逐行流式展示；思考块结束时，代理在同一 index 上补发
+    /// 原生 thinking 块（start + thinking_delta + signature_delta），Claude Code 会清空流式文本预览，
+    /// 并把该块落地为原生 thinking 消息（默认折叠，Ctrl+O 展开）。折叠后滚动区不再残留整段思考文本。
+    /// 仅对 `cli` 入口（ANSI 样式）生效；Claude Desktop、`local-agent` 等入口的原生 thinking 默认不展示，
+    /// 折叠会让思考内容消失，所以这些入口保持纯文本。`thinkingAsText=false` 时无效。默认 false。
+    #[serde(default)]
+    pub thinking_collapse: bool,
+
     /// 会话结束时在回复末尾展示 credits 汇总行（仅 Claude Code 客户端）
     ///
     /// 开启后，每次对话真正结束（stop_reason=end_turn）时追加一行
@@ -355,6 +365,7 @@ impl Default for Config {
             output_tokens_include_thinking: false,
             forward_suggestion_mode: false,
             thinking_as_text: true,
+            thinking_collapse: false,
             show_session_credits: false,
             credential_keep_alive_hours: default_credential_keep_alive_hours(),
             write_chunking_max_lines: default_write_chunking_max_lines(),
@@ -513,6 +524,11 @@ impl Config {
         {
             self.thinking_as_text = b;
         }
+        if let Ok(v) = env::var("THINKING_COLLAPSE")
+            && let Ok(b) = v.parse::<bool>()
+        {
+            self.thinking_collapse = b;
+        }
         if let Ok(v) = env::var("SHOW_SESSION_CREDITS")
             && let Ok(b) = v.parse::<bool>()
         {
@@ -611,6 +627,15 @@ mod tests {
         // 缺省该字段时必须为 true（新用户默认开启思考文本化展示）
         let config: Config = serde_json::from_str("{}").unwrap();
         assert!(config.thinking_as_text);
+    }
+
+    #[test]
+    fn test_thinking_collapse_defaults_to_false() {
+        assert!(!Config::default().thinking_collapse);
+        let config: Config = serde_json::from_str("{}").unwrap();
+        assert!(!config.thinking_collapse);
+        let config: Config = serde_json::from_str(r#"{"thinkingCollapse": true}"#).unwrap();
+        assert!(config.thinking_collapse);
     }
 
     #[test]

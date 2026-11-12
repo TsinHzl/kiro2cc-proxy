@@ -855,6 +855,8 @@
     "clientTokenPassthrough": "客户端 token 直通",
     "thinkingAsText": "思考内容文本化展示",
     "thinkingAsTextDesc": "仅对 Claude Code 生效。开启后，深度思考内容会逐行流式显示（类似 Kiro CLI；终端入口 cli 为变暗灰色，其他入口为 Markdown 引用块 + 斜体），解决 Claude Code 默认折叠 thinking、长推理期间界面像卡住的问题；默认开启；关闭则保持原生 thinking 块。两种模式下 Claude Code 自身上下文都包含思考内容，但回传上游时都会整块丢弃（关闭：原生 thinking 块；开启：标记行、思考正文与时长行），上游上下文不含思考内容。热切换，仅对之后的新请求生效。",
+    "thinkingCollapse": "思考结束后折叠",
+    "thinkingCollapseDesc": "仅对 Claude Code 终端（cli 入口）生效，需先开启「思考内容文本化展示」。开启后，思考过程仍逐行实时显示；思考结束时自动折叠为 Claude Code 原生的可折叠思考块（默认折叠，按 Ctrl+O 展开），不再在滚动区残留整段思考文本。Claude Desktop、local-agent 等入口的原生思考默认不展示，不受此项影响，保持纯文本。热切换，仅影响之后的新请求",
     "showSessionCredits": "会话 Credits 汇总行",
     "showSessionCreditsDesc": "仅对 Claude Code 生效。开启后，每次对话真正结束时（不含工具调用中间步骤）会在回复最后一行追加消耗统计，格式如 “▸ Credits: turn 0.86 • session 8.73 | Time: 12s”：turn 为本轮（一次提问下的所有请求）消耗，session 为当前会话自开启以来的累计消耗，Time 为本轮耗时。累计值由代理按上游每个请求返回的 credits 逐次累加，重启服务后清零；终端入口为变暗灰色，其他入口为 Markdown 斜体。该行会在回传上游前自动剥离，不进入上游上下文，也不计入 output_tokens。不带工具定义的辅助请求（标题生成、压缩等）不追加；暂不支持非流式请求。默认关闭，热切换，仅对之后的新请求生效。",
     "dumpKiroBody": "Kiro 请求体落盘取证(排除问题使用)",

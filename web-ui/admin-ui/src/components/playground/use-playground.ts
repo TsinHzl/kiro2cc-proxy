@@ -69,6 +69,15 @@ function deriveTitle(messages: ChatMessage[]): string {
   return Array.from(first.replace(/\s+/g, ' ').trim()).slice(0, TITLE_MAX_CHARS).join('')
 }
 
+/** 会话里最近一条回复所用的模型；没有回复或旧数据没记录模型时为 undefined */
+function lastUsedModel(messages: ChatMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'assistant' && m.model) return m.model
+  }
+  return undefined
+}
+
 function loadConfig(): PlaygroundConfig {
   try {
     const parsed = JSON.parse(localStorage.getItem(CONFIG_KEY) ?? '{}') as Partial<PlaygroundConfig>
@@ -217,6 +226,16 @@ export function usePlayground() {
   const saveSessionRef = useRef(saveSession)
   saveSessionRef.current = saveSession
 
+  /**
+   * 模型选择存的是全局一份（浏览器本地），在别的会话里切换后，回到旧会话时输入框会显示成
+   * 别处选的模型。载入会话时按它最近一次回复所用的模型恢复，让每个会话保持自己的模型；
+   * 还没有回复的会话（含新对话）沿用当前选择。
+   */
+  const restoreSessionModel = useCallback((msgs: ChatMessage[]) => {
+    const used = lastUsedModel(msgs)
+    if (used) setConfig((prev) => (prev.model === used ? prev : { ...prev, model: used }))
+  }, [])
+
   /** 载入会话消息（不检查是否已是当前会话）。失败时保留当前内容 */
   const openSession = useCallback(
     async (id: string) => {
@@ -226,7 +245,9 @@ export function usePlayground() {
         await saveChainRef.current // 等待上一次保存落地，避免读到旧数据
         const session = await getChatSession<ChatMessage>(id)
         if (epoch !== epochRef.current) return
-        setMessages(normalizeMessages(session.messages))
+        const loaded = normalizeMessages(session.messages)
+        setMessages(loaded)
+        restoreSessionModel(loaded)
         setActive(id)
         setViewKey((k) => k + 1)
       } catch (error) {
@@ -244,7 +265,7 @@ export function usePlayground() {
         if (epoch === epochRef.current) setLoading(false)
       }
     },
-    [refreshList, setActive, t],
+    [refreshList, restoreSessionModel, setActive, t],
   )
 
   // 首次挂载：迁移旧版本地对话，否则恢复上次打开的会话

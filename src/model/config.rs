@@ -218,8 +218,8 @@ pub struct Config {
     /// 原生 thinking 块（start + thinking_delta + signature_delta），Claude Code 会清空流式文本预览，
     /// 并把该块落地为原生 thinking 消息（默认折叠，Ctrl+O 展开）。折叠后滚动区不再残留整段思考文本。
     /// 仅对 `cli` 入口（ANSI 样式）生效；Claude Desktop、`local-agent` 等入口的原生 thinking 默认不展示，
-    /// 折叠会让思考内容消失，所以这些入口保持纯文本。`thinkingAsText=false` 时无效。默认 false。
-    #[serde(default)]
+    /// 折叠会让思考内容消失，所以这些入口保持纯文本。`thinkingAsText=false` 时无效。默认 true。
+    #[serde(default = "default_true")]
     pub thinking_collapse: bool,
 
     /// 会话结束时在回复末尾展示 credits 汇总行（仅 Claude Code 客户端）
@@ -365,7 +365,7 @@ impl Default for Config {
             output_tokens_include_thinking: false,
             forward_suggestion_mode: false,
             thinking_as_text: true,
-            thinking_collapse: false,
+            thinking_collapse: default_true(),
             show_session_credits: false,
             credential_keep_alive_hours: default_credential_keep_alive_hours(),
             write_chunking_max_lines: default_write_chunking_max_lines(),
@@ -630,12 +630,12 @@ mod tests {
     }
 
     #[test]
-    fn test_thinking_collapse_defaults_to_false() {
-        assert!(!Config::default().thinking_collapse);
+    fn test_thinking_collapse_defaults_to_true() {
+        assert!(Config::default().thinking_collapse);
         let config: Config = serde_json::from_str("{}").unwrap();
-        assert!(!config.thinking_collapse);
-        let config: Config = serde_json::from_str(r#"{"thinkingCollapse": true}"#).unwrap();
         assert!(config.thinking_collapse);
+        let config: Config = serde_json::from_str(r#"{"thinkingCollapse": false}"#).unwrap();
+        assert!(!config.thinking_collapse);
     }
 
     #[test]

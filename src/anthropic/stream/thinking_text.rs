@@ -697,6 +697,8 @@ impl ThinkingTextRewriter {
                     // 收尾追加「💭 Thought for Ns (N tokens)」时长行；空思考块（无任何输出）不追加。
                     // 前后各补 \n：思考正文可能不以换行结尾、答案文本块会与时长行直接拼接
                     // （客户端合并相邻 text 块），先换行确保时长行独立成行，尾换行让答案另起一行。
+                    // 时长 + token 摘要（不含样式），折叠时也写进原生 thinking 块正文
+                    let mut summary: Option<String> = None;
                     if let (Some(started), true) = (self.started_at.remove(&i), had_output) {
                         let secs = started.elapsed().as_secs().max(1);
                         // ≥60s 格式化为 "XmYs"（如 1m15s），<60s 为 "Ns"
@@ -714,6 +716,8 @@ impl ThinkingTextRewriter {
                             format_token_count(count_tokens(&thinking_text)),
                             THOUGHT_TOKEN_SUFFIX_CLOSE
                         );
+                        summary =
+                            Some(format!("{THOUGHT_DURATION_PREFIX}{duration}{token_suffix}"));
                         out.push(SseEvent::new(
                             "content_block_delta",
                             json!({
@@ -735,6 +739,13 @@ impl ThinkingTextRewriter {
                     // 折叠：同 index 覆写为原生 thinking 块（必须在 stop 之前、文本预览全部发完之后）。
                     // 空思考块（had_output 为假）没有发过 text 事件，不补发，保持 start/stop 配对不变。
                     if self.collapse && had_output {
+                        // CC 折叠态的标签是写死的「∴ Thinking (ctrl+o to expand)」，不显示块内容；
+                        // 耗时与 token 数只能放进正文末尾，展开（Ctrl+O）后可见。
+                        // 回传上游时原生 thinking 块整块丢弃，这行不会进入上游上下文。
+                        let thinking_body = match &summary {
+                            Some(line) => format!("{}\n\n*{line}*", thinking_text.trim_end()),
+                            None => thinking_text,
+                        };
                         out.push(SseEvent::new(
                             "content_block_start",
                             json!({
@@ -748,7 +759,7 @@ impl ThinkingTextRewriter {
                             json!({
                                 "type": "content_block_delta",
                                 "index": i,
-                                "delta": {"type": "thinking_delta", "thinking": thinking_text}
+                                "delta": {"type": "thinking_delta", "thinking": thinking_body}
                             }),
                         ));
                         if !signature.is_empty() {
@@ -890,7 +901,13 @@ mod tests {
             json!({"type": "thinking", "thinking": "", "signature": ""})
         );
         assert_eq!(tail[1].data["delta"]["type"], "thinking_delta");
-        assert_eq!(tail[1].data["delta"]["thinking"], "first line\nsecond");
+        // 正文末尾追加耗时与 token 摘要（展开后可见），原思考文本保持原样在前
+        let body = tail[1].data["delta"]["thinking"].as_str().unwrap();
+        assert!(
+            body.starts_with("first line\nsecond\n\n*💭 Thought for 1s ("),
+            "{body}"
+        );
+        assert!(body.ends_with(" tokens)*"), "{body}");
         assert_eq!(tail[2].data["delta"]["type"], "signature_delta");
         assert_eq!(tail[2].data["delta"]["signature"], "SIG-NATURE");
         assert_eq!(tail[3].event, "content_block_stop");

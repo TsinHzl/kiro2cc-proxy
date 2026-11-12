@@ -321,6 +321,9 @@ pub(crate) fn usage_to_native(usage: &UsageLimitsResponse, now_epoch_secs: f64) 
         .map(|breakdown| {
             json!({
                 "resourceType": breakdown.resource_type,
+                // credit pooling 账号带 NON_POOLED / POOLED 两种维度行，原样透传，
+                // 客户端据此区分"个人独立额度"与"共享池额度"。
+                "dimensionType": breakdown.dimension_type,
                 "displayName": breakdown.display_name,
                 "displayNamePlural": breakdown.display_name_plural,
                 "currency": breakdown.currency,
@@ -559,4 +562,29 @@ mod tests {
             Some(crate::kiro::model::credentials::SOCIAL_PROFILE_ARN)
         );
     }
+    /// credit pooling 账号额度原样透传两种维度行与共享池数值
+    #[test]
+    fn usage_to_native_passes_through_pooled_dimension() {
+        let upstream: UsageLimitsResponse = serde_json::from_str(
+            r#"{
+                "subscriptionInfo": {"subscriptionTitle": "KIRO CREDIT POOLING", "type": "KIRO_POOLING_SEAT"},
+                "usageBreakdownList": [
+                    {"resourceType": "CREDIT", "dimensionType": "NON_POOLED", "currentUsage": 0, "currentUsageWithPrecision": 0, "usageLimit": null, "usageLimitWithPrecision": null},
+                    {"resourceType": "CREDIT", "dimensionType": "POOLED", "currentUsage": 29, "currentUsageWithPrecision": 29.31, "usageLimit": 6240, "usageLimitWithPrecision": 6240}
+                ]
+            }"#,
+        )
+        .unwrap();
+        let native = aws_json::prune_nulls(usage_to_native(&upstream, 1_000.0));
+        let rows = native["usageBreakdownList"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["dimensionType"], "NON_POOLED");
+        assert_eq!(rows[1]["dimensionType"], "POOLED");
+        assert_eq!(rows[1]["usageLimit"], 6240);
+        assert_eq!(
+            native["subscriptionInfo"]["subscriptionTitle"],
+            "KIRO CREDIT POOLING"
+        );
+    }
+
 }

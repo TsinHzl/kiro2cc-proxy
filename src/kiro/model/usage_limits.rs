@@ -5,7 +5,21 @@
 //! 字段口径对齐 Kiro-account-manager 的 `parseUsageResponse`：精确值
 //! （`*WithPrecision`）优先于整数值；freeTrial / bonus 仅 `ACTIVE` 计入汇总。
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+
+/// 把上游显式返回的 `null` 反序列化为类型默认值。
+///
+/// serde 的 `#[serde(default)]` 只在字段**缺失**时生效，字段存在但值为 `null`
+/// 时仍会报 `invalid type: null`。credit pooling 账号的 `GetUsageLimits` 响应
+/// 里，`dimensionType=NON_POOLED` 那一行没有独立额度，`usageLimit` 与
+/// `usageLimitWithPrecision` 就是显式 `null`（实测 2026-11-12，relay15@agora.io）。
+fn null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
 
 /// 使用额度查询响应
 #[derive(Debug, Clone, Deserialize)]
@@ -95,6 +109,12 @@ pub struct UsageBreakdown {
     #[serde(default)]
     pub resource_type: Option<String>,
 
+    /// 额度维度：`NON_POOLED`（个人独立额度）/ `POOLED`（credit pooling 共享池）。
+    /// 普通个人订阅只有一行且不带该字段；credit pooling 账号的响应同时带两行
+    /// CREDIT：NON_POOLED（无独立额度，limit 为 null）与 POOLED（共享池额度）。
+    #[serde(default)]
+    pub dimension_type: Option<String>,
+
     /// 资源显示名 (Credit)
     #[serde(default)]
     pub display_name: Option<String>,
@@ -120,11 +140,11 @@ pub struct UsageBreakdown {
     pub overage_cap: Option<f64>,
 
     /// 当前使用量
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub current_usage: i64,
 
     /// 当前使用量（精确值）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub current_usage_with_precision: f64,
 
     /// 奖励额度列表
@@ -140,11 +160,11 @@ pub struct UsageBreakdown {
     pub next_date_reset: Option<f64>,
 
     /// 使用限额
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub usage_limit: i64,
 
     /// 使用限额（精确值）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub usage_limit_with_precision: f64,
 }
 
@@ -178,6 +198,15 @@ pub struct Bonus {
     pub status: Option<String>,
 }
 
+impl UsageBreakdown {
+    /// 是否为 credit pooling 的共享池维度行
+    pub(crate) fn is_pooled(&self) -> bool {
+        self.dimension_type
+            .as_deref()
+            .is_some_and(|dimension| dimension.eq_ignore_ascii_case("POOLED"))
+    }
+}
+
 impl Bonus {
     /// 检查 bonus 是否处于激活状态
     pub fn is_active(&self) -> bool {
@@ -194,11 +223,11 @@ impl Bonus {
 #[allow(dead_code)]
 pub struct FreeTrialInfo {
     /// 当前使用量
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub current_usage: i64,
 
     /// 当前使用量（精确值）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub current_usage_with_precision: f64,
 
     /// 免费试用过期时间 (Unix 时间戳，秒)
@@ -210,11 +239,11 @@ pub struct FreeTrialInfo {
     pub free_trial_status: Option<String>,
 
     /// 使用限额
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub usage_limit: i64,
 
     /// 使用限额（精确值）
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub usage_limit_with_precision: f64,
 }
 
@@ -270,9 +299,17 @@ impl UsageLimitsResponse {
         })
     }
 
-    /// 获取第一个使用量明细
-    fn primary_breakdown(&self) -> Option<&UsageBreakdown> {
-        self.usage_breakdown_list.first()
+    /// 获取用于汇总的使用量明细。
+    ///
+    /// credit pooling 账号的响应同时包含 `dimensionType=NON_POOLED`（无独立额度，
+    /// limit 为 null）与 `dimensionType=POOLED`（共享池额度）两行 CREDIT；汇总必须
+    /// 取 POOLED 行，否则余额会显示 0/0。普通账号只有一行、无 dimensionType，
+    /// 行为不变。
+    pub(crate) fn primary_breakdown(&self) -> Option<&UsageBreakdown> {
+        self.usage_breakdown_list
+            .iter()
+            .find(|breakdown| breakdown.is_pooled())
+            .or_else(|| self.usage_breakdown_list.first())
     }
 
     /// 获取总使用限额（精确值）
@@ -577,5 +614,84 @@ mod tests {
             resp.subscription_info.unwrap().subscription_type.as_deref(),
             Some("Q_DEVELOPER_STANDALONE_PRO")
         );
+    }
+    /// 真实 credit pooling 账号的 getUsageLimits 响应（2026-11-12 KAM 本机日志，
+    /// relay15@agora.io）：subscriptionTitle=KIRO CREDIT POOLING，
+    /// type=KIRO_POOLING_SEAT，usageBreakdownList 同时含 NON_POOLED（usageLimit=null）
+    /// 与 POOLED（6240 共享池额度）两行 CREDIT。
+    const CREDIT_POOLING_RESPONSE: &str = r#"{
+        "daysUntilReset": 0,
+        "limits": [],
+        "nextDateReset": 1796083200,
+        "overageConfiguration": {"overageLimit": null, "overageStatus": "DISABLED"},
+        "subscriptionInfo": {
+            "overageCapability": "OVERAGE_CAPABLE",
+            "subscriptionManagementTarget": "MANAGE",
+            "subscriptionTitle": "KIRO CREDIT POOLING",
+            "type": "KIRO_POOLING_SEAT",
+            "upgradeCapability": "UPGRADE_INCAPABLE"
+        },
+        "totalUsage": null,
+        "usageBreakdown": null,
+        "usageBreakdownList": [
+            {
+                "addOnMetadata": null, "bonuses": [], "currency": "USD",
+                "currentOverages": 0, "currentOveragesWithPrecision": 0,
+                "currentUsage": 0, "currentUsageWithPrecision": 0,
+                "dimensionType": "NON_POOLED", "displayName": "Credit",
+                "displayNamePlural": "Credits", "freeTrialInfo": null,
+                "nextDateReset": 1796083200, "overageCap": null,
+                "overageCapWithPrecision": null, "overageCharges": 0,
+                "overageCredits": [], "overageRate": null, "resourceType": "CREDIT",
+                "unit": null, "usageLimit": null, "usageLimitWithPrecision": null
+            },
+            {
+                "addOnMetadata": null, "bonuses": [], "currency": "USD",
+                "currentOverages": 0, "currentOveragesWithPrecision": 0,
+                "currentUsage": 29, "currentUsageWithPrecision": 29.31,
+                "dimensionType": "POOLED", "displayName": "Credit",
+                "displayNamePlural": "Credits", "freeTrialInfo": null,
+                "nextDateReset": 1796083200, "overageCap": null,
+                "overageCapWithPrecision": null, "overageCharges": 0,
+                "overageCredits": [], "overageRate": null, "resourceType": "CREDIT",
+                "unit": null, "usageLimit": 6240, "usageLimitWithPrecision": 6240
+            }
+        ],
+        "userInfo": {"email": "relay15@agora.io", "userId": "d-9066760520.34f854b8"}
+    }"#;
+
+    /// credit pooling 响应必须能反序列化（NON_POOLED 行的 null limit 不能报错），
+    /// 且汇总取 POOLED 共享池行而不是第一行 NON_POOLED（否则余额显示 0/0）。
+    #[test]
+    fn credit_pooling_response_parses_and_uses_pooled_row() {
+        let resp: UsageLimitsResponse =
+            serde_json::from_str(CREDIT_POOLING_RESPONSE).expect("credit pooling 响应应能解析");
+        assert_eq!(resp.subscription_title(), Some("KIRO CREDIT POOLING"));
+        assert_eq!(
+            resp.subscription_info
+                .as_ref()
+                .unwrap()
+                .subscription_type
+                .as_deref(),
+            Some("KIRO_POOLING_SEAT")
+        );
+        assert_eq!(resp.usage_breakdown_list.len(), 2);
+
+        let primary = resp.primary_breakdown().expect("应能选出汇总行");
+        assert!(primary.is_pooled());
+        assert_eq!(primary.dimension_type.as_deref(), Some("POOLED"));
+        assert_eq!(resp.usage_limit(), 6240.0);
+        assert_eq!(resp.current_usage(), 29.31);
+    }
+
+    /// NON_POOLED 行的显式 null limit 按 0 处理（serde default 不覆盖 null）
+    #[test]
+    fn non_pooled_row_null_limits_default_to_zero() {
+        let resp: UsageLimitsResponse = serde_json::from_str(CREDIT_POOLING_RESPONSE).unwrap();
+        let non_pooled = &resp.usage_breakdown_list[0];
+        assert_eq!(non_pooled.dimension_type.as_deref(), Some("NON_POOLED"));
+        assert_eq!(non_pooled.usage_limit, 0);
+        assert_eq!(non_pooled.usage_limit_with_precision, 0.0);
+        assert!(!non_pooled.is_pooled());
     }
 }

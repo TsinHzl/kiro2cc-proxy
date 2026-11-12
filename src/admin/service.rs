@@ -714,7 +714,7 @@ impl AdminService {
 /// 纯函数：freeTrial/bonus 仅 ACTIVE 透传；`upgrade_capability` 映射为 bool；
 /// `type` 键（alias subscriptionType）透传为 `subscription_type`。
 fn build_balance_detail(usage: &UsageLimitsResponse) -> BalanceDetail {
-    let detail = usage.usage_breakdown_list.first();
+    let detail = usage.primary_breakdown();
     let base_usage = detail.map(|b| b.current_usage_with_precision);
     let base_limit = detail.map(|b| b.usage_limit_with_precision);
     let free_trial = detail
@@ -1341,5 +1341,46 @@ mod tests {
         assert!(item.masked_api_key.is_some());
         // API Key 凭据不得持久化 profileArn
         assert!(!item.has_profile_arn);
+    }
+    /// credit pooling 响应：余额分解必须取 POOLED 行（6240 池额度），
+    /// 而不是 limit=null 的 NON_POOLED 行。
+    const KAM_POOLING_DETAIL_RESPONSE: &str = r#"{
+        "subscriptionInfo": {
+            "subscriptionTitle": "KIRO CREDIT POOLING",
+            "type": "KIRO_POOLING_SEAT"
+        },
+        "userInfo": {"email": "relay15@agora.io", "userId": "d-9066760520.34f854b8"},
+        "usageBreakdownList": [
+            {
+                "resourceType": "CREDIT",
+                "dimensionType": "NON_POOLED",
+                "currentUsage": 0,
+                "currentUsageWithPrecision": 0,
+                "usageLimit": null,
+                "usageLimitWithPrecision": null
+            },
+            {
+                "resourceType": "CREDIT",
+                "dimensionType": "POOLED",
+                "currentUsage": 29,
+                "currentUsageWithPrecision": 29.31,
+                "usageLimit": 6240,
+                "usageLimitWithPrecision": 6240
+            }
+        ]
+    }"#;
+
+    #[test]
+    fn build_balance_detail_prefers_pooled_credit_row() {
+        let usage: UsageLimitsResponse =
+            serde_json::from_str(KAM_POOLING_DETAIL_RESPONSE).expect("credit pooling 响应应能解析");
+        let detail = build_balance_detail(&usage);
+
+        assert_eq!(detail.base_usage, Some(29.31));
+        assert_eq!(detail.base_limit, Some(6240.0));
+        assert_eq!(
+            detail.subscription_type.as_deref(),
+            Some("KIRO_POOLING_SEAT")
+        );
     }
 }

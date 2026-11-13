@@ -135,6 +135,12 @@ pub enum ThinkingTextStyle {
 /// 每次都会显示乱码。同一个入口（如 `local-agent`）在不同宿主里渲染能力并不一致
 /// （issue #54：Claude Desktop 的 Cowork 模式即为 `local-agent` 且显示乱码），
 /// 入口字段区分不了，因此只有确认是终端的入口才用 ANSI。
+///
+/// 折叠（`thinkingCollapse`）对两种样式同样生效，见 [`ThinkingTextRewriter::with_collapse`]：
+/// 思考块收尾时覆写为原生 thinking 块，由客户端自身的折叠控件展示。前提是该入口能展开
+/// 原生 thinking。已在 CLI 与 Claude Desktop 上验证可展开；`local-agent`（Cowork）等其他
+/// Plain 入口未验证，若某入口默认隐藏原生 thinking 且无展开控件，折叠会让思考内容不可见，
+/// 此时应关闭 `thinkingCollapse`。
 pub fn thinking_text_style(headers: &axum::http::HeaderMap) -> Option<ThinkingTextStyle> {
     if !is_claude_code_client(headers) {
         return None;
@@ -497,10 +503,10 @@ impl ThinkingTextRewriter {
     /// 之前的 text 块从未落地。效果是：思考期间文本实时可见，结束后变成原生可折叠的 thinking
     /// 消息（默认折叠，Ctrl+O 展开），滚动区不再残留整段思考文本。
     ///
-    /// 仅 [`ThinkingTextStyle::Ansi`]（`cli` 入口）生效：Desktop、`local-agent` 等入口的原生
-    /// thinking 默认不展示，折叠会让思考内容消失，所以 Plain 样式下忽略该选项。
+    /// 两种样式都生效：Plain 样式（Claude Desktop、`local-agent` 等入口）同样在收尾时覆写为
+    /// 原生 thinking 块，由客户端自己的折叠控件展示。
     pub fn with_collapse(mut self, collapse: bool) -> Self {
-        self.collapse = collapse && self.style == ThinkingTextStyle::Ansi;
+        self.collapse = collapse;
         self
     }
 
@@ -980,9 +986,9 @@ mod tests {
         assert_eq!(out.last().unwrap().event, "content_block_stop");
     }
 
-    /// Plain 样式（Desktop / local-agent 等）忽略折叠：这些入口的原生 thinking 默认不展示
+    /// Plain 样式（Desktop / local-agent 等）同样折叠：stop 之前覆写为原生 thinking 块
     #[test]
-    fn collapse_is_ignored_for_plain_style() {
+    fn collapse_applies_to_plain_style() {
         let mut r = ThinkingTextRewriter::with_style(ThinkingTextStyle::Plain).with_collapse(true);
         let mut out = r.rewrite(vec![start(0, "thinking")]);
         out.extend(r.rewrite(vec![
@@ -990,16 +996,14 @@ mod tests {
             delta(0, "signature_delta", "signature", "SIG"),
             stop(0),
         ]));
-        assert!(
-            out.iter()
-                .all(|e| e.data["content_block"]["type"] != "thinking")
-        );
-        assert!(
-            out.iter()
-                .all(|e| e.data["delta"]["type"] != "thinking_delta"
-                    && e.data["delta"]["type"] != "signature_delta")
-        );
-        assert_eq!(out.last().unwrap().event, "content_block_stop");
+        let n = out.len();
+        let tail = &out[n - 4..];
+        assert_eq!(tail[0].data["content_block"]["type"], "thinking");
+        assert_eq!(tail[1].data["delta"]["type"], "thinking_delta");
+        let body = tail[1].data["delta"]["thinking"].as_str().unwrap();
+        assert!(body.starts_with("想法\n\n*💭 Thought for 1s ("), "{body}");
+        assert_eq!(tail[2].data["delta"]["signature"], "SIG");
+        assert_eq!(tail[3].event, "content_block_stop");
     }
 
     /// 空思考块没有发过任何 text 事件，折叠不得补发 thinking 事件（保持 start/stop 配对）

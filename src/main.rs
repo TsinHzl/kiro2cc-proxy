@@ -151,7 +151,7 @@ async fn main() {
     }
     if config.thinking_as_text && config.thinking_collapse {
         tracing::info!(
-            "思考折叠已开启（thinkingCollapse=true）：cli 入口的思考结束后折叠为原生可折叠 thinking 块（Ctrl+O 展开）"
+            "思考折叠已开启（thinkingCollapse=true）：思考结束后折叠为原生可折叠 thinking 块（cli 入口 Ctrl+O 展开；Claude Desktop 等入口由客户端自身控件展开）"
         );
     }
     if config.client_token_passthrough {

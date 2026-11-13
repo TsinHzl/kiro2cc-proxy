@@ -592,7 +592,7 @@ pub struct SetThinkingAsTextRequest {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThinkingCollapseResponse {
-    /// 思考块结束后是否折叠为原生可折叠 thinking 块（仅 cli 入口，依赖思考文本化）
+    /// 思考块结束后是否折叠为原生可折叠 thinking 块（cli 与 Plain 样式入口均生效，依赖思考文本化）
     pub enabled: bool,
 }
 

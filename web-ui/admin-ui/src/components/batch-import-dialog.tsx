@@ -67,6 +67,32 @@ interface VerificationResult {
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024
 
+/** KAM 导出的单个账号项 → 导入用凭据 */
+function kamAccountToCredential(a: Record<string, any>): CredentialInput {
+  return {
+    refreshToken: a.credentials?.refreshToken,
+    email: a.email || a.nickname,
+    machineId: a.machineId,
+    authRegion: a.credentials?.region,
+    authMethod: a.credentials?.authMethod,
+    clientId: a.credentials?.clientId || undefined,
+    clientSecret: a.credentials?.clientSecret || undefined,
+    profileArn: a.credentials?.profileArn || a.profileArn || undefined,
+    // 登录来源：KAM 在 credentials.provider 与顶层 idp 两处都可能带；
+    // 归一化后仅 Google / GitHub / Enterprise 入库，其余（含 BuilderId）不写入；
+    // Enterprise 必须保留：后端据此避免给企业版 IdC 账号补 BuilderId 占位 ARN（issue #43）
+    provider: normalizeImportProvider(a.credentials?.provider) ?? normalizeImportProvider(a.idp),
+  } as CredentialInput
+}
+
+/** 把单个文件解析出的 JSON 展开为账号项列表（KAM accounts / 数组 / 单个对象） */
+function extractAccountItems(parsed: unknown): unknown[] {
+  if (Array.isArray(parsed)) return parsed
+  const accounts = (parsed as { accounts?: unknown })?.accounts
+  if (Array.isArray(accounts)) return accounts
+  return [parsed]
+}
+
 export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps) {
   const { t } = useTranslation()
   const [jsonInput, setJsonInput] = useState('')
@@ -97,25 +123,14 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
       const parsed = JSON.parse(jsonInput)
       let credentials: CredentialInput[]
       if (Array.isArray(parsed)) {
+        // 数组元素既可能是扁平凭据，也可能是多文件合并进来的 KAM 账号项（带 credentials 字段）
         credentials = parsed
+          .map((a: Record<string, any>): CredentialInput => (a?.credentials ? kamAccountToCredential(a) : (a as CredentialInput)))
+          .filter((c: CredentialInput) => c?.refreshToken)
       } else if (parsed.accounts && Array.isArray(parsed.accounts)) {
         // KAM 导出格式：{ version, accounts: [...] }
         credentials = parsed.accounts
-          .map((a: Record<string, any>) => ({
-            refreshToken: a.credentials?.refreshToken,
-            email: a.email || a.nickname,
-            machineId: a.machineId,
-            authRegion: a.credentials?.region,
-            authMethod: a.credentials?.authMethod,
-            clientId: a.credentials?.clientId || undefined,
-            clientSecret: a.credentials?.clientSecret || undefined,
-            profileArn: a.credentials?.profileArn || a.profileArn || undefined,
-            // 登录来源：KAM 在 credentials.provider 与顶层 idp 两处都可能带；
-            // 归一化后仅 Google / GitHub / Enterprise 入库，其余（含 BuilderId）不写入；
-            // Enterprise 必须保留：后端据此避免给企业版 IdC 账号补 BuilderId 占位 ARN（issue #43）
-            provider:
-              normalizeImportProvider(a.credentials?.provider) ?? normalizeImportProvider(a.idp),
-          }))
+          .map(kamAccountToCredential)
           .filter((c: CredentialInput) => c.refreshToken)
       } else {
         credentials = [parsed]
@@ -363,24 +378,51 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     setJsonInput('')
   }
 
-  const readUploadedFile = (file: File) => {
-    const isJson = file.name.endsWith('.json') || file.type === 'application/json'
-    if (!isJson) {
-      toast.error(t('credentials.importFileTypeError'))
+  /** 读取一个或多个文件：单文件原样填入；多文件合并为一个账号数组 */
+  const readUploadedFiles = async (fileList: File[]) => {
+    if (fileList.length === 0) return
+    const skipped: string[] = []
+    const texts: { name: string; text: string }[] = []
+
+    for (const file of fileList) {
+      const isJson = file.name.endsWith('.json') || file.type === 'application/json'
+      if (!isJson || file.size > MAX_FILE_SIZE) {
+        skipped.push(file.name)
+        continue
+      }
+      try {
+        texts.push({ name: file.name, text: await file.text() })
+      } catch {
+        skipped.push(file.name)
+      }
+    }
+
+    if (texts.length === 1 && fileList.length === 1) {
+      setJsonInput(texts[0].text)
       return
     }
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error(t('credentials.importFileSizeError'))
-      return
+
+    const items: unknown[] = []
+    let validFiles = 0
+    for (const { name, text } of texts) {
+      try {
+        items.push(...extractAccountItems(JSON.parse(text)))
+        validFiles++
+      } catch {
+        skipped.push(name)
+      }
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      setJsonInput(String(reader.result ?? ''))
+
+    if (validFiles > 0) {
+      setJsonInput(JSON.stringify(items, null, 2))
+      toast.info(t('credentials.importFilesMerged', { files: validFiles, count: items.length }))
     }
-    reader.onerror = () => {
-      toast.error(t('credentials.importFileReadError'))
+    if (skipped.length > 0) {
+      toast.error(t('credentials.importFilesSkipped', {
+        count: skipped.length,
+        names: skipped.join(', '),
+      }))
     }
-    reader.readAsText(file)
   }
 
   const handleSelectFile = () => {
@@ -388,9 +430,9 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) readUploadedFile(file)
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
+    void readUploadedFiles(files)
   }
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -417,8 +459,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
     e.preventDefault()
     setDragActive(false)
     if (importing) return
-    const file = e.dataTransfer.files?.[0]
-    if (file) readUploadedFile(file)
+    void readUploadedFiles(Array.from(e.dataTransfer.files ?? []))
   }
 
   return (
@@ -521,6 +562,7 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept=".json,application/json"
                 className="hidden"
                 onChange={handleFileChange}

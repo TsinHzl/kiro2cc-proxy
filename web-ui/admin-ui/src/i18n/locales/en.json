@@ -409,11 +409,13 @@
     "importBadge": "Supports single / batch account import",
     "importToolbarFormat": "Format",
     "importToolbarClear": "Clear",
-    "importDropOverlay": "Drop the file to import",
-    "importSelectFile": "Choose a local file",
+    "importDropOverlay": "Drop the files to import",
+    "importSelectFile": "Choose local files (multiple allowed)",
     "importFileTypeError": "Only .json files are supported",
     "importFileSizeError": "File size exceeds the 2MB limit",
-    "importFileReadError": "Failed to read the file, please retry"
+    "importFileReadError": "Failed to read the file, please retry",
+    "importFilesMerged": "Merged {{files}} file(s), {{count}} account(s) in total",
+    "importFilesSkipped": "{{count}} file(s) skipped (not JSON, over 2MB, or unreadable): {{names}}"
   },
   "apiKeys": {
     "serviceInfo": "Service Connection Info",

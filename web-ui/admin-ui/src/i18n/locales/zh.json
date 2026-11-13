@@ -409,11 +409,13 @@
     "importBadge": "同时支持单账号 / 批量账号导入",
     "importToolbarFormat": "格式化",
     "importToolbarClear": "清空",
-    "importDropOverlay": "松开鼠标即可导入该文件",
-    "importSelectFile": "选择本地文件",
+    "importDropOverlay": "松开鼠标即可导入这些文件",
+    "importSelectFile": "选择本地文件（可多选）",
     "importFileTypeError": "仅支持 .json 文件",
     "importFileSizeError": "文件大小超过 2MB 上限",
-    "importFileReadError": "文件读取失败，请重试"
+    "importFileReadError": "文件读取失败，请重试",
+    "importFilesMerged": "已合并 {{files}} 个文件，共 {{count}} 个账号",
+    "importFilesSkipped": "{{count}} 个文件被跳过（非 JSON、超过 2MB 或读取失败）：{{names}}"
   },
   "apiKeys": {
     "serviceInfo": "服务连接信息",

@@ -69,6 +69,36 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.7".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "思考过程自动折叠：思考结束后收起为原生可折叠 thinking 块，末尾显示耗时与 token 摘要（thinkingCollapse，默认开启）",
+                        "Thinking is now auto-collapsed: once thinking ends it folds into a native collapsible thinking block ending with an elapsed-time and token summary (thinkingCollapse, on by default)",
+                    ),
+                    Bilingual::new(
+                        "对话输入框支持直接粘贴截图作为图片附件",
+                        "The chat input box now supports pasting screenshots directly as image attachments",
+                    ),
+                ]),
+                improve_group(vec![
+                    Bilingual::new(
+                        "每条回复的 token 用量后追加显示本条消耗的 credits",
+                        "Per-reply credits are now appended after the token usage on each reply",
+                    ),
+                    Bilingual::new(
+                        "每个 Key/账号的用量明细保留上限提高到 10 万条",
+                        "The usage-detail retention cap per key/account is raised to 100,000 records",
+                    ),
+                ]),
+                fix_group(vec![Bilingual::new(
+                    "修复切换会话时模型选择未恢复为该会话最近使用模型的问题",
+                    "Fixed the model selector not restoring the last-used model of a conversation when switching sessions",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.5".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![

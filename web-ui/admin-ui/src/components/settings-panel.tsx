@@ -67,10 +67,10 @@ function Section({ icon: Icon, title, children }: { icon: LucideIcon; title: str
 }
 
 /** 配置行：左列键名 + 说明，右列控件 */
-function Row({ label, desc, children }: { label: string; desc: string; children: ReactNode }) {
+function Row({ label, desc, children, disabled }: { label: string; desc: string; children: ReactNode; disabled?: boolean }) {
   return (
-    <div className={SET_ROW}>
-      <div className="min-w-0">
+    <div className={SET_ROW} aria-disabled={disabled || undefined}>
+      <div className={`min-w-0 ${disabled ? 'opacity-50' : ''}`}>
         <div className={SET_K}>{label}</div>
         <div className={SET_D}>{desc}</div>
       </div>
@@ -390,11 +390,21 @@ export function SettingsPanel({
               }
             />
           </Row>
-          <Row label={t('settings.thinkingCollapse')} desc={thinkingCollapseError ? t('common.loadFailed') : t('settings.thinkingCollapseDesc')}>
+          {/* 折叠依赖「思考内容文本化」：后者关闭时整行置灰且不可点击（已存的折叠值保留，不改写） */}
+          <Row
+            label={t('settings.thinkingCollapse')}
+            desc={thinkingCollapseError ? t('common.loadFailed') : t('settings.thinkingCollapseDesc')}
+            disabled={!thinkingAsTextData?.enabled}
+          >
             <Sw
               label={t('settings.thinkingCollapse')}
               on={!!thinkingCollapseData?.enabled}
-              disabled={thinkingCollapseError || isLoadingThinkingCollapse || isSettingThinkingCollapse}
+              disabled={
+                !thinkingAsTextData?.enabled ||
+                thinkingCollapseError ||
+                isLoadingThinkingCollapse ||
+                isSettingThinkingCollapse
+              }
               onToggle={() =>
                 setThinkingCollapse(!thinkingCollapseData?.enabled, {
                   onSuccess: (d) => toast.success(d.message),

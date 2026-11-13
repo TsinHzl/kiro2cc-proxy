@@ -253,6 +253,7 @@ impl SseStateManager {
         context_usage_percentage: Option<f64>,
         cache_creation_5m_input_tokens: Option<i32>,
         cache_creation_1h_input_tokens: Option<i32>,
+        credits_used: Option<f64>,
         model: &str,
     ) -> Vec<SseEvent> {
         let mut events = Vec::new();
@@ -390,6 +391,12 @@ impl SseStateManager {
             }
             if let Some(p) = context_usage_percentage {
                 usage.insert("contextUsagePercentage".into(), json!(p));
+            }
+            // 本次响应的真实 credits 消耗（上游 meteringEvent，桥接多轮时为各轮之和）。
+            // 非 Anthropic 标准字段，标准客户端忽略；Admin 对话页据此展示单条回复的 credits。
+            // 上游未返回 meteringEvent 时不输出该字段
+            if let Some(c) = credits_used.filter(|c| c.is_finite()) {
+                usage.insert("credits".into(), json!(c));
             }
             events.push(SseEvent::new(
                 "message_delta",

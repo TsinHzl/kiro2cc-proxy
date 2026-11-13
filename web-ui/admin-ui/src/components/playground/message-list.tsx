@@ -7,6 +7,7 @@ import {
   Brain,
   Check,
   ChevronRight,
+  Coins,
   Copy,
   Globe,
   Loader2,
@@ -164,7 +165,7 @@ function SearchBlock({ search }: { search: WebSearchCall }) {
   )
 }
 
-/** 用量：↓ 输入 tokens（发给模型的）、↑ 输出 tokens（模型回复的）；含义放在悬停提示里 */
+/** 用量：↓ 输入 tokens、↑ 输出 tokens、思考 tokens 估算、本条回复的 credits；含义放在悬停提示里 */
 function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usage']>; reasoning?: string }) {
   const { t } = useTranslation()
   const n = (v: number) => v.toLocaleString()
@@ -174,6 +175,11 @@ function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usag
   const outputTip = t('playground.usageOutputTip', { total: n(usage.output) })
   const thinkingTokens = reasoning ? estimateTokens(reasoning) : 0
   const thinkingTip = t('playground.usageThinkingTip', { total: n(thinkingTokens) })
+  const creditsText = (usage.credits ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })
+  const creditsTip = t('playground.usageCreditsTip', { total: creditsText })
   return (
     <>
       <span className="inline-flex shrink-0 items-center gap-0.5" title={inputTip} aria-label={inputTip}>
@@ -187,6 +193,12 @@ function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usag
       {thinkingTokens > 0 && (
         <span className="inline-flex shrink-0 items-center gap-0.5" title={thinkingTip} aria-label={thinkingTip}>
           <Brain className="size-3" aria-hidden="true" />≈{n(thinkingTokens)} tokens
+        </span>
+      )}
+      {usage.credits !== undefined && (
+        <span className="inline-flex shrink-0 items-center gap-0.5" title={creditsTip} aria-label={creditsTip}>
+          <Coins className="size-3" aria-hidden="true" />
+          {creditsText} credits
         </span>
       )}
     </>

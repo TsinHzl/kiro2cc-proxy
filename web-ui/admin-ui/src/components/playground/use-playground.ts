@@ -391,13 +391,14 @@ export function usePlayground() {
                   s.id === id ? { ...s, status: failed ? 'error' : 'done', results } : s,
                 ),
               })),
-            onUsage: ({ input, output, cached }) =>
+            onUsage: ({ input, output, cached, credits }) =>
               patchMessage(assistant.id, (m) => ({
                 ...m,
                 usage: {
                   input: input ?? m.usage?.input ?? 0,
                   output: output ?? m.usage?.output ?? 0,
                   cached: cached ?? m.usage?.cached,
+                  credits: credits ?? m.usage?.credits,
                 },
               })),
           },

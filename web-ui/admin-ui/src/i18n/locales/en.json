@@ -723,6 +723,7 @@
     "usageInputCachedTip": "Input: everything sent to the model (incl. chat history), {{total}} tokens, {{cached}} cached",
     "usageThinkingTip": "Thinking: about {{total}} tokens (estimated from text length; not included in the output count)",
     "usageOutputTip": "Output: this reply, {{total}} tokens",
+    "usageCreditsTip": "Kiro credits consumed by this reply: {{total}}",
     "regenerate": "Regenerate",
     "generating": "Generating",
     "stopped": "Generation stopped",

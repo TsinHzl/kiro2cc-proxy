@@ -20,10 +20,18 @@ export interface StreamParams {
   signal: AbortSignal
 }
 
+export interface StreamUsage {
+  input?: number
+  output?: number
+  cached?: number
+  /** 本条回复消耗的 Kiro credits；上游未返回计量时缺省 */
+  credits?: number
+}
+
 export interface StreamHandlers {
   onThinking: (delta: string) => void
   onText: (delta: string) => void
-  onUsage: (usage: { input?: number; output?: number; cached?: number }) => void
+  onUsage: (usage: StreamUsage) => void
   /** 模型发起了一次搜索（查询词已完整） */
   onSearchCall: (id: string, query: string) => void
   /** 搜索返回结果；error 表示上游报告了搜索错误 */
@@ -92,12 +100,13 @@ function num(v: unknown): number | undefined {
 function toUsage(
   usage: Record<string, unknown> | undefined,
   withOutput: boolean
-): { input?: number; output?: number; cached?: number } {
+): StreamUsage {
   const fresh = num(usage?.input_tokens)
   const cached = num(usage?.cache_read_input_tokens)
   const created = num(usage?.cache_creation_input_tokens)
   const input = fresh === undefined ? undefined : fresh + (cached ?? 0) + (created ?? 0)
-  return { input, cached, output: withOutput ? num(usage?.output_tokens) : undefined }
+  // credits 是本代理在 message_delta.usage 里附带的非标准字段，message_start 里没有
+  return { input, cached, output: withOutput ? num(usage?.output_tokens) : undefined, credits: num(usage?.credits) }
 }
 
 function dispatchContent(

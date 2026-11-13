@@ -442,6 +442,43 @@ mod tests {
         })
     }
 
+    fn message_delta_usage(events: &[crate::anthropic::stream::SseEvent]) -> serde_json::Value {
+        events
+            .iter()
+            .find(|e| e.event == "message_delta")
+            .map(|e| e.data["usage"].clone())
+            .expect("应有 message_delta")
+    }
+
+    #[test]
+    fn test_message_delta_usage_carries_credits() {
+        let mut ctx = make_ctx("ctx-usage-credits", None);
+        ctx.process_kiro_event(&text_event("完成了"));
+        ctx.process_kiro_event(&metering_event(0.86));
+        let usage = message_delta_usage(&ctx.generate_final_events());
+        assert_eq!(usage["credits"].as_f64(), Some(0.86));
+    }
+
+    #[test]
+    fn test_message_delta_usage_omits_credits_without_metering() {
+        let mut ctx = make_ctx("ctx-usage-no-credits", None);
+        ctx.process_kiro_event(&text_event("完成了"));
+        let usage = message_delta_usage(&ctx.generate_final_events());
+        assert!(usage.get("credits").is_none(), "usage={usage}");
+    }
+
+    #[test]
+    fn test_credits_sum_across_continuation_rounds() {
+        let mut ctx = make_ctx("ctx-usage-continuation", None);
+        ctx.process_kiro_event(&text_event("第一轮"));
+        ctx.process_kiro_event(&metering_event(0.25));
+        ctx.mark_continuation();
+        ctx.process_kiro_event(&text_event("第二轮"));
+        ctx.process_kiro_event(&metering_event(0.5));
+        let usage = message_delta_usage(&ctx.generate_final_events());
+        assert_eq!(usage["credits"].as_f64(), Some(0.75));
+    }
+
     #[test]
     fn test_credits_footer_appended_on_end_turn() {
         let mut ctx = make_ctx("ctx-footer-end", request(true));

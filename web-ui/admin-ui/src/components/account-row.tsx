@@ -29,7 +29,7 @@ import {
   useSetDisabled,
   useUpdateCredential,
 } from '@/hooks/use-credentials'
-import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState, maskEmail } from '@/lib/account-state'
+import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
 import { localeTag } from '@/lib/locale'
 import { extractErrorMessage, getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
@@ -208,9 +208,9 @@ export function AccountRow({
             <div className="flex items-center gap-1.5">
               <span
                 title={credential.email || undefined}
-                className="max-w-[190px] truncate font-mono text-[10.5px] text-ink-3"
+                className="min-w-0 break-all font-mono text-[10.5px] text-ink-3"
               >
-                {credential.email ? maskEmail(credential.email) : '—'}
+                {credential.email || '—'}
               </span>
               {credential.hasProxy && credential.proxyUrl && (
                 <span

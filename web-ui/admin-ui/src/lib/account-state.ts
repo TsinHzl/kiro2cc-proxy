@@ -63,19 +63,6 @@ export function loginSource(item: CredentialStatusItem): LoginSource | 'BuilderI
 }
 
 /**
- * 邮箱脱敏（设计稿 `h∗∗∗∗∗∗∗∗＠gmail.com`）：保留本地部分首字符与完整域名，其余打星。
- * 仅为表格单行紧凑展示，不是安全措施 —— 行内 `title` 仍给出完整值（管理端本就明文可见）。
- */
-export function maskEmail(email: string): string {
-  const at = email.indexOf('@')
-  if (at <= 0) return email
-  const local = email.slice(0, at)
-  // 首字符按码点取，与头像首字母同口径，避免 emoji / 代理对开头的本地部分被截半
-  const first = [...local][0] ?? ''
-  return `${first}${'∗'.repeat(Math.max(1, local.length - first.length))}＠${email.slice(at + 1)}`
-}
-
-/**
  * 由凭据状态与余额查询情况派生唯一账号状态。
  * 判定顺序即优先级，逐条对应 spec.md 状态映射表：
  *   1. disabled 为真              → disabled

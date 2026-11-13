@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "31f1c2f728d9099e79c02ee40d8dd0ac92c92b3c",
+  "prompts": {
+    "1e568bd979b8fd6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65c512f7-bd27-4003-b6ce-11ac277d98b6",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 1,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}

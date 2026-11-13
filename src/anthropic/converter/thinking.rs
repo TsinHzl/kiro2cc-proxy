@@ -33,12 +33,7 @@ pub(crate) fn additional_fields_skipped(model_id: &str) -> bool {
     // （2026-11-11 上游新增）未经逐模型实测，按第三方模型惯例并入跳过名单。
     matches!(
         model_id,
-        "qwen3-coder-next"
-            | "glm-5"
-            | "deepseek-3.2"
-            | "minimax-m2.5"
-            | "kimi-k3"
-            | "grok-4.7"
+        "qwen3-coder-next" | "glm-5" | "deepseek-3.2" | "minimax-m2.5" | "kimi-k3" | "grok-4.7"
     )
 }
 

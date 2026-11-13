@@ -217,8 +217,8 @@ pub struct Config {
     /// 开启后，思考过程仍以文本逐行流式展示；思考块结束时，代理在同一 index 上补发
     /// 原生 thinking 块（start + thinking_delta + signature_delta），Claude Code 会清空流式文本预览，
     /// 并把该块落地为原生 thinking 消息（默认折叠，Ctrl+O 展开）。折叠后滚动区不再残留整段思考文本。
-    /// 对 `cli`（ANSI 样式）与 Claude Desktop、`local-agent` 等入口（Plain 样式）都生效，
-    /// 折叠展示形态由各客户端自己的原生 thinking 渲染决定。`thinkingAsText=false` 时无效。默认 true。
+    /// 对 `cli`（ANSI 样式）与 Claude Desktop 生效（已验证）；`local-agent` 等其他 Plain 入口未验证，
+    /// 若思考内容不可见请关闭本项。折叠展示形态由各客户端自己的原生 thinking 渲染决定。`thinkingAsText=false` 时无效。默认 true。
     #[serde(default = "default_true")]
     pub thinking_collapse: bool,
 

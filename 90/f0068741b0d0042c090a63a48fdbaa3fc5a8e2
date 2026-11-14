@@ -1,0 +1,38 @@
+README.md
+  9baec7b2edc7b5ba 1085,1088,1093
+README.en.md
+  9baec7b2edc7b5ba 1064,1067,1072
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "90f0068741b0d0042c090a63a48fdbaa3fc5a8e2",
+  "prompts": {
+    "9baec7b2edc7b5ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef31daff-5331-44e1-b547-1245fbb85253",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 4,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "c68aaca99384222d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f8ead2a-9662-452f-b763-7811cb4b4a24",
+        "model": "claude-sonnet-5-5-high"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 107,
+      "total_deletions": 186,
+      "accepted_lines": 137,
+      "overriden_lines": 0
+    }
+  }
+}

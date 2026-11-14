@@ -1,0 +1,62 @@
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  a6647d2ffd7807b9 55-56,58-66,688-725
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  a6647d2ffd7807b9 2,5,8-10,42-70,167-181
+src/main.rs
+  a6647d2ffd7807b9 389-392
+web-ui/admin-ui/src/api/credentials.ts
+  a6647d2ffd7807b9 30-31,495-506
+web-ui/admin-ui/src/components/dashboard.tsx
+  a6647d2ffd7807b9 19,47,63-64,138-139,347-357,360-369,377-380
+.gitignore
+  a6647d2ffd7807b9 40
+web-ui/admin-ui/src/types/api.ts
+  a6647d2ffd7807b9 430-441
+src/model/ui_preferences.rs
+  a6647d2ffd7807b9 1-165
+web-ui/admin-ui/src/components/dashboard/panel-constants.ts
+  a6647d2ffd7807b9 27,36-64
+src/admin/middleware.rs
+  a6647d2ffd7807b9 26,56-57,78,132-136
+src/model/mod.rs
+  a6647d2ffd7807b9 12
+src/admin/ui_preferences_handler.rs
+  a6647d2ffd7807b9 1-87,89-142
+src/admin/router.rs
+  a6647d2ffd7807b9 38,140-143
+src/admin/mod.rs
+  a6647d2ffd7807b9 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ef2c059e9c82c44860bc91b8afbaeca413bd7320",
+  "prompts": {
+    "a6647d2ffd7807b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba7c8ed6-8deb-4a98-9a2e-94aa15a77129",
+        "model": "gemini-4-hydrogen-xhigh"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 523,
+      "total_deletions": 13,
+      "accepted_lines": 515,
+      "overriden_lines": 1
+    },
+    "d29eb199f3d46c71": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51a792c3-d0f6-499d-b772-eddbce5e16ac",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 90,
+      "total_deletions": 0,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    }
+  }
+}

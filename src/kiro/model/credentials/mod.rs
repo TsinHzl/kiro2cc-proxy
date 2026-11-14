@@ -15,9 +15,9 @@ mod tests;
 
 pub use config::CredentialsConfig;
 pub use model::KiroCredentials;
-#[allow(unused_imports)] // 跨模块测试（provider/token_manager）引用
+#[cfg(test)] // 跨模块测试（provider/token_manager）引用
 pub(crate) use model::{
     BUILDER_ID_PLACEHOLDER_PROFILE_ARN, ENTERPRISE_FALLBACK_PROFILE_ARN_EU,
-    ENTERPRISE_FALLBACK_PROFILE_ARN_US, SOCIAL_PROFILE_ARN, canonicalize_auth_method_value,
-    fallback_profile_arn_value,
+    ENTERPRISE_FALLBACK_PROFILE_ARN_US, SOCIAL_PROFILE_ARN,
 };
+pub(crate) use model::{canonicalize_auth_method_value, fallback_profile_arn_value};

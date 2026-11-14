@@ -68,7 +68,6 @@ fn test_additional_model_request_fields_max_tokens_minimum_applies_to_all_claude
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking: None,
             output_config: None,
             metadata: None,
@@ -105,7 +104,6 @@ fn test_output_config_effort_passthrough_with_default() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -131,7 +129,6 @@ fn test_output_config_effort_passthrough_with_default() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: Some(OutputConfig {
             effort: "low".to_string(),
@@ -160,7 +157,6 @@ fn test_output_config_effort_passthrough_with_default() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: Some(OutputConfig {
             effort: "".to_string(),
@@ -197,7 +193,6 @@ fn test_4_5_generation_skips_fields_even_with_output_config() {
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking: None,
             output_config: Some(OutputConfig {
                 effort: "low".to_string(),
@@ -230,7 +225,6 @@ fn test_gpt_5_6_additional_model_request_fields_is_none() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -285,7 +279,6 @@ fn test_claude_4_5_generation_additional_model_request_fields_is_none() {
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking: Some(Thinking {
                 thinking_type: "enabled".to_string(),
                 budget_tokens: 24576,
@@ -324,7 +317,6 @@ fn test_claude_thinking_injection_matrix() {
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking,
             output_config: None,
             metadata: None,
@@ -455,7 +447,6 @@ fn test_additional_fields_skipped_for_unsupported_third_party_models() {
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking: Some(crate::anthropic::types::Thinking {
                 thinking_type: "adaptive".to_string(),
                 budget_tokens: 20000,

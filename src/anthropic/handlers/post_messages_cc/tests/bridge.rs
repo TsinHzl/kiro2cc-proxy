@@ -245,7 +245,6 @@ mod tests {
             stream: false,
             system: None,
             tools,
-            tool_choice: None,
             thinking: None,
             output_config: None,
             metadata: None,
@@ -510,5 +509,4 @@ mod tests {
             "透传路径应分配普通 tool_use 块"
         );
     }
-
 }

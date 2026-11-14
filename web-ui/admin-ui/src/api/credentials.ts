@@ -281,12 +281,6 @@ export async function getAllUsage(): Promise<UsageSummary[]> {
   return data
 }
 
-// 获取单个 API Key 用量
-export async function getKeyUsage(id: number): Promise<UsageSummary> {
-  const { data } = await api.get<UsageSummary>(`/api-keys/${id}/usage`)
-  return data
-}
-
 // 重置单个 API Key 用量
 export async function resetKeyUsage(id: number): Promise<SuccessResponse> {
   const { data } = await api.delete<SuccessResponse>(`/api-keys/${id}/usage`)

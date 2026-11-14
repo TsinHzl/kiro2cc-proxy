@@ -79,7 +79,6 @@ mod tests {
                         .collect(),
                 )
             },
-            tool_choice: None,
             thinking: None,
             output_config: None,
             metadata: None,

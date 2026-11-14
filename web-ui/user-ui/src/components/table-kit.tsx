@@ -18,14 +18,6 @@ export const TH_BASE =
 /** 单元格基线（设计稿 tbody td）：11px/12px 内边距 + 分隔线 + 垂直居中 */
 export const CELL = 'border-b border-hairline px-3 py-[11px] align-middle'
 
-/** 26px 图标钮（设计稿 .iconbtn） */
-export const ICON_BTN =
-  'grid size-[26px] flex-none place-items-center rounded-[6px] text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
-
-/** 设计稿 .panel-foot 内的 btn-ghost：24px 高 / 11.5px 字，与主操作条的 31px 按钮分级 */
-export const FOOT_BTN =
-  'inline-flex h-6 flex-none items-center rounded-[6px] px-[7px] text-[11.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent'
-
 /** 设计稿 .pager button：24px 方钮，当前页 surface-3 底 + 加粗 */
 export const PAGER_BTN =
   'grid h-6 min-w-6 flex-none place-items-center rounded-[5px] px-1 text-[11.5px] text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'

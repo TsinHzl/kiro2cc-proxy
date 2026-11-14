@@ -113,14 +113,6 @@ export interface SuccessResponse {
   message: string
 }
 
-// 错误响应
-export interface AdminErrorResponse {
-  error: {
-    type: string
-    message: string
-  }
-}
-
 // 请求类型
 export interface SetDisabledRequest {
   disabled: boolean

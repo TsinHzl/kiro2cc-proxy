@@ -65,20 +65,11 @@ impl CredentialsConfig {
     }
 
     /// 获取账号数量
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         match self {
             CredentialsConfig::Single(_) => 1,
             CredentialsConfig::Multiple(creds) => creds.len(),
-        }
-    }
-
-    /// 判断是否为空
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        match self {
-            CredentialsConfig::Single(_) => false,
-            CredentialsConfig::Multiple(creds) => creds.is_empty(),
         }
     }
 

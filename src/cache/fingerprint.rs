@@ -36,8 +36,6 @@ pub enum EphemeralTier {
 #[derive(Debug, Clone)]
 pub struct Breakpoint {
     pub hash: [u8; 32],
-    #[allow(dead_code)] // 供未来诊断/admin UI 使用
-    pub cumulative_tokens: i32,
     pub tier: EphemeralTier,
     pub last_hit_at: Instant,
 }
@@ -73,7 +71,7 @@ impl FingerprintTracker {
         tracker
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn new_for_test(config: CacheSimulationConfig) -> Arc<Self> {
         Arc::new(Self {
             tables: Arc::new(RwLock::new(HashMap::new())),
@@ -271,7 +269,6 @@ impl FingerprintTracker {
             };
             tbl.breakpoints.push(Breakpoint {
                 hash: seg.hash,
-                cumulative_tokens: seg.cumulative_tokens,
                 tier,
                 last_hit_at: now,
             });

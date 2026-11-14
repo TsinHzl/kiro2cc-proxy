@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::http_client::{ProxyConfig, build_client};
-use crate::kiro::endpoint::{Endpoint, EndpointBucketRegistry, EndpointName};
+#[cfg(test)]
+use crate::kiro::endpoint::EndpointName;
+use crate::kiro::endpoint::{Endpoint, EndpointBucketRegistry};
 use crate::kiro::model::credentials::KiroCredentials;
 use crate::kiro::token_manager::MultiTokenManager;
 use crate::model::config::TlsBackend;
@@ -74,9 +76,9 @@ pub struct KiroProvider {
     pub(crate) endpoint_registry: Arc<EndpointBucketRegistry>,
 }
 
-#[allow(dead_code)] // 拆分自原 provider.rs：部分方法仅测试/预留使用
 impl KiroProvider {
     /// 创建新的 KiroProvider 实例
+    #[cfg(test)]
     pub fn new(token_manager: Arc<MultiTokenManager>) -> Self {
         Self::with_proxy(token_manager, None)
     }
@@ -102,12 +104,6 @@ impl KiroProvider {
             failure_log_store: None,
             endpoint_registry: Arc::new(EndpointBucketRegistry::new()),
         }
-    }
-
-    /// 注入外部 endpoint_registry（多 provider 共享桶状态时使用）
-    pub fn with_endpoint_registry(mut self, registry: Arc<EndpointBucketRegistry>) -> Self {
-        self.endpoint_registry = registry;
-        self
     }
 
     /// 设置 RPM 追踪器
@@ -169,21 +165,15 @@ impl KiroProvider {
     }
 
     /// 获取 API 基础 URL（使用 config 级 api_region + 默认 Ide 端点）
+    #[cfg(test)]
     pub fn base_url(&self) -> String {
         let region = self.token_manager.config().effective_api_region();
         let endpoint = Endpoint::by_name(EndpointName::Ide, region);
         format!("https://{}/generateAssistantResponse", endpoint.host)
     }
 
-    /// 获取 MCP API URL（使用 config 级 api_region，MCP 端点独立于多端点 LB）
-    pub fn mcp_url(&self) -> String {
-        format!(
-            "https://q.{}.amazonaws.com/mcp",
-            self.token_manager.config().effective_api_region()
-        )
-    }
-
     /// 获取 API 基础域名（使用 config 级 api_region + 默认 Ide 端点）
+    #[cfg(test)]
     pub fn base_domain(&self) -> String {
         Endpoint::by_name(
             EndpointName::Ide,

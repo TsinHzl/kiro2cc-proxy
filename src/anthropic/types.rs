@@ -136,8 +136,6 @@ pub struct MessagesRequest {
     #[serde(default, deserialize_with = "deserialize_system")]
     pub system: Option<Vec<SystemMessage>>,
     pub tools: Option<Vec<Tool>>,
-    #[allow(dead_code)]
-    pub tool_choice: Option<serde_json::Value>,
     pub thinking: Option<Thinking>,
     pub output_config: Option<OutputConfig>,
     /// Claude Code 请求中的 metadata，包含 session 信息

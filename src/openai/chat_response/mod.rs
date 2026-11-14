@@ -13,7 +13,7 @@ mod stream;
 mod tests;
 
 pub(crate) use nonstream::convert_non_stream;
-#[allow(unused_imports)] // 测试引用
+#[cfg(test)] // 测试引用
 pub(crate) use nonstream::map_finish_reason;
 #[allow(unused_imports)] // 跨模块测试（responses_response）引用
 pub(super) use nonstream::unix_now;

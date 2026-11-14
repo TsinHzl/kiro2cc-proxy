@@ -88,7 +88,6 @@ fn test_history_tools_added_to_tools_list() {
         stream: false,
         system: None,
         tools: None, // 没有提供工具定义
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -525,7 +524,6 @@ fn test_consecutive_assistant_with_tool_use_result_pairing() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,

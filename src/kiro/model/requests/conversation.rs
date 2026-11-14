@@ -207,7 +207,7 @@ pub enum Message {
     Assistant(HistoryAssistantMessage),
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl Message {
     /// 创建用户消息
     pub fn user(content: impl Into<String>, model_id: impl Into<String>) -> Self {

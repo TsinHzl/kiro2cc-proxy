@@ -89,31 +89,6 @@ pub enum HealthStatus {
     Disabled,
 }
 
-#[allow(dead_code)]
-impl HealthStatus {
-    /// 返回前端展示用的颜色标识
-    pub fn color(&self) -> &'static str {
-        match self {
-            HealthStatus::Healthy => "green",
-            HealthStatus::Warning => "yellow",
-            HealthStatus::Degraded => "orange",
-            HealthStatus::Unhealthy => "red",
-            HealthStatus::Disabled => "gray",
-        }
-    }
-
-    /// 返回中文标签
-    pub fn label(&self) -> &'static str {
-        match self {
-            HealthStatus::Healthy => "健康",
-            HealthStatus::Warning => "警告",
-            HealthStatus::Degraded => "降级",
-            HealthStatus::Unhealthy => "不健康",
-            HealthStatus::Disabled => "已禁用",
-        }
-    }
-}
-
 /// 统计数据持久化条目
 #[derive(Serialize, Deserialize)]
 pub(crate) struct StatsEntry {

@@ -32,7 +32,6 @@ pub(crate) mod tests {
             stream: false,
             system: None,
             tools,
-            tool_choice: None,
             thinking: None,
             output_config: None,
             metadata: None,

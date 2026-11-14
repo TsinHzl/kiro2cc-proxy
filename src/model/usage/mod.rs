@@ -189,9 +189,6 @@ pub struct UsageTracker {
 
     /// 升级前已裁剪历史的遗留基数（只读，仅 `reset` 时清除），按 api_key_id 分组
     lifetime_keys: Arc<RwLock<HashMap<u32, LifetimeTotals>>>,
-    /// 遗留基数落盘路径（None = 记忆态，如测试场景）
-    #[allow(dead_code)]
-    lifetime_path: Option<PathBuf>,
     /// 遗留基数脏标记：仅 `reset` 清除基数时置位，由后台任务周期落盘
     lifetime_dirty: Arc<AtomicBool>,
 }
@@ -347,7 +344,6 @@ impl UsageTracker {
             daily,
             dirty_tx: tx,
             lifetime_keys,
-            lifetime_path,
             lifetime_dirty: lifetime_dirty_clone,
         })
     }
@@ -621,14 +617,9 @@ mod pricing;
 #[cfg(test)]
 mod tests;
 
-#[allow(unused_imports)] // 类型归属 daily.rs，经 mod 再导出保持原模块路径
-pub(crate) use daily::{CredentialDaySummary, CredentialRangeSummary, DailySummary};
-#[allow(unused_imports)]
-pub(crate) use pagination::{UsageRecordItem, UsageRecordsPage};
-#[allow(unused_imports)]
 pub(crate) use pricing::{
-    MIN_INFER_INPUT_TOKENS, ModelPricing, get_model_pricing, infer_cache_read_from_credits,
+    MIN_INFER_INPUT_TOKENS, calculate_cost, get_k_ref, infer_cache_read_from_credits,
+    refine_prefix_cache_read,
 };
-pub(crate) use pricing::{calculate_cost, get_k_ref, refine_prefix_cache_read};
 #[cfg(test)]
 pub(crate) use pricing::{credits_for_cache_read, get_claude_credit_rates};

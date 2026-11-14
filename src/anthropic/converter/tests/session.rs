@@ -23,7 +23,6 @@ fn test_determine_chat_trigger_type() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -44,7 +43,6 @@ fn test_determine_agent_task_type_no_tools() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -82,7 +80,6 @@ fn test_determine_agent_task_type_code_tools() {
                 defer_loading: None,
             },
         ]),
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -110,7 +107,6 @@ fn test_determine_agent_task_type_non_code_tools() {
             max_uses: None,
             defer_loading: None,
         }]),
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -138,7 +134,6 @@ fn test_determine_agent_task_type_bash_tool() {
             max_uses: None,
             defer_loading: None,
         }]),
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -396,7 +391,6 @@ fn test_agent_continuation_id_stable_within_session() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: Some(Metadata {
@@ -438,7 +432,6 @@ fn test_agent_continuation_id_differs_across_sessions() {
             stream: false,
             system: None,
             tools: None,
-            tool_choice: None,
             thinking: None,
             output_config: None,
             metadata: Some(Metadata {
@@ -471,7 +464,6 @@ fn test_agent_continuation_id_stable_for_bare_request_without_metadata() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -499,24 +491,21 @@ fn test_convert_request_with_session_metadata() {
 
     // 测试带有 metadata 的请求，应该使用 session UUID 作为 conversationId
     let req = MessagesRequest {
-            model: "claude-sonnet-4".to_string(),
-            max_tokens: 1024,
-            messages: vec![AnthropicMessage {
-                role: "user".to_string(),
-                content: serde_json::json!("Hello"),
-            }],
-            stream: false,
-            system: None,
-            tools: None,
-            tool_choice: None,
-            thinking: None,
-            output_config: None,
-            metadata: Some(Metadata {
-                user_id: Some(
-                    "user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_a0662283-7fd3-4399-a7eb-52b9a717ae88".to_string(),
-                ),
-            }),
-        };
+        model: "claude-sonnet-4".to_string(),
+        max_tokens: 1024,
+        messages: vec![AnthropicMessage {
+            role: "user".to_string(),
+            content: serde_json::json!("Hello"),
+        }],
+        stream: false,
+        system: None,
+        tools: None,
+        thinking: None,
+        output_config: None,
+        metadata: Some(Metadata {
+            user_id: Some("user_0dede55c6dcc4a11a30bbb5e7f22e6fdf86cdeba3820019cc27612af4e1243cd_account__session_a0662283-7fd3-4399-a7eb-52b9a717ae88".to_string()),
+        }),
+    };
 
     let result = convert_request(&req).unwrap();
     assert_eq!(
@@ -540,7 +529,6 @@ fn test_convert_request_without_metadata() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,

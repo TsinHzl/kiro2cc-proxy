@@ -6,8 +6,8 @@
 //!
 //! # 无法表达的字段
 //!
-//! `tool_choice` 在下游 Kiro 管线中无读取点（`MessagesRequest::tool_choice` 标注
-//! `#[allow(dead_code)]`），属本模块引入之前就存在的限制。为避免"客户端要求强制调用工具
+//! `tool_choice` 在下游 Kiro 管线中无读取点（`MessagesRequest` 已不保留该字段），
+//! 属本模块引入之前就存在的限制。为避免"客户端要求强制调用工具
 //! 却静默失效"，这里在其值不为 `auto` 时记录 `WARN` 留痕，而不是默默丢掉。
 //!
 //! `temperature` / `top_p` / `frequency_penalty` / `presence_penalty` / `n` / `stop` /

@@ -139,7 +139,6 @@ fn test_convert_request_removes_web_search_from_context_tools() {
             ws_tool(None, "Read", None),
             ws_tool(Some("web_search_20250305"), "web_search", Some(3)),
         ]),
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,

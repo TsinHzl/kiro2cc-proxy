@@ -25,7 +25,6 @@ fn test_gpt_thinking_is_not_injected_into_history() {
             text: "Follow the user request.".to_string(),
         }]),
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "adaptive".to_string(),
             budget_tokens: 20000,
@@ -79,7 +78,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_without_thinking_request() {
             text: "Follow the user request.".to_string(),
         }]),
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -115,7 +113,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_when_thinking_explicitly_disabled(
             text: "Follow the user request.".to_string(),
         }]),
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "disabled".to_string(),
             budget_tokens: 20000,
@@ -152,7 +149,6 @@ fn test_gpt_anti_pseudo_tag_hint_injected_for_luna_without_system_message() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "enabled".to_string(),
             budget_tokens: 20000,
@@ -189,7 +185,6 @@ fn test_gpt_anti_pseudo_tag_hint_not_injected_for_terra_or_sol() {
                 text: "Follow the user request.".to_string(),
             }]),
             tools: None,
-            tool_choice: None,
             thinking: Some(Thinking {
                 thinking_type: "enabled".to_string(),
                 budget_tokens: 20000,
@@ -229,7 +224,6 @@ fn test_non_gpt_model_thinking_request_no_anti_pseudo_tag_hint() {
             text: "Follow the user request.".to_string(),
         }]),
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "enabled".to_string(),
             budget_tokens: 20000,
@@ -265,7 +259,6 @@ fn test_thinking_prefix_adaptive_effort_alignment() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "adaptive".to_string(),
             budget_tokens: 20000,
@@ -289,7 +282,6 @@ fn test_thinking_prefix_adaptive_effort_alignment() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "adaptive".to_string(),
             budget_tokens: 20000,
@@ -316,7 +308,6 @@ fn test_thinking_prefix_adaptive_effort_alignment() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "enabled".to_string(),
             budget_tokens: 24576,
@@ -345,7 +336,6 @@ fn test_thinking_prefix_gpt_generation() {
         stream: false,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: Some(Thinking {
             thinking_type: "enabled".to_string(),
             budget_tokens: 24576,

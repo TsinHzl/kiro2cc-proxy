@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! KiroCredentials 行为方法：region/端点/代理解析、ARN 补全、订阅判断
 
-use std::fs;
-use std::path::Path;
-
 use crate::http_client::ProxyConfig;
 use crate::model::config::Config;
 
@@ -87,24 +84,13 @@ impl KiroCredentials {
     }
 
     /// 从 JSON 字符串解析凭证
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn from_json(json_string: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json_string)
     }
 
-    /// 从文件加载凭证
-    #[allow(dead_code)]
-    pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let content = fs::read_to_string(path.as_ref())?;
-        if content.is_empty() {
-            anyhow::bail!("凭证文件为空: {:?}", path.as_ref());
-        }
-        let credentials = Self::from_json(&content)?;
-        Ok(credentials)
-    }
-
     /// 序列化为格式化的 JSON 字符串
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn to_pretty_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }

@@ -23,7 +23,6 @@ fn test_json_schema_output_config_appends_instruction() {
         stream: true,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: Some(OutputConfig {
             effort: "high".to_string(),
@@ -70,7 +69,6 @@ fn test_recent_knowledge_prompt_appends_answer_reference() {
         stream: true,
         system: None,
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -118,7 +116,6 @@ fn dynamic_split_req(model: &str, system: Vec<&str>, user: &str) -> MessagesRequ
                 .collect(),
         ),
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: None,
@@ -338,7 +335,6 @@ fn budget_req(model: &str, top_system: Option<&str>, budget_msgs: usize) -> Mess
             }]
         }),
         tools: None,
-        tool_choice: None,
         thinking: None,
         output_config: None,
         metadata: Some(Metadata {

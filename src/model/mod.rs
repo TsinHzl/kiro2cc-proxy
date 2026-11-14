@@ -9,4 +9,5 @@ pub mod failure_log;
 pub mod geo;
 pub mod rpm;
 pub mod throttle_log;
+pub mod ui_preferences;
 pub mod usage;

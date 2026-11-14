@@ -16,7 +16,7 @@ import { FailureLogPage } from '@/components/failure-log-page'
 import { SettingsPanel } from '@/components/settings-panel'
 import { LogViewerPage } from '@/components/log-viewer-page'
 import { DocsPage } from '@/components/docs-page'
-import { useCredentials, useApiKeys, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo } from '@/hooks/use-credentials'
+import { useCredentials, useApiKeys, useDeleteCredential, useResetFailure, useRpm, useDailyUsage, useServerInfo, useUiPreferences, useUpdateUiPreferences } from '@/hooks/use-credentials'
 import { useTheme } from '@/hooks/use-theme'
 import { useReturnRefresh } from '@/hooks/use-return-refresh'
 import type { CustomRange } from '@/components/daily-shared'
@@ -44,7 +44,7 @@ import { DashboardDialogs } from '@/components/dashboard/dialogs'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { DashboardHeadMetrics } from '@/components/dashboard/head-metrics'
 import { useBalanceFetcher } from '@/components/dashboard/use-balance-fetcher'
-import { ACCOUNT_SORT_STORAGE_KEY, ACCOUNT_SORT_STORAGE_KEY_DIR, CREDITS_DELTA_MIN_BASE, formatLocalDate, SIDEBAR_COLLAPSED_STORAGE_KEY, SIDEBAR_TRANSITION_MS, readStoredSidebarCollapsed } from '@/components/dashboard/panel-constants'
+import { ACCOUNT_SORT_STORAGE_KEY, ACCOUNT_SORT_STORAGE_KEY_DIR, CREDITS_DELTA_MIN_BASE, formatLocalDate, SIDEBAR_TRANSITION_MS, readStoredSidebarCollapsed, writeStoredSidebarCollapsed } from '@/components/dashboard/panel-constants'
 
 interface DashboardProps {
   onLogout: () => void
@@ -60,6 +60,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [sidebarContentCollapsed, setSidebarContentCollapsed] = useState<boolean>(sidebarCollapsed)
   // 与 sidebarContentCollapsed 的瞬切时机配合：切换前淡出、切换后淡入，把布局跳变藏在不可见的瞬间
   const [sidebarContentFading, setSidebarContentFading] = useState(false)
+  // 服务端首次同步状态时直接落位，跳过淡出/淡入闪烁
+  const skipSidebarFadeRef = useRef(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 768px)')
@@ -133,6 +135,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
   const { data: dailyUsageData } = useDailyUsage()
+  const { data: uiPreferences } = useUiPreferences()
+  const { mutate: saveUiPreferences } = useUpdateUiPreferences()
   // 余额拉取逻辑群（缓存清理 / 首次拉取 / 返回刷新 / 切 tab 刷新 / 新增账号拉取 / 积分重算）
   const {
     balanceMap, setBalanceMap,
@@ -339,18 +343,47 @@ export function Dashboard({ onLogout }: DashboardProps) {
     onLogout()
   }
 
+  const sidebarCollapsedRef = useRef(sidebarCollapsed)
+  sidebarCollapsedRef.current = sidebarCollapsed
+
   const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed(prev => {
-      const next = !prev
-      localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next))
-      return next
-    })
+    const prev = sidebarCollapsed
+    const next = !prev
+    setSidebarCollapsed(next)
+    writeStoredSidebarCollapsed(next)
+    saveUiPreferences(
+      { adminSidebarCollapsed: next },
+      {
+        onError: (err) => {
+          skipSidebarFadeRef.current = true
+          setSidebarCollapsed(prev)
+          writeStoredSidebarCollapsed(prev)
+          toast.error(t('credentials.toastOpFailed', { message: extractErrorMessage(err) }))
+        },
+      },
+    )
   }
+
+  // 同步服务端持久化的主侧边栏状态（跨设备访问保持一致）
+  useEffect(() => {
+    if (!uiPreferences) return
+    writeStoredSidebarCollapsed(uiPreferences.adminSidebarCollapsed)
+    if (sidebarCollapsedRef.current !== uiPreferences.adminSidebarCollapsed) {
+      skipSidebarFadeRef.current = true
+      setSidebarCollapsed(uiPreferences.adminSidebarCollapsed)
+    }
+  }, [uiPreferences?.adminSidebarCollapsed])
 
   const isSidebarMount = useRef(true)
   useEffect(() => {
     if (isSidebarMount.current) {
       isSidebarMount.current = false
+      return
+    }
+    if (skipSidebarFadeRef.current) {
+      skipSidebarFadeRef.current = false
+      setSidebarContentCollapsed(sidebarCollapsed)
+      setSidebarContentFading(false)
       return
     }
     setSidebarContentFading(true)

@@ -52,8 +52,19 @@ import {
   getModels,
   getCredentialModels,
   getChangelog,
+  getUiPreferences,
+  updateUiPreferences,
 } from '@/api/credentials'
-import type { AddCredentialRequest, UpdateCredentialRequest, CreateApiKeyRequest, UpdateApiKeyRequest, ApiKeyItem, ModelItem } from '@/types/api'
+import type {
+  AddCredentialRequest,
+  UpdateCredentialRequest,
+  CreateApiKeyRequest,
+  UpdateApiKeyRequest,
+  ApiKeyItem,
+  ModelItem,
+  UiPreferences,
+  UpdateUiPreferencesRequest,
+} from '@/types/api'
 
 // 查询凭据列表
 export function useCredentials() {
@@ -672,5 +683,57 @@ export function useChatSessions() {
   return useQuery({
     queryKey: CHAT_SESSIONS_KEY,
     queryFn: getChatSessions,
+  })
+}
+
+// ============ UI 界面偏好 Hooks ============
+
+export const UI_PREFERENCES_KEY = ['uiPreferences'] as const
+
+export function useUiPreferences() {
+  return useQuery({
+    queryKey: UI_PREFERENCES_KEY,
+    queryFn: getUiPreferences,
+    staleTime: Infinity,
+  })
+}
+
+export function useUpdateUiPreferences() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationKey: UI_PREFERENCES_KEY,
+    mutationFn: (payload: UpdateUiPreferencesRequest) => updateUiPreferences(payload),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: UI_PREFERENCES_KEY })
+      const previous = queryClient.getQueryData<UiPreferences>(UI_PREFERENCES_KEY)
+      if (previous) {
+        queryClient.setQueryData<UiPreferences>(UI_PREFERENCES_KEY, {
+          ...previous,
+          ...payload,
+        })
+      }
+      return { previous }
+    },
+    onSuccess: (data) => {
+      if (queryClient.isMutating({ mutationKey: UI_PREFERENCES_KEY }) <= 1) {
+        queryClient.setQueryData(UI_PREFERENCES_KEY, data)
+      }
+    },
+    onError: (_err, _vars, context) => {
+      if (
+        queryClient.isMutating({ mutationKey: UI_PREFERENCES_KEY }) <= 1 &&
+        context?.previous
+      ) {
+        queryClient.setQueryData(UI_PREFERENCES_KEY, context.previous)
+      }
+    },
+    onSettled: (_data, error, _vars, context) => {
+      if (
+        queryClient.isMutating({ mutationKey: UI_PREFERENCES_KEY }) <= 1 &&
+        (error || !context?.previous)
+      ) {
+        void queryClient.invalidateQueries({ queryKey: UI_PREFERENCES_KEY })
+      }
+    },
   })
 }

@@ -1,10 +1,13 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, PanelLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { readStoredChatSidebarOpen, writeStoredChatSidebarOpen } from '@/components/dashboard/panel-constants'
 import { PageHead } from '@/components/page-head'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { useApiKeys, useChatSessions, usePlaygroundModels } from '@/hooks/use-credentials'
+import { useApiKeys, useChatSessions, usePlaygroundModels, useUiPreferences, useUpdateUiPreferences } from '@/hooks/use-credentials'
+import { toast } from '@/lib/toast'
+import { extractErrorMessage } from '@/lib/utils'
 import type { ChatSessionMeta } from '@/types/api'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
@@ -36,7 +39,31 @@ export function PlaygroundPage() {
   } = usePlayground()
   const { data: apiKeys } = useApiKeys()
   const { data: sessions, isLoading: sessionsLoading } = useChatSessions()
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia(DESKTOP_QUERY).matches)
+  const { data: uiPreferences } = useUiPreferences()
+  const { mutate: saveUiPreferences } = useUpdateUiPreferences()
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    window.matchMedia(DESKTOP_QUERY).matches
+      ? (uiPreferences?.chatSidebarOpen ?? readStoredChatSidebarOpen())
+      : false,
+  )
+
+  // 桌面端同步服务端持久化的对话侧边栏状态；窄屏始终作为浮层默认收起，不覆盖服务端值
+  useEffect(() => {
+    if (!uiPreferences) return
+    writeStoredChatSidebarOpen(uiPreferences.chatSidebarOpen)
+    if (window.matchMedia(DESKTOP_QUERY).matches) {
+      setSidebarOpen(uiPreferences.chatSidebarOpen)
+    }
+  }, [uiPreferences?.chatSidebarOpen])
+
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_QUERY)
+    const onChange = (e: MediaQueryListEvent) => {
+      setSidebarOpen(e.matches ? readStoredChatSidebarOpen() : false)
+    }
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [])
 
   const enabledKeys = useMemo(() => (apiKeys ?? []).filter((k) => k.enabled), [apiKeys])
   const activeKey = enabledKeys.find((k) => k.id === config.keyId) ?? enabledKeys[0] ?? null
@@ -133,7 +160,24 @@ export function PlaygroundPage() {
           <div className="flex h-11 shrink-0 items-center gap-2 border-b-[0.5px] border-hairline px-3">
             <button
               type="button"
-              onClick={() => setSidebarOpen((open) => !open)}
+              onClick={() => {
+                const prev = sidebarOpen
+                const next = !prev
+                setSidebarOpen(next)
+                if (window.matchMedia(DESKTOP_QUERY).matches) {
+                  writeStoredChatSidebarOpen(next)
+                  saveUiPreferences(
+                    { chatSidebarOpen: next },
+                    {
+                      onError: (err) => {
+                        setSidebarOpen(prev)
+                        writeStoredChatSidebarOpen(prev)
+                        toast.error(t('credentials.toastOpFailed', { message: extractErrorMessage(err) }))
+                      },
+                    },
+                  )
+                }
+              }}
               title={t('playground.toggleHistory')}
               aria-label={t('playground.toggleHistory')}
               aria-pressed={sidebarOpen}

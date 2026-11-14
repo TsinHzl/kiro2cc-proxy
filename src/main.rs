@@ -386,6 +386,10 @@ async fn main() {
                 Ok(store) => admin_state = admin_state.with_chat_session_store(Arc::new(store)),
                 Err(e) => tracing::error!("加载对话会话失败，历史会话功能不可用: {}", e),
             }
+            let ui_prefs_store = Arc::new(model::ui_preferences::UiPreferencesStore::load(
+                throttle_data_dir.join("ui_preferences.json"),
+            ));
+            admin_state = admin_state.with_ui_preferences_store(ui_prefs_store);
             admin_state = admin_state.with_throttle_log_store(throttle_log_store.clone());
             admin_state = admin_state.with_failure_log_store(failure_log_store.clone());
             admin_state = admin_state.with_log_capture(log_capture.clone());

@@ -427,3 +427,15 @@ export interface DumpFilesResponse {
   /** 归档总量上限，前端据此判断是否提示截断，不硬编码阈值 */
   maxArchiveBytes: number
 }
+
+// Admin UI 界面偏好（服务端持久化，跨设备同步）
+export interface UiPreferences {
+  adminSidebarCollapsed: boolean
+  chatSidebarOpen: boolean
+}
+
+// 局部更新 Admin UI 界面偏好请求
+export interface UpdateUiPreferencesRequest {
+  adminSidebarCollapsed?: boolean
+  chatSidebarOpen?: boolean
+}

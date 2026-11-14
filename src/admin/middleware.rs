@@ -23,6 +23,7 @@ use crate::model::failure_log::FailureLogStore;
 use crate::model::geo::GeoResolver;
 use crate::model::rpm::RpmTracker;
 use crate::model::throttle_log::ThrottleLogStore;
+use crate::model::ui_preferences::UiPreferencesStore;
 use crate::model::usage::UsageTracker;
 
 /// Admin API 共享状态
@@ -52,6 +53,8 @@ pub struct AdminState {
     pub geo_resolver: Option<Arc<GeoResolver>>,
     /// Suggestion Mode 输入建议请求放行开关（与 anthropic AppState 共享同一 Arc 实例）
     pub suggestion_mode: Option<Arc<std::sync::atomic::AtomicBool>>,
+    /// Admin UI 界面偏好存储（可选）
+    pub ui_preferences_store: Option<Arc<UiPreferencesStore>>,
     /// config.json 持久化互斥锁：所有 persist_* 写回共享同一把锁，
     /// 防止并发 PUT（如同时改密钥与开关）的读改写互相覆盖导致字段丢失
     pub persist_lock: Arc<parking_lot::Mutex<()>>,
@@ -72,6 +75,7 @@ impl AdminState {
             config_path: None,
             geo_resolver: None,
             suggestion_mode: None,
+            ui_preferences_store: None,
             persist_lock: Arc::new(parking_lot::Mutex::new(())),
         }
     }
@@ -123,6 +127,11 @@ impl AdminState {
 
     pub fn with_suggestion_mode(mut self, flag: Arc<std::sync::atomic::AtomicBool>) -> Self {
         self.suggestion_mode = Some(flag);
+        self
+    }
+
+    pub fn with_ui_preferences_store(mut self, store: Arc<UiPreferencesStore>) -> Self {
+        self.ui_preferences_store = Some(store);
         self
     }
 }

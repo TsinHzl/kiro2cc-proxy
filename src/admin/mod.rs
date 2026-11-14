@@ -31,6 +31,7 @@ mod model_release;
 mod router;
 mod service;
 pub mod types;
+mod ui_preferences_handler;
 mod zip;
 
 pub use middleware::AdminState;

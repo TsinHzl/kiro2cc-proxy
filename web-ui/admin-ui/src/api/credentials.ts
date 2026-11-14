@@ -27,6 +27,8 @@ import type {
   ChatSessionMeta,
   ReleaseNotesResponse,
   DumpFilesResponse,
+  UiPreferences,
+  UpdateUiPreferencesRequest,
 } from '@/types/api'
 
 // 创建 axios 实例
@@ -488,5 +490,17 @@ export async function getGeoBatch(
     '/geo/batch',
     { params: { ips: ips.join(',') } }
   )
+  return data
+}
+
+// ============ UI 界面偏好 ============
+
+export async function getUiPreferences(): Promise<UiPreferences> {
+  const { data } = await api.get<UiPreferences>('/ui-preferences')
+  return data
+}
+
+export async function updateUiPreferences(payload: UpdateUiPreferencesRequest): Promise<UiPreferences> {
+  const { data } = await api.put<UiPreferences>('/ui-preferences', payload)
   return data
 }

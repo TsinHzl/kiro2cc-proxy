@@ -24,6 +24,7 @@ export const ACTION_BTN = `${ACTION_BTN_BASE} border-transparent bg-surface text
 export const ACTION_BTN_PRIMARY = `${ACTION_BTN_BASE} border-transparent bg-brand font-semibold text-brand-fg [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover`
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = 'sidebar-collapsed'
+export const CHAT_SIDEBAR_OPEN_STORAGE_KEY = 'playground:v1:sidebar-open'
 /** 账号表排序持久化：列 key（account/remaining），缺省即默认排序 */
 export const ACCOUNT_SORT_STORAGE_KEY = 'account-sort-key'
 /** 账号表排序持久化：方向（asc/desc），换列/恢复默认时移除 */
@@ -32,5 +33,33 @@ export const ACCOUNT_SORT_STORAGE_KEY_DIR = 'account-sort-dir'
 export const SIDEBAR_TRANSITION_MS = 200
 
 export function readStoredSidebarCollapsed(): boolean {
-  return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function writeStoredSidebarCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed))
+  } catch {
+    /* localStorage 不可用时仅依赖服务端与内存状态 */
+  }
+}
+
+export function readStoredChatSidebarOpen(): boolean {
+  try {
+    return localStorage.getItem(CHAT_SIDEBAR_OPEN_STORAGE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+export function writeStoredChatSidebarOpen(open: boolean): void {
+  try {
+    localStorage.setItem(CHAT_SIDEBAR_OPEN_STORAGE_KEY, String(open))
+  } catch {
+    /* localStorage 不可用时仅依赖服务端与内存状态 */
+  }
 }

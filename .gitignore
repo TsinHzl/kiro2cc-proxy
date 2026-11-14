@@ -37,6 +37,7 @@ server.env
 /app/config/ip2region_v4.xdb
 # 对话页会话（含对话正文、思考内容与附件 base64）
 /app/config/chat_sessions/
+/app/config/ui_preferences.json
 
 # Playwright MCP 调试临时文件
 /.playwright-mcp/

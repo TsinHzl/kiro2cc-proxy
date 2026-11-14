@@ -35,6 +35,7 @@ use super::{
     },
     log_handler::{download_logs, snapshot_logs, stream_logs},
     middleware::{AdminState, admin_auth_middleware},
+    ui_preferences_handler::{get_ui_preferences, update_ui_preferences},
 };
 
 /// 对话会话接口的请求体上限（32MB）
@@ -136,6 +137,10 @@ pub fn create_admin_router(state: AdminState) -> Router {
         .route("/dump-kiro-body/files", get(list_dump_files_handler))
         .route("/dump-kiro-body/files/{name}", get(download_dump_file))
         .route("/dump-kiro-body/archive", get(download_dump_archive))
+        .route(
+            "/ui-preferences",
+            get(get_ui_preferences).put(update_ui_preferences),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             admin_auth_middleware,

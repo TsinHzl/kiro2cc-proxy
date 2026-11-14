@@ -970,6 +970,17 @@ lsof -ti:5678 | xargs kill -9
 
 Output truncated due to excessive length. Lower the `max_tokens` limit in your client.
 
+**Q: Credits usage increased after enabling Claude Code's Auto permission mode**
+
+This is behavior of the Claude Code client itself, not a proxy bug. Auto mode prefers Anthropic's server-side classifier. When connected to a third-party endpoint (including this proxy), the client receives no server-side classification, so it falls back to a **local classifier** for the rest of the session. Before each sensitive tool call (such as running a command), it sends 1–2 extra non-streaming `/v1/messages` requests to decide whether to allow the action. The proxy forwards them to Kiro upstream like any other request, so they are billed as normal Credits.
+
+These requests typically have an empty `tools` list, `max_tokens` of 64 or 8192, and a last user message starting with `<transcript>`. They show up in the `[small-req]` diagnostic log. The classifier defaults to a Sonnet-tier model, regardless of the model used for the main conversation.
+
+The proxy does not intercept these requests or fake their results, since that would approve every command on the user's behalf and bypass Auto mode's safety checks. Options to reduce the cost:
+
+- Set `CLAUDE_CODE_AUTO_MODE_MODEL=claude-haiku-4.5` in the client environment so the classifier uses a cheaper model. This variable only affects the client-side local classifier. **Note: the Code tab in Claude Desktop currently ignores this variable** (see [anthropics/claude-code#105288](https://github.com/anthropics/claude-code/issues/105288)), so the classifier still uses the session model.
+- In fully trusted projects, switch to `Bypass Permissions` mode, which sends no classifier requests. This mode performs no safety checks, so assess the risk yourself.
+
 **Q: Other devices on LAN can't connect**
 
 Set `host` to `0.0.0.0` in `config.json` and ensure your firewall allows the port.

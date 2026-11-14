@@ -991,6 +991,17 @@ lsof -ti:5678 | xargs kill -9
 
 输出过长被截断导致，调低客户端的 `max_tokens` 上限。
 
+**Q：Claude Code 开启 Auto 权限模式后，Credits 消耗变多了**
+
+这是 Claude Code 客户端自身的行为，不是代理的问题。Auto 模式优先使用 Anthropic 官方服务端的分类器；连接第三方端点（包括本代理）时收不到服务端分类结果，客户端会在该会话内回退到**本地分类器**，并在每次执行敏感工具（如运行命令）前额外发起 1~2 次非流式 `/v1/messages` 请求，用来判断该操作是否放行。代理与处理普通请求一样将其转发给 Kiro 上游，因此会产生正常的 Credits 计费。
+
+这类请求的特征是 `tools` 为空、`max_tokens` 为 64 或 8192、末条 user 消息以 `<transcript>` 开头，可在 `[small-req]` 诊断日志中看到。分类器默认使用 Sonnet 档位模型，与主对话所用模型无关。
+
+代理不会拦截或伪造这些请求的结果，因为那等于替用户放行所有命令，绕过 Auto 模式的安全判断。可选的降低开销办法：
+
+- 在客户端设置环境变量 `CLAUDE_CODE_AUTO_MODE_MODEL=claude-haiku-4.5`，让分类器使用费率更低的模型。该变量只对客户端本地分类器生效。**注意：Claude Desktop 的 Code 标签页目前会忽略此变量**（见 [anthropics/claude-code#105288](https://github.com/anthropics/claude-code/issues/105288)），分类器仍会使用会话模型。
+- 在完全信任的项目中改用 `Bypass Permissions` 模式，不再触发分类请求。该模式不做任何安全检查，请自行评估风险。
+
 **Q：局域网内其他设备无法访问**
 
 将 `config.json` 中的 `host` 改为 `0.0.0.0`，确认防火墙已开放对应端口。

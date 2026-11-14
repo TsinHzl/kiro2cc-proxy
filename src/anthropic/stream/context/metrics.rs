@@ -32,7 +32,7 @@ impl StreamContext {
     }
 
     /// 深度思考文案 tokens：客户端实际收到的 thinking_delta 内容（不含 signature），
-    /// BPE 真值口径（与非流式 count_thinking_tokens、客户端「Thought for Ns (N tokens)」
+    /// BPE 真值口径（与非流式 count_thinking_tokens、客户端「💭 N tokens」
     /// 的 thinking_text.rs 同族），观测用途（落库 usage 记录），不影响计费与上报口径
     pub fn thinking_token_count(&self) -> i32 {
         crate::token::count_tokens(&self.thinking_full_text) as i32

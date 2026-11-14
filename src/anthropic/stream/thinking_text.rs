@@ -11,8 +11,8 @@
 //! 或解析不出入口）才用 ANSI，其余入口一律改用无转义的 Markdown 样式（每行 `> *内容*`，引用块 + 斜体，
 //! 用 Markdown 自带样式近似变暗）
 //! （见 [`thinking_text_style`]）。首行为「💭 Thinking」标记，
-//! 块收尾追加「💭 Thought for Ns (N tokens)」时长行（贴近 Claude Code 原生样式，
-//! token 数为该思考块正文的 cl100k_base 计数），
+//! 块收尾追加「💭 N tokens」统计行（只展示本次思考的 token 数，耗时由客户端自带的
+//! 「Sautéed for Ns」等提示显示；token 数为该思考块正文的 cl100k_base 计数），
 //! ANSI 样式不带 markdown 引用前缀（终端不显示竖线）。
 //!
 //! 代价：这些文本块会被客户端当作 assistant 正文存入对话历史并随后续请求回传
@@ -33,16 +33,23 @@ use crate::token::count_tokens;
 /// 不带 `> ` 引用前缀（客户端渲染时无竖线）；历史回传仅按此标记行识别并剥离。
 pub(crate) const THOUGHT_HEADER: &str = "💭 Thinking";
 
-/// 思考块收尾追加的时长行前缀（如「💭 Thought for 1m15s」）。秒数向下取整（截断），
-/// 不足 1s 显示 "Thought for 1s"；≥60s 格式化为 "XmYs"，<60s 为 "Ns"；
-/// 历史剥离按前缀识别（strip_rendered_thinking）。
-pub(crate) const THOUGHT_DURATION_PREFIX: &str = "💭 Thought for ";
+/// 思考块收尾统计行的前缀（如「💭 154 tokens」中的「💭 」）。统计行只展示本次思考的
+/// token 数（`999` / `1.23k` / `1.23M`，见 [`format_token_count`]），历史剥离按
+/// 前缀 + 计数 + [`THOUGHT_TOKENS_SUFFIX`] 识别（strip_rendered_thinking）。
+pub(crate) const THOUGHT_TOKENS_PREFIX: &str = "💭 ";
 
-/// 时长行 token 统计后缀的起始标记（`" ("`）。生成侧与剥离侧共用，修改需保持两侧一致。
-const THOUGHT_TOKEN_SUFFIX_OPEN: &str = " (";
+/// 统计行 token 计数之后的固定后缀。生成侧与剥离侧共用，修改需保持两侧一致。
+const THOUGHT_TOKENS_SUFFIX: &str = " tokens";
 
-/// 时长行 token 统计后缀的结束标记（`" tokens)"`），与 [`THOUGHT_TOKEN_SUFFIX_OPEN`] 配套。
-const THOUGHT_TOKEN_SUFFIX_CLOSE: &str = " tokens)";
+/// 旧版本统计行的前缀（如「💭 Thought for 1m15s (154 tokens)」）。客户端历史里可能还留着
+/// 旧版本渲染的文本，剥离侧必须继续认它；生成侧不再使用。
+const LEGACY_THOUGHT_DURATION_PREFIX: &str = "💭 Thought for ";
+
+/// 旧版本统计行 token 后缀的起始标记（`" ("`），仅剥离侧兼容使用。
+const LEGACY_TOKEN_SUFFIX_OPEN: &str = " (";
+
+/// 旧版本统计行 token 后缀的结束标记（`" tokens)"`），仅剥离侧兼容使用。
+const LEGACY_TOKEN_SUFFIX_CLOSE: &str = " tokens)";
 
 /// ANSI：变暗斜体开始 / 复位（dim + italic，仅包在每行内容两侧，不跨行）
 const DIM_ON: &str = "\x1b[2;3m";
@@ -170,9 +177,10 @@ fn client_entrypoint(user_agent: &str) -> Option<&str> {
 /// 上游上下文不再包含思考内容。
 ///
 /// 仅当文本首行是 [`THOUGHT_HEADER`]（允许被 dim 转义包裹）时处理：定位流中追加的
-/// 「💭 Thought for Ns (N tokens)」时长行（含其前置 `\n` 与 dim 包裹；该行可能与后续
-/// 答案文本同段粘连，故按 前缀+时长+可选 token 后缀 模式定位；无 token 后缀的旧格式
-/// 时长行同样兼容），丢弃从标记行到时长行（含）的全部内容，仅保留其后粘连的文本。
+/// 「💭 N tokens」统计行（含其前置 `\n` 与 dim 包裹；该行可能与后续答案文本同段粘连，
+/// 故按 前缀+计数+后缀 模式定位；旧版本的「💭 Thought for Ns (N tokens)」时长行
+/// 以及无 token 后缀的更早格式同样兼容），丢弃从标记行到统计行（含）的全部内容，
+/// 仅保留其后粘连的文本。
 ///
 /// 时长行是思考块结束的唯一可靠边界。找不到时长行（流被中断、或首行恰为标记行的
 /// 普通文本）时无法判定思考正文的范围，保守降级为只剥标记行、正文保留——宁可多留
@@ -189,7 +197,7 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
     // 线性扫描时长行段：'\n' + [DIM_ON] + 前缀 + 数字 + 's' + [DIM_OFF]
     // 锚定规则：真实时长行恒带 DIM_OFF（此时允许行尾粘连后续答案文本，因客户端会把
     // 相邻 text 块合并拼接）；无 DIM_OFF 时必须命中行尾/文本结束才认定，避免误剥
-    // 思考正文中恰好含「💭 Thought for 5s …」样式的普通句子。
+    // 思考正文中恰好含「💭 5 tokens …」样式的普通句子。
     let mut i = 0;
     while let Some(nl) = rest[i..].find('\n') {
         let start = i + nl; // 时长行前置 \n 的位置（随行一并剥除）
@@ -197,13 +205,13 @@ pub(crate) fn strip_rendered_thinking(text: &str) -> std::borrow::Cow<'_, str> {
             // 仅对当前行匹配，行尾锚定以换行为界；span_end 停在时长行末尾，
             // 其后的粘连文本（旧格式时长行无尾 \n 时与答案同行）原样保留
             let line = &rest[start + 1..start + 1 + nl2];
-            if let Some(span_end) = find_duration_span(line) {
+            if let Some(span_end) = find_summary_span(line) {
                 return std::borrow::Cow::Owned(after_thinking_block(
                     &rest[start + 1 + span_end..],
                     trailing_newlines_of(line),
                 ));
             }
-        } else if let Some(span_end) = find_duration_span(&rest[start + 1..]) {
+        } else if let Some(span_end) = find_summary_span(&rest[start + 1..]) {
             // 最后一行（无换行结尾）：丢弃到时长行末尾，其后粘连文本保留
             return std::borrow::Cow::Owned(after_thinking_block(
                 &rest[start + 1 + span_end..],
@@ -375,14 +383,14 @@ pub(crate) fn strip_dim_markers(text: &str) -> std::borrow::Cow<'_, str> {
 /// 同一段文本中至少有这么多行整行被字面 `[2m…[0m` 包裹，才认定为模型模仿污染并拆除。
 const MIN_IMITATED_WRAPPED_LINES: usize = 2;
 
-/// 在单个行内容（不含前置 `\n`）中定位时长行段，返回段结束的相对字节偏移
-/// （段起点恒为行首 0）。匹配 [DIM_ON] + 前缀 + 时长（`Ns` 或 `Nm Ys`/`NmYs`，
-/// 与 format_duration 输出一致）+ 可选 token 后缀（`" (1.23k tokens)"`）+ [DIM_OFF]；
+/// 在单个行内容（不含前置 `\n`）中定位统计行段，返回段结束的相对字节偏移
+/// （段起点恒为行首 0）。匹配 [DIM_ON] + 「💭 」+ 计数（`999` / `1.23k` / `1.23M`）+
+/// 「 tokens」+ [DIM_OFF]；也兼容旧版本的「💭 Thought for Ns (N tokens)」。
 /// 命中 DIM_OFF 时段尾允许后随粘连文本（见 [`strip_rendered_thinking`] 锚定说明），
-/// 否则必须到行尾才认定。token 后缀可选，兼容 v3.4.12 及更早的无后缀格式。
-fn find_duration_span(line: &str) -> Option<usize> {
+/// 否则必须到行尾才认定。
+fn find_summary_span(line: &str) -> Option<usize> {
     let mut j = 0;
-    // Plain 样式的时长行被引用 + 斜体包裹（`> *💭 Thought for …*`）
+    // Plain 样式的统计行被引用 + 斜体包裹（`> *💭 154 tokens*`）
     let quoted = line.starts_with(QUOTE_ITALIC_OPEN);
     if quoted {
         j += QUOTE_ITALIC_OPEN.len();
@@ -391,34 +399,13 @@ fn find_duration_span(line: &str) -> Option<usize> {
     } else if line.starts_with(LEGACY_DIM_ON) {
         j += LEGACY_DIM_ON.len();
     }
-    if !line[j..].starts_with(THOUGHT_DURATION_PREFIX) {
-        return None;
-    }
-    let after_prefix = j + THOUGHT_DURATION_PREFIX.len();
-    // 时长段：可选分钟部分（`<数字>m`）+ 秒部分（`<数字>s`）
-    let mut k = after_prefix;
-    let mins = line[k..].bytes().take_while(u8::is_ascii_digit).count();
-    if mins > 0 && line.as_bytes().get(k + mins) == Some(&b'm') {
-        k += mins + 1;
-    }
-    let digits = line[k..].bytes().take_while(u8::is_ascii_digit).count();
-    if digits == 0 || line.as_bytes().get(k + digits) != Some(&b's') {
-        return None;
-    }
-    let mut end = k + digits + 1;
-    // 可选 token 统计后缀「 (1.23k tokens)」：仅当计数段紧跟结束标记时认定。
-    // 计数字符集覆盖 `999` / `1.23k` / `1.23M` 三种形态（见 format_token_count）。
-    if let Some(after) = line[end..].strip_prefix(THOUGHT_TOKEN_SUFFIX_OPEN) {
-        let count_len = after
-            .bytes()
-            .take_while(|b| b.is_ascii_digit() || matches!(b, b'.' | b'k' | b'M'))
-            .count();
-        if count_len > 0 && after[count_len..].starts_with(THOUGHT_TOKEN_SUFFIX_CLOSE) {
-            end += THOUGHT_TOKEN_SUFFIX_OPEN.len() + count_len + THOUGHT_TOKEN_SUFFIX_CLOSE.len();
-        }
-    }
+    let mut end = if line[j..].starts_with(LEGACY_THOUGHT_DURATION_PREFIX) {
+        legacy_duration_end(line, j)?
+    } else {
+        tokens_summary_end(line, j)?
+    };
     if quoted {
-        // Plain 的答案另起一段，时长行后必为行尾；锚定到行尾避免误剥正文里的相似句子
+        // Plain 的答案另起一段，统计行后必为行尾；锚定到行尾避免误剥正文里的相似句子
         if line[end..].starts_with(QUOTE_ITALIC_CLOSE) {
             end += QUOTE_ITALIC_CLOSE.len();
         }
@@ -433,6 +420,48 @@ fn find_duration_span(line: &str) -> Option<usize> {
     } else {
         None
     }
+}
+
+/// token 计数字符集：覆盖 `999` / `1.23k` / `1.23M` 三种形态（见 [`format_token_count`]）。
+fn token_count_len(s: &str) -> usize {
+    s.bytes()
+        .take_while(|b| b.is_ascii_digit() || matches!(b, b'.' | b'k' | b'M'))
+        .count()
+}
+
+/// 当前格式「💭 154 tokens」：`j` 为前缀起点，返回统计文字结束的偏移（不含样式收尾）。
+fn tokens_summary_end(line: &str, j: usize) -> Option<usize> {
+    let after = line[j..].strip_prefix(THOUGHT_TOKENS_PREFIX)?;
+    let count_len = token_count_len(after);
+    if count_len > 0 && after[count_len..].starts_with(THOUGHT_TOKENS_SUFFIX) {
+        Some(j + THOUGHT_TOKENS_PREFIX.len() + count_len + THOUGHT_TOKENS_SUFFIX.len())
+    } else {
+        None
+    }
+}
+
+/// 旧格式「💭 Thought for 1m15s (154 tokens)」：时长（`Ns` 或 `NmYs`）+ 可选 token 后缀
+/// （兼容 v3.4.12 及更早的无后缀格式）。`j` 为前缀起点，返回统计文字结束的偏移。
+fn legacy_duration_end(line: &str, j: usize) -> Option<usize> {
+    let mut k = j + LEGACY_THOUGHT_DURATION_PREFIX.len();
+    // 可选分钟部分（`<数字>m`）+ 秒部分（`<数字>s`）
+    let mins = line[k..].bytes().take_while(u8::is_ascii_digit).count();
+    if mins > 0 && line.as_bytes().get(k + mins) == Some(&b'm') {
+        k += mins + 1;
+    }
+    let digits = line[k..].bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 || line.as_bytes().get(k + digits) != Some(&b's') {
+        return None;
+    }
+    let mut end = k + digits + 1;
+    // 可选 token 统计后缀「 (1.23k tokens)」：仅当计数段紧跟结束标记时认定
+    if let Some(after) = line[end..].strip_prefix(LEGACY_TOKEN_SUFFIX_OPEN) {
+        let count_len = token_count_len(after);
+        if count_len > 0 && after[count_len..].starts_with(LEGACY_TOKEN_SUFFIX_CLOSE) {
+            end += LEGACY_TOKEN_SUFFIX_OPEN.len() + count_len + LEGACY_TOKEN_SUFFIX_CLOSE.len();
+        }
+    }
+    Some(end)
 }
 
 /// token 数紧凑格式化（`1234` → `1.23k`，`1234567` → `1.23M`）。
@@ -470,8 +499,6 @@ pub struct ThinkingTextRewriter {
     header_sent: HashSet<i32>,
     /// 各块当前是否位于行首（决定是否补 ANSI dim 起始转义，避免样式跨行）
     at_line_start: HashMap<i32, bool>,
-    /// 各思考块的起始时刻（用于收尾计算 Thought for Ns）
-    started_at: HashMap<i32, std::time::Instant>,
     /// Plain 样式：各块行内待定的空白（仅当后面还有非空白字符才输出，避免 `*foo *` 无法闭合斜体）
     pending_ws: HashMap<i32, String>,
     /// 各思考块累计的思考正文原文（用于收尾统计 token 数；不含标记行与 ANSI 转义）
@@ -542,9 +569,9 @@ impl ThinkingTextRewriter {
         }
     }
 
-    /// 时长行前的分隔。Plain 样式下用空引用行（`>`）分段而不能用空行（空行会结束引用块）；
+    /// 统计行前的分隔。Plain 样式下用空引用行（`>`）分段而不能用空行（空行会结束引用块）；
     /// 正文停在行中间时需先换行，已在行首（上一行已带换行）则不再多换一行。
-    fn duration_leader(&self, mid_line: bool) -> &'static str {
+    fn summary_leader(&self, mid_line: bool) -> &'static str {
         match (self.style, mid_line) {
             (ThinkingTextStyle::Ansi, _) => "\n",
             (ThinkingTextStyle::Plain, true) => "\n>\n",
@@ -552,8 +579,8 @@ impl ThinkingTextRewriter {
         }
     }
 
-    /// 时长行结尾：Plain 样式下空一行结束引用块，否则随后的答案会被并入引用块（lazy continuation）
-    fn duration_trailer(&self) -> &'static str {
+    /// 统计行结尾：Plain 样式下空一行结束引用块，否则随后的答案会被并入引用块（lazy continuation）
+    fn summary_trailer(&self) -> &'static str {
         match self.style {
             ThinkingTextStyle::Ansi => "\n",
             ThinkingTextStyle::Plain => "\n\n",
@@ -575,9 +602,6 @@ impl ThinkingTextRewriter {
                 {
                     self.indices.insert(i);
                     self.at_line_start.insert(i, true);
-                    self.started_at
-                        .entry(i)
-                        .or_insert_with(std::time::Instant::now);
                     out.push(SseEvent::new(
                         "content_block_start",
                         json!({
@@ -700,53 +724,43 @@ impl ThinkingTextRewriter {
                             }),
                         ));
                     }
-                    // 收尾追加「💭 Thought for Ns (N tokens)」时长行；空思考块（无任何输出）不追加。
-                    // 前后各补 \n：思考正文可能不以换行结尾、答案文本块会与时长行直接拼接
-                    // （客户端合并相邻 text 块），先换行确保时长行独立成行，尾换行让答案另起一行。
-                    // 时长 + token 摘要（不含样式），折叠时也写进原生 thinking 块正文
+                    // 收尾追加「💭 N tokens」统计行；空思考块（无任何输出）不追加。
+                    // 前后各补 \n：思考正文可能不以换行结尾、答案文本块会与统计行直接拼接
+                    // （客户端合并相邻 text 块），先换行确保统计行独立成行，尾换行让答案另起一行。
+                    // 统计摘要（不含样式），折叠时也写进原生 thinking 块正文
                     let mut summary: Option<String> = None;
-                    if let (Some(started), true) = (self.started_at.remove(&i), had_output) {
-                        let secs = started.elapsed().as_secs().max(1);
-                        // ≥60s 格式化为 "XmYs"（如 1m15s），<60s 为 "Ns"
-                        let duration = if secs >= 60 {
-                            format!("{}m{}s", secs / 60, secs % 60)
-                        } else {
-                            format!("{secs}s")
-                        };
+                    if had_output {
                         // token 数按思考正文原文统计（cl100k_base 原始值，不乘展示缩放系数）。
                         // 同步 BPE 编码在此处每思考块仅执行一次，且 cl100k_base_singleton 已全局
                         // 缓存词表；开销低于请求路径上的 cache/fingerprint.rs 逐段计数，无需异步化。
-                        let token_suffix = format!(
+                        let line = format!(
                             "{}{}{}",
-                            THOUGHT_TOKEN_SUFFIX_OPEN,
+                            THOUGHT_TOKENS_PREFIX,
                             format_token_count(count_tokens(&thinking_text)),
-                            THOUGHT_TOKEN_SUFFIX_CLOSE
+                            THOUGHT_TOKENS_SUFFIX
                         );
-                        summary =
-                            Some(format!("{THOUGHT_DURATION_PREFIX}{duration}{token_suffix}"));
                         out.push(SseEvent::new(
                             "content_block_delta",
                             json!({
                                 "type": "content_block_delta",
                                 "index": i,
                                 "delta": {"type": "text_delta", "text": format!(
-                                    "{}{}{}{}{}{}{}",
-                                    self.duration_leader(mid_line),
+                                    "{}{}{}{}{}",
+                                    self.summary_leader(mid_line),
                                     self.dim_on(),
-                                    THOUGHT_DURATION_PREFIX,
-                                    duration,
-                                    token_suffix,
+                                    line,
                                     self.dim_off(),
-                                    self.duration_trailer()
+                                    self.summary_trailer()
                                 )}
                             }),
                         ));
+                        summary = Some(line);
                     }
                     // 折叠：同 index 覆写为原生 thinking 块（必须在 stop 之前、文本预览全部发完之后）。
                     // 空思考块（had_output 为假）没有发过 text 事件，不补发，保持 start/stop 配对不变。
                     if self.collapse && had_output {
                         // CC 折叠态的标签是写死的「∴ Thinking (ctrl+o to expand)」，不显示块内容；
-                        // 耗时与 token 数只能放进正文末尾，展开（Ctrl+O）后可见。
+                        // token 数只能放进正文末尾，展开（Ctrl+O）后可见。
                         // 回传上游时原生 thinking 块整块丢弃，这行不会进入上游上下文。
                         let thinking_body = match &summary {
                             Some(line) => format!("{}\n\n*{line}*", thinking_text.trim_end()),
@@ -834,16 +848,17 @@ mod tests {
             stop(0),
         ]));
         assert_eq!(out[0].data["content_block"]["type"], "text");
-        // 时长行带 token 统计后缀，数值随正文长度变化，故只断言形态
+        // 统计行只含 token 数（不含耗时），数值随正文长度变化，故只断言形态
         let rendered = plain(&text_of(&out));
         assert!(
-            rendered.starts_with("💭 Thinking\nfirst line\nsecond\n\nthird\n💭 Thought for 1s ("),
-            "时长行前缀不符: {rendered}"
+            rendered.starts_with("💭 Thinking\nfirst line\nsecond\n\nthird\n💭 "),
+            "统计行前缀不符: {rendered}"
         );
         assert!(
-            rendered.ends_with(" tokens)\n"),
-            "时长行后缀不符: {rendered}"
+            rendered.ends_with(" tokens\n"),
+            "统计行后缀不符: {rendered}"
         );
+        assert!(!rendered.contains("Thought for"), "不应再展示耗时: {rendered}");
         assert!(
             out.iter()
                 .all(|e| e.data["delta"]["type"] != "thinking_delta"
@@ -907,13 +922,10 @@ mod tests {
             json!({"type": "thinking", "thinking": "", "signature": ""})
         );
         assert_eq!(tail[1].data["delta"]["type"], "thinking_delta");
-        // 正文末尾追加耗时与 token 摘要（展开后可见），原思考文本保持原样在前
+        // 正文末尾追加 token 摘要（展开后可见），原思考文本保持原样在前
         let body = tail[1].data["delta"]["thinking"].as_str().unwrap();
-        assert!(
-            body.starts_with("first line\nsecond\n\n*💭 Thought for 1s ("),
-            "{body}"
-        );
-        assert!(body.ends_with(" tokens)*"), "{body}");
+        assert!(body.starts_with("first line\nsecond\n\n*💭 "), "{body}");
+        assert!(body.ends_with(" tokens*"), "{body}");
         assert_eq!(tail[2].data["delta"]["type"], "signature_delta");
         assert_eq!(tail[2].data["delta"]["signature"], "SIG-NATURE");
         assert_eq!(tail[3].event, "content_block_stop");
@@ -927,7 +939,7 @@ mod tests {
             .count();
         assert_eq!(starts, 2, "text start + thinking start");
         let rendered = plain(&text_of(&out));
-        assert!(rendered.starts_with("💭 Thinking\nfirst line\nsecond\n💭 Thought for 1s ("));
+        assert!(rendered.starts_with("💭 Thinking\nfirst line\nsecond\n💭 "));
         // 覆写事件之前不得出现 thinking_delta/signature_delta（否则 CC 会在 text 块上报类型错误）
         let first_thinking = out
             .iter()
@@ -1001,7 +1013,7 @@ mod tests {
         assert_eq!(tail[0].data["content_block"]["type"], "thinking");
         assert_eq!(tail[1].data["delta"]["type"], "thinking_delta");
         let body = tail[1].data["delta"]["thinking"].as_str().unwrap();
-        assert!(body.starts_with("想法\n\n*💭 Thought for 1s ("), "{body}");
+        assert!(body.starts_with("想法\n\n*💭 "), "{body}");
         assert_eq!(tail[2].data["delta"]["signature"], "SIG");
         assert_eq!(tail[3].event, "content_block_stop");
     }
@@ -1072,6 +1084,29 @@ mod tests {
     }
 
     #[test]
+    fn strip_drops_whole_thinking_block_up_to_tokens_line() {
+        // 当前格式「💭 N tokens」：整块丢弃，三档计数都能识别
+        for count in ["154", "1.23k", "1.23M"] {
+            let text = format!("💭 Thinking\na\n\nb\n💭 {count} tokens\n");
+            assert_eq!(strip_rendered_thinking(&text), "", "{count}");
+        }
+        // 与答案同行粘连（有 DIM_OFF）：只保留答案
+        let merged = "💭 Thinking\na\n\n💭 999 tokens\x1b[0manswer";
+        assert_eq!(strip_rendered_thinking(merged), "answer");
+        // 客户端合并相邻 text 块：统计行后换行再接答案
+        let nl = "💭 Thinking\na\n\n💭 12 tokens\nanswer";
+        assert_eq!(strip_rendered_thinking(nl), "answer");
+        // 无 DIM_OFF 且行尾有余文：不认定为统计行（首行标记正常剥除）
+        let anchored = "💭 Thinking\n💭 5 tokens of context\n答案";
+        assert_eq!(strip_rendered_thinking(anchored), "💭 5 tokens of context\n答案");
+        let lookalike = "💭 Thinking\n需 💭 5 tokens\n答案";
+        assert_eq!(strip_rendered_thinking(lookalike), "需 💭 5 tokens\n答案");
+        // Plain 样式（引用 + 斜体）
+        let plain = "> *💭 Thinking*\n>\n> *思考*\n>\n> *💭 5 tokens*\n\n答案";
+        assert_eq!(strip_rendered_thinking(plain), "答案");
+    }
+
+    #[test]
     fn strip_falls_back_to_header_only_when_duration_line_missing() {
         // 无时长行（流被中断等）：无法判定思考正文范围，保守降级为只剥标记行、正文保留
         let rendered = "💭 Thinking\na\n\nb\n";
@@ -1102,7 +1137,7 @@ mod tests {
         let render = |on: &str| {
             format!(
                 "{on}{THOUGHT_HEADER}{DIM_OFF}\n{on}思考一{DIM_OFF}\n{on}思考二{DIM_OFF}\n\n\
-                 {on}{THOUGHT_DURATION_PREFIX}2s (5 tokens){DIM_OFF}\n答案"
+                 {on}{THOUGHT_TOKENS_PREFIX}5{THOUGHT_TOKENS_SUFFIX}{DIM_OFF}\n答案"
             )
         };
         let new_fmt = render(DIM_ON);
@@ -1274,14 +1309,14 @@ mod tests {
             stop(0),
         ]));
         let text = text_of(&out);
-        // 尾行为时长行（前置 \n + dim 包裹 + token 统计后缀）
+        // 尾行为统计行（前置 \n + dim 包裹 + 「N tokens」）
         assert!(
-            text.contains(&format!("\n{DIM_ON}{THOUGHT_DURATION_PREFIX}1s (")),
-            "时长行前缀不符: {text:?}"
+            text.contains(&format!("\n{DIM_ON}{THOUGHT_TOKENS_PREFIX}")),
+            "统计行前缀不符: {text:?}"
         );
         assert!(
-            text.ends_with(&format!(" tokens){DIM_OFF}\n")),
-            "时长行后缀不符: {text:?}"
+            text.ends_with(&format!("{THOUGHT_TOKENS_SUFFIX}{DIM_OFF}\n")),
+            "统计行后缀不符: {text:?}"
         );
         // 行中结束 → 末尾补复位；stop 事件仍在最后
         assert_eq!(out.last().unwrap().event, "content_block_stop");
@@ -1410,14 +1445,14 @@ mod tests {
         // 每行斜体；正文换行使用 Markdown 硬换行
         assert!(
             rendered.starts_with(&format!(
-                "> *{THOUGHT_HEADER}*\n>\n> *第一行*  \n> *第二行*  \n>\n> *第三段*\n>\n> *{THOUGHT_DURATION_PREFIX}"
+                "> *{THOUGHT_HEADER}*\n>\n> *第一行*  \n> *第二行*  \n>\n> *第三段*\n>\n> *{THOUGHT_TOKENS_PREFIX}"
             )),
             "{rendered:?}"
         );
         let body = rendered.trim_end_matches('\n');
         assert!(!body.contains("\n\n"), "引用块内不得出现空行: {rendered:?}");
         // 时长行以空行收尾，结束引用块，使随后的答案不被并入引用
-        assert!(rendered.ends_with("tokens)*\n\n"), "{rendered:?}");
+        assert!(rendered.ends_with(" tokens*\n\n"), "{rendered:?}");
 
         // 客户端把思考块与随后的答案拼成一个 assistant 文本回传：整块思考被剥离，只剩答案
         let history_text = format!("{rendered}最终答案");
@@ -1451,12 +1486,12 @@ mod tests {
         // 块在行中间结束：补结束 `*`，时长行前先换行 + 空引用行；行首结束则不多换行
         let mid = render_plain(&["没有换行结尾"]);
         assert!(
-            mid.starts_with("> *💭 Thinking*\n>\n> *没有换行结尾*\n>\n> *💭 Thought for "),
+            mid.starts_with("> *💭 Thinking*\n>\n> *没有换行结尾*\n>\n> *💭 "),
             "{mid:?}"
         );
         let at_line_start = render_plain(&["有换行结尾\n"]);
         assert!(
-            at_line_start.contains("> *有换行结尾*  \n>\n> *💭 Thought for "),
+            at_line_start.contains("> *有换行结尾*  \n>\n> *💭 "),
             "{at_line_start:?}"
         );
         for text in [mid, at_line_start] {
@@ -1530,7 +1565,7 @@ mod tests {
         let plain = "> *💭 Thinking*\n>\n> *思考*\n>\n> *💭 Thought for 2s (5 tokens)*\n\n\n答案";
         assert_eq!(strip_rendered_thinking(plain), "\n答案");
         let ansi = format!(
-            "{DIM_ON}{THOUGHT_HEADER}{DIM_OFF}\n{DIM_ON}思考{DIM_OFF}\n\n{DIM_ON}{THOUGHT_DURATION_PREFIX}2s (5 tokens){DIM_OFF}\n\n答案"
+            "{DIM_ON}{THOUGHT_HEADER}{DIM_OFF}\n{DIM_ON}思考{DIM_OFF}\n\n{DIM_ON}{THOUGHT_TOKENS_PREFIX}5{THOUGHT_TOKENS_SUFFIX}{DIM_OFF}\n\n答案"
         );
         assert_eq!(strip_rendered_thinking(&ansi), "\n答案");
     }

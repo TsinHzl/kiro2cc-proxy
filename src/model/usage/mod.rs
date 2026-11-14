@@ -69,7 +69,7 @@ pub struct UsageRecord {
     pub duration_ms: Option<u64>,
     /// 深度思考文案 token 数（客户端实际收到的 thinking 内容；None 表示旧数据
     /// 或该请求未产生 thinking 内容）。流式与非流式均为 BPE 真值（count_tokens），
-    /// 与客户端「Thought for Ns (N tokens)」显示同源同口径
+    /// 与客户端「💭 N tokens」显示同源同口径
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking_token_count: Option<i32>,
     /// 请求类型（true = 流式 SSE，false = 非流式；None 表示旧数据）

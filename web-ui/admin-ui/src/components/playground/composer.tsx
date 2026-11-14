@@ -134,7 +134,8 @@ export function Composer({
     if (e.clipboardData.getData('text/plain').trim() === '') e.preventDefault()
     if (isGenerating) return
     // 截图的文件名统一是 image.png，加上时间戳和序号以便区分
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
+    // 用 \D 去掉非数字字符；不要写成方括号字符集 "-:T"，Tailwind 会把它当作任意属性类并生成非法 CSS
+    const stamp = new Date().toISOString().slice(0, 19).replace(/\D/g, '')
     void addFiles(
       images.map(
         (f, i) =>

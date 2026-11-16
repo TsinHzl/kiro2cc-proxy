@@ -6,7 +6,7 @@ import { Boxes, Copy, Download, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
-import { SearchBox, Toolbar, UpdatedAgo } from '@/components/toolbar'
+import { SearchBox, UpdatedAgo } from '@/components/toolbar'
 import { CELL, ICON_BTN, PANEL, PANEL_FOOT, TH_BASE } from '@/components/table-kit'
 import { TAG_BASE } from '@/components/api-key-row'
 import { useModels } from '@/hooks/use-credentials'
@@ -316,7 +316,7 @@ export function ModelListPage() {
       </MetricsBar>
 
       {/* 操作条（设计稿 .actionbar）：「调整倍率」「映射规则」依赖未实现的后端写接口，不渲染 */}
-      <div className="flex flex-wrap items-center gap-[7px] pt-[15px]">
+      <div className="flex flex-wrap items-center gap-[7px] pb-[11px] pt-[15px]">
         <SearchBox
           value={query}
           onChange={setQuery}
@@ -335,11 +335,8 @@ export function ModelListPage() {
           <Download aria-hidden="true" />
           {t('models.exportJson')}
         </Button>
-      </div>
-
-      <Toolbar>
         <UpdatedAgo dataUpdatedAt={dataUpdatedAt} />
-      </Toolbar>
+      </div>
 
       <section className={`flex min-h-0 flex-1 flex-col ${PANEL}`}>
         <div className="min-h-0 flex-1 overflow-auto">

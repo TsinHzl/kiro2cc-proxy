@@ -169,9 +169,9 @@ export function ModelListPage() {
   }
 
   const q = query.trim().toLowerCase()
-  const filtered = models.filter((m) => {
-    return q === '' || m.id.toLowerCase().includes(q) || m.display_name.toLowerCase().includes(q)
-  })
+  const filtered = models.filter(
+    (m) => q === '' || m.id.toLowerCase().includes(q) || m.display_name.toLowerCase().includes(q),
+  )
   // 序号跨家族连续（设计稿 01…19），故按筛选后的平铺顺序预先编号
   const serials = new Map(filtered.map((m, i) => [m.id, i + 1]))
   const groups = groupByFamily(filtered)

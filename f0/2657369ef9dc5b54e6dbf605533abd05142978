@@ -1,0 +1,29 @@
+web-ui/admin-ui/src/components/account-row.tsx
+  43f7c2ba4d514922 370,378-379
+web-ui/admin-ui/tailwind.config.js
+  43f7c2ba4d514922 85-88
+web-ui/admin-ui/src/components/api-key-row.tsx
+  43f7c2ba4d514922 285,293-294
+web-ui/admin-ui/src/index.css
+  43f7c2ba4d514922 66-69,154-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f02657369ef9dc5b54e6dbf605533abd05142978",
+  "prompts": {
+    "43f7c2ba4d514922": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "10618bb3-29cf-404c-a4e9-ff97d0837592",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 26,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}

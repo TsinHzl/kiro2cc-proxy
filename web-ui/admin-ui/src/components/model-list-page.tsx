@@ -317,6 +317,12 @@ export function ModelListPage() {
 
       {/* 操作条（设计稿 .actionbar）：「调整倍率」「映射规则」依赖未实现的后端写接口，不渲染 */}
       <div className="flex flex-wrap items-center gap-[7px] pt-[15px]">
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          placeholder={t('models.searchPlaceholder')}
+          clearLabel={t('models.searchClear')}
+        />
         <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
           <RotateCw className={isLoading ? 'animate-spin' : ''} aria-hidden="true" />
           {t('models.refreshList')}
@@ -332,12 +338,6 @@ export function ModelListPage() {
       </div>
 
       <Toolbar>
-        <SearchBox
-          value={query}
-          onChange={setQuery}
-          placeholder={t('models.searchPlaceholder')}
-          clearLabel={t('models.searchClear')}
-        />
         <UpdatedAgo dataUpdatedAt={dataUpdatedAt} />
       </Toolbar>
 

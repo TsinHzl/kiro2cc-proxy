@@ -1,0 +1,25 @@
+web-ui/admin-ui/src/i18n/locales/en.json
+  0dd48d4e8e300351 828
+web-ui/admin-ui/src/i18n/locales/zh.json
+  0dd48d4e8e300351 826
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "a19728e2a501164a62b096e07bfd305d5c292a74",
+  "prompts": {
+    "0dd48d4e8e300351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1c1238f-9f51-4f0a-9a9a-d68c14d1df18",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -76,6 +76,7 @@
     --ink-2: #585c63;
     --brand-fg: #212121;
     --brand-ink: #8e4f06;
+    --enable: #1c752f;
 
   }
 
@@ -138,6 +139,7 @@
     --ink-3: #c8cccf;
     --ink-2: #cccfd3;
     --brand-ink: #fddb87;
+    --enable: #00E676;
 
   }
 
@@ -199,6 +201,7 @@
     --ink-2: #555a60;
     --brand-fg: #0f1113;
     --brand-ink: #15667f;
+    --enable: #1c752f;
 
   }
 
@@ -260,6 +263,7 @@
     --ink-3: #aaafb5;
     --ink-2: #adb3b9;
     --brand-ink: #28bedc;
+    --enable: #00E676;
 
   }
 
@@ -322,6 +326,7 @@
     --ink-2: #51555b;
     --brand-fg: #000000;
     --brand-ink: #1156b0;
+    --enable: #1a6d2b;
 
   }
 
@@ -384,6 +389,7 @@
     --ink-3: #bdc1c6;
     --ink-2: #c1c5ca;
     --brand-ink: #9dc1fb;
+    --enable: #00E676;
 
   }
 
@@ -443,6 +449,7 @@
     --ink-3: #565b5c;
     --ink-2: #53575d;
     --brand-ink: #373b43;
+    --enable: #1c752f;
 
   }
 
@@ -504,6 +511,7 @@
     --ink-3: #b3b7bc;
     --ink-2: #b6bbc0;
     --brand-ink: #ebebeb;
+    --enable: #00E676;
 
   }
 
@@ -565,6 +573,7 @@
     --ink-2: #5a5f66;
     --brand-fg: #000000;
     --brand-ink: #197032;
+    --enable: #1d7930;
 
   }
 
@@ -626,6 +635,7 @@
     --brand-ink: #40ba50;
     --ink-3: #9aa0a7;
     --ink-2: #9da4ab;
+    --enable: #00E676;
 
   }
 
@@ -685,6 +695,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #3d3d3d;
+    --enable: #1d7930;
 
   }
 
@@ -746,6 +757,7 @@
     --brand-ink: #ededed;
     --ink-3: #9aa0a7;
     --ink-2: #9da4ab;
+    --enable: #00E676;
 
   }
 
@@ -805,6 +817,7 @@
     --ink-3: #5b6062;
     --ink-2: #585c63;
     --brand-ink: #0b57d0;
+    --enable: #1d7930;
 
   }
 
@@ -866,6 +879,7 @@
     --ink-3: #a2a8ae;
     --ink-2: #a5acb2;
     --brand-ink: #a8c8fa;
+    --enable: #00E676;
 
   }
 
@@ -925,6 +939,7 @@
     --ink-3: #5b6062;
     --ink-2: #585c63;
     --brand-ink: #005cb8;
+    --enable: #1d7930;
 
   }
 
@@ -986,6 +1001,7 @@
     --ink-3: #9fa5ac;
     --ink-2: #a2a9b0;
     --brand-ink: #4da8ff;
+    --enable: #00E676;
 
   }
 
@@ -1285,6 +1301,7 @@
     --ink-3: #5b6062;
     --ink-2: #585c63;
     --brand-ink: #076e31;
+    --enable: #1d7930;
 
   }
 
@@ -1346,6 +1363,7 @@
     --ink-3: #9fa5ac;
     --ink-2: #a2a9b0;
     --brand-ink: #1dd75e;
+    --enable: #00E676;
 
   }
 
@@ -1407,6 +1425,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #0f6494;
+    --enable: #1c752f;
 
   }
 
@@ -1468,6 +1487,7 @@
     --ink-3: #adb2b8;
     --ink-2: #b0b6bb;
     --brand-ink: #5cc7eb;
+    --enable: #00E676;
 
   }
 
@@ -1527,6 +1547,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #2c6745;
+    --enable: #1c752f;
 
   }
 
@@ -1589,6 +1610,7 @@
     --ink-3: #b8bcc1;
     --ink-2: #bbc0c5;
     --brand-ink: #8dc9a0;
+    --enable: #00E676;
 
   }
 
@@ -1648,6 +1670,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #6b419f;
+    --enable: #1c752f;
 
   }
 
@@ -1709,6 +1732,7 @@
     --ink-3: #b0b5ba;
     --ink-2: #b3b8be;
     --brand-ink: #c8a6ec;
+    --enable: #00E676;
 
   }
 
@@ -1768,6 +1792,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #84510b;
+    --enable: #1c752f;
 
   }
 
@@ -1830,6 +1855,7 @@
     --ink-3: #bbbfc3;
     --ink-2: #bec3c7;
     --brand-ink: #f1c150;
+    --enable: #00E676;
 
   }
 
@@ -1890,6 +1916,7 @@
     --ink-3: #53585a;
     --ink-2: #51555b;
     --brand-ink: #774e35;
+    --enable: #1b712d;
 
   }
 
@@ -1952,6 +1979,7 @@
     --ink-2: #b3b8be;
     --brand-ink: #d6b08f;
     --muted-foreground: 212 8% 63%;
+    --enable: #00E676;
 
   }
 
@@ -2011,6 +2039,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #a5314e;
+    --enable: #1c752f;
 
   }
 
@@ -2072,6 +2101,7 @@
     --ink-3: #adb2b8;
     --ink-2: #b0b6bb;
     --brand-ink: #ec9daf;
+    --enable: #00E676;
 
   }
 
@@ -2131,6 +2161,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #156a53;
+    --enable: #1d7930;
 
   }
 
@@ -2193,6 +2224,7 @@
     --ink-3: #b8bcc1;
     --ink-2: #bbc0c5;
     --brand-ink: #77d4b2;
+    --enable: #00E676;
 
   }
 
@@ -2252,6 +2284,7 @@
     --ink-3: #565b5c;
     --ink-2: #53575d;
     --brand-ink: #2e45b8;
+    --enable: #1c752f;
 
   }
 
@@ -2313,6 +2346,7 @@
     --ink-3: #9fa5ac;
     --ink-2: #a2a9b0;
     --brand-ink: #85aef4;
+    --enable: #00E676;
 
   }
 
@@ -2374,6 +2408,7 @@
     --ink-2: #585c63;
     --brand-fg: #0f1113;
     --brand-ink: #a63d17;
+    --enable: #1c752f;
 
   }
 
@@ -2435,6 +2470,7 @@
     --ink-3: #a2a8ae;
     --ink-2: #a5acb2;
     --brand-ink: #ef8f6c;
+    --enable: #00E676;
 
   }
 
@@ -2496,6 +2532,7 @@
     --ink-2: #5a5f66;
     --brand-fg: #0f1113;
     --brand-ink: #09714e;
+    --enable: #1d7930;
 
   }
 
@@ -2557,6 +2594,7 @@
     --ink-3: #9da3a9;
     --ink-2: #a0a7ad;
     --brand-ink: #10bb82;
+    --enable: #00E676;
 
   }
 
@@ -2616,6 +2654,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #004ce6;
+    --enable: #1d7930;
 
   }
 
@@ -2677,6 +2716,7 @@
     --ink-3: #9da3a9;
     --ink-2: #a0a7ad;
     --brand-ink: #72a5f8;
+    --enable: #00E676;
 
   }
 
@@ -2738,6 +2778,7 @@
     --ink-2: #585c63;
     --brand-fg: #0f1113;
     --brand-ink: #0d685d;
+    --enable: #1c752f;
 
   }
 
@@ -2799,6 +2840,7 @@
     --ink-3: #a8adb3;
     --ink-2: #abb1b7;
     --brand-ink: #1ad1ac;
+    --enable: #00E676;
 
   }
 
@@ -2858,6 +2900,7 @@
     --ink-3: #565b5c;
     --ink-2: #53575d;
     --brand-ink: #ad1f3e;
+    --enable: #1c752f;
 
   }
 
@@ -2919,6 +2962,7 @@
     --ink-3: #9da3a9;
     --ink-2: #a0a7ad;
     --brand-ink: #ec839b;
+    --enable: #00E676;
 
   }
 
@@ -2981,6 +3025,7 @@
     --ink-2: #494d53;
     --brand-fg: #000000;
     --brand-ink: #185581;
+    --enable: #186428;
 
   }
 
@@ -3043,6 +3088,7 @@
     --ink-3: #b8bcc1;
     --ink-2: #bbc0c5;
     --brand-ink: #8ac2e9;
+    --enable: #00E676;
 
   }
 
@@ -3102,6 +3148,7 @@
     --ink-3: #5b6062;
     --ink-2: #585c63;
     --brand-ink: #814998;
+    --enable: #1d7930;
 
   }
 
@@ -3163,6 +3210,7 @@
     --ink-3: #adb2b8;
     --ink-2: #b0b6bb;
     --brand-ink: #ca9fdb;
+    --enable: #00E676;
 
   }
 
@@ -3224,6 +3272,7 @@
     --ink-2: #585c63;
     --brand-fg: #2b2b2b;
     --brand-ink: #994700;
+    --enable: #1c752f;
 
   }
 
@@ -3286,6 +3335,7 @@
     --ink-3: #b5babf;
     --ink-2: #b8bdc3;
     --brand-ink: #ffa251;
+    --enable: #00E676;
 
   }
 
@@ -3348,6 +3398,7 @@
     --ink-2: #53575d;
     --brand-fg: #171717;
     --brand-ink: #844d06;
+    --enable: #1a6d2b;
 
   }
 
@@ -3410,6 +3461,7 @@
     --ink-3: #bbbfc3;
     --ink-2: #bec3c7;
     --brand-ink: #f8ae4f;
+    --enable: #00E676;
 
   }
 
@@ -3469,6 +3521,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #0f50db;
+    --enable: #1d7930;
 
   }
 
@@ -3530,6 +3583,7 @@
     --ink-3: #adb2b8;
     --ink-2: #b0b6bb;
     --brand-ink: #74b8f1;
+    --enable: #00E676;
 
   }
 
@@ -3589,6 +3643,7 @@
     --ink-3: #5b6062;
     --ink-2: #585c63;
     --brand-ink: #085ebf;
+    --enable: #1d7930;
 
   }
 
@@ -3651,6 +3706,7 @@
     --ink-3: #b5babf;
     --ink-2: #b8bdc3;
     --brand-ink: #8bbef8;
+    --enable: #00E676;
 
   }
 
@@ -3710,6 +3766,7 @@
     --ink-3: #585d5f;
     --ink-2: #555a60;
     --brand-ink: #7537cd;
+    --enable: #1d7930;
 
   }
 
@@ -3772,6 +3829,7 @@
     --ink-3: #c6c9cd;
     --ink-2: #c9cdd1;
     --brand-ink: #d9c0fb;
+    --enable: #00E676;
 
   }
 
@@ -3833,6 +3891,7 @@
     --ink-2: #555a60;
     --brand-fg: #000000;
     --brand-ink: #b61a4c;
+    --enable: #1d7930;
 
   }
 
@@ -3895,6 +3954,7 @@
     --ink-3: #c6c9cd;
     --ink-2: #c9cdd1;
     --brand-ink: #ffb3c0;
+    --enable: #00E676;
 
   }
 
@@ -3957,6 +4017,7 @@
     --ink-2: #53575d;
     --brand-fg: #0f1113;
     --brand-ink: #405c7d;
+    --enable: #1b712d;
 
   }
 
@@ -4019,6 +4080,7 @@
     --ink-3: #ced1d4;
     --ink-2: #d1d4d8;
     --brand-ink: #b3d6e0;
+    --enable: #00E676;
 
   }
 
@@ -4079,6 +4141,7 @@
     --ink-3: #515657;
     --ink-2: #4e5258;
     --brand-ink: #6d12e3;
+    --enable: #1b712d;
 
   }
 
@@ -4141,6 +4204,7 @@
     --ink-3: #c8cccf;
     --ink-2: #cccfd3;
     --brand-ink: #dbc2fa;
+    --enable: #00E676;
 
   }
 
@@ -4203,6 +4267,7 @@
     --ink-2: #51555b;
     --brand-fg: #0f1113;
     --brand-ink: #7c4e0e;
+    --enable: #1a6d2b;
 
   }
 
@@ -4265,5 +4330,6 @@
     --ink-3: #cbced2;
     --ink-2: #ced2d5;
     --brand-ink: #efc87b;
+    --enable: #00E676;
 
   }

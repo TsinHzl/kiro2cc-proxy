@@ -65,7 +65,9 @@
     --ok-line: #BADFC9;
     /* 「启用」动作按钮的绿色强调：图标+文字同色（随 currentColor），与「禁用」danger 红对称。
        白天白底 #1E7D32（纯绿，色相 133°）对比度 5.20:1（WCAG AA）；夜间深底用荧光 #00E676
-       （10.76:1 AAA），在下方 .dark 块覆写，白天更先「绿」不似青。功能色不随主题品牌色派生，36 个主题共用 */
+       （10.76:1 AAA），在下方 .dark 块覆写，白天更先「绿」不似青。
+       本值仅对白底成立；其余主题在 themes.css 内按自身 surface 校准（--enable 已纳入
+       scripts/theme-contrast.py 的审计矩阵与 --fix 修复序列，改动主题底色后请重跑该脚本） */
     --enable: #1E7D32;
     --warn: #956000;
     --warn-soft: #FCF2DF;

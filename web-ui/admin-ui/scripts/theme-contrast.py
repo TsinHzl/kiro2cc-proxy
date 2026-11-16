@@ -45,7 +45,7 @@ FULL_MATRIX = [
     (["secondary-foreground"], ["secondary"]),
     (["accent-foreground"], ["accent"]),
     (["brand-ink"], ["background", "surface", "surface-2", "surface-3", "sidebar", "brand-soft", "ok-soft"]),
-    (["ok", "warn", "danger"], ["surface", "surface-2", "surface-3"]),
+    (["ok", "warn", "danger", "enable"], ["surface", "surface-2", "surface-3"]),
     (["ok"], _SOFTS),
     (["warn"], ["warn-soft", "ok-soft"]),
     (["danger"], ["danger-soft", "ok-soft"]),
@@ -85,7 +85,7 @@ FILL_TEXT = {"brand-fg", "primary-foreground", "destructive-foreground"}
 FIX_ORDER = [
     "foreground", "card-foreground", "popover-foreground", "secondary-foreground",
     "accent-foreground", "muted-foreground", "primary-foreground", "destructive-foreground",
-    "ink", "ink-3", "ink-2", "brand-fg", "ok", "warn", "danger",
+    "ink", "ink-3", "ink-2", "brand-fg", "ok", "warn", "danger", "enable",
     "quota-safe-badge-text", "quota-mod-badge-text", "quota-warn-badge-text",
     "quota-danger-badge-text", "badge-new-fg", "brand-ink",
 ]

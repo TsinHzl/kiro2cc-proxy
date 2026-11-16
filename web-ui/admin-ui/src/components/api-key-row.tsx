@@ -282,7 +282,7 @@ export function ApiKeyRow({
       {/* 操作（设计稿 .rowops）：开关 → 分隔 → 图标钮 → ⋯ 菜单；破坏性操作只在菜单内 */}
       <td className={`${CELL} text-right`}>
         <div className="flex items-center justify-end gap-[2px]">
-          {/* 启停按钮（替代原 Switch 滑块）：动作语义——启用中显示「禁用」（danger 弱底高亮），禁用后显示「启用」（弱化），与账号管理页一致 */}
+          {/* 启停按钮（替代原 Switch 滑块）：动作语义——启用中显示「禁用」（danger 红），禁用后显示「启用」（荧光绿，与账号管理页一致） */}
           <button
             type="button"
             onClick={onToggleEnabled}
@@ -290,8 +290,8 @@ export function ApiKeyRow({
             aria-label={t('apiKeys.toggleEnabledLabel', { name: apiKey.name })}
             className={
               !apiKey.enabled
-                ? 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-                : 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-semibold text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                ? 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-enable transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                : 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
             }
           >
             <Power className="size-[13px]" strokeWidth={1.7} />

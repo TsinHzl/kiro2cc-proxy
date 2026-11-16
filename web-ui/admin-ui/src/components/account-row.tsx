@@ -367,7 +367,7 @@ export function AccountRow({
       {/* 操作（设计稿 .rowops）：开关 → 分隔 → 3 个常规图标 → ⋯ 菜单；破坏性操作只在菜单内 */}
       <td className={`${CELL} text-right`}>
         <div className="flex items-center justify-end gap-[2px]">
-          {/* 启停按钮（替代原 Switch 滑块）：启用中显示「禁用」（danger 弱底高亮），禁用后显示「启用」（弱化） */}
+          {/* 启停按钮（替代原 Switch 滑块）：启用中显示「禁用」（danger 红），禁用后显示「启用」（荧光绿，与禁用对称） */}
           <button
             type="button"
             onClick={handleToggleDisabled}
@@ -375,8 +375,8 @@ export function AccountRow({
             aria-label={t('credentials.toggleEnabled', { name: label })}
             className={
               credential.disabled
-                ? 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-                : 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-semibold text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                ? 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-enable transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                : 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
             }
           >
             <Power className="size-[13px]" strokeWidth={1.7} />

@@ -82,6 +82,10 @@ export default {
           soft: 'var(--danger-soft)',
           line: 'var(--danger-line)',
         },
+        // 「启用」动作按钮的亮绿强调色（图标+文字同色：text-enable，无色块承载）
+        enable: {
+          DEFAULT: 'var(--enable)',
+        },
         track: 'var(--track)',
         'code-bg': 'var(--code-bg)',
         space: {

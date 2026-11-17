@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { readStoredChatSidebarOpen, writeStoredChatSidebarOpen } from '@/components/dashboard/panel-constants'
 import { PageHead } from '@/components/page-head'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
-import { useApiKeys, useChatSessions, usePlaygroundModels, useUiPreferences, useUpdateUiPreferences } from '@/hooks/use-credentials'
+import { useApiKeys, useChatSessions, useCredentials, usePlaygroundModels, useUiPreferences, useUpdateUiPreferences } from '@/hooks/use-credentials'
 import { toast } from '@/lib/toast'
 import { extractErrorMessage } from '@/lib/utils'
 import type { ChatSessionMeta } from '@/types/api'
@@ -38,6 +38,7 @@ export function PlaygroundPage() {
     updateConfig,
   } = usePlayground()
   const { data: apiKeys } = useApiKeys()
+  const { data: credentials } = useCredentials()
   const { data: sessions, isLoading: sessionsLoading } = useChatSessions()
   const { data: uiPreferences } = useUiPreferences()
   const { mutate: saveUiPreferences } = useUpdateUiPreferences()
@@ -65,8 +66,32 @@ export function PlaygroundPage() {
     return () => mql.removeEventListener('change', onChange)
   }, [])
 
-  const enabledKeys = useMemo(() => (apiKeys ?? []).filter((k) => k.enabled), [apiKeys])
-  const activeKey = enabledKeys.find((k) => k.id === config.keyId) ?? enabledKeys[0] ?? null
+  /**
+   * 对话页展示的 API Key：全部保留（含绑定账号已全部禁用的），后者置灰不可选。
+   * 未绑定账号的 Key 路由到全部账号；绑定的 Key 只在绑定账号中选择。
+   * 账号数据尚未加载时先视为可用，避免启动瞬间把所有 Key 置灰。
+   */
+  const keyOptions = useMemo(() => {
+    const keys = (apiKeys ?? []).filter((k) => k.enabled)
+    if (!credentials) return keys.map((k) => ({ ...k, usable: true }))
+    const byId = new Map(credentials.credentials.map((c) => [c.id, c]))
+    const anyEnabled = credentials.credentials.some((c) => !c.disabled)
+    return keys.map((k) => {
+      const bound = k.boundCredentialIds ?? []
+      const usable =
+        bound.length === 0
+          ? anyEnabled
+          : bound.some((id) => {
+              const credential = byId.get(id)
+              return credential !== undefined && !credential.disabled
+            })
+      return { ...k, usable }
+    })
+  }, [apiKeys, credentials])
+  const activeKey =
+    keyOptions.find((k) => k.id === config.keyId && k.usable) ??
+    keyOptions.find((k) => k.usable) ??
+    null
   const {
     models: modelItems,
     isPending: modelsLoading,
@@ -216,7 +241,7 @@ export function PlaygroundPage() {
               </div>
             )}
             <Composer
-              keys={enabledKeys}
+              keys={keyOptions}
               keyId={activeKey?.id ?? null}
               models={modelItems}
               modelsLoading={modelsLoading}

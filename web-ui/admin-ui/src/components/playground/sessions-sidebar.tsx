@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { Loader2, MessageSquarePlus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { formatMonthDayTime } from '@/lib/locale'
 import type { ChatSessionMeta } from '@/types/api'
 
 interface SessionsSidebarProps {
@@ -14,16 +15,6 @@ interface SessionsSidebarProps {
   onSelect: (id: string) => void
   onDelete: (session: ChatSessionMeta) => void
   onClearAll: () => void
-}
-
-/** 当天只显示时分，其他日期显示月-日 */
-function formatTime(ms: number): string {
-  const date = new Date(ms)
-  const sameDay = date.toDateString() === new Date().toDateString()
-  return date.toLocaleString(
-    undefined,
-    sameDay ? { hour: '2-digit', minute: '2-digit' } : { month: '2-digit', day: '2-digit' },
-  )
 }
 
 /** 历史对话列表：切换、删除单个会话、清空全部 */
@@ -97,7 +88,7 @@ export function SessionsSidebar({
                       {session.title || t('playground.untitled')}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-ink-3">
-                      {formatTime(session.updatedAt)} · {t('playground.messageCount', { count: session.messageCount })}
+                      {formatMonthDayTime(session.updatedAt)} · {t('playground.messageCount', { count: session.messageCount })}
                     </div>
                   </button>
                   <button

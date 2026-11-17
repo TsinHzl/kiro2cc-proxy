@@ -36,6 +36,8 @@ const PILL =
 export interface KeyOption {
   id: number
   name: string
+  /** 绑定账号全部被禁用时仍展示，但置灰不可选 */
+  usable: boolean
 }
 
 interface ComposerProps {
@@ -290,6 +292,7 @@ export function Composer({
                   <DropdownMenuRadioItem
                     key={k.id}
                     value={String(k.id)}
+                    disabled={!k.usable}
                     onSelect={(event) => event.preventDefault()}
                   >
                     <span className="truncate">{k.name}</span>

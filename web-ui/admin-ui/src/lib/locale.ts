@@ -24,3 +24,11 @@ export function formatDateTime(dateStr: string): string {
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
 }
+
+/** 月-日 时:分（省略年份）：zh-CN 为 11/13 14:32，en-US 为 11/13, 02:32 PM */
+export function formatMonthDayTime(timestampMs: number): string {
+  return new Date(timestampMs).toLocaleString(localeTag(), {
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+}

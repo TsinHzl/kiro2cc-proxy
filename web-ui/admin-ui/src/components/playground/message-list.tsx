@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/clipboard'
+import { formatMonthDayTime } from '@/lib/locale'
 import { toast } from '@/lib/toast'
 import { AttachmentView } from './attachment-view'
 import { estimateTokens } from './estimate-tokens'
@@ -192,7 +193,7 @@ function UsageStats({ usage, reasoning }: { usage: NonNullable<ChatMessage['usag
       </span>
       {thinkingTokens > 0 && (
         <span className="inline-flex shrink-0 items-center gap-0.5" title={thinkingTip} aria-label={thinkingTip}>
-          <Brain className="size-3" aria-hidden="true" />≈{n(thinkingTokens)} tokens
+          <Brain className="size-3" aria-hidden="true" />{n(thinkingTokens)} tokens
         </span>
       )}
       {usage.credits !== undefined && (
@@ -294,8 +295,11 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
               <RotateCw className="size-3.5" />
             </ActionButton>
           )}
-          {(message.model || message.usage) && (
+          {(message.model || message.usage || message.createdAt !== undefined) && (
             <span className="ml-2 flex min-w-0 items-center gap-2.5 text-[11px] text-ink-3">
+              {message.createdAt !== undefined && (
+                <span className="shrink-0 tabular-nums">{formatMonthDayTime(message.createdAt)}</span>
+              )}
               {message.model && <span className="truncate">{message.model}</span>}
               {message.usage && <UsageStats usage={message.usage} reasoning={message.reasoning} />}
             </span>

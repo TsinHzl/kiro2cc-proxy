@@ -326,7 +326,14 @@ export function usePlayground() {
   const run = useCallback(
     async (base: ChatMessage[], { apiKey, model, effort, webSearch }: RunOptions) => {
       if (!apiKey) return
-      const assistant: ChatMessage = { id: newId(), role: 'assistant', content: '', status: 'streaming', model }
+      const assistant: ChatMessage = {
+        id: newId(),
+        role: 'assistant',
+        content: '',
+        status: 'streaming',
+        model,
+        createdAt: Date.now(),
+      }
       const initial = [...base, assistant]
       messagesRef.current = initial
       setMessages(initial)

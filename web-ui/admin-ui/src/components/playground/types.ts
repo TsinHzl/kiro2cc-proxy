@@ -46,6 +46,8 @@ export interface ChatMessage {
   /** 本条回复中模型发起的联网搜索（仅用于展示，不会回传给上游） */
   searches?: WebSearchCall[]
   status: MessageStatus
+  /** 消息创建时间（Unix 毫秒）；旧数据可能没有该字段 */
+  createdAt?: number
   error?: string
   /** 产出该回复所用的模型 */
   model?: string

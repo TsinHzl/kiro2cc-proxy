@@ -1,0 +1,36 @@
+.github/workflows/build.yaml
+  f1b37e99145e39af 180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4e106405c8ce513d8097c61356594d463a1240ec",
+  "prompts": {
+    "bf3e30500b1e18c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c9a4c4b-0c3a-489d-9e31-4c69d1eb41f2",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 130,
+      "total_deletions": 0,
+      "accepted_lines": 130,
+      "overriden_lines": 0
+    },
+    "f1b37e99145e39af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f71ff33a-377d-4ab4-aa14-afe08f8c42b3",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

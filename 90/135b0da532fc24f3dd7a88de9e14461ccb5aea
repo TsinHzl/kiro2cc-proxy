@@ -1,0 +1,25 @@
+README.en.md
+  6d32ca8773b0a02b 17,66-150
+README.md
+  6d32ca8773b0a02b 17,66-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "90135b0da532fc24f3dd7a88de9e14461ccb5aea",
+  "prompts": {
+    "6d32ca8773b0a02b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8351d980-4fc7-4853-a74f-52287887f253",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 172,
+      "total_deletions": 2,
+      "accepted_lines": 172,
+      "overriden_lines": 0
+    }
+  }
+}

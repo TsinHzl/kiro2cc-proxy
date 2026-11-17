@@ -23,7 +23,7 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
     steps:
       - uses: actions/checkout@v4
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        if: github.event_name == 'push'
         with:
           fetch-depth: 0
       - name: Check if commit has release tag
@@ -34,6 +34,16 @@ jobs:
             echo "::notice::Skipping beta build: commit already has a release tag"
           else
             echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 校验 tag 与 Cargo.toml 版本一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          CARGO_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['package']['version'])")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME//$'\n'/'%0A'} 与 Cargo.toml version ${CARGO_VERSION} 不一致（见 openspec/project.md 版本同步强约束）"
+            exit 1
           fi
 
   build:
@@ -129,18 +139,6 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: 校验 tag 与 Cargo.toml 版本一致
-        run: |
-          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} 与 Cargo.toml version ${CARGO_VERSION} 不一致（见 openspec/project.md 版本同步强约束）"
-            exit 1
-          fi
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -152,18 +150,23 @@ jobs:
           cd dist
           for d in */; do
             name="${d%/}"
-            bin=$(ls -A "$d" | head -1)
+            count=$(ls -A "$d" | wc -l)
+            if [ "$count" -ne 1 ]; then
+              echo "::error::${name} 内容非唯一（${count} 个文件），无法确定打包目标"
+              exit 1
+            fi
+            bin=$(ls -A "$d")
             if [[ "$name" == *Windows* ]]; then
               (cd "$d" && zip -q "../${name}.zip" "$bin")
             else
-              (cd "$d" && tar -czf "../${name}.tar.gz" "$bin")
+              (cd "$d" && chmod +x "$bin" && tar -czf "../${name}.tar.gz" "$bin")
             fi
           done
           rm -rf */
           sha256sum * > checksums-sha256.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/*.tar.gz
@@ -173,6 +176,6 @@ jobs:
           body: |
             ## 安装
 
-            - macOS（Apple Silicon / Intel）与 Windows 下载对应平台压缩包，解压后运行，配置见 [README](https://github.com/TsinHzl/kiro2cc-proxy#readme)
+            - macOS（Apple Silicon / Intel）与 Windows 下载对应平台压缩包，解压后运行（macOS 如提示无执行权限，先 `chmod +x kiro2cc-proxy`），配置见 [README](${{ github.server_url }}/${{ github.repository }}#readme)
             - Linux 推荐 Docker 部署（见 README 章节或 GHCR 镜像）
             - 完整性校验：`sha256sum -c checksums-sha256.txt`

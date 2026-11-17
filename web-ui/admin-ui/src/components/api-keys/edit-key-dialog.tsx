@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -97,12 +96,12 @@ export function EditKeyDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('apiKeys.editDialogTitle')}</DialogTitle>
-          <DialogDescription>{t('apiKeys.editDialogDesc')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">{t('apiKeys.remarkNameLabel')}</label>
             <Input
+              className="mt-2"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
             />

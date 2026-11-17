@@ -321,18 +321,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     (apiKeys ?? []).map(k => parseNameAsNumber(k.name)).filter((n): n is number => n !== null)
   )
 
-  // 生成不重复的随机 4 位编号
-  const generateUniqueSerial = (): string => {
-    for (let i = 0; i < 100; i++) {
-      const num = Math.floor(Math.random() * 9999) + 1 // 1-9999
-      if (!existingNumbers.has(num)) return String(num).padStart(4, '0')
-    }
-    // fallback: 找最大值 +1
-    const max = existingNumbers.size > 0 ? Math.max(...existingNumbers) : 0
-    return String(max + 1).padStart(4, '0')
-  }
-
-  // 检查当前输入的名称是否与已有编号冲突
+  // 检查当前输入的名称是否与已有名称冲突
   const nameConflict = (() => {
     const num = parseNameAsNumber(newName)
     if (num === null) return false
@@ -678,7 +667,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         )}
         <div className="ml-auto flex items-center gap-2">
           <Segmented value={sortBy} onChange={setSortBy} groupLabel={t('apiKeys.sortGroupLabel')} options={sortSegments} />
-          <Button onClick={() => { setNewName(generateUniqueSerial()); setCreateDialogOpen(true) }}>
+          <Button onClick={() => { setNewName(''); setCreateDialogOpen(true) }}>
             <Plus />
             {t('apiKeys.createButton')}
           </Button>

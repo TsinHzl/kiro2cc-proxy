@@ -196,7 +196,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const handleCreate = () => {
     createKey(
       {
-        name: newName,
+        name: newName.trim(),
         ...(newMode === 'date'
           ? newDuration !== null
             ? { durationDays: toDays(newDuration, newDurationUnit) }
@@ -225,7 +225,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const handleUpdate = () => {
     if (!editingKey) return
     const duration = editDuration === '' ? null : editDuration
-    const data: Record<string, unknown> = { name: editName || undefined }
+    const data: Record<string, unknown> = { name: editName.trim() || undefined }
     if (editMode === 'date') {
       if (!editExpiryDirty) {
         // 用户未触碰有效期控件：不提交有效期字段，保留现有 durationDays/expiresAt
@@ -309,23 +309,11 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     })
   }
 
-  // 将名称解析为数值（用于编号去重比较），非纯数字返回 null
-  const parseNameAsNumber = (name: string): number | null => {
-    const trimmed = name.trim()
-    if (!/^\d+$/.test(trimmed)) return null
-    return parseInt(trimmed, 10)
-  }
-
-  // 获取所有已存在的编号数值集合
-  const existingNumbers = new Set(
-    (apiKeys ?? []).map(k => parseNameAsNumber(k.name)).filter((n): n is number => n !== null)
-  )
-
-  // 检查当前输入的名称是否与已有名称冲突
+  // 检查当前输入的名称是否与已有名称冲突（首尾空格归一后精确比较）
   const nameConflict = (() => {
-    const num = parseNameAsNumber(newName)
-    if (num === null) return false
-    return existingNumbers.has(num)
+    const trimmed = newName.trim()
+    if (!trimmed) return false
+    return (apiKeys ?? []).some((k) => k.name.trim() === trimmed)
   })()
 
   // refetch() 不抛异常（TanStack Query 默认 throwOnError: false），故检查返回结果的 isError 而非 try/catch

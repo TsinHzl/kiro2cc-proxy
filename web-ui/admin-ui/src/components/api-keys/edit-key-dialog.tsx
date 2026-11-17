@@ -99,9 +99,10 @@ export function EditKeyDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium">{t('apiKeys.remarkNameLabel')}</label>
+            <label className="text-sm font-medium">{t('apiKeys.nameLabel')}</label>
             <Input
               className="mt-2"
+              maxLength={64}
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
             />

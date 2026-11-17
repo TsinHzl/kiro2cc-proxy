@@ -97,15 +97,16 @@ export function CreateKeyDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium">{t('apiKeys.serialLabel')}</label>
+            <label className="text-sm font-medium">{t('apiKeys.nameLabel')}</label>
             <Input
               className="mt-2"
-              placeholder={t('apiKeys.serialPlaceholder')}
+              maxLength={64}
+              placeholder={t('apiKeys.namePlaceholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
             {nameConflict && (
-              <p className="text-xs text-destructive mt-1">{t('apiKeys.serialConflict')}</p>
+              <p className="text-xs text-destructive mt-1">{t('apiKeys.nameConflict')}</p>
             )}
           </div>
           <div>

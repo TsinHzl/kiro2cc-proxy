@@ -1,0 +1,23 @@
+.github/workflows/build.yaml
+  f1b37e99145e39af 26,39-48,153-158,162,169,179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d95eea0974376c269c387bdb35c83a7a65303cb8",
+  "prompts": {
+    "f1b37e99145e39af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f71ff33a-377d-4ab4-aa14-afe08f8c42b3",
+        "model": "glm-5.3"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 17,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}

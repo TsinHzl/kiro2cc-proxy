@@ -14,7 +14,7 @@
 
 ### 📖 Quick Navigation
 
-[🚀 Quick Start](#-quick-start-new-users) ・ [🍎 macOS Deployment](#-local-deployment-macos) ・ [🪟 Windows Deployment](#-local-deployment-windows) ・ [🐧 Linux Deployment](#-server-deployment-linux) ・ [🔑 Get Accounts](#-getting-kiro-accounts) ・ [⚙️ Configuration](#️-configuration-reference) ・ [🤖 Claude Code Integration](#-claude-code-integration) ・ [🧬 Codex CLI / OpenAI SDK](#-codex-cli--openai-sdk-integration) ・ [🔌 API Endpoints](#-api-endpoints) ・ [🗺️ Model Mapping](#️-model-mapping) ・ [🛡️ Admin Panel](#️-admin-panel) ・ [❓ FAQ](#-faq) ・ [⚠️ Notes](#️-notes)
+[🚀 Quick Start](#-quick-start-new-users) ・ [📦 Prebuilt Package Deployment](#-prebuilt-package-deployment) ・ [🍎 macOS Deployment](#-local-deployment-macos) ・ [🪟 Windows Deployment](#-local-deployment-windows) ・ [🐧 Linux Deployment](#-server-deployment-linux) ・ [🔑 Get Accounts](#-getting-kiro-accounts) ・ [⚙️ Configuration](#️-configuration-reference) ・ [🤖 Claude Code Integration](#-claude-code-integration) ・ [🧬 Codex CLI / OpenAI SDK](#-codex-cli--openai-sdk-integration) ・ [🔌 API Endpoints](#-api-endpoints) ・ [🗺️ Model Mapping](#️-model-mapping) ・ [🛡️ Admin Panel](#️-admin-panel) ・ [❓ FAQ](#-faq) ・ [⚠️ Notes](#️-notes)
 
 ---
 
@@ -62,6 +62,91 @@ kiro2cc-proxy is a proxy service. It forwards standard Anthropic Claude API requ
 ```
 Install dependencies → Build project → Start service → Add accounts → Configure client
 ```
+
+> 💡 No Node.js / Rust toolchain? Download the [prebuilt package](#-prebuilt-package-deployment) and skip the first two steps.
+
+---
+
+## 📦 Prebuilt Package Deployment
+
+For **macOS (Apple Silicon / Intel)** and **Windows x64**. If you don't want to install the Node.js and Rust toolchains, download the archive for your platform from [Releases](https://github.com/TsinHzl/kiro2cc-proxy/releases/latest).
+
+> ⚠️ Each archive contains **only the `kiro2cc-proxy` executable**: the repository launch scripts (`run-local-service-mac.sh` / `run-local-service-windows.ps1`) and their setup wizard are not included, so create the config files manually as described below.
+
+### Step 1: Download the Archive for Your Platform
+
+| Platform | File |
+|---|---|
+| macOS Apple Silicon (M series) | `kiro2cc-proxy-vX.Y.Z-macOS-arm64.tar.gz` |
+| macOS Intel | `kiro2cc-proxy-vX.Y.Z-macOS-x64.tar.gz` |
+| Windows x64 | `kiro2cc-proxy-vX.Y.Z-Windows-x64.zip` |
+
+Run `uname -m` if unsure: `arm64` → Apple Silicon build, `x86_64` → Intel build.
+
+Verify integrity (optional): download `checksums-sha256.txt` from the same page, then
+
+```bash
+# macOS / Linux (macOS ships shasum, not sha256sum)
+shasum -a 256 -c checksums-sha256.txt
+```
+
+```powershell
+# Windows PowerShell
+Get-FileHash .\kiro2cc-proxy-vX.Y.Z-Windows-x64.zip -Algorithm SHA256
+```
+
+### Step 2: Extract and Make Executable
+
+```bash
+# macOS
+mkdir -p ~/kiro2cc && cd ~/kiro2cc
+tar -xzf ~/Downloads/kiro2cc-proxy-vX.Y.Z-macOS-arm64.tar.gz
+chmod +x kiro2cc-proxy
+xattr -d com.apple.quarantine kiro2cc-proxy 2>/dev/null   # unsigned binary: remove the quarantine flag or Gatekeeper may block it
+```
+
+Windows: extract the zip, then double-click `kiro2cc-proxy.exe` or run `.\kiro2cc-proxy.exe` in PowerShell.
+
+### Step 3: Create `config.json`
+
+The prebuilt package **does not generate config files on startup**. Without `config.json` the binary starts with built-in defaults: it listens on `127.0.0.1:8080` with an empty `adminPsw`, and **`/admin`, `/api/admin` and `/api/user` are not mounted at all — opening the admin panel returns 404**. Create the config first:
+
+```bash
+cat > config.json <<'EOF'
+{
+  "port": 8080,
+  "adminPsw": "replace-with-your-admin-password",
+  "proxyUrl": "http://127.0.0.1:7890"
+}
+EOF
+```
+
+- `proxyUrl` is your local proxy port (Clash / V2Ray, the port you use for tunneling). Users in mainland China cannot reach Claude models without it.
+- Config files and runtime state are read/written in the **current working directory**; to start from another directory, pass `--config <path> --credentials <path>`.
+- Environment variables can override instead (`PORT`, `ADMIN_PSW`, `PROXY_URL`, etc.) — see [Configuration Reference](#️-configuration-reference).
+
+### Step 4: Add Kiro Accounts
+
+- Option 1: start the service, open `http://127.0.0.1:8080/admin`, and use "KAM Import" to paste or drop the JSON exported by KAM.
+- Option 2: create `credentials.json` directly — see [credentials.json Format](#credentialsjson-format).
+
+### Step 5: Start and Connect Your Client
+
+```bash
+./kiro2cc-proxy           # macOS
+.\kiro2cc-proxy.exe       # Windows PowerShell
+```
+
+Runs in the foreground; stop with `Ctrl+C`. For client setup see [Claude Code Integration](#-claude-code-integration) and [Codex CLI / OpenAI SDK](#-codex-cli--openai-sdk-integration).
+
+### Differences vs. the Repository Scripts
+
+| Item | Repository scripts | Prebuilt package |
+|---|---|---|
+| Setup wizard | Yes, interactive on first start | No, write `config.json` by hand |
+| Config location | `app/config/` inside the repo | Current working directory |
+| Default port | 5678 | 8080 |
+| Prerequisites | Node.js + Rust (frontend and binary must be built first) | None, only the executable |
 
 ---
 

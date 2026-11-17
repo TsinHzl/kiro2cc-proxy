@@ -14,7 +14,7 @@
 
 ### 📖 快速导航
 
-[🚀 快速开始](#-快速开始新手必读) ・ [🍎 macOS 部署](#-本地部署macos) ・ [🪟 Windows 部署](#-本地部署windows) ・ [🐧 Linux 部署](#-服务器部署linux) ・ [🔑 获取账号](#-获取-kiro-账号) ・ [⚙️ 配置详解](#️-配置详解) ・ [🤖 接入 Claude Code](#-接入-claude-code) ・ [🧬 接入 Codex CLI](#-接入-codex-cli--openai-sdk) ・ [🔌 API 端点](#-api-端点) ・ [🗺️ 模型映射](#️-模型映射) ・ [🛡️ Admin 面板](#️-admin-管理面板) ・ [❓ 常见问题](#-常见问题) ・ [⚠️ 注意事项](#️-注意事项)
+[🚀 快速开始](#-快速开始新手必读) ・ [📦 预编译包部署](#-预编译包部署) ・ [🍎 macOS 部署](#-本地部署macos) ・ [🪟 Windows 部署](#-本地部署windows) ・ [🐧 Linux 部署](#-服务器部署linux) ・ [🔑 获取账号](#-获取-kiro-账号) ・ [⚙️ 配置详解](#️-配置详解) ・ [🤖 接入 Claude Code](#-接入-claude-code) ・ [🧬 接入 Codex CLI](#-接入-codex-cli--openai-sdk) ・ [🔌 API 端点](#-api-端点) ・ [🗺️ 模型映射](#️-模型映射) ・ [🛡️ Admin 面板](#️-admin-管理面板) ・ [❓ 常见问题](#-常见问题) ・ [⚠️ 注意事项](#️-注意事项)
 
 ---
 
@@ -62,6 +62,91 @@ kiro2cc-proxy 是一个代理服务。它把标准的 Anthropic Claude API 请�
 ```
 安装依赖 → 构建项目 → 启动服务 → 填入账号 → 配置客户端
 ```
+
+> 💡 不想安装 Node.js / Rust 工具链？可直接下载 [预编译包](#-预编译包部署)，跳过前两步。
+
+---
+
+## 📦 预编译包部署
+
+适用于 **macOS（Apple Silicon / Intel）** 与 **Windows x64**。不想安装 Node.js 与 Rust 工具链时，直接从 [Releases](https://github.com/TsinHzl/kiro2cc-proxy/releases/latest) 下载对应平台压缩包即可。
+
+> ⚠️ 包内**只有 `kiro2cc-proxy` 可执行文件本体**：仓库里的启动脚本（`run-local-service-mac.sh` / `run-local-service-windows.ps1`）及其配置向导都不在包内，配置文件需按下面步骤手动创建。
+
+### 第一步：下载对应平台包
+
+| 平台 | 文件 |
+|---|---|
+| macOS Apple Silicon（M 系列） | `kiro2cc-proxy-vX.Y.Z-macOS-arm64.tar.gz` |
+| macOS Intel | `kiro2cc-proxy-vX.Y.Z-macOS-x64.tar.gz` |
+| Windows x64 | `kiro2cc-proxy-vX.Y.Z-Windows-x64.zip` |
+
+不确定芯片类型时执行 `uname -m`：输出 `arm64` 选 Apple Silicon 包，输出 `x86_64` 选 Intel 包。
+
+完整性校验（可选）：同页下载 `checksums-sha256.txt` 后执行
+
+```bash
+# macOS / Linux（macOS 自带 shasum，没有 sha256sum）
+shasum -a 256 -c checksums-sha256.txt
+```
+
+```powershell
+# Windows PowerShell
+Get-FileHash .\kiro2cc-proxy-vX.Y.Z-Windows-x64.zip -Algorithm SHA256
+```
+
+### 第二步：解压并赋予执行权限
+
+```bash
+# macOS
+mkdir -p ~/kiro2cc && cd ~/kiro2cc
+tar -xzf ~/Downloads/kiro2cc-proxy-vX.Y.Z-macOS-arm64.tar.gz
+chmod +x kiro2cc-proxy
+xattr -d com.apple.quarantine kiro2cc-proxy 2>/dev/null   # 未签名二进制需去掉隔离标记，否则可能被 Gatekeeper 拦截
+```
+
+Windows：解压 zip 后双击 `kiro2cc-proxy.exe`，或在 PowerShell 中执行 `.\kiro2cc-proxy.exe`。
+
+### 第三步：创建 `config.json`
+
+预编译包启动时**不会生成配置文件**。`config.json` 不存在时按内置默认值运行：监听 `127.0.0.1:8080`、`adminPsw` 为空；**此时 `/admin`、`/api/admin`、`/api/user` 都不会挂载，打开管理面板会 404**。所以在启动前先创建：
+
+```bash
+cat > config.json <<'EOF'
+{
+  "port": 8080,
+  "adminPsw": "替换为你的管理密码",
+  "proxyUrl": "http://127.0.0.1:7890"
+}
+EOF
+```
+
+- `proxyUrl` 填本地代理端口（Clash / V2Ray 等「开魔法」端口）。国内用户不配置将无法访问 Claude 模型。
+- 配置文件与运行时状态都按**当前工作目录**读写；换目录启动需用 `--config <路径> --credentials <路径>` 显式指定。
+- 也可以改用环境变量覆盖（`PORT`、`ADMIN_PSW`、`PROXY_URL` 等），见 [配置详解](#️-配置详解)。
+
+### 第四步：填入 Kiro 账号
+
+- 方式一：启动服务后打开 `http://127.0.0.1:8080/admin`，在账号管理页用「KAM 导入账号」粘贴或拖入 KAM 导出的 JSON。
+- 方式二：直接创建 `credentials.json`，格式见 [credentials.json 格式](#credentialsjson-格式)。
+
+### 第五步：启动并接入客户端
+
+```bash
+./kiro2cc-proxy           # macOS
+.\kiro2cc-proxy.exe       # Windows PowerShell
+```
+
+前台运行，`Ctrl+C` 停止。客户端接入见 [接入 Claude Code](#-接入-claude-code) 与 [接入 Codex CLI](#-接入-codex-cli--openai-sdk)。
+
+### 与仓库脚本方式的差异
+
+| 项 | 仓库脚本 | 预编译包 |
+|---|---|---|
+| 配置向导 | 有，首次启动交互式创建 | 无，需手写 `config.json` |
+| 配置文件位置 | 仓库内 `app/config/` | 当前工作目录 |
+| 默认端口 | 5678 | 8080 |
+| 前置依赖 | Node.js + Rust（需先构建前端与二进制） | 无，仅需可执行文件 |
 
 ---
 

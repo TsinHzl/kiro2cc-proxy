@@ -121,3 +121,58 @@ jobs:
           path: |
             target/${{ matrix.target }}/release/kiro2cc-proxy
             target/${{ matrix.target }}/release/kiro2cc-proxy.exe
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 校验 tag 与 Cargo.toml 版本一致
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 与 Cargo.toml version ${CARGO_VERSION} 不一致（见 openspec/project.md 版本同步强约束）"
+            exit 1
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: kiro2cc-proxy-*
+          path: dist
+
+      - name: Package and checksum
+        run: |
+          cd dist
+          for d in */; do
+            name="${d%/}"
+            bin=$(ls -A "$d" | head -1)
+            if [[ "$name" == *Windows* ]]; then
+              (cd "$d" && zip -q "../${name}.zip" "$bin")
+            else
+              (cd "$d" && tar -czf "../${name}.tar.gz" "$bin")
+            fi
+          done
+          rm -rf */
+          sha256sum * > checksums-sha256.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums-sha256.txt
+          generate_release_notes: true
+          body: |
+            ## 安装
+
+            - macOS（Apple Silicon / Intel）与 Windows 下载对应平台压缩包，解压后运行，配置见 [README](https://github.com/TsinHzl/kiro2cc-proxy#readme)
+            - Linux 推荐 Docker 部署（见 README 章节或 GHCR 镜像）
+            - 完整性校验：`sha256sum -c checksums-sha256.txt`

@@ -1,0 +1,38 @@
+web-ui/admin-ui/tailwind.config.js
+  73432470a2372fe4 151-155,164
+web-ui/admin-ui/src/components/playground/message-list.tsx
+  73432470a2372fe4 270-271,274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c5f58d98a2dd23ea35a65844b84b727996a3a171",
+  "prompts": {
+    "73432470a2372fe4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ad7e049-63a2-4b18-89d2-c3bdb051dec4",
+        "model": "deepseek-v4-1-flash-economy-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 3,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "f1e7012b4fcc1f91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd6c634e-8dc8-4310-a68d-48db4ad413eb",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 282,
+      "overriden_lines": 0
+    }
+  }
+}

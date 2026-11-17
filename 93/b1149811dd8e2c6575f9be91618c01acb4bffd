@@ -1,0 +1,38 @@
+Cargo.toml
+  6d32ca8773b0a02b 3
+src/admin/changelog_data.rs
+  6d32ca8773b0a02b 72-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "93b1149811dd8e2c6575f9be91618c01acb4bffd",
+  "prompts": {
+    "6d32ca8773b0a02b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8351d980-4fc7-4853-a74f-52287887f253",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 1,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "bf3e30500b1e18c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c9a4c4b-0c3a-489d-9e31-4c69d1eb41f2",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 130,
+      "overriden_lines": 0
+    }
+  }
+}

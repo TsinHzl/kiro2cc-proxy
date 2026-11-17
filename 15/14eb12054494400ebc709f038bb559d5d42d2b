@@ -1,0 +1,27 @@
+web-ui/admin-ui/src/i18n/locales/zh.json
+  e0258054d4f27b3f 458-460,484
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  e0258054d4f27b3f 324,670
+web-ui/admin-ui/src/i18n/locales/en.json
+  e0258054d4f27b3f 458-460,484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "1514eb12054494400ebc709f038bb559d5d42d2b",
+  "prompts": {
+    "e0258054d4f27b3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "762cdf1a-f3a6-426d-938f-1eb01c0f1feb",
+        "model": "deepseek-v4-1-flash-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 33,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

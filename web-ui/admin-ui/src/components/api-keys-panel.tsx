@@ -37,7 +37,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<ApiKeyItem | null>(null)
   const [newName, setNewName] = useState('')
-  const [newMode, setNewMode] = useState<'date' | 'quota'>('quota')
+  const [newMode, setNewMode] = useState<'date' | 'quota'>('date')
   const [newDuration, setNewDuration] = useState<number | null>(1) // 数值，null 表示永不过期
   const [newDurationUnit, setNewDurationUnit] = useState<'days' | 'hours'>('days')
   const [newSpendingLimit, setNewSpendingLimit] = useState(100)
@@ -209,7 +209,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
           toast.success(t('apiKeys.toastCreateSuccess'))
           setCreateDialogOpen(false)
           setNewName('')
-          setNewMode('quota')
+          setNewMode('date')
           setNewDuration(1)
           setNewDurationUnit('days')
           setNewSpendingLimit(100)

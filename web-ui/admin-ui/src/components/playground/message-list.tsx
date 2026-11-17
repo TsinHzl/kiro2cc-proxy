@@ -267,11 +267,11 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
       {message.searches?.map((s) => <SearchBlock key={s.id} search={s} />)}
       {message.content !== '' && <Markdown text={message.content} />}
       {waiting && (
-        <div className="flex items-center gap-1 py-2" aria-label={t('playground.generating')}>
-          {[0, 150, 300].map((delay) => (
+        <div className="flex items-center gap-1.5 pb-4 pt-2" aria-label={t('playground.generating')}>
+          {[0, 200, 400].map((delay) => (
             <span
               key={delay}
-              className="size-1.5 animate-pulse rounded-full bg-ink-3"
+              className="size-[7px] animate-typing-dot rounded-full bg-ink-3"
               style={{ animationDelay: `${delay}ms` }}
             />
           ))}

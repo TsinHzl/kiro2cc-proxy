@@ -1,0 +1,35 @@
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  e231e062b6d86093 8,41,69-94,244
+web-ui/admin-ui/src/lib/locale.ts
+  e231e062b6d86093 27-34
+web-ui/admin-ui/src/components/playground/composer.tsx
+  e231e062b6d86093 39-40,295
+web-ui/admin-ui/src/components/playground/sessions-sidebar.tsx
+  e231e062b6d86093 4,91
+web-ui/admin-ui/src/components/playground/message-list.tsx
+  e231e062b6d86093 19,196,298,300-302
+web-ui/admin-ui/src/components/playground/types.ts
+  e231e062b6d86093 49-50
+web-ui/admin-ui/src/components/playground/use-playground.ts
+  e231e062b6d86093 329-336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "cbafcdb6363e39690bf40a93066bc599f184d8c2",
+  "prompts": {
+    "e231e062b6d86093": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1efbc8b-0d4e-4ce3-a178-a78db07ecae4",
+        "model": "deepseek-v4-1-flash-economy-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 68,
+      "total_deletions": 28,
+      "accepted_lines": 58,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -69,6 +69,36 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.8".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "KAM 导入支持一次选择或拖拽多个 JSON 文件并合并导入",
+                        "KAM import now accepts multiple JSON files at once (picker or drag-and-drop) and merges them",
+                    ),
+                    Bilingual::new(
+                        "思考结束后折叠扩展到 Claude Desktop、local-agent 等 Plain 样式客户端；统计行只显示 token 数，不再显示耗时",
+                        "Thinking auto-collapse now also works in Plain-style clients such as Claude Desktop and local-agent; the summary line shows only the token count, no longer the elapsed time",
+                    ),
+                ]),
+                improve_group(vec![
+                    Bilingual::new(
+                        "主侧边栏与对话侧边栏的折叠状态改由服务端持久化，刷新后保持一致",
+                        "Main and chat sidebar collapse states are now persisted server-side and survive page refreshes",
+                    ),
+                    Bilingual::new(
+                        "账号列表完整展示邮箱地址，不再脱敏截断",
+                        "The account list now shows full email addresses without masking or truncation",
+                    ),
+                ]),
+                fix_group(vec![Bilingual::new(
+                    "修复 API Key 名称去重口径不一致的问题，提交前统一规范化处理",
+                    "Fixed inconsistent API-key name dedup: names are now normalized before submission",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.7".to_string(),
             is_latest: false,
             groups: vec![

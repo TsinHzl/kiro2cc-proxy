@@ -858,7 +858,10 @@ mod tests {
             rendered.ends_with(" tokens\n"),
             "统计行后缀不符: {rendered}"
         );
-        assert!(!rendered.contains("Thought for"), "不应再展示耗时: {rendered}");
+        assert!(
+            !rendered.contains("Thought for"),
+            "不应再展示耗时: {rendered}"
+        );
         assert!(
             out.iter()
                 .all(|e| e.data["delta"]["type"] != "thinking_delta"
@@ -1098,7 +1101,10 @@ mod tests {
         assert_eq!(strip_rendered_thinking(nl), "answer");
         // 无 DIM_OFF 且行尾有余文：不认定为统计行（首行标记正常剥除）
         let anchored = "💭 Thinking\n💭 5 tokens of context\n答案";
-        assert_eq!(strip_rendered_thinking(anchored), "💭 5 tokens of context\n答案");
+        assert_eq!(
+            strip_rendered_thinking(anchored),
+            "💭 5 tokens of context\n答案"
+        );
         let lookalike = "💭 Thinking\n需 💭 5 tokens\n答案";
         assert_eq!(strip_rendered_thinking(lookalike), "需 💭 5 tokens\n答案");
         // Plain 样式（引用 + 斜体）

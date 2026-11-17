@@ -257,6 +257,9 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
   // 搜索进行中时搜索块自带转圈，不再叠加跳动的圆点
   const searchPending = message.searches?.some((s) => s.status === 'searching') ?? false
   const waiting = streaming && message.content === '' && !message.reasoning && !searchPending
+  // 只认有效数字时间戳，避免 null / NaN 落到 1970 或 Invalid Date
+  const createdAt = message.createdAt
+  const hasCreatedAt = typeof createdAt === 'number' && Number.isFinite(createdAt)
 
   return (
     <div className="group py-2.5">
@@ -295,10 +298,10 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
               <RotateCw className="size-3.5" />
             </ActionButton>
           )}
-          {(message.model || message.usage || message.createdAt !== undefined) && (
+          {(message.model || message.usage || hasCreatedAt) && (
             <span className="ml-2 flex min-w-0 items-center gap-2.5 text-[11px] text-ink-3">
-              {message.createdAt !== undefined && (
-                <span className="shrink-0 tabular-nums">{formatMonthDayTime(message.createdAt)}</span>
+              {hasCreatedAt && (
+                <span className="shrink-0 tabular-nums">{formatMonthDayTime(createdAt)}</span>
               )}
               {message.model && <span className="truncate">{message.model}</span>}
               {message.usage && <UsageStats usage={message.usage} reasoning={message.reasoning} />}

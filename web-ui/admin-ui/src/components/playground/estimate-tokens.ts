@@ -8,7 +8,7 @@ const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/g
  *
  * 接口不单独返回深度思考的 token 数，这里按字符类别估算：
  * 中日韩字符约 1.3 token/字，其余字符约 4 字符 1 token（cl100k 一类分词器的常见比例）。
- * 误差可能有两成左右，所以界面上会带「约」字。
+ * 误差可能有两成左右，数值仅供参考。
  */
 export function estimateTokens(text: string): number {
   if (text === '') return 0

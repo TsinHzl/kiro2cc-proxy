@@ -59,7 +59,7 @@ export function cacheHitRate(record: UsageRecord): number | null {
  * 上游未回传 `creditsUsed` 时的降级估算（USD → Kiro credits）。
  *
  * 仅用于旧记录：后端自 metering 事件落库后 `creditsUsed` 恒有值，
- * 界面上以 ✓ 区分「真实值」与本估算值。
+ * 界面不再区分「真实值」与本估算值。
  *
  * 两条路径按可用信息分工，不可互换：
  * - 已知具体模型 → `getKRef(model)`，与后端同档位
@@ -319,7 +319,6 @@ export function UsageLogTable({
                 </td>
                 <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
                   {recordCredits(record).toFixed(4)}
-                  {record.creditsUsed != null && <span className="ml-1 text-[11px] text-ok">✓</span>}
                 </td>
               </tr>
             )

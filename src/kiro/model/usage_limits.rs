@@ -10,8 +10,9 @@ use serde::Deserialize;
 /// 使用额度查询响应
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-// 仅保留当前消费方实际读取的 KAM 响应字段：已裁掉 overageCapability /
-// displayNamePlural 等无读取方字段；上游多返回的键由 serde 默认忽略
+// 本结构体为 KAM 响应镜像，仅部分字段有生产读取方；本轮已裁掉 overageCapability /
+// displayNamePlural，其余无读取方字段（如 overageConfiguration、UserInfo::email 等）
+// 保留待后续清理。上游多返回的键由 serde 默认忽略。
 #[allow(dead_code)]
 pub struct UsageLimitsResponse {
     /// 下次重置日期 (Unix 时间戳)

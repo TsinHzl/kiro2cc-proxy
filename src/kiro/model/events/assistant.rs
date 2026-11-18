@@ -31,7 +31,7 @@ impl EventPayload for ReasoningContentEvent {
 ///
 /// # 设计说明
 ///
-/// 此结构体只保留实际使用的 `content` 与 `model_id` 字段；其他 API 返回的
+/// `content` 为生产读取字段；`model_id` 当前仅供测试断言使用；其他 API 返回的
 /// 未知字段由 serde 默认忽略，不影响反序列化。
 ///
 /// # 示例

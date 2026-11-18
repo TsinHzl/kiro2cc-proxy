@@ -8,6 +8,8 @@ const MAX_OUTPUT_TOKENS = 16384
 const WEB_SEARCH_MAX_USES = 5
 /** 让代理走「模型自主决定是否搜索」的桥接路径，见后端 websearch::wants_model_driven_search */
 const WEB_SEARCH_MODE_HEADER = 'x-web-search-mode'
+/** 对话页是展示用途，不需要代理追加 credits 汇总行；见后端 credits_footer::NO_CREDITS_FOOTER_HEADER */
+const NO_CREDITS_FOOTER_HEADER = 'x-kiro-no-credits-footer'
 const STREAM_TRUNCATED_MESSAGE = 'Response stream ended unexpectedly, the reply may be incomplete. Please retry'
 
 export interface StreamParams {
@@ -204,6 +206,7 @@ export async function streamMessage(params: StreamParams, handlers: StreamHandle
     'content-type': 'application/json',
     'x-api-key': params.apiKey,
     'anthropic-version': '2023-06-01',
+    [NO_CREDITS_FOOTER_HEADER]: '1',
   }
   if (params.webSearch) {
     body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: WEB_SEARCH_MAX_USES }]

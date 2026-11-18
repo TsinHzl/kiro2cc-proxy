@@ -47,6 +47,13 @@ const SESSION_TTL: Duration = Duration::from_secs(24 * 3600);
 /// 主对话 turn 超过此时长没有任何请求，就不再把陌生请求链当作子代理（用户中断后重新提问的兜底）
 const TURN_IDLE_LIMIT: Duration = Duration::from_secs(600);
 
+/// 内部请求头：存在时本请求不追加汇总行。
+///
+/// OpenAI 兼容端点把 `response_format` / `text.format` 声明的结构化输出（`json_schema` /
+/// `json_object`）翻译成 Anthropic 请求时无法表达为 `output_config.format`，
+/// 由 openai 层通过该头告知下游。客户端自行携带该头等同于主动关闭汇总行，无副作用。
+pub const NO_CREDITS_FOOTER_HEADER: &str = "x-kiro-no-credits-footer";
+
 static SHOW_SESSION_CREDITS: AtomicBool = AtomicBool::new(false);
 
 /// 启动时由 main 根据配置设置，Admin 设置页热切换（进程级，与 `set_thinking_as_text` 同模式）
@@ -73,7 +80,8 @@ pub struct CreditsFooterRequest {
 
 /// 判断本请求是否需要追加汇总行；不需要返回 `None`。
 ///
-/// 条件：开关开启，且请求没有要求结构化输出（`json_schema`，追加文本会破坏 JSON）。
+/// 条件：开关开启，且请求没有要求结构化输出（`json_schema`，追加文本会破坏 JSON；
+/// OpenAI 兼容端点的同类请求由 [`NO_CREDITS_FOOTER_HEADER`] 标记）。
 /// - Claude Code：还要求请求带工具定义。不带工具的请求是标题生成、对话压缩、建议预测等
 ///   辅助调用，它们的输出会被客户端当结构化数据解析，追加文本会破坏结果。
 /// - 其他客户端（含 OpenAI 兼容端点翻译后的请求）：不要求带工具，普通对话客户端本来就不带；
@@ -84,7 +92,10 @@ pub fn credits_footer_request(
     has_tools: bool,
     structured_output: bool,
 ) -> Option<CreditsFooterRequest> {
-    if !show_session_credits_enabled() || structured_output {
+    if !show_session_credits_enabled()
+        || structured_output
+        || headers.contains_key(NO_CREDITS_FOOTER_HEADER)
+    {
         return None;
     }
     let style = match thinking_text_style(headers) {
@@ -863,6 +874,12 @@ mod tests {
         // 结构化输出：任何客户端都不追加
         assert!(credits_footer_request(&headers, &msgs, true, true).is_none());
         assert!(credits_footer_request(&other, &msgs, true, true).is_none());
+
+        // openai 层标记的结构化输出：任何客户端都不追加
+        let mut marked = codex.clone();
+        marked.insert(NO_CREDITS_FOOTER_HEADER, "1".parse().unwrap());
+        assert!(credits_footer_request(&marked, &msgs, true, false).is_none());
+        assert!(credits_footer_request(&codex, &msgs, true, false).is_some());
 
         set_show_session_credits(false);
     }

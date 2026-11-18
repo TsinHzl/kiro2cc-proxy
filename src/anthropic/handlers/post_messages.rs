@@ -301,7 +301,6 @@ pub async fn post_messages(
         0.1,
     );
 
-
     // effort 级别（output_config 整体存在时取 effort 字符串，否则 None）
     let effort = payload.output_config.as_ref().map(|c| c.effort.clone());
 

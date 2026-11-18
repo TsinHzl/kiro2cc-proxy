@@ -29,6 +29,19 @@ mod sse;
 
 pub(crate) use handlers::{post_chat_completions, post_responses};
 
+/// 请求是否声明了结构化输出：Chat 的 `response_format` 或 Responses 的 `text.format`，
+/// 类型为 `json_schema` / `json_object`（`text` 为普通文本）。
+///
+/// 这类请求的响应会被客户端直接 `JSON.parse`，不能追加 credits 汇总行。
+pub(crate) fn is_structured_output_format(format: Option<&serde_json::Value>) -> bool {
+    matches!(
+        format
+            .and_then(|f| f.get("type"))
+            .and_then(serde_json::Value::as_str),
+        Some("json_schema" | "json_object")
+    )
+}
+
 /// `user` 字段长度上限：客户端可控值，截断防止异常客户端传入超大字符串
 const MAX_USER_FIELD_LEN: usize = 256;
 
@@ -43,5 +56,26 @@ pub(crate) fn pass_through_user(body: &serde_json::Value, anthropic: &mut serde_
             let capped: String = trimmed.chars().take(MAX_USER_FIELD_LEN).collect();
             anthropic["metadata"] = serde_json::json!({"user_id": capped});
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_structured_output_format;
+    use serde_json::json;
+
+    #[test]
+    fn structured_output_format_detection() {
+        // Chat 的 response_format / Responses 的 text.format 同形
+        assert!(is_structured_output_format(Some(
+            &json!({"type": "json_schema"})
+        )));
+        assert!(is_structured_output_format(Some(
+            &json!({"type": "json_object"})
+        )));
+        assert!(!is_structured_output_format(Some(&json!({"type": "text"}))));
+        assert!(!is_structured_output_format(Some(&json!({}))));
+        assert!(!is_structured_output_format(Some(&json!("json_schema"))));
+        assert!(!is_structured_output_format(None));
     }
 }

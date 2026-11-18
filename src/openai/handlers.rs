@@ -91,6 +91,7 @@ pub(crate) async fn post_chat_completions(
     let client_model = converted.client_model;
     let include_usage = converted.include_usage;
     let converter_model = client_model.clone();
+    let structured_output = super::is_structured_output_format(incoming.get("response_format"));
     forward_and_wrap(
         state,
         identity,
@@ -98,6 +99,7 @@ pub(crate) async fn post_chat_completions(
         headers,
         converted.anthropic_body,
         converted.stream,
+        structured_output,
         client_model,
         move || Box::new(ChatStreamConverter::new(&converter_model, include_usage)),
         chat_response::convert_non_stream,
@@ -146,6 +148,8 @@ pub(crate) async fn post_responses(
     let namespaced_tools = converted.namespaced_tools;
     let stream_namespaced_tools = namespaced_tools.clone();
     let is_compaction = converted.is_compaction;
+    let structured_output =
+        super::is_structured_output_format(incoming.get("text").and_then(|t| t.get("format")));
     forward_and_wrap(
         state,
         identity,
@@ -153,6 +157,7 @@ pub(crate) async fn post_responses(
         headers,
         converted.anthropic_body,
         converted.stream,
+        structured_output,
         client_model,
         move || {
             if is_compaction {
@@ -215,11 +220,20 @@ async fn forward_and_wrap(
     headers: HeaderMap,
     anthropic_body: Value,
     stream: bool,
+    structured_output: bool,
     client_model: String,
     make_converter: impl FnOnce() -> Box<dyn StreamConverter + Send>,
     convert_non_stream: impl FnOnce(&Value, &str) -> Value,
 ) -> Response {
-    let upstream = forward_to_anthropic(state, identity, addr, headers, &anthropic_body).await;
+    let upstream = forward_to_anthropic(
+        state,
+        identity,
+        addr,
+        headers,
+        &anthropic_body,
+        structured_output,
+    )
+    .await;
 
     let (parts, upstream_body) = upstream.into_parts();
     let status = parts.status;
@@ -259,6 +273,7 @@ fn forward_to_anthropic(
     addr: SocketAddr,
     headers: HeaderMap,
     anthropic_body: &Value,
+    structured_output: bool,
 ) -> impl std::future::Future<Output = Response> + use<> {
     // OpenAI 协议是自动前缀缓存：断点记账开启时补顶层自动缓存标记（见 ensure_auto_cache_control）
     // 只有开启时才需要可变副本；默认关闭路径不做整包深拷贝
@@ -270,6 +285,14 @@ fn forward_to_anthropic(
     } else {
         Bytes::from(serde_json::to_vec(anthropic_body).unwrap_or_default())
     };
+    let mut headers = headers;
+    if structured_output {
+        // 结构化输出会被客户端直接解析 JSON，通知下游不要追加 credits 汇总行
+        headers.insert(
+            header::HeaderName::from_static(crate::anthropic::NO_CREDITS_FOOTER_HEADER),
+            header::HeaderValue::from_static("1"),
+        );
+    }
     post_messages(State(state), identity, ConnectInfo(addr), headers, bytes)
 }
 

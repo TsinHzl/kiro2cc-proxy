@@ -85,33 +85,69 @@ export function Sidebar({
             （flex 方向、文字显隐、ml-auto）都藏在这次淡出淡入的不可见瞬间，避免逐处单独处理时互相错位 */}
         <div className={`flex h-full flex-col transition-opacity duration-100 ${sidebarContentFading ? 'opacity-0' : 'opacity-100'}`}>
         <div className={`flex items-center border-b-[0.5px] border-hairline ${collapsed ? 'flex-col gap-2 px-2 py-3' : 'gap-2.5 px-4 pt-4 pb-3.5'}`}>
-          <a
-            href="https://github.com/TsinHzl/kiro2cc-proxy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center group min-w-0 ${collapsed ? '' : 'gap-2.5'}`}
-          >
+          <div className={`group flex min-w-0 items-center ${collapsed ? '' : 'gap-2.5'}`}>
             {/* 方案 4（Aurora Prism）图标自带圆角底座与极光边框，故不再套品牌渐变方块；
                 随主题切换 dark / light 两版，与设计稿 preview.html 的实机模拟一致 */}
             {/* 必须走 BASE_URL 拼接：vite 的 base('/admin/') 只重写 index.html 的
                 href/src，不改 TS 源码字符串，写死 "/logo-*.svg" 会打到根路径 404 */}
-            <img
-              src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
-              alt="Kiro2CCProxy"
-              className="hidden h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:block"
-            />
-            <img
-              src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
-              alt="Kiro2CCProxy"
-              className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
-            />
+            {/* logo 与标题各自独立成链：版本号链接不能嵌套在 anchor 内（HTML 不允许嵌套锚点） */}
+            <a
+              href="https://github.com/TsinHzl/kiro2cc-proxy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 items-center"
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
+                alt="Kiro2CCProxy"
+                className="hidden h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:block"
+              />
+              <img
+                src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
+                alt="Kiro2CCProxy"
+                className="h-[30px] w-[30px] shrink-0 rounded-[7px] shadow-hair dark:hidden"
+              />
+            </a>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors">Kiro2CCProxy</div>
-                <div className="text-[10.5px] tracking-[.02em] text-ink-3 group-hover:text-brand transition-colors">{t('dashboard.consoleSubtitle')}</div>
+                <a
+                  href="https://github.com/TsinHzl/kiro2cc-proxy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-[13.5px] font-semibold leading-[1.2] tracking-[-.01em] group-hover:text-brand transition-colors"
+                >
+                  Kiro2CCProxy
+                </a>
+                {/* 副标题行：运行状态点 + 版本号（自原页脚上移），版本号保留外链 */}
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <span
+                    role="img"
+                    aria-label={serverStatusLabel}
+                    title={serverStatusLabel}
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ring-[3px] ${serverHealthy ? 'bg-ok ring-ok-soft' : 'bg-ink-3 ring-surface-3'}`}
+                  />
+                  {/* 加载中 / 请求失败时隐藏版本号只留灰点，避免展示无效版本 */}
+                  {serverHealthy && (
+                    <a
+                      href="https://github.com/TsinHzl/kiro2cc-proxy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="truncate text-[10.5px] text-ink-3 hover:text-brand transition-colors"
+                    >
+                      v{serverInfo.version}
+                      {hasUpdate && (
+                        <span
+                          className="ml-1 inline-block h-2 w-2 rounded-full bg-danger align-super"
+                          title={t('dashboard.updateAvailable')}
+                          aria-label={t('dashboard.updateAvailable')}
+                        />
+                      )}
+                    </a>
+                  )}
+                </div>
               </div>
             )}
-          </a>
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -201,37 +237,10 @@ export function Sidebar({
           >
             {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </Button>
-        </div>
-        {/* 页脚（设计稿 .side-foot）：运行状态点 + 版本号 + 退出登录 */}
-        <div className={`flex items-center border-t-[0.5px] border-hairline ${collapsed ? 'flex-col gap-[9px] py-2.5' : 'gap-2 px-[14px] py-2.5'}`}>
-          <span
-            role="img"
-            aria-label={serverStatusLabel}
-            title={serverStatusLabel}
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ring-[3px] ${serverHealthy ? 'bg-ok ring-ok-soft' : 'bg-ink-3 ring-surface-3'}`}
-          />
-          {/* 加载中 / 请求失败时连同版本号一并隐藏，只留灰点，避免展示 `v...` 这类无效版本 */}
-          {!collapsed && serverHealthy && (
-            <a
-              href="https://github.com/TsinHzl/kiro2cc-proxy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="truncate text-[10.5px] text-ink-3 hover:text-brand transition-colors"
-            >
-              kiro2cc-proxy v{serverInfo.version}
-              {hasUpdate && (
-                <span
-                  className="ml-1 inline-block h-2 w-2 rounded-full bg-danger align-super"
-                  title={t('dashboard.updateAvailable')}
-                  aria-label={t('dashboard.updateAvailable')}
-                />
-              )}
-            </a>
-          )}
           <Button
             variant="ghost"
             size="icon"
-            className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger ${collapsed ? '' : 'ml-auto'}`}
+            className="h-7 w-7 shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger"
             onClick={handleLogout}
             title={t('common.logout')}
             aria-label={t('common.logout')}

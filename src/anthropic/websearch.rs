@@ -80,8 +80,6 @@ pub struct McpContent {
 #[allow(dead_code)]
 pub struct WebSearchResults {
     pub results: Vec<WebSearchResult>,
-    #[serde(rename = "totalResults")]
-    pub total_results: Option<i32>,
     pub query: Option<String>,
     pub error: Option<String>,
 }
@@ -93,14 +91,7 @@ pub struct WebSearchResult {
     pub title: String,
     pub url: String,
     pub snippet: Option<String>,
-    #[serde(rename = "publishedDate")]
-    pub published_date: Option<i64>,
     pub id: Option<String>,
-    pub domain: Option<String>,
-    #[serde(rename = "maxVerbatimWordLimit")]
-    pub max_verbatim_word_limit: Option<i32>,
-    #[serde(rename = "publicDomain")]
-    pub public_domain: Option<bool>,
 }
 
 /// 检查请求是否为纯 WebSearch 请求
@@ -746,13 +737,8 @@ mod tests {
                 title: "Test Result".to_string(),
                 url: "https://example.com".to_string(),
                 snippet: Some("This is a test snippet".to_string()),
-                published_date: None,
                 id: None,
-                domain: None,
-                max_verbatim_word_limit: None,
-                public_domain: None,
             }],
-            total_results: Some(1),
             query: Some("test".to_string()),
             error: None,
         };

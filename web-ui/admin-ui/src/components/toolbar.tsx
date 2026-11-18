@@ -168,7 +168,8 @@ export interface ToggleProps {
 /**
  * 开关（设计稿 logbar 右侧 34×19 switch）：整体为一个 role="switch" 按钮，标签文字含在按钮内 ——
  * 若用 <label> 包 <button>，点击标签会被浏览器转发给按钮而触发两次。
- * 未复用 ui/switch.tsx：其 h-6 w-11 与设计稿尺寸不符且配色未适配设计令牌，且全站无调用点。
+ * 不复用 Radix Switch 组件：其 h-6 w-11 与设计稿尺寸不符且配色未适配设计令牌，
+ * 且全站无调用点（原 ui/switch.tsx 已随之移除）。
  */
 export function Toggle({ checked, onChange, label }: ToggleProps) {
   return (

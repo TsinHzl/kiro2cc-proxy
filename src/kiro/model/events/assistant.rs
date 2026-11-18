@@ -31,8 +31,8 @@ impl EventPayload for ReasoningContentEvent {
 ///
 /// # 设计说明
 ///
-/// 此结构体只保留实际使用的 `content` 字段，其他 API 返回的字段
-/// 通过 `#[serde(flatten)]` 捕获到 `extra` 中，确保反序列化不会失败。
+/// 此结构体只保留实际使用的 `content` 与 `model_id` 字段；其他 API 返回的
+/// 未知字段由 serde 默认忽略，不影响反序列化。
 ///
 /// # 示例
 ///
@@ -43,7 +43,7 @@ impl EventPayload for ReasoningContentEvent {
 /// let event: AssistantResponseEvent = serde_json::from_str(json).unwrap();
 /// assert_eq!(event.content, "Hello, world!");
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistantResponseEvent {
     /// 响应内容片段
@@ -53,27 +53,11 @@ pub struct AssistantResponseEvent {
     /// 模型 ID（如 "claude-sonnet-4.6"、"deepseek-3.2"）
     #[serde(default)]
     pub model_id: String,
-
-    /// 捕获其他未使用的字段，确保反序列化兼容性
-    #[serde(flatten)]
-    #[serde(skip_serializing)]
-    #[allow(dead_code)]
-    extra: serde_json::Value,
 }
 
 impl EventPayload for AssistantResponseEvent {
     fn from_frame(frame: &Frame) -> ParseResult<Self> {
         frame.payload_as_json()
-    }
-}
-
-impl Default for AssistantResponseEvent {
-    fn default() -> Self {
-        Self {
-            content: String::new(),
-            model_id: String::new(),
-            extra: serde_json::Value::Null,
-        }
     }
 }
 
@@ -124,18 +108,14 @@ mod tests {
 
     #[test]
     fn test_serialize_minimal() {
-        let event = AssistantResponseEvent::default();
         let event = AssistantResponseEvent {
             content: "Test".to_string(),
             model_id: "claude-sonnet-4.6".to_string(),
-            ..event
         };
 
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"content\":\"Test\""));
         assert!(json.contains("\"modelId\":\"claude-sonnet-4.6\""));
-        // extra 字段不应该被序列化
-        assert!(!json.contains("extra"));
     }
 
     #[test]

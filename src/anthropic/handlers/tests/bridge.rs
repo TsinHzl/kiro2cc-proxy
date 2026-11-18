@@ -372,13 +372,8 @@ pub(crate) mod tests {
                 title: "Rust 官方文档".to_string(),
                 url: "https://doc.rust-lang.org".to_string(),
                 snippet: Some("The Rust programming language".to_string()),
-                published_date: None,
                 id: None,
-                domain: None,
-                max_verbatim_word_limit: None,
-                public_domain: None,
             }],
-            total_results: Some(1),
             query: Some("rust".to_string()),
             error: None,
         }

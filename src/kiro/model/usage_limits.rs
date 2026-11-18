@@ -10,7 +10,8 @@ use serde::Deserialize;
 /// 使用额度查询响应
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-// 对齐 KAM 完整响应模型的全量镜像：部分字段暂无读取方，保留供后续详情扩展，非遗漏
+// 仅保留当前消费方实际读取的 KAM 响应字段：已裁掉 overageCapability /
+// displayNamePlural 等无读取方字段；上游多返回的键由 serde 默认忽略
 #[allow(dead_code)]
 pub struct UsageLimitsResponse {
     /// 下次重置日期 (Unix 时间戳)
@@ -52,10 +53,6 @@ pub struct SubscriptionInfo {
     /// 可升级能力 (UPGRADE_CAPABLE 等)
     #[serde(default)]
     pub upgrade_capability: Option<String>,
-
-    /// 超额能力
-    #[serde(default)]
-    pub overage_capability: Option<String>,
 }
 
 /// 用户信息
@@ -98,10 +95,6 @@ pub struct UsageBreakdown {
     /// 资源显示名 (Credit)
     #[serde(default)]
     pub display_name: Option<String>,
-
-    /// 资源显示名复数 (Credits)
-    #[serde(default)]
-    pub display_name_plural: Option<String>,
 
     /// 币种 (USD)
     #[serde(default)]

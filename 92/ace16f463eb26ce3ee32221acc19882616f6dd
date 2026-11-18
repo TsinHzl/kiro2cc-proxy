@@ -1,0 +1,36 @@
+web-ui/admin-ui/src/components/dashboard/sidebar.tsx
+  f545c360e30d64de 88,93-110,113-147,150,243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "92ace16f463eb26ce3ee32221acc19882616f6dd",
+  "prompts": {
+    "8c316b7e5ba73d27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e56b17ce-8440-4ea7-84b7-ce9a2c3fa9ae",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 152,
+      "overriden_lines": 0
+    },
+    "f545c360e30d64de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73d919d8-00fd-408d-9188-58bec88bab30",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 56,
+      "total_deletions": 47,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}

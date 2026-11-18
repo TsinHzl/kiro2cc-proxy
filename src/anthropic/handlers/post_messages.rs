@@ -232,11 +232,19 @@ pub async fn post_messages(
     // 估算输入 tokens（复用上方已计算的 prefix_estimated_tokens，避免重复编码历史消息）
     // 先取出 thinking_enabled 判断所需字段，避免 payload.tools 等被移动后无法整体借用
     let thinking_enabled = resolve_thinking_enabled(&payload.model, &payload.thinking);
+    // 结构化输出请求（json_schema）：非流式路径据此校验 JSON，credits 汇总行也不能追加
+    let json_schema_requested = payload
+        .output_config
+        .as_ref()
+        .and_then(|c| c.format.as_ref())
+        .map(|f| f.format_type == "json_schema")
+        .unwrap_or(false);
     // credits 汇总行：须在 payload.messages / payload.tools 被 count_all_tokens 消费前判定
     let credits_footer = crate::anthropic::stream::credits_footer_request(
         &headers,
         &payload.messages,
         payload.tools.as_ref().is_some_and(|t| !t.is_empty()),
+        json_schema_requested,
     );
     // 每请求仅此一条 thinking 状态日志（流式 token 转发阶段不再输出）。
     // 双维度区分"客户端请求"与"实际生效"：
@@ -293,12 +301,6 @@ pub async fn post_messages(
         0.1,
     );
 
-    let json_schema_requested = payload
-        .output_config
-        .as_ref()
-        .and_then(|c| c.format.as_ref())
-        .map(|f| f.format_type == "json_schema")
-        .unwrap_or(false);
 
     // effort 级别（output_config 整体存在时取 effort 字符串，否则 None）
     let effort = payload.output_config.as_ref().map(|c| c.effort.clone());

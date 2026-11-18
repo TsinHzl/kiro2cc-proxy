@@ -44,6 +44,7 @@ pub use stream::{
     set_thinking_collapse, show_session_credits_enabled, thinking_as_text_enabled,
     thinking_collapse_enabled,
 };
+pub(crate) use stream::strip_credits_footer;
 
 #[cfg(test)]
 pub(crate) use converter::convert_request;

@@ -222,7 +222,7 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub thinking_collapse: bool,
 
-    /// 会话结束时在回复末尾展示 credits 汇总行（仅 Claude Code 客户端）
+    /// 会话结束时在回复末尾展示 credits 汇总行（所有客户端）
     ///
     /// 开启后，每次对话真正结束（stop_reason=end_turn）时追加一行
     /// `▸ Credits: turn 0.86 • session 8.73 | Time: 12s`，格式对齐 Kiro CLI：

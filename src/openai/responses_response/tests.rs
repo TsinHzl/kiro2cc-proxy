@@ -436,6 +436,28 @@ mod tests {
     }
 
     #[test]
+    fn compaction_summary_drops_credits_footer() {
+        // showSessionCredits 开启时，代理会在 end_turn 的文本末尾追加汇总行；
+        // 压缩摘要会被编码后回传并注入后续上下文，不能带着它
+        use base64::Engine as _;
+        let text = "摘要正文\n\n*▸ Credits: turn 0.86 • session 8.73 | Time: 12s*";
+        let mut conv = ResponsesStreamConverter::new_compaction("gpt-5.6-terra", HashSet::new());
+        let mut frames = Vec::new();
+        for (name, data) in text_block_events(text) {
+            frames.extend(conv.on_event(name, &data));
+        }
+        frames.extend(conv.finish());
+        let done = parse_all(&frames)
+            .into_iter()
+            .find(|(n, d)| n == "response.output_item.done" && d["item"]["type"] == "compaction")
+            .expect("应产出 compaction item");
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(done.1["item"]["encrypted_content"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(String::from_utf8(decoded).unwrap(), "摘要正文");
+    }
+
+    #[test]
     fn finish_is_idempotent() {
         let mut conv = ResponsesStreamConverter::new("gpt-5.6-terra", HashSet::new());
         conv.on_event("message_start", &json!({"message": {"id": "msg_up"}}));

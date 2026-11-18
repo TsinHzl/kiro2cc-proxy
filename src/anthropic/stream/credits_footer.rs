@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-//! 会话结束时在回复末尾追加 credits 汇总行（opt-in，仅 Claude Code 客户端）
+//! 会话结束时在回复末尾追加 credits 汇总行（opt-in，所有客户端；非 Claude Code 客户端用 Markdown 样式）
 //!
 //! 效果对齐 Kiro CLI 每轮结束后的统计行：
 //!
@@ -73,18 +73,25 @@ pub struct CreditsFooterRequest {
 
 /// 判断本请求是否需要追加汇总行；不需要返回 `None`。
 ///
-/// 条件：开关开启、客户端是 Claude Code、请求带工具定义。
-/// 不带工具的请求是标题生成、对话压缩、建议预测等辅助调用，它们的输出会被客户端
-/// 当结构化数据解析，追加文本会破坏结果。
+/// 条件：开关开启，且请求没有要求结构化输出（`json_schema`，追加文本会破坏 JSON）。
+/// - Claude Code：还要求请求带工具定义。不带工具的请求是标题生成、对话压缩、建议预测等
+///   辅助调用，它们的输出会被客户端当结构化数据解析，追加文本会破坏结果。
+/// - 其他客户端（含 OpenAI 兼容端点翻译后的请求）：不要求带工具，普通对话客户端本来就不带；
+///   固定用无转义的 Markdown 斜体，因为无法确认对方是否解析 ANSI。
 pub fn credits_footer_request(
     headers: &axum::http::HeaderMap,
     messages: &[Message],
     has_tools: bool,
+    structured_output: bool,
 ) -> Option<CreditsFooterRequest> {
-    if !show_session_credits_enabled() || !has_tools {
+    if !show_session_credits_enabled() || structured_output {
         return None;
     }
-    let style = thinking_text_style(headers)?;
+    let style = match thinking_text_style(headers) {
+        Some(style) if has_tools => style,
+        Some(_) => return None,
+        None => ThinkingTextStyle::Plain,
+    };
     Some(CreditsFooterRequest {
         style,
         new_turn: is_new_user_turn(messages),
@@ -823,25 +830,39 @@ mod tests {
     }
 
     #[test]
-    fn request_disabled_without_switch_tools_or_claude_code() {
+    fn request_gating_by_switch_tools_client_and_structured_output() {
         let mut headers = axum::http::HeaderMap::new();
         headers.insert(
             axum::http::header::USER_AGENT,
             "claude-cli/2.1.231 (external, cli)".parse().unwrap(),
         );
         let msgs = [msg("user", json!("hi"))];
+        let other = axum::http::HeaderMap::new();
 
         set_show_session_credits(false);
-        assert!(credits_footer_request(&headers, &msgs, true).is_none());
+        assert!(credits_footer_request(&headers, &msgs, true, false).is_none());
+        assert!(credits_footer_request(&other, &msgs, true, false).is_none());
 
         set_show_session_credits(true);
-        // 无工具定义：辅助请求，不追加
-        assert!(credits_footer_request(&headers, &msgs, false).is_none());
-        // 非 Claude Code 客户端
-        assert!(credits_footer_request(&axum::http::HeaderMap::new(), &msgs, true).is_none());
-        let req = credits_footer_request(&headers, &msgs, true).unwrap();
+        // Claude Code 无工具定义：辅助请求，不追加
+        assert!(credits_footer_request(&headers, &msgs, false, false).is_none());
+        let req = credits_footer_request(&headers, &msgs, true, false).unwrap();
         assert_eq!(req.style, ThinkingTextStyle::Ansi);
         assert!(req.new_turn);
+
+        // 其他客户端：带不带工具都追加，固定无转义的 Markdown 样式
+        for has_tools in [true, false] {
+            let req = credits_footer_request(&other, &msgs, has_tools, false).unwrap();
+            assert_eq!(req.style, ThinkingTextStyle::Plain);
+            assert!(req.new_turn);
+        }
+        let mut codex = axum::http::HeaderMap::new();
+        codex.insert(axum::http::header::USER_AGENT, "codex/1.0".parse().unwrap());
+        assert!(credits_footer_request(&codex, &msgs, true, false).is_some());
+
+        // 结构化输出：任何客户端都不追加
+        assert!(credits_footer_request(&headers, &msgs, true, true).is_none());
+        assert!(credits_footer_request(&other, &msgs, true, true).is_none());
 
         set_show_session_credits(false);
     }

@@ -212,6 +212,8 @@ impl ResponsesStreamConverter {
             .collect::<Vec<_>>()
             .join("\n");
 
+        // 汇总行是代理追加的，不属于模型生成的摘要；摘要会被编码后回传并注入后续上下文
+        let summary = crate::anthropic::strip_credits_footer(summary.trim());
         let summary = summary.trim();
         if summary.is_empty() {
             tracing::warn!(

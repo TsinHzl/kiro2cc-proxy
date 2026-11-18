@@ -124,7 +124,7 @@ async fn main() {
     anthropic::set_show_session_credits(config.show_session_credits);
     if config.show_session_credits {
         tracing::info!(
-            "会话 credits 汇总行已开启（showSessionCredits=true）：Claude Code 每次对话结束时在末尾展示 turn / session 消耗"
+            "会话 credits 汇总行已开启（showSessionCredits=true）：每次对话结束时在回复末尾展示 turn / session 消耗"
         );
     }
     anthropic::set_write_chunking_max_lines(config.write_chunking_max_lines);

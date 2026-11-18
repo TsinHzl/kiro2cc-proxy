@@ -39,5 +39,8 @@
     "@swc/core@1.15.18": true,
     "esbuild@0.21.5": true,
     "fsevents@2.3.3": true
+  },
+  "overrides": {
+    "rollup": "4.68.4"
   }
 }

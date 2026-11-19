@@ -1,0 +1,59 @@
+web-ui/admin-ui/src/components/log-viewer-page.tsx
+  2d9d2f6c00cf5b32 14,347,509
+web-ui/admin-ui/src/components/api-key-detail-page.tsx
+  2d9d2f6c00cf5b32 10,110,219
+web-ui/admin-ui/src/components/theme-settings-page.tsx
+  2d9d2f6c00cf5b32 32,425
+web-ui/admin-ui/src/components/table-kit.tsx
+  2d9d2f6c00cf5b32 9-15
+web-ui/admin-ui/src/components/settings-panel.tsx
+  2d9d2f6c00cf5b32 9,341
+web-ui/admin-ui/src/components/docs-page.tsx
+  2d9d2f6c00cf5b32 28,457-458,762
+web-ui/user-ui/src/components/usage-log-page.tsx
+  2d9d2f6c00cf5b32 10,103
+web-ui/admin-ui/src/components/event-log-page.tsx
+  2d9d2f6c00cf5b32 10,130,225
+web-ui/admin-ui/src/components/credential-detail-page.tsx
+  2d9d2f6c00cf5b32 10,122,224
+web-ui/user-ui/src/components/dashboard.tsx
+  2d9d2f6c00cf5b32 21,154
+web-ui/admin-ui/src/components/daily-summary-page.tsx
+  2d9d2f6c00cf5b32 11,225,279-280
+web-ui/admin-ui/src/components/dashboard.tsx
+  2d9d2f6c00cf5b32 32,920,971
+web-ui/user-ui/src/components/table-kit.tsx
+  2d9d2f6c00cf5b32 7-10
+web-ui/admin-ui/src/components/daily-detail-page.tsx
+  2d9d2f6c00cf5b32 10,83,120
+web-ui/admin-ui/src/components/daily-stats-page.tsx
+  2d9d2f6c00cf5b32 11,143,164
+web-ui/user-ui/src/index.css
+  2d9d2f6c00cf5b32 175-184
+web-ui/admin-ui/src/components/changelog-page.tsx
+  2d9d2f6c00cf5b32 7,227,308
+web-ui/admin-ui/src/components/api-keys-panel.tsx
+  2d9d2f6c00cf5b32 22,566,742-743
+web-ui/admin-ui/src/components/model-list-page.tsx
+  2d9d2f6c00cf5b32 10,240,515
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "660bac915f09aa65fcf6738266d825162b0f5e82",
+  "prompts": {
+    "2d9d2f6c00cf5b32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8673ebce-3493-4386-afe0-bc4087139313",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 16,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}

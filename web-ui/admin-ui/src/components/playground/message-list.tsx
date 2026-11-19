@@ -15,6 +15,7 @@ import {
   RotateCw,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Pager } from '@/components/table-kit'
 import { copyToClipboard } from '@/lib/clipboard'
 import { formatMonthDayTime } from '@/lib/locale'
 import { toast } from '@/lib/toast'
@@ -25,6 +26,9 @@ import type { ChatMessage, WebSearchCall } from './types'
 
 /** 距底部小于该值视为「正在跟随最新消息」，新内容到达时自动滚到底 */
 const STICK_THRESHOLD_PX = 80
+
+/** 每页消息条数（用户与助手消息各算一条） */
+const MESSAGES_PER_PAGE = 100
 
 function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
@@ -336,43 +340,81 @@ interface MessageListProps {
 }
 
 export function MessageList({ messages, isGenerating, hasKey, onRegenerate }: MessageListProps) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
   const prevLengthRef = useRef(messages.length)
+  const pageChangedRef = useRef(false)
+  // 用户手动选的页码。默认跟随最后一页；记下选页时的消息数，消息数变化（发送 / 重新生成）后失效，
+  // 回到最后一页，与「新消息自动回到底部」的行为一致
+  const [picked, setPicked] = useState<{ page: number; length: number } | null>(null)
+
+  const totalPages = Math.max(1, Math.ceil(messages.length / MESSAGES_PER_PAGE))
+  const page =
+    picked && picked.length === messages.length ? Math.min(Math.max(1, picked.page), totalPages) : totalPages
+  const isLastPage = page === totalPages
+  const pageMessages = messages.slice((page - 1) * MESSAGES_PER_PAGE, page * MESSAGES_PER_PAGE)
+
+  const updateStick = (el: HTMLDivElement) => {
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX
+  }
 
   useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
+    // 手动翻页：从新一页的顶部开始阅读
+    if (pageChangedRef.current) {
+      pageChangedRef.current = false
+      prevLengthRef.current = messages.length
+      el.scrollTop = 0
+      updateStick(el)
+      return
+    }
     // 新增消息（用户刚发送 / 重新生成）时无条件回到底部；流式追加只在用户没有上滚时跟随
     if (messages.length > prevLengthRef.current) stickRef.current = true
     prevLengthRef.current = messages.length
-    if (stickRef.current) el.scrollTop = el.scrollHeight
-  }, [messages])
+    if (isLastPage && stickRef.current) el.scrollTop = el.scrollHeight
+  }, [messages, page, isLastPage])
 
   const handleScroll = () => {
     const el = containerRef.current
-    if (!el) return
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX
+    if (el) updateStick(el)
+  }
+
+  const handlePage = (next: number) => {
+    if (next === page) return
+    pageChangedRef.current = true
+    setPicked({ page: next, length: messages.length })
   }
 
   const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto h-full w-full px-4 py-4 md:w-[95%] md:px-0">
-        {messages.length === 0 ? (
-          <EmptyState hasKey={hasKey} />
-        ) : (
-          messages.map((m) => (
-            <MessageItem
-              key={m.id}
-              message={m}
-              canRegenerate={!isGenerating && m.id === lastAssistantId}
-              onRegenerate={onRegenerate}
-            />
-          ))
-        )}
+    <>
+      <div ref={containerRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto h-full w-full px-4 py-4 md:w-[95%] md:px-0">
+          {messages.length === 0 ? (
+            <EmptyState hasKey={hasKey} />
+          ) : (
+            pageMessages.map((m) => (
+              <MessageItem
+                key={m.id}
+                message={m}
+                canRegenerate={!isGenerating && m.id === lastAssistantId}
+                onRegenerate={onRegenerate}
+              />
+            ))
+          )}
+        </div>
       </div>
-    </div>
+      {totalPages > 1 && (
+        <div className="flex shrink-0 items-center justify-center gap-3 border-t-[0.5px] border-hairline px-4 py-1.5">
+          <span className="text-[11.5px] tabular-nums text-ink-3">
+            {t('common.pageInfoSimple', { current: page, total: totalPages })}
+          </span>
+          <Pager page={page} totalPages={totalPages} onPage={handlePage} />
+        </div>
+      )}
+    </>
   )
 }

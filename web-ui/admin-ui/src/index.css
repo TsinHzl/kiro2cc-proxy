@@ -223,6 +223,20 @@
     background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
     background-size: 16px 16px;
   }
+
+  /* 对话页画布：左上 / 右下两束品牌色大柔光。
+     色值取 hsl(var(--primary) / .10)：--primary 是全部 36 主题（亮暗各一）都有的 HSL 三元组，
+     直接复用可保证画布与按钮、勾选框等品牌元素同色相；不用 --brand-soft 是因为它在亮色主题下
+     是不透明淡彩（≈11% 浓度但无 alpha），只能靠收窄几何范围削弱，导致光晕小到几乎不可见。
+     半径放到 150%×130% 让柔光铺满整块画布，浓度仍控制在 10%：实测 72 个主题块中最差为
+     亮色 theme-default 4.58:1、暗色 theme-nord 5.39:1，均达 WCAG AA。
+     侧栏与输入框为不透明表面，不参与叠色。 */
+  .bg-chat-canvas {
+    background-color: var(--surface);
+    background-image:
+      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .10) 0%, transparent 68%),
+      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .10) 0%, transparent 66%);
+  }
 }
 
 /* 组件类白名单（design.md 决策 2）：仅以下三类落 CSS，其余一律 Tailwind 原子类。

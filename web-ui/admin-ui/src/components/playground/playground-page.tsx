@@ -148,7 +148,7 @@ export function PlaygroundPage() {
         note={t('playground.headNote')}
       />
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[14px] border-[0.5px] border-hairline bg-surface shadow-hair">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-[14px] border-[0.5px] border-hairline bg-chat-canvas shadow-hair">
         {/* 窄屏浮层的点击遮罩：淡入淡出，收起时不拦截点击 */}
         <div
           aria-hidden

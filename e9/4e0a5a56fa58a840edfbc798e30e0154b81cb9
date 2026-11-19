@@ -1,0 +1,35 @@
+web-ui/admin-ui/src/components/dashboard.tsx
+  2d9d2f6c00cf5b32 807-810
+web-ui/user-ui/src/components/usage-log-page.tsx
+  2d9d2f6c00cf5b32 83
+web-ui/admin-ui/src/index.css
+  2d9d2f6c00cf5b32 240-276
+web-ui/admin-ui/src/components/changelog-page.tsx
+  2d9d2f6c00cf5b32 204
+web-ui/admin-ui/src/components/docs-page.tsx
+  2d9d2f6c00cf5b32 417
+web-ui/user-ui/src/index.css
+  2d9d2f6c00cf5b32 175-194
+web-ui/user-ui/src/components/dashboard.tsx
+  2d9d2f6c00cf5b32 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e94e0a5a56fa58a840edfbc798e30e0154b81cb9",
+  "prompts": {
+    "2d9d2f6c00cf5b32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8673ebce-3493-4386-afe0-bc4087139313",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 5,
+      "accepted_lines": 65,
+      "overriden_lines": 0
+    }
+  }
+}

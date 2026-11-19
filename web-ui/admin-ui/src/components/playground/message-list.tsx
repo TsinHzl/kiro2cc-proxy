@@ -242,7 +242,7 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
         )}
         {message.content !== '' && (
           <>
-            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-surface-3 px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
+            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] bg-[color-mix(in_srgb,var(--surface-3)_40%,transparent)] px-3.5 py-2.5 text-[13.5px] leading-[1.7] text-ink">
               {message.content}
             </div>
             {/* 悬停或键盘聚焦时显示；触屏设备没有悬停，始终显示 */}

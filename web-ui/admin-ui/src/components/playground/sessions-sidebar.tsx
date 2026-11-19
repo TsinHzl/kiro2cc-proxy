@@ -39,7 +39,7 @@ export function SessionsSidebar({
           type="button"
           onClick={onNew}
           disabled={locked}
-          className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border-[0.5px] border-hairline-2 bg-surface text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink disabled:pointer-events-none disabled:opacity-50"
+          className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border-[0.5px] border-hairline-2 bg-transparent text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-[color-mix(in_srgb,var(--surface-3)_40%,transparent)] hover:text-ink disabled:pointer-events-none disabled:opacity-50"
         >
           <MessageSquarePlus className="size-4 shrink-0" />
           <span className="truncate">{t('playground.newChat')}</span>
@@ -81,7 +81,7 @@ export function SessionsSidebar({
                     disabled={locked && !active}
                     aria-current={active || undefined}
                     className={`block w-full rounded-lg py-2 pl-3 pr-9 text-left transition-colors disabled:pointer-events-none disabled:opacity-60 ${
-                      active ? 'bg-brand-soft' : 'hover:bg-surface-3'
+                      active ? 'bg-brand-soft' : 'hover:bg-[color-mix(in_srgb,var(--brand-soft)_60%,transparent)]'
                     }`}
                   >
                     <div className={`truncate text-[13px] ${active ? 'font-semibold text-ink' : 'text-ink-2'}`}>

@@ -22,6 +22,22 @@ pub const OUTCOME_CLIENT_ABORTED: &str = "client_aborted";
 /// 失败原因的最大保留字符数（按字符截断，避免切断多字节字符）
 const MAX_ERROR_MESSAGE_CHARS: usize = 300;
 
+/// `record_outcome` 的可选入参（与 `RecordOptions` 同构，避免位置参数膨胀）
+///
+/// token、费用恒为 0、credits 恒为 None，故不在此列；`first_token_ms` 仅流式请求在已有
+/// 首字后才有值。
+#[derive(Debug, Clone, Default)]
+pub struct OutcomeOptions {
+    pub error_message: Option<String>,
+    pub credential_id: Option<u64>,
+    pub client_ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub effort: Option<String>,
+    pub is_stream: bool,
+    pub first_token_ms: Option<u64>,
+    pub duration_ms: Option<u64>,
+}
+
 fn truncate_message(message: &str) -> String {
     let mut chars = message.trim().chars();
     let head: String = chars.by_ref().take(MAX_ERROR_MESSAGE_CHARS).collect();
@@ -34,23 +50,23 @@ fn truncate_message(message: &str) -> String {
 
 impl UsageTracker {
     /// 记录一条失败 / 客户端取消的请求（只写明细，不动日汇总）
-    ///
-    /// token、费用恒为 0，credits 为 None；`first_token_ms` 仅流式请求在已有首字后才有值。
-    #[allow(clippy::too_many_arguments)]
     pub fn record_outcome(
         &self,
         api_key_id: u32,
         model: String,
         outcome: &str,
-        error_message: Option<&str>,
-        credential_id: Option<u64>,
-        client_ip: Option<String>,
-        user_agent: Option<String>,
-        effort: Option<String>,
-        is_stream: bool,
-        first_token_ms: Option<u64>,
-        duration_ms: Option<u64>,
+        options: OutcomeOptions,
     ) {
+        let OutcomeOptions {
+            error_message,
+            credential_id,
+            client_ip,
+            user_agent,
+            effort,
+            is_stream,
+            first_token_ms,
+            duration_ms,
+        } = options;
         self.push_record(UsageRecord {
             api_key_id,
             credential_id,
@@ -72,7 +88,7 @@ impl UsageTracker {
             is_stream: Some(is_stream),
             user_agent,
             outcome: Some(outcome.to_string()),
-            error_message: error_message.map(truncate_message),
+            error_message: error_message.as_deref().map(truncate_message),
         });
     }
 }
@@ -154,14 +170,16 @@ impl RequestGuard {
             self.api_key_id,
             self.model.clone(),
             outcome,
-            message,
-            self.credential_id,
-            self.client_ip.take(),
-            self.user_agent.take(),
-            self.effort.take(),
-            self.is_stream,
-            self.first_token_ms,
-            Some(self.started_at.elapsed().as_millis() as u64),
+            OutcomeOptions {
+                error_message: message.map(str::to_string),
+                credential_id: self.credential_id,
+                client_ip: self.client_ip.take(),
+                user_agent: self.user_agent.take(),
+                effort: self.effort.take(),
+                is_stream: self.is_stream,
+                first_token_ms: self.first_token_ms,
+                duration_ms: Some(self.started_at.elapsed().as_millis() as u64),
+            },
         );
     }
 }

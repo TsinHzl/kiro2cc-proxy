@@ -571,6 +571,9 @@ pub(crate) fn harvest_bridge_round(
             }
         }
         BridgeRoundOutcome::Failed(search_results) => {
+            // 调用方随后以 finished = true 丢弃 ctx，不会再走 generate_final_events；
+            // 不在此显式标记失败，守卫会在 Drop 时把上游故障误记为客户端取消
+            ctx.fail_request("Upstream web_search continuation failed");
             let mut events =
                 build_web_search_result_events(ctx, result_tool_use_id, &search_results);
             events.push(stream_interrupted_error_event());

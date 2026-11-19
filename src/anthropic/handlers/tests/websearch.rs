@@ -159,6 +159,48 @@ mod tests {
         assert_eq!(harvest.events[2].event, "error");
     }
 
+    #[tokio::test]
+    async fn test_harvest_bridge_round_failed_records_failure_not_client_abort() {
+        // Failed 收尾后 ctx 被直接丢弃：必须记为 failed 且只有一条记录，
+        // 不能让守卫在 Drop 时把上游故障误记为客户端取消
+        let dir =
+            std::env::temp_dir().join(format!("kiro2cc_bridge_fail_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tracker = std::sync::Arc::new(
+            crate::model::usage::UsageTracker::load(dir.join("api_key_usage.json")).unwrap(),
+        );
+        let guard = crate::model::usage::RequestGuard::new(
+            Some(&tracker),
+            Some(1),
+            "claude-sonnet-4",
+            true,
+            std::time::Instant::now(),
+            None,
+            None,
+        );
+        let mut ctx = StreamContext::new_with_thinking("claude-sonnet-4", 1000, false)
+            .with_request_guard(guard);
+
+        let harvest = harvest_bridge_round(
+            BridgeRoundOutcome::Failed(Some(sample_search_results())),
+            "tu-fail-2",
+            &mut ctx,
+        );
+        assert!(harvest.finished);
+        drop(ctx);
+
+        let records = tracker
+            .get_records_paged(1, 1, 50, &std::collections::HashMap::new())
+            .records;
+        assert_eq!(records.len(), 1, "只应有一条结果记录");
+        assert_eq!(records[0].outcome.as_deref(), Some("failed"));
+        assert_eq!(
+            records[0].error_message.as_deref(),
+            Some("Upstream web_search continuation failed")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn test_harvest_bridge_round_panic_fallback_empty_results() {
         // 后台任务 panic 兜底 = Failed(None) → 空数组结果块 + error 收尾，

@@ -1595,7 +1595,7 @@ mod tests {
     // ---- 失败 / 客户端取消记录 ----
 
     use crate::model::usage::RequestGuard;
-    use crate::model::usage::outcome::{OUTCOME_CLIENT_ABORTED, OUTCOME_FAILED};
+    use crate::model::usage::outcome::{OUTCOME_CLIENT_ABORTED, OUTCOME_FAILED, OutcomeOptions};
     use std::sync::Arc;
 
     fn guard_for(tracker: &Arc<UsageTracker>) -> RequestGuard {
@@ -1630,27 +1630,23 @@ mod tests {
             7,
             "claude-opus-4.6".to_string(),
             OUTCOME_FAILED,
-            Some("boom"),
-            Some(3),
-            None,
-            None,
-            None,
-            true,
-            None,
-            Some(120),
+            OutcomeOptions {
+                error_message: Some("boom".to_string()),
+                credential_id: Some(3),
+                is_stream: true,
+                duration_ms: Some(120),
+                ..Default::default()
+            },
         );
         tracker.record_outcome(
             7,
             "claude-opus-4.6".to_string(),
             OUTCOME_CLIENT_ABORTED,
-            None,
-            None,
-            None,
-            None,
-            None,
-            false,
-            Some(50),
-            Some(80),
+            OutcomeOptions {
+                first_token_ms: Some(50),
+                duration_ms: Some(80),
+                ..Default::default()
+            },
         );
 
         let summary = tracker.get_summary(7);
@@ -1691,14 +1687,11 @@ mod tests {
             1,
             "m".to_string(),
             OUTCOME_FAILED,
-            Some(&long),
-            None,
-            None,
-            None,
-            None,
-            true,
-            None,
-            None,
+            OutcomeOptions {
+                error_message: Some(long),
+                is_stream: true,
+                ..Default::default()
+            },
         );
         let page = tracker.get_records_paged(1, 1, 10, &HashMap::new());
         let msg = page.records[0].error_message.clone().unwrap();

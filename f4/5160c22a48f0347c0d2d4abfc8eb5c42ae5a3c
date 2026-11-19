@@ -1,0 +1,38 @@
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  2d9d2f6c00cf5b32 151
+web-ui/admin-ui/src/index.css
+  2d9d2f6c00cf5b32 226-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f45160c22a48f0347c0d2d4abfc8eb5c42ae5a3c",
+  "prompts": {
+    "2d9d2f6c00cf5b32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8673ebce-3493-4386-afe0-bc4087139313",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 1,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "ef5943f39f5a4f22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "699f4587-86aa-4399-b6e6-d8258eeca7a6",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 121,
+      "total_deletions": 105,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}

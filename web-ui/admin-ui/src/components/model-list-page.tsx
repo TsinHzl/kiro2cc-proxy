@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, UpdatedAgo } from '@/components/toolbar'
-import { CELL, ICON_BTN, PANEL, PANEL_FOOT, TH_BASE } from '@/components/table-kit'
+import { CELL, ICON_BTN, PANEL, PANEL_FOOT, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { TAG_BASE } from '@/components/api-key-row'
 import { useModels } from '@/hooks/use-credentials'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -382,7 +382,7 @@ export function ModelListPage() {
                 groups.map((group) => (
                   <Fragment key={group.name}>
                     {/* 设计稿 .grp 分组行：家族名 + 数量 + 该组倍率区间 */}
-                    <tr className="bg-surface-2">
+                    <tr className="bg-[color-mix(in_srgb,var(--surface-2)_45%,transparent)]">
                       <td colSpan={COLUMN_WIDTHS.length - 2} className="border-b-[0.5px] border-hairline px-3 py-[7px]">
                         <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">
                           <Boxes className="size-[13px] flex-none text-ink-3" strokeWidth={1.7} aria-hidden="true" />
@@ -405,7 +405,7 @@ export function ModelListPage() {
                       const barWidth = rate != null && maxRate > 0 ? (rate / maxRate) * 100 : 0
                       const isTop = rate != null && maxRate > 0 && rate >= maxRate
                       return (
-                        <tr key={model.id} className="transition-colors hover:bg-surface-2">
+                        <tr key={model.id} className={ROW_HOVER}>
                           <td className={CELL}>
                             <span className="font-mono text-[11px] tabular-nums text-ink-3">
                               {String(serials.get(model.id) ?? 0).padStart(2, '0')}

@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, ChevronsUpDown, SearchX } from 'lucide-react'
-import { DataCheckbox, TH_BASE } from '@/components/table-kit'
+import { DataCheckbox, PANEL, TH_BASE } from '@/components/table-kit'
 import type { AccountSortKey, SortDirection } from '@/lib/account-state'
 
 /** 列宽（设计稿 colgroup）：账号列为 undefined = auto，吃掉剩余宽度 */
@@ -61,7 +61,7 @@ export function AccountTable({
   const { t } = useTranslation()
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
+    <section className={`flex min-h-0 flex-1 flex-col ${PANEL}`}>
       {/* .tscroll：sticky 表头依赖这里的滚动容器。整页撑满的 flex 外壳不在本轮范围，
           先用视口比例给出滚动上限（每页 50 行时必然触发内滚） */}
       <div className="max-h-[70vh] min-h-0 flex-1 overflow-y-auto">

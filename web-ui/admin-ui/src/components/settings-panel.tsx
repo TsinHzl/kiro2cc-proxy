@@ -25,8 +25,8 @@ import { LANG_STORAGE_KEY } from '@/i18n'
 /** 分区标题（设计稿 .set-cap） */
 const SET_CAP =
   'flex items-center gap-1.5 px-0.5 pb-2 text-[10.5px] font-semibold uppercase tracking-[.08em] text-ink-3'
-/** 分区卡片（设计稿 .set-card） */
-const SET_CARD = 'overflow-hidden rounded-lg border border-transparent bg-surface shadow-hair'
+/** 分区卡片（设计稿 .set-card）：复用画布渐变 */
+const SET_CARD = 'overflow-hidden rounded-lg border border-transparent bg-chat-canvas shadow-hair'
 /** 配置行（设计稿 .set-row） */
 const SET_ROW = 'flex items-center gap-4 border-b-[0.5px] border-hairline px-4 py-[13px] last:border-b-0'
 /** 行键名（设计稿 .set-k） */

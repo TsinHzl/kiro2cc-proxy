@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
 import { Boxes, FileText, Lightbulb, LightbulbOff, MoreHorizontal, Pencil, Power, RefreshCw, Trash2, Wallet } from 'lucide-react'
 import { EditCredentialDialog } from '@/components/edit-credential-dialog'
-import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
+import { CELL, DataCheckbox, ICON_BTN, ROW_HOVER } from '@/components/table-kit'
 import { Button } from '@/components/ui/button'
 import { QuotaPercentBadge, quotaTone } from '@/components/ui/progress'
 import {
@@ -167,7 +167,7 @@ export function AccountRow({
     // 禁用行降权排除末列：父级 opacity 无法被子元素撤销，故直接不降权操作列，
     // 满足「禁用行整行降权但操作控件保持可点击且不显灰」
     <tr
-      className={`transition-colors hover:bg-surface-2 ${
+      className={`${ROW_HOVER} ${
         credential.disabled ? '[&>td:not(:last-child)]:opacity-[.55]' : ''
       }`}
     >

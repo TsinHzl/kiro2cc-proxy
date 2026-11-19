@@ -2,7 +2,7 @@
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { FOOT_BTN, PAGER_BTN, pageWindow } from '@/components/table-kit'
+import { FOOT_BTN, PAGER_BTN, PANEL_FOOT, pageWindow } from '@/components/table-kit'
 
 export interface ApiKeyPanelFootProps {
   /** 跨页累计的已选数量；0 时左区整体不渲染 */
@@ -42,7 +42,7 @@ export function ApiKeyPanelFoot({
   const blockedReasonId = useId()
 
   return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-surface-2 px-[13px] py-[9px] text-[11.5px] text-ink-3">
+    <div className={PANEL_FOOT}>
       {selectedCount > 0 && (
         <>
           <span className="flex-none">{t('dashboard.selectedCount', { count: selectedCount })}</span>

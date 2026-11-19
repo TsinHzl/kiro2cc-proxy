@@ -3,19 +3,22 @@ import { useTranslation } from 'react-i18next'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { Check, ChevronLeft, ChevronRight, Minus } from 'lucide-react'
 
-/** 面板外壳（设计稿 .panel） */
-export const PANEL = 'overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel'
+/** 面板外壳（设计稿 .panel）：复用画布渐变 */
+export const PANEL = 'overflow-hidden rounded-[11px] border border-transparent bg-chat-canvas shadow-panel'
 
 /** 面板上方小标题（设计稿 .panel 前的段标题） */
 export const PANEL_TITLE = 'mb-[7px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3'
 
-/** 面板脚（设计稿 .panel-foot） */
+/** 面板脚（设计稿 .panel-foot）：半透明底色以便透出面板右下角柔光 */
 export const PANEL_FOOT =
-  'flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-surface-2 px-[13px] py-[9px] text-[11.5px] text-ink-3'
+  'flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_40%,transparent)] px-[13px] py-[9px] text-[11.5px] text-ink-3'
 
-/** 设计稿 thead th：10.5px 大写字距 .07em + surface-2 底 + sticky */
+/** 设计稿 thead th：10.5px 大写字距 .07em + 半透明磨砂底 + sticky，避免遮挡左上角柔光与滚动透字 */
 export const TH_BASE =
-  'sticky top-0 z-[2] whitespace-nowrap border-b-[0.5px] border-hairline bg-surface-2 px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3'
+  'sticky top-0 z-[2] whitespace-nowrap border-b-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)] px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3 backdrop-blur-md'
+
+/** 表格行悬停高亮：半透明底色以免遮挡面板画布渐变 */
+export const ROW_HOVER = 'transition-colors hover:bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)]'
 
 /** 单元格基线（设计稿 tbody td）：11px/12px 内边距 + 分隔线 + 垂直居中 */
 export const CELL = 'border-b-[0.5px] border-hairline px-3 py-[11px] align-middle'

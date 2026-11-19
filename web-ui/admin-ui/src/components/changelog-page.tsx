@@ -271,7 +271,7 @@ export function ChangelogPage({ onBack }: ChangelogPageProps) {
                   </div>
 
                   {note.groups.length > 0 && (
-                    <div className="mt-[9px] overflow-hidden rounded-[10px] border border-transparent bg-surface shadow-hair">
+                    <div className="mt-[9px] overflow-hidden rounded-[10px] border border-transparent bg-chat-canvas shadow-hair">
                       {note.groups.map((group, groupIdx) => {
                         const kind = kindOf(group)
                         const Icon = SECTION_ICON[kind]

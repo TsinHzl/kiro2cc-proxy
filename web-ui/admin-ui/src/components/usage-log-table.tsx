@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useTranslation } from 'react-i18next'
 import { Brain, DatabaseZap, Loader2, SearchX } from 'lucide-react'
-import { CELL, TH_BASE } from '@/components/table-kit'
+import { CELL, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { formatDateTime, formatTokenCount } from '@/lib/locale'
 import type { GeoInfo } from '@/hooks/use-ip-geo'
 import type { UsageRecord } from '@/types/api'
@@ -239,7 +239,7 @@ export function UsageLogTable({
             // 失败 / 客户端取消不计费，费用与 credits 列显示占位符而非 $0.0000
             const billed = record.outcome == null
             return (
-              <tr key={`${record.createdAt}-${record.model}-${idx}`} className="transition-colors hover:bg-surface-2">
+              <tr key={`${record.createdAt}-${record.model}-${idx}`} className={ROW_HOVER}>
                 <td className={`${CELL} whitespace-nowrap text-[11.5px] text-ink-2`}>
                   {formatDateTime(record.createdAt)}
                 </td>

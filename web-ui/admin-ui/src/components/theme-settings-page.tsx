@@ -129,7 +129,9 @@ function ThemeStyleCard({
       aria-label={t('themeSettings.selectTheme', { theme: name })}
       aria-describedby={`theme-description-${item.id}`}
       className={`relative rounded-lg border p-2 text-left transition-colors ${
-        active ? 'border-brand bg-brand-soft' : 'border-transparent bg-surface hover:bg-surface-2'
+        active
+          ? 'border-brand bg-brand-soft'
+          : 'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
       }`}
     >
       {item.recommended && (
@@ -188,7 +190,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
   ]
 
   return (
-    <div className="rounded-xl border border-transparent bg-surface-2 p-3">
+    <div className="rounded-xl border border-transparent bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[12px] font-medium text-ink">{t('themeSettings.previewTitle')}</p>
@@ -423,7 +425,7 @@ export function ThemeSettingsPage() {
 
       <div className="space-y-6">
         {/* 外观模式三卡 */}
-        <section aria-labelledby="appearance-modes-heading" className="rounded-xl border border-transparent bg-surface p-4">
+        <section aria-labelledby="appearance-modes-heading" className="rounded-xl border border-transparent bg-chat-canvas p-4">
           <h2 id="appearance-modes-heading" className="text-[13px] font-semibold text-ink">
             {t('themeSettings.modeTitle')}
           </h2>
@@ -438,7 +440,9 @@ export function ThemeSettingsPage() {
                   aria-pressed={active}
                   onClick={(e) => setThemeMode(option.id, e.clientX, e.clientY)}
                   className={`rounded-lg border p-3 text-left transition-colors ${
-                    active ? 'border-brand bg-brand-soft' : 'border-transparent bg-surface hover:bg-surface-2'
+                    active
+                      ? 'border-brand bg-brand-soft'
+                      : 'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
                   }`}
                 >
                   <AppearanceThumbnail swatch={getThemePreviewSwatch(activeItem, option.id)} />
@@ -458,7 +462,7 @@ export function ThemeSettingsPage() {
         </section>
 
         {/* 当前主题 + 实时预览 */}
-        <section aria-label={t('themeSettings.currentTheme', { theme: t(`common.theme.${activeItem.nameKey}`) })} className="rounded-xl border border-transparent bg-surface p-4">
+        <section aria-label={t('themeSettings.currentTheme', { theme: t(`common.theme.${activeItem.nameKey}`) })} className="rounded-xl border border-transparent bg-chat-canvas p-4">
           <div className="mb-3 flex items-center gap-2.5">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-soft text-brand">
               <Palette className="h-4 w-4" />
@@ -477,7 +481,7 @@ export function ThemeSettingsPage() {
         </section>
 
         {/* 主题库：搜索 + 分组筛选 + 网格 */}
-        <section aria-labelledby="styles-heading" className="rounded-xl border border-transparent bg-surface p-4">
+        <section aria-labelledby="styles-heading" className="rounded-xl border border-transparent bg-chat-canvas p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h2 id="styles-heading" className="text-[13px] font-semibold text-ink">
               {t('themeSettings.stylesTitle')}
@@ -495,7 +499,7 @@ export function ThemeSettingsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('themeSettings.searchPlaceholder')}
                 aria-label={t('themeSettings.searchLabel')}
-                className="w-full rounded-md border-[0.5px] border-hairline bg-surface py-1.5 pl-8 pr-8 text-[12px] text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
+                className="w-full rounded-md border-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface)_65%,transparent)] py-1.5 pl-8 pr-8 text-[12px] text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
               />
               {search && (
                 <button
@@ -520,7 +524,9 @@ export function ThemeSettingsPage() {
                   aria-pressed={active}
                   onClick={() => setGroup(f.id)}
                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                    active ? 'border-brand bg-brand text-brand-fg' : 'border-transparent bg-surface text-ink-2'
+                    active
+                      ? 'border-brand bg-brand text-brand-fg'
+                      : 'border-transparent bg-transparent text-ink-2 hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)]'
                   }`}
                 >
                   {f.icon && <f.icon className="h-3 w-3" />}

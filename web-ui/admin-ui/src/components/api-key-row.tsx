@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ChatGptIcon, ClaudeIcon } from '@/components/brand-icons'
-import { CELL, DataCheckbox, ICON_BTN } from '@/components/table-kit'
+import { CELL, DataCheckbox, ICON_BTN, ROW_HOVER } from '@/components/table-kit'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +112,7 @@ export function ApiKeyRow({
   const boundTitle = bound.map((b) => (b.balance ? `${b.label} ${b.balance}` : b.label)).join('\n')
 
   return (
-    <tr className={`transition-colors hover:bg-surface-2 ${dimmed ? '[&>td:not(:last-child)]:opacity-[.55]' : ''}`}>
+    <tr className={`${ROW_HOVER} ${dimmed ? '[&>td:not(:last-child)]:opacity-[.55]' : ''}`}>
       <td className={CELL}>
         <DataCheckbox
           checked={selected}

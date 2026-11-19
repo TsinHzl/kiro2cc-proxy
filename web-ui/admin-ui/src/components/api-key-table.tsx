@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, SearchX } from 'lucide-react'
-import { DataCheckbox, TH_BASE } from '@/components/table-kit'
+import { DataCheckbox, PANEL, TH_BASE } from '@/components/table-kit'
 
 /** 列宽（设计稿 #p-keys colgroup）：名称列为 undefined = auto，吃掉剩余宽度 */
 const COLUMN_WIDTHS: (number | undefined)[] = [34, undefined, 200, 88, 150, 168, 108, 76, 112, 124]
@@ -52,7 +52,7 @@ export function ApiKeyTable({
   const { t } = useTranslation()
   return (
     // min-h-[200px]：面板在数据未到达（空态/加载态）时先占住可用高度，避免数据到达后整页上移
-    <section className="mt-[13px] flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
+    <section className={`mt-[13px] flex min-h-[200px] flex-1 flex-col ${PANEL}`}>
       {/* .tscroll：sticky 表头依赖这里的滚动容器。
           md:max-h-none：桌面端由父级 flex 决定高度（面板内滚），70vh 上限只留给手机端内容流。
           md:min-h-0：矮桌面视口下允许表体收缩，否则最小高度会把兄弟节点页脚挤出外壳被裁剪。

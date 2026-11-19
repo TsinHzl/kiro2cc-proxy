@@ -133,8 +133,8 @@ function TerminalWindow({
   }
 
   return (
-    <div className="overflow-hidden rounded-[11px] border-[0.5px] border-hairline bg-surface shadow-panel">
-      <div className="flex h-10 items-center gap-3 border-b-[0.5px] border-hairline bg-surface-2 px-3.5">
+    <div className="overflow-hidden rounded-[11px] border-[0.5px] border-hairline bg-chat-canvas shadow-panel">
+      <div className="flex h-10 items-center gap-3 border-b-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] px-3.5">
         <span className="flex items-center gap-1.5" aria-hidden="true">
           {TRAFFIC_LIGHTS.map((color) => (
             <span key={color} className="size-[10px] rounded-full" style={{ backgroundColor: color }} />
@@ -501,7 +501,7 @@ print(resp.choices[0].message.content)`
                       key={key}
                       id={QUICK_STEP_ANCHORS[i]}
                       data-toc-id={QUICK_STEP_ANCHORS[i]}
-                      className="flex scroll-mt-32 flex-col rounded-[11px] border-[0.5px] border-hairline bg-surface p-4 shadow-panel"
+                      className="flex scroll-mt-32 flex-col rounded-[11px] border-[0.5px] border-hairline bg-chat-canvas p-4 shadow-panel"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[10px] font-bold tracking-[.14em] text-ink-3">
@@ -641,7 +641,7 @@ print(resp.choices[0].message.content)`
                 </TerminalWindow>
               </div>
 
-              <div className="mt-4 rounded-[11px] border-[0.5px] border-hairline bg-surface p-4 shadow-panel">
+              <div className="mt-4 rounded-[11px] border-[0.5px] border-hairline bg-chat-canvas p-4 shadow-panel">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className="text-[13px] font-semibold text-ink">{t('docs.ccSwitchTitle')}</h4>
@@ -681,7 +681,7 @@ print(resp.choices[0].message.content)`
           {guides
             .filter((g) => g.section === activeSection)
             .map((g) => (
-              <article key={g.id} id={g.id} className="docs-guide scroll-mt-32">
+              <article key={g.id} id={g.id} className="docs-guide bg-chat-canvas scroll-mt-32">
                 <div className="docs-guide-heading">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

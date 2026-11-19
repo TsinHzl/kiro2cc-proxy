@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
-import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { useCredentials } from '@/hooks/use-credentials'
 import { accountLabel } from '@/lib/account-state'
 import { extractErrorMessage } from '@/lib/utils'
@@ -177,7 +177,7 @@ export function EventLogPage({
                   </tr>
                 ) : (
                   records.map((record, idx) => (
-                    <tr key={`${record.createdAt}-${idx}`} className="transition-colors hover:bg-surface-2">
+                    <tr key={`${record.createdAt}-${idx}`} className={ROW_HOVER}>
                       <td className={`${CELL} whitespace-nowrap font-mono text-[11.5px] text-ink-2`}>
                         {formatDateTime(record.createdAt)}
                       </td>

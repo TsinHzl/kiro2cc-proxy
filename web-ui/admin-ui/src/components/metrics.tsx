@@ -37,7 +37,7 @@ export function MetricsBar({
   return (
     <CompactContext.Provider value={compact}>
       <section
-        className={`grid shrink-0 ${compact ? 'overflow-x-auto' : 'overflow-hidden'} rounded-[16px] border border-transparent bg-surface shadow-hair [&>*:last-child_.metric-divider]:hidden`}
+        className={`grid shrink-0 ${compact ? 'overflow-x-auto' : 'overflow-hidden'} rounded-[16px] border border-transparent bg-chat-canvas shadow-hair [&>*:last-child_.metric-divider]:hidden`}
         style={{ gridTemplateColumns: template }}
       >
         {children}
@@ -83,7 +83,7 @@ export function Metric({
     <button
       type="button"
       onClick={onClick}
-      className={`${shell} transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand`}
+      className={`${shell} transition-colors hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand`}
     >
       {inner}
     </button>

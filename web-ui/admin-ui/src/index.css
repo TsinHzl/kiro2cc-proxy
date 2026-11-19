@@ -224,13 +224,13 @@
     background-size: 16px 16px;
   }
 
-  /* 对话页画布：左上 / 右下两束品牌色大柔光。
+  /* 内容区画布：左上 / 右下两束品牌色大柔光（对话页及全站各页内容面板/卡片共用）。
      色值取 hsl(var(--primary) / .10)：--primary 是全部 36 主题（亮暗各一）都有的 HSL 三元组，
      直接复用可保证画布与按钮、勾选框等品牌元素同色相；不用 --brand-soft 是因为它在亮色主题下
      是不透明淡彩（≈11% 浓度但无 alpha），只能靠收窄几何范围削弱，导致光晕小到几乎不可见。
      半径放到 150%×130% 让柔光铺满整块画布，浓度仍控制在 10%：实测 72 个主题块中最差为
      亮色 theme-default 4.58:1、暗色 theme-nord 5.39:1，均达 WCAG AA。
-     侧栏为不透明表面，不参与叠色；输入框复用本类呈现同款渐变。 */
+     侧栏为不透明表面，不参与叠色；各页面内层表头/面板脚等改为半透明以免遮挡两角柔光。 */
   .bg-chat-canvas {
     background-color: var(--surface);
     background-image:
@@ -247,7 +247,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    background: var(--code-bg);
+    background: transparent;
     padding: 6px 0;
   }
   .logrow {
@@ -266,7 +266,7 @@
     contain-intrinsic-size: auto 17.25px;
   }
   .logrow:hover {
-    background: var(--surface-3);
+    background: color-mix(in srgb, var(--surface-3) 45%, transparent);
   }
   .logrow .ts {
     flex: none;
@@ -357,7 +357,7 @@
     top: 0;
     bottom: 0;
     z-index: 0;
-    background: var(--surface-3);
+    background: color-mix(in srgb, var(--surface-3) 45%, transparent);
     border-left: 0.5px dashed var(--hairline-2);
   }
   .plot-x {

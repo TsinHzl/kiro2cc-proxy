@@ -120,7 +120,7 @@ export function DailyCreditsTrendChart({ points }: { points: TrendPoint[] }) {
   )
 
   return (
-    <section className="shrink-0 overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
+    <section className="shrink-0 overflow-hidden rounded-[11px] border border-transparent bg-chat-canvas shadow-panel">
       {/* 设计稿 .chart-head */}
       <div className="flex flex-wrap items-center gap-2.5 px-4 pt-[13px]">
         <div>

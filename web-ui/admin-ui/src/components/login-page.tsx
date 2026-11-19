@@ -33,9 +33,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    // 登录页无设计稿，按已建立的令牌与原语推导：`bg` 页面底 + `.panel` 卡片 + `.field` + `.btn-primary`
+    // 登录页无设计稿，按已建立的令牌与原语推导：`bg` 页面底 + 画布渐变卡片 + `.field` + `.btn-primary`
     <div className="grid min-h-screen place-items-center bg-background p-4">
-      <div className="w-full max-w-[352px] rounded-[11px] border border-transparent bg-surface p-[26px] shadow-pop">
+      <div className="w-full max-w-[352px] rounded-[11px] border border-transparent bg-chat-canvas p-[26px] shadow-pop">
         {/* 品牌区：徽标与文案沿用侧栏同款 Aurora 徽标与字号比例，放大一档（30→40px） */}
         <div className="flex items-center gap-3">
           {/* 须走 BASE_URL 拼接（vite base 只重写 index.html 的 src，不重写 TS 字符串），详见 sidebar.tsx 注释 */}

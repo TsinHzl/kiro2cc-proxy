@@ -6,7 +6,8 @@ import { Check, ChevronRight, Copy } from 'lucide-react'
 import { copyToClipboard } from '@/lib/clipboard'
 import type { EndpointSpec } from './docsContent'
 
-const CODE_PANEL = 'overflow-hidden rounded-[10px] border-[0.5px] border-hairline bg-surface-2 shadow-panel'
+const CODE_PANEL =
+  'overflow-hidden rounded-[10px] border-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)] shadow-panel'
 const CODE_LABEL = 'flex h-[30px] items-center justify-between border-b-[0.5px] border-hairline px-3 text-[10.5px] font-semibold uppercase tracking-[.06em] text-ink-3'
 const CODE_PRE = 'overflow-x-auto p-3 font-mono text-[12px] leading-[1.65] text-ink-2'
 
@@ -115,12 +116,12 @@ export function EndpointDoc({ endpoint, activeId }: { endpoint: EndpointSpec; ac
 
   return (
     <article id={endpoint.id} className="scroll-mt-24">
-      <div className="overflow-hidden rounded-[11px] border-[0.5px] border-hairline bg-surface shadow-panel">
+      <div className="overflow-hidden rounded-[11px] border-[0.5px] border-hairline bg-chat-canvas shadow-panel">
         <button
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-3"
+          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)]"
         >
           <MethodBadge method={endpoint.method} />
           <TypeBadge kind={endpoint.kind} />
@@ -141,7 +142,7 @@ export function EndpointDoc({ endpoint, activeId }: { endpoint: EndpointSpec; ac
               <div className="overflow-x-auto rounded-[10px] border-[0.5px] border-hairline">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-surface-2 text-left text-[11px] font-semibold uppercase tracking-[.04em] text-ink-3">
+                    <tr className="bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] text-left text-[11px] font-semibold uppercase tracking-[.04em] text-ink-3">
                       <th className="px-2.5 py-2">{endpoint.paramHeaderName}</th>
                       <th className="px-2.5 py-2">{endpoint.paramHeaderType}</th>
                       <th className="px-2.5 py-2">{endpoint.paramHeaderRequired}</th>

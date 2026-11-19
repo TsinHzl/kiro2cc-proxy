@@ -8,7 +8,7 @@ import { DailyCreditsTrendChart } from '@/components/daily-credits-trend-chart'
 import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, Segmented, Toolbar, UpdatedAgo } from '@/components/toolbar'
-import { CELL, PANEL_FOOT, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, PANEL_FOOT, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { useDailyUsage } from '@/hooks/use-credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { localeTag } from '@/lib/locale'
@@ -435,7 +435,7 @@ function SummaryTable({
 
   return (
     /* 设计稿 .panel.is-static：不吃剩余高度、不内滚，custom 态最长 366 行随页面滚动 */
-    <section className="flex-none overflow-hidden rounded-[11px] border border-transparent bg-surface shadow-panel">
+    <section className={`flex-none ${PANEL}`}>
       <table className="w-full border-collapse text-[12.5px]">
         <colgroup>
           {COLUMN_WIDTHS.map((w, i) => (
@@ -486,7 +486,7 @@ function SummaryTable({
                 <tr
                   key={row.date}
                   onClick={() => onViewDay(row.date)}
-                  className="cursor-pointer transition-colors hover:bg-surface-2"
+                  className={`cursor-pointer ${ROW_HOVER}`}
                 >
                   <td className={CELL}>
                     <button

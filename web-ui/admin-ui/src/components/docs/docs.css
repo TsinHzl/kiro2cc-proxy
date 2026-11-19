@@ -123,7 +123,6 @@
 .docs-guide {
   border: 0.5px solid var(--hairline);
   border-radius: 11px;
-  background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -183,7 +182,7 @@
   border-collapse: collapse;
 }
 .docs-table-wrap th {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
   padding: 7px 10px;
   text-align: left;
   font-size: 11px;

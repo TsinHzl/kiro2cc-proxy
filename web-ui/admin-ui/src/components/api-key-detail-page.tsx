@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Metric, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { STATUS_VISUAL, TAG_BASE, type KeyStatus } from '@/components/api-key-row'
-import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { UsageLogTable, fallbackCredits, formatCost, getModelColor } from '@/components/usage-log-table'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
@@ -165,7 +165,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                 </thead>
                 <tbody className="[&_tr:last-child>td]:border-b-0">
                   {summary.byModel.map((m) => (
-                    <tr key={m.model} className="transition-colors hover:bg-surface-2">
+                    <tr key={m.model} className={ROW_HOVER}>
                       <td className={CELL}>
                         <span className={`font-mono text-[12px] ${getModelColor(m.model)}`}>{m.model}</span>
                       </td>

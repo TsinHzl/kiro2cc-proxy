@@ -4,7 +4,7 @@
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown } from 'lucide-react'
-import { CELL, PANEL, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { formatCost, getModelColor, recordCredits } from '@/components/usage-log-table'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { UsageRecord } from '@/types/api'
@@ -93,7 +93,7 @@ export function ModelAggPanel({ records }: { records: UsageRecord[] }) {
               </thead>
               <tbody className="[&_tr:last-child>td]:border-b-0">
                 {Object.entries(byModel).map(([model, m]) => (
-                  <tr key={model} className="transition-colors hover:bg-surface-2">
+                  <tr key={model} className={ROW_HOVER}>
                     <td className={CELL}>
                       <span className={`font-mono text-[12px] ${getModelColor(model)}`}>{model}</span>
                     </td>

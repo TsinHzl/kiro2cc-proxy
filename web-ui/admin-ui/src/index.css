@@ -230,7 +230,7 @@
      是不透明淡彩（≈11% 浓度但无 alpha），只能靠收窄几何范围削弱，导致光晕小到几乎不可见。
      半径放到 150%×130% 让柔光铺满整块画布，浓度仍控制在 10%：实测 72 个主题块中最差为
      亮色 theme-default 4.58:1、暗色 theme-nord 5.39:1，均达 WCAG AA。
-     侧栏与输入框为不透明表面，不参与叠色。 */
+     侧栏为不透明表面，不参与叠色；输入框复用本类呈现同款渐变。 */
   .bg-chat-canvas {
     background-color: var(--surface);
     background-image:

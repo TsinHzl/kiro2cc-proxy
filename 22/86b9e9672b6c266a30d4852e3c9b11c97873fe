@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/balance-dialog.tsx
+  d656bc529e53b82a 405-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2286b9e9672b6c266a30d4852e3c9b11c97873fe",
+  "prompts": {
+    "d656bc529e53b82a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48021451-7093-4205-9d56-fea6d2f6617b",
+        "model": "deepseek-v4-1-flash-economy-261017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 44,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -109,7 +109,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background bg-page-canvas">
+    <div className="min-h-screen bg-background">
       <div className="w-[90%] max-md:w-full mx-auto px-4 max-md:px-3.5 py-6 max-md:py-4">
         <PageHead
           crumb={['额度用量监控']}

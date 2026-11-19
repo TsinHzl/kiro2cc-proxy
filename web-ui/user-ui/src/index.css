@@ -172,26 +172,6 @@
     background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
     background-size: 16px 16px;
   }
-
-  /* 页面画布双柔光：浓度 3%（admin-ui 为 5%）。
-     本应用 --warn 取 #9A6300，比 admin-ui 的 #956000 浅，5% 时对比度仅 4.42:1；
-     3% 下全令牌最低为 warn 4.54:1，达 WCAG AA。无固定侧栏，故 inset 取满视口。
-     fixed 伪元素让长页面滚动时光晕不随内容拉伸；isolation 防止 z-index:-1
-     沉到根容器的 bg-background 之下。 */
-  .bg-page-canvas {
-    position: relative;
-    isolation: isolate;
-  }
-  .bg-page-canvas::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background-image:
-      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .03) 0%, transparent 68%),
-      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .03) 0%, transparent 66%);
-  }
 }
 
 /* 组件类白名单（design.md 决策 2）：仅以下三类落 CSS，其余一律 Tailwind 原子类。

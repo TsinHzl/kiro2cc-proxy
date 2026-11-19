@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/login-page.tsx
+  5421b193800af3f1 39,41-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "aa49767bc9e66467311638ca983b86588c6d126c",
+  "prompts": {
+    "5421b193800af3f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7314067-cae9-4d01-a6b1-c585e9d8308a",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 18,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

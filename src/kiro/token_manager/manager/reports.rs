@@ -395,15 +395,12 @@ impl MultiTokenManager {
             "绑定的账号"
         };
 
-        let model_mismatch = bound
+        // 单次遍历同时产出两组，保证 in_scope 与 mismatched 来自同一份探测缓存快照
+        let (in_scope, mismatched): (Vec<&CredentialEntry>, Vec<&CredentialEntry>) = bound
             .iter()
-            .filter(|e| !self.tier_allows_model(e.id, &e.credentials, model))
-            .count();
-        let in_scope: Vec<&CredentialEntry> = bound
-            .iter()
-            .filter(|e| self.tier_allows_model(e.id, &e.credentials, model))
             .copied()
-            .collect();
+            .partition(|e| self.tier_allows_model(e.id, &e.credentials, model));
+        let model_mismatch = mismatched.len();
         let total = in_scope.len();
 
         if total == 0 {

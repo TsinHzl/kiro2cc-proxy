@@ -59,11 +59,7 @@ impl MultiTokenManager {
         };
         let model_lower = model.to_ascii_lowercase();
         let cache = self.model_support.lock();
-        cache
-            .get(&id)
-            .filter(|s| s.is_fresh())
-            .and_then(|s| s.models.as_ref())
-            .is_some_and(|models| models.contains(&model_lower))
+        Self::supported_in(cache.get(&id), &model_lower)
     }
 
     /// 账号的订阅等级是否允许承接该模型（目前只有 Opus 受订阅等级限制）
@@ -98,6 +94,15 @@ impl MultiTokenManager {
         let model_lower = model.to_ascii_lowercase();
         let cache = self.model_support.lock();
         Self::unsupported_in(cache.get(&id), &model_lower)
+    }
+
+    /// `model_lower` 必须已小写化（集合中存的就是小写）；与 [`Self::unsupported_in`] 对偶，
+    /// 两者共用同一份「结果新鲜且探测成功」的判定
+    fn supported_in(support: Option<&ModelSupport>, model_lower: &str) -> bool {
+        support
+            .filter(|s| s.is_fresh())
+            .and_then(|s| s.models.as_ref())
+            .is_some_and(|models| models.contains(model_lower))
     }
 
     /// `model_lower` 必须已小写化（集合中存的就是小写）
@@ -228,10 +233,9 @@ impl MultiTokenManager {
         let this = Arc::clone(self);
         let ids = allowed_ids.to_vec();
         let model = model.map(str::to_owned);
-        let task =
-            tokio::spawn(
-                async move { this.probe_stale_models(&ids, model.as_deref(), probe).await },
-            );
+        let probe_task =
+            async move { this.probe_stale_models(&ids, model.as_deref(), probe).await };
+        let task = tokio::spawn(probe_task);
         // 超时只是不再等待：丢弃 JoinHandle 不会取消任务
         if tokio::time::timeout(max_wait, task).await.is_err() {
             tracing::debug!(

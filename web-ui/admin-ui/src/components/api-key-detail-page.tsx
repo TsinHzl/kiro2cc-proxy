@@ -132,15 +132,15 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
       {/* 逐模型用量（原卡片网格改表格，与列表页同一套表头/单元格原语） */}
       {summary && summary.byModel.length > 0 && (
         <div className="mt-[15px]">
-          {/* 标题行整行可点击折叠；保留 panel-title 视觉，chevron 指示折叠方向 */}
+          {/* 仅箭头 + 文字可点击折叠（外层 flex 让按钮收缩到内容宽度）；保留 panel-title 视觉 */}
           {/* h3 包住 button：保留标题语义，屏幕阅读器可按标题导航到该区块 */}
-          <h3 className={`${PANEL_TITLE} m-0`}>
+          <h3 className={`${PANEL_TITLE} m-0 flex`}>
             <button
               type="button"
               onClick={toggleModelPanel}
               aria-expanded={modelOpen}
               aria-controls={modelBodyId}
-              className="flex w-full items-center gap-[5px] text-left transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className="flex items-center gap-[5px] text-left transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
               <ChevronDown
                 className={`size-[13px] flex-none transition-transform ${modelOpen ? '' : '-rotate-90'}`}

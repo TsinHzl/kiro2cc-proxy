@@ -172,18 +172,22 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(single.model_support_probe_targets(&[]).is_empty());
+        assert!(
+            single
+                .model_support_probe_targets(&[], Some(MODEL))
+                .is_empty()
+        );
 
         let m = manager_with_two();
-        assert_eq!(m.model_support_probe_targets(&[]), vec![1, 2]);
+        assert_eq!(m.model_support_probe_targets(&[], Some(MODEL)), vec![1, 2]);
 
         // 有效的探测结果不重复探测
         set_models(&m, 1, &[MODEL]);
-        assert_eq!(m.model_support_probe_targets(&[]), vec![2]);
+        assert_eq!(m.model_support_probe_targets(&[], Some(MODEL)), vec![2]);
 
         // 失败结果在重试间隔后才重新探测
         set_support(&m, 2, None, Instant::now());
-        assert!(m.model_support_probe_targets(&[]).is_empty());
+        assert!(m.model_support_probe_targets(&[], Some(MODEL)).is_empty());
         set_support(
             &m,
             2,
@@ -192,17 +196,17 @@ mod tests {
                 .checked_sub(MODEL_SUPPORT_FAILURE_TTL + Duration::from_secs(1))
                 .unwrap(),
         );
-        assert_eq!(m.model_support_probe_targets(&[]), vec![2]);
+        assert_eq!(m.model_support_probe_targets(&[], Some(MODEL)), vec![2]);
     }
 
     #[test]
     fn probe_targets_exclude_disabled_accounts_and_honor_whitelist() {
         let m = manager_with_two();
         // 白名单只有 1 个账号：同样没有路由可言
-        assert!(m.model_support_probe_targets(&[1]).is_empty());
+        assert!(m.model_support_probe_targets(&[1], Some(MODEL)).is_empty());
         // 禁用其中一个后只剩 1 个可调度账号
         m.entries.lock()[1].disabled = true;
-        assert!(m.model_support_probe_targets(&[]).is_empty());
+        assert!(m.model_support_probe_targets(&[], Some(MODEL)).is_empty());
     }
 
     fn resp(ids: &[&str]) -> AvailableModelsResponse {
@@ -258,7 +262,7 @@ mod tests {
         // 探测结果生效后，调度直接排除 #1
         assert_eq!(m.acquire_context(Some(MODEL)).await.unwrap().id, 2);
         // 已新鲜，不再有探测目标
-        assert!(m.model_support_probe_targets(&[]).is_empty());
+        assert!(m.model_support_probe_targets(&[], Some(MODEL)).is_empty());
     }
 
     #[tokio::test]
@@ -340,7 +344,154 @@ mod tests {
         ];
         let m = MultiTokenManager::new(Config::default(), creds, None, None, false).unwrap();
         m.entries.lock()[2].failure_count = 3; // Unhealthy
-        assert_eq!(m.model_support_probe_targets(&[]), vec![1, 2]);
+        assert_eq!(m.model_support_probe_targets(&[], Some(MODEL)), vec![1, 2]);
+    }
+
+    // ===== Free 账号的 Opus 放行：以上游 ListAvailableModels 为准（Issue #71） =====
+
+    const OPUS: &str = "claude-opus-4.6";
+
+    fn free_cred(token: &str) -> crate::kiro::model::credentials::KiroCredentials {
+        let mut c = make_valid_cred(token);
+        c.subscription_title = Some("KIRO FREE".to_string());
+        c
+    }
+
+    fn single_free_manager() -> MultiTokenManager {
+        MultiTokenManager::new(
+            Config::default(),
+            vec![free_cred("free")],
+            None,
+            None,
+            false,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn free_account_without_probe_result_is_still_excluded_for_opus() {
+        let m = single_free_manager();
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+        // 非 Opus 不受影响
+        assert_eq!(m.acquire_context(Some(MODEL)).await.unwrap().id, 1);
+    }
+
+    #[tokio::test]
+    async fn free_account_is_allowed_for_opus_when_probe_lists_it() {
+        let m = single_free_manager();
+        set_models(&m, 1, &[OPUS, MODEL]);
+        assert_eq!(m.acquire_context(Some(OPUS)).await.unwrap().id, 1);
+    }
+
+    #[tokio::test]
+    async fn free_account_stays_excluded_when_probe_lacks_opus() {
+        let m = single_free_manager();
+        set_models(&m, 1, &[MODEL]);
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn free_account_stays_excluded_when_probe_failed_or_expired() {
+        let m = single_free_manager();
+        set_support(&m, 1, None, Instant::now());
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+
+        let stale = Instant::now()
+            .checked_sub(MODEL_SUPPORT_TTL + Duration::from_secs(1))
+            .expect("monotonic clock far enough from origin");
+        set_support(&m, 1, Some(&[OPUS]), stale);
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn free_account_with_opus_is_selected_in_mixed_pool() {
+        // #1 Free（高优先级），#2 Pro
+        fn pool() -> MultiTokenManager {
+            let mut free = free_cred("free");
+            free.priority = 0;
+            let mut pro = make_valid_cred("pro");
+            pro.priority = 1;
+            pro.subscription_title = Some("KIRO PRO".to_string());
+            MultiTokenManager::new(Config::default(), vec![free, pro], None, None, false).unwrap()
+        }
+
+        // 探测不含 Opus：落到 Pro
+        let m = pool();
+        set_models(&m, 1, &[MODEL]);
+        assert_eq!(m.acquire_context(Some(OPUS)).await.unwrap().id, 2);
+
+        // 探测含 Opus：高优先级的 Free 账号可用
+        let m = pool();
+        set_models(&m, 1, &[OPUS]);
+        assert_eq!(m.acquire_context(Some(OPUS)).await.unwrap().id, 1);
+    }
+
+    #[tokio::test]
+    async fn sticky_binding_to_free_account_with_opus_is_kept() {
+        let m = single_free_manager();
+        set_models(&m, 1, &[OPUS]);
+        for _ in 0..2 {
+            let ctx = m
+                .acquire_context_sticky(Some(OPUS), &[], Some("session-free"), &[])
+                .await
+                .unwrap();
+            assert_eq!(ctx.id, 1);
+        }
+    }
+
+    #[test]
+    fn probe_targets_include_single_tier_gated_account_for_opus_only() {
+        // 单个 Free 账号请求 Opus：探测结果是它能否承接的唯一依据，必须探测
+        let free = single_free_manager();
+        assert_eq!(free.model_support_probe_targets(&[], Some(OPUS)), vec![1]);
+        // 非 Opus 请求：单账号池仍无路由可言
+        assert!(
+            free.model_support_probe_targets(&[], Some(MODEL))
+                .is_empty()
+        );
+
+        // 单个付费账号请求 Opus：订阅已允许，不需要探测
+        let mut pro = make_valid_cred("pro");
+        pro.subscription_title = Some("KIRO PRO".to_string());
+        let pro = MultiTokenManager::new(Config::default(), vec![pro], None, None, false).unwrap();
+        assert!(pro.model_support_probe_targets(&[], Some(OPUS)).is_empty());
+
+        // 已有新鲜结果时不重复探测
+        set_models(&free, 1, &[OPUS]);
+        assert!(free.model_support_probe_targets(&[], Some(OPUS)).is_empty());
+    }
+
+    #[tokio::test]
+    async fn refresh_probes_single_free_account_and_unlocks_opus() {
+        let m = Arc::new(single_free_manager());
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+
+        m.refresh_model_support_with(Some(OPUS), &[], WAIT, |_, _| async { Ok(resp(&[OPUS])) })
+            .await;
+
+        assert_eq!(m.acquire_context(Some(OPUS)).await.unwrap().id, 1);
+    }
+
+    #[tokio::test]
+    async fn refresh_keeps_single_free_account_excluded_when_probe_lacks_opus() {
+        let m = Arc::new(single_free_manager());
+        m.refresh_model_support_with(Some(OPUS), &[], WAIT, |_, _| async { Ok(resp(&[MODEL])) })
+            .await;
+        assert!(m.acquire_context(Some(OPUS)).await.is_err());
+    }
+
+    #[test]
+    fn describe_unavailable_counts_free_account_with_opus_in_scope() {
+        let m = single_free_manager();
+        assert!(
+            m.describe_unavailable(Some(OPUS), &[])
+                .contains("没有支持该模型的账号")
+        );
+        set_models(&m, 1, &[OPUS]);
+        assert!(
+            !m.describe_unavailable(Some(OPUS), &[])
+                .contains("没有支持该模型的账号")
+        );
     }
 
     #[tokio::test]

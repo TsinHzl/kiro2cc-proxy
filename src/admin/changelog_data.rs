@@ -69,6 +69,14 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.5.9".to_string(),
+            is_latest: false,
+            groups: vec![fix_group(vec![Bilingual::new(
+                "修复 Free 账号无法使用 Opus 的问题：当上游模型列表明确包含 Opus 时（如带活动赠送额度的 Free 账号）放行；列表不含、探测失败或过期时仍排除（#71）",
+                "Fixed Free accounts being unable to use Opus: they are now allowed when the upstream model list explicitly includes Opus (e.g. Free accounts with promotional entitlements), and still excluded when the list lacks it or the probe fails or expires (#71)",
+            )])],
+        },
+        ReleaseNote {
             version: "3.5.8".to_string(),
             is_latest: false,
             groups: vec![

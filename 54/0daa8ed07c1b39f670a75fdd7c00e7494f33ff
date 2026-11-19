@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/index.css
+  5421b193800af3f1 250,269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "540daa8ed07c1b39f670a75fdd7c00e7494f33ff",
+  "prompts": {
+    "5421b193800af3f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7314067-cae9-4d01-a6b1-c585e9d8308a",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 1,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    }
+  }
+}

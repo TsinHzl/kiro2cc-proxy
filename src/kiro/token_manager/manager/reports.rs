@@ -395,20 +395,13 @@ impl MultiTokenManager {
             "绑定的账号"
         };
 
-        let is_opus = model
-            .map(|m| m.to_lowercase().contains("opus"))
-            .unwrap_or(false);
-        let model_mismatch = if is_opus {
-            bound
-                .iter()
-                .filter(|e| !e.credentials.supports_opus())
-                .count()
-        } else {
-            0
-        };
+        let model_mismatch = bound
+            .iter()
+            .filter(|e| !self.tier_allows_model(e.id, &e.credentials, model))
+            .count();
         let in_scope: Vec<&CredentialEntry> = bound
             .iter()
-            .filter(|e| !is_opus || e.credentials.supports_opus())
+            .filter(|e| self.tier_allows_model(e.id, &e.credentials, model))
             .copied()
             .collect();
         let total = in_scope.len();

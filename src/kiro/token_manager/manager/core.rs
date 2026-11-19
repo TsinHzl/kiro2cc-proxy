@@ -281,11 +281,6 @@ impl MultiTokenManager {
     ) -> Option<(u64, KiroCredentials)> {
         let entries = self.entries.lock();
 
-        // 检查是否是 opus 模型
-        let is_opus = model
-            .map(|m| m.to_lowercase().contains("opus"))
-            .unwrap_or(false);
-
         // 过滤可用账号
         let available: Vec<_> = entries
             .iter()
@@ -297,8 +292,8 @@ impl MultiTokenManager {
                 if !allowed_ids.is_empty() && !allowed_ids.contains(&e.id) {
                     return false;
                 }
-                // 如果是 opus 模型，需要检查订阅等级
-                if is_opus && !e.credentials.supports_opus() {
+                // opus 模型需要检查订阅等级（Free 账号仅在上游模型列表明确包含时放行）
+                if !self.tier_allows_model(e.id, &e.credentials, model) {
                     return false;
                 }
                 true
@@ -381,9 +376,6 @@ impl MultiTokenManager {
 
         let total = self.total_count();
         let mut tried_count = 0;
-        let is_opus = model
-            .map(|m| m.to_ascii_lowercase().contains("opus"))
-            .unwrap_or(false);
 
         loop {
             if tried_count >= total {
@@ -410,7 +402,7 @@ impl MultiTokenManager {
                             e.id == current_id
                                 && !e.disabled
                                 && Self::compute_health(e) != HealthStatus::Unhealthy
-                                && (!is_opus || e.credentials.supports_opus())
+                                && self.tier_allows_model(e.id, &e.credentials, model)
                                 && !self.is_known_unsupported(e.id, model)
                         })
                         .map(|e| (e.id, e.credentials.clone()))
@@ -608,10 +600,6 @@ impl MultiTokenManager {
                 .is_some_and(|e| avoid_ids.contains(&e.credential_id))
         };
 
-        let is_opus = model
-            .map(|m| m.to_ascii_lowercase().contains("opus"))
-            .unwrap_or(false);
-
         // 步骤 ①②：从 sticky_cache 查找，验证 TTL + 健康状态
         let cached = {
             let cache = self.sticky_cache.lock();
@@ -633,7 +621,7 @@ impl MultiTokenManager {
                                     HealthStatus::Unhealthy | HealthStatus::Disabled
                                 )
                                 && (allowed_ids.is_empty() || allowed_ids.contains(&e.id))
-                                && (!is_opus || e.credentials.supports_opus())
+                                && self.tier_allows_model(e.id, &e.credentials, model)
                                 && !self.is_known_unsupported(e.id, model)
                         })
                         .map(|e| (e.id, e.credentials.clone()))

@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/api-key-detail-page.tsx
+  43144b7a82a7d4cd 135,137,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d549258ed8975a30136c3005122c7c11f258d169",
+  "prompts": {
+    "43144b7a82a7d4cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4923509-734a-413b-b5b7-6038ebf1dc89",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

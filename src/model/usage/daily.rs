@@ -318,6 +318,8 @@ impl UsageTracker {
                     thinking_token_count: r.thinking_token_count,
                     is_stream: r.is_stream,
                     user_agent: r.user_agent,
+                    outcome: r.outcome,
+                    error_message: r.error_message,
                 }
             })
             .collect();

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::cache::PromptCacheUsage;
 use crate::kiro::model::events::Event;
-use crate::model::usage::UsageTracker;
+use crate::model::usage::{RequestGuard, UsageTracker};
 
 use super::calib::{cap_input_tokens, scale_for_client};
 use super::state::{SseEvent, SseStateManager};
@@ -109,6 +109,8 @@ pub struct StreamContext {
     credits_recorded: bool,
     /// 本请求是子代理请求：credits 计入主对话 turn，但不输出汇总行
     credits_is_sub: bool,
+    /// 请求结果守卫：正常落库时解除，未走到终点就被丢弃即记为客户端取消
+    request_guard: Option<RequestGuard>,
 }
 
 impl StreamContext {
@@ -160,6 +162,20 @@ impl StreamContext {
             credits_footer: None,
             credits_recorded: false,
             credits_is_sub: false,
+            request_guard: None,
+        }
+    }
+
+    /// 注入请求结果守卫（用于记录失败 / 客户端取消，见 `model::usage::RequestGuard`）
+    pub fn with_request_guard(mut self, guard: Option<RequestGuard>) -> Self {
+        self.request_guard = guard;
+        self
+    }
+
+    /// 请求失败（上游流中断、空响应、超时等）：记录失败原因并解除守卫
+    pub fn fail_request(&mut self, message: &str) {
+        if let Some(guard) = self.request_guard.as_mut() {
+            guard.fail(message);
         }
     }
 
@@ -195,6 +211,9 @@ impl StreamContext {
     pub fn mark_first_token(&mut self) {
         if self.first_token_at.is_none() {
             self.first_token_at = Some(Instant::now());
+        }
+        if let Some(guard) = self.request_guard.as_mut() {
+            guard.mark_first_token();
         }
     }
 
@@ -1127,6 +1146,10 @@ impl StreamContext {
                     user_agent: self.user_agent.clone(),
                 },
             );
+        }
+        // 已按完成落库：解除守卫，之后连接断开不再记为取消
+        if let Some(guard) = self.request_guard.as_mut() {
+            guard.settle();
         }
         // 断点记账：响应已完整产出，提交本请求的缓存写入；5m/1h 按断点 ttl 拆分。
         // 未开启时 cache_creation 全部归到 5m（与非流式 metering Layer 1 一致）

@@ -208,6 +208,8 @@ mod tests {
             thinking_token_count: None,
             is_stream: None,
             user_agent: None,
+            outcome: None,
+            error_message: None,
         };
         let json = serde_json::to_value(&record).unwrap();
         assert_eq!(json["firstTokenMs"], 1234);
@@ -257,6 +259,8 @@ mod tests {
             thinking_token_count: Some(1034),
             is_stream: Some(true),
             user_agent: Some("claude-cli/2.1.5 (external, cli)".to_string()),
+            outcome: None,
+            error_message: None,
         };
         let json = serde_json::to_value(&record).unwrap();
         assert_eq!(json["thinkingTokenCount"], 1034);
@@ -341,6 +345,8 @@ mod tests {
             thinking_token_count: None,
             is_stream: None,
             user_agent: None,
+            outcome: None,
+            error_message: None,
         };
         tracker.daily.write().add(&record);
         tracker.records.write().push(record);
@@ -382,6 +388,8 @@ mod tests {
             thinking_token_count: None,
             is_stream: None,
             user_agent: None,
+            outcome: None,
+            error_message: None,
         };
         tracker.daily.write().add(&record);
         tracker.records.write().push(record);
@@ -940,6 +948,8 @@ mod tests {
                 thinking_token_count: None,
                 is_stream: None,
                 user_agent: None,
+                outcome: None,
+                error_message: None,
             })
             .collect();
         std::fs::write(&path, serde_json::to_string(&records).unwrap()).unwrap();
@@ -1580,5 +1590,201 @@ mod tests {
                 "{model} 长上下文冷启动应判为基本未命中，实际 {cold_long}"
             );
         }
+    }
+
+    // ---- 失败 / 客户端取消记录 ----
+
+    use crate::model::usage::RequestGuard;
+    use crate::model::usage::outcome::{OUTCOME_CLIENT_ABORTED, OUTCOME_FAILED};
+    use std::sync::Arc;
+
+    fn guard_for(tracker: &Arc<UsageTracker>) -> RequestGuard {
+        RequestGuard::new(
+            Some(tracker),
+            Some(7),
+            "claude-opus-4.6",
+            true,
+            std::time::Instant::now(),
+            Some("1.2.3.4".to_string()),
+            Some("claude-cli/2.1.5".to_string()),
+        )
+        .unwrap()
+    }
+
+    /// 失败 / 取消只进明细：分页可见且带 outcome，但日汇总、费用、credits 与请求数不变
+    #[tokio::test]
+    async fn test_record_outcome_only_in_detail_not_in_summary() {
+        let path = temp_usage_path("outcome_detail_only");
+        let tracker = UsageTracker::load(&path).unwrap();
+        tracker.record(
+            7,
+            "claude-opus-4.6".to_string(),
+            1000,
+            100,
+            RecordOptions {
+                credits_used: Some(1.5),
+                ..Default::default()
+            },
+        );
+        tracker.record_outcome(
+            7,
+            "claude-opus-4.6".to_string(),
+            OUTCOME_FAILED,
+            Some("boom"),
+            Some(3),
+            None,
+            None,
+            None,
+            true,
+            None,
+            Some(120),
+        );
+        tracker.record_outcome(
+            7,
+            "claude-opus-4.6".to_string(),
+            OUTCOME_CLIENT_ABORTED,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            Some(50),
+            Some(80),
+        );
+
+        let summary = tracker.get_summary(7);
+        assert_eq!(summary.total_requests, 1);
+        assert!((tracker.get_total_credits(7) - 1.5).abs() < 1e-9);
+
+        let page = tracker.get_records_paged(7, 1, 10, &HashMap::new());
+        assert_eq!(page.total, 3);
+        let outcomes: Vec<Option<&str>> =
+            page.records.iter().map(|r| r.outcome.as_deref()).collect();
+        assert_eq!(outcomes.iter().filter(|o| **o == Some("failed")).count(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|o| **o == Some("client_aborted"))
+                .count(),
+            1
+        );
+        assert_eq!(outcomes.iter().filter(|o| o.is_none()).count(), 1);
+        let failed = page
+            .records
+            .iter()
+            .find(|r| r.outcome.as_deref() == Some("failed"))
+            .unwrap();
+        assert_eq!(failed.error_message.as_deref(), Some("boom"));
+        assert_eq!(failed.input_tokens, 0);
+        assert_eq!(failed.credits_used, None);
+        cleanup_usage_path(&path);
+    }
+
+    #[tokio::test]
+    async fn test_record_outcome_truncates_long_error_message() {
+        let path = temp_usage_path("outcome_truncate");
+        let tracker = UsageTracker::load(&path).unwrap();
+        // 多字节字符：按字符而非字节截断，不能切坏
+        let long = "错".repeat(1000);
+        tracker.record_outcome(
+            1,
+            "m".to_string(),
+            OUTCOME_FAILED,
+            Some(&long),
+            None,
+            None,
+            None,
+            None,
+            true,
+            None,
+            None,
+        );
+        let page = tracker.get_records_paged(1, 1, 10, &HashMap::new());
+        let msg = page.records[0].error_message.clone().unwrap();
+        assert_eq!(msg.chars().count(), 301);
+        assert!(msg.ends_with('…'));
+        cleanup_usage_path(&path);
+    }
+
+    /// guard 未结算即丢弃 = 客户端取消
+    #[tokio::test]
+    async fn test_request_guard_drop_records_client_abort() {
+        let path = temp_usage_path("guard_drop");
+        let tracker = Arc::new(UsageTracker::load(&path).unwrap());
+        {
+            let mut guard = guard_for(&tracker);
+            guard.set_credential_id(9);
+            guard.mark_first_token();
+        }
+        let page = tracker.get_records_paged(7, 1, 10, &HashMap::new());
+        assert_eq!(page.total, 1);
+        let r = &page.records[0];
+        assert_eq!(r.outcome.as_deref(), Some("client_aborted"));
+        assert_eq!(r.credential_id, Some(9));
+        assert_eq!(r.is_stream, Some(true));
+        assert_eq!(r.client_ip.as_deref(), Some("1.2.3.4"));
+        assert!(r.first_token_ms.is_some());
+        assert!(r.duration_ms.is_some());
+        assert_eq!(tracker.get_summary(7).total_requests, 0);
+        cleanup_usage_path(&path);
+    }
+
+    /// 已 settle（正常完成）的 guard 丢弃时不记录；fail 后丢弃不重复记录
+    #[tokio::test]
+    async fn test_request_guard_settle_and_fail_record_once() {
+        let path = temp_usage_path("guard_settle_fail");
+        let tracker = Arc::new(UsageTracker::load(&path).unwrap());
+        {
+            let mut guard = guard_for(&tracker);
+            guard.settle();
+        }
+        assert_eq!(
+            tracker.get_records_paged(7, 1, 10, &HashMap::new()).total,
+            0
+        );
+        {
+            let mut guard = guard_for(&tracker);
+            guard.fail("upstream 429");
+        }
+        let page = tracker.get_records_paged(7, 1, 10, &HashMap::new());
+        assert_eq!(page.total, 1);
+        assert_eq!(page.records[0].outcome.as_deref(), Some("failed"));
+        assert_eq!(
+            page.records[0].error_message.as_deref(),
+            Some("upstream 429")
+        );
+        cleanup_usage_path(&path);
+    }
+
+    #[tokio::test]
+    async fn test_request_guard_none_without_tracker_or_key() {
+        let now = std::time::Instant::now();
+        assert!(RequestGuard::new(None, Some(1), "m", true, now, None, None).is_none());
+        let path = temp_usage_path("guard_none");
+        let tracker = Arc::new(UsageTracker::load(&path).unwrap());
+        assert!(RequestGuard::new(Some(&tracker), None, "m", true, now, None, None).is_none());
+        cleanup_usage_path(&path);
+    }
+
+    /// 旧数据无 outcome：反序列化为 None 并视为完成；新字段 None 时不写出
+    #[test]
+    fn test_usage_record_outcome_serde_compat() {
+        let old_json = serde_json::json!({
+            "apiKeyId": 1,
+            "model": "claude-opus-4.6",
+            "inputTokens": 100,
+            "outputTokens": 10,
+            "estimatedCost": 0.0,
+            "cacheCreation5mInputTokens": 0,
+            "cacheCreation1hInputTokens": 0,
+            "createdAt": "2026-01-01T00:00:00Z"
+        });
+        let parsed: crate::model::usage::UsageRecord = serde_json::from_value(old_json).unwrap();
+        assert!(parsed.outcome.is_none());
+        assert!(parsed.is_completed());
+        let json = serde_json::to_value(&parsed).unwrap();
+        assert!(json.get("outcome").is_none());
+        assert!(json.get("errorMessage").is_none());
     }
 }

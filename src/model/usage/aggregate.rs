@@ -125,7 +125,10 @@ impl DailyStore {
     pub fn from_records(records: &[UsageRecord]) -> Self {
         let mut store = Self::default();
         for r in records {
-            store.add(r);
+            // 失败 / 客户端取消只存明细，不计入汇总（与 record() 路径同口径）
+            if r.is_completed() {
+                store.add(r);
+            }
         }
         store
     }

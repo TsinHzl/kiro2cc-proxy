@@ -63,6 +63,19 @@ pub(crate) async fn handle_stream_request(
     // 首字/耗时均包含上游建连与故障转移耗时；ctx 计时统一用 std Instant，与 tokio 时间源无关
     let request_started_at = std::time::Instant::now();
 
+    // 结果守卫：覆盖「建连 / 故障转移」到「流读完」的全程。未走到终点就被丢弃
+    // （客户端断开使 SSE 流被丢弃）记为客户端取消；已知失败在对应分支显式 fail。
+    // 须在 usage_tracker / client_ip / user_agent 被 ctx 消耗前创建
+    let mut request_guard = crate::model::usage::RequestGuard::new(
+        usage_tracker.as_ref(),
+        api_key_id,
+        model,
+        true,
+        request_started_at,
+        client_ip.clone(),
+        user_agent.clone(),
+    );
+
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
         .call_api_stream(
@@ -74,7 +87,12 @@ pub(crate) async fn handle_stream_request(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => return map_provider_error_with_context(e, model, input_tokens),
+        Err(e) => {
+            if let Some(guard) = request_guard.as_mut() {
+                guard.fail(&e.to_string());
+            }
+            return map_provider_error_with_context(e, model, input_tokens);
+        }
     };
 
     // 账号级 thinking 开关是最终裁决（开 = 强制思考，关 = 禁止思考），必须在选中账号后
@@ -97,9 +115,14 @@ pub(crate) async fn handle_stream_request(
 
     // effort 入库口径与 thinking 裁决联动（口径说明见 resolve_recorded_effort 文档）
     let effort = super::helpers::resolve_recorded_effort(thinking_enabled, effort);
+    if let Some(guard) = request_guard.as_mut() {
+        guard.set_credential_id(credential_id);
+        guard.set_effort(effort.clone());
+    }
 
     // 创建流处理上下文
     let mut ctx = StreamContext::new_with_thinking(model, input_tokens, thinking_enabled)
+        .with_request_guard(request_guard)
         .with_usage_tracking(
             usage_tracker,
             api_key_id,
@@ -439,10 +462,16 @@ fn create_sse_stream(
                                 if oversized {
                                     ctx.generate_final_events()
                                 } else {
+                                    ctx.fail_request("Upstream returned an empty response");
                                     vec![empty_response_error_event(false)]
                                 }
                             } else {
                                 let elapsed = stream_started_at.elapsed();
+                                ctx.fail_request(&format!(
+                                    "Upstream stream interrupted after {}s: {}",
+                                    elapsed.as_secs(),
+                                    e
+                                ));
                                 tracing::warn!(
                                     est_input_tokens = ctx.input_tokens,
                                     stream_elapsed_secs = elapsed.as_secs(),
@@ -487,6 +516,7 @@ fn create_sse_stream(
                                     tracing::warn!(
                                         "web_search 桥接轮撞上 /cc 全局 deadline，放弃续请求"
                                     );
+                                    ctx.fail_request("Upstream response timed out (stream deadline)");
                                     let mut out_events = build_web_search_result_events(
                                         &mut ctx,
                                         &result_tool_use_id,
@@ -562,6 +592,7 @@ fn create_sse_stream(
                                 if oversized {
                                     out_events = ctx.generate_final_events();
                                 } else {
+                                    ctx.fail_request("Upstream returned an empty response");
                                     out_events.push(empty_response_error_event(false));
                                 }
                             } else {
@@ -586,6 +617,7 @@ fn create_sse_stream(
                 // 结果块再发 error（server_tool_use / web_search_tool_result 必须成对）
                 _ = wait_deadline(deadline) => {
                     tracing::error!("流式转发全局超时，强制终止");
+                    ctx.fail_request("Upstream response timed out (stream deadline)");
                     let mut events = if let Some((handle, result_tool_use_id)) =
                         round_in_flight.take()
                     {

@@ -264,6 +264,19 @@ pub(crate) async fn handle_non_stream_request(
 ) -> Response {
     // 总耗时起点：进入 handler 即计时（到 record 落库前，口径见 proposal）
     let request_started_at = std::time::Instant::now();
+
+    // 结果守卫：非流式请求的 handler future 在客户端断开时会被直接丢弃，
+    // 守卫在 Drop 中记为客户端取消；已知失败显式 fail，成功落库后 settle
+    let mut request_guard = crate::model::usage::RequestGuard::new(
+        usage_tracker.as_ref(),
+        api_key_id,
+        model,
+        false,
+        request_started_at,
+        client_ip.clone(),
+        user_agent.clone(),
+    );
+
     // 调用 Kiro API（支持多账号故障转移）
     let (response, credential_id) = match provider
         .call_api(
@@ -275,7 +288,12 @@ pub(crate) async fn handle_non_stream_request(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => return map_provider_error_with_context(e, model, input_tokens),
+        Err(e) => {
+            if let Some(guard) = request_guard.as_mut() {
+                guard.fail(&e.to_string());
+            }
+            return map_provider_error_with_context(e, model, input_tokens);
+        }
     };
 
     // 账号级 thinking 开关关闭 = 禁止思考：上游若仍返回推理内容，响应侧丢弃
@@ -292,12 +310,19 @@ pub(crate) async fn handle_non_stream_request(
 
     // effort 入库口径与 thinking 裁决联动（口径说明见 resolve_recorded_effort 文档）
     let effort = super::helpers::resolve_recorded_effort(thinking_enabled, effort);
+    if let Some(guard) = request_guard.as_mut() {
+        guard.set_credential_id(credential_id);
+        guard.set_effort(effort.clone());
+    }
 
     // 读取响应体
     let body_bytes = match response.bytes().await {
         Ok(bytes) => bytes,
         Err(e) => {
             tracing::error!("读取响应体失败: {}", e);
+            if let Some(guard) = request_guard.as_mut() {
+                guard.fail(&format!("Failed to read upstream response body: {e}"));
+            }
             return (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new(
@@ -746,6 +771,10 @@ pub(crate) async fn handle_non_stream_request(
                 user_agent,
             },
         );
+    }
+    // 已按完成落库：解除守卫
+    if let Some(guard) = request_guard.as_mut() {
+        guard.settle();
     }
 
     // 构建 Anthropic 响应

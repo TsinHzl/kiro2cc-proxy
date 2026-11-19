@@ -78,6 +78,20 @@ pub struct UsageRecord {
     /// 客户端 User-Agent（截断至 256 字符、最坏 1024 字节；None 表示旧数据或客户端未携带）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
+    /// 请求结果：`failed` / `client_aborted`；None 表示正常完成（含全部旧数据）。
+    /// 非完成记录只进明细（供使用日志展示），不计入日汇总与任何费用/credits 统计。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    /// 失败原因（仅 `failed` 记录，已截断；None 表示非失败记录）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+}
+
+impl UsageRecord {
+    /// 是否为正常完成的请求（旧数据无 outcome 字段，视同完成）
+    pub fn is_completed(&self) -> bool {
+        self.outcome.is_none()
+    }
 }
 
 /// `record()` 的可选参数集合：位置参数已达 14 个且多次追加（thinking/is_stream），
@@ -458,9 +472,18 @@ impl UsageTracker {
             thinking_token_count,
             is_stream,
             user_agent,
+            outcome: None,
+            error_message: None,
         };
         // 先累加日汇总再入明细：明细随后可能被裁剪，汇总不受影响
         self.daily.write().add(&record);
+        self.push_record(record);
+    }
+
+    /// 明细入库并按 Key / 账号裁剪（`record()` 与失败/取消记录共用；不动日汇总）
+    fn push_record(&self, record: UsageRecord) {
+        let api_key_id = record.api_key_id;
+        let credential_id = record.credential_id;
         {
             let mut records = self.records.write();
             records.push(record);
@@ -611,12 +634,14 @@ impl UsageTracker {
 
 mod aggregate;
 mod daily;
+mod outcome;
 mod pagination;
 mod pricing;
 
 #[cfg(test)]
 mod tests;
 
+pub use outcome::RequestGuard;
 pub(crate) use pricing::{
     MIN_INFER_INPUT_TOKENS, calculate_cost, get_k_ref, infer_cache_read_from_credits,
     refine_prefix_cache_read,

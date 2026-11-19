@@ -242,6 +242,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_stream_context_guard_records_abort_failure_and_settles_on_completion() {
+        use crate::model::usage::RequestGuard;
+        let dir = std::env::temp_dir().join(format!("kiro2cc_ctx_guard_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("api_key_usage.json");
+        let tracker = std::sync::Arc::new(crate::model::usage::UsageTracker::load(&path).unwrap());
+        let build = |tracker: &std::sync::Arc<crate::model::usage::UsageTracker>| {
+            let guard = RequestGuard::new(
+                Some(tracker),
+                Some(1),
+                "test-model",
+                true,
+                std::time::Instant::now(),
+                None,
+                None,
+            );
+            StreamContext::new_with_thinking("test-model", 10, false)
+                .with_request_guard(guard)
+                .with_usage_tracking(
+                    Some(std::sync::Arc::clone(tracker)),
+                    Some(1),
+                    None,
+                    None,
+                    None,
+                )
+        };
+        let outcomes = |tracker: &crate::model::usage::UsageTracker| -> Vec<Option<String>> {
+            tracker
+                .get_records_paged(1, 1, 50, &std::collections::HashMap::new())
+                .records
+                .into_iter()
+                .map(|r| r.outcome)
+                .collect()
+        };
+
+        // 1. 正常收尾：按完成落库一条，之后丢弃上下文不再追加取消记录
+        let mut ctx = build(&tracker);
+        let _ = ctx.generate_final_events();
+        drop(ctx);
+        assert_eq!(outcomes(&tracker), vec![None]);
+
+        // 2. 中途被丢弃（客户端断开）：新增一条 client_aborted
+        let ctx = build(&tracker);
+        drop(ctx);
+        assert_eq!(
+            outcomes(&tracker)
+                .iter()
+                .filter(|o| o.as_deref() == Some("client_aborted"))
+                .count(),
+            1
+        );
+
+        // 3. 已知失败：记一条 failed，丢弃时不重复记录
+        let mut ctx = build(&tracker);
+        ctx.fail_request("Upstream returned an empty response");
+        drop(ctx);
+        let all = tracker.get_records_paged(1, 1, 50, &std::collections::HashMap::new());
+        assert_eq!(all.records.len(), 3);
+        let failed: Vec<_> = all
+            .records
+            .iter()
+            .filter(|r| r.outcome.as_deref() == Some("failed"))
+            .collect();
+        assert_eq!(failed.len(), 1);
+        assert_eq!(
+            failed[0].error_message.as_deref(),
+            Some("Upstream returned an empty response")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
     async fn test_stream_context_refines_cache_read_from_metering_credits() {
         let dir = std::env::temp_dir().join(format!("kiro2cc_ctx_refine_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();

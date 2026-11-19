@@ -572,6 +572,8 @@ mod tests {
             thinking_token_count: None,
             is_stream: None,
             user_agent: user_agent.map(str::to_string),
+            outcome: None,
+            error_message: None,
         });
     }
 

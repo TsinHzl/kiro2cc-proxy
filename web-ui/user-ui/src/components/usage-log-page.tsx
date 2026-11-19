@@ -65,6 +65,8 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
   const geoMap = useIpGeo(pageIps)
 
   const byModel = allRecords.reduce<Record<string, { requests: number; inputTokens: number; outputTokens: number; cost: number }>>((acc, r) => {
+    // 失败 / 客户端取消不计入按模型汇总（不计费、无 token）
+    if (r.outcome) return acc
     const entry = acc[r.model] ?? { requests: 0, inputTokens: 0, outputTokens: 0, cost: 0 }
     entry.requests += 1
     entry.inputTokens += r.inputTokens
@@ -193,6 +195,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                           <th className={TH_BASE}>时间</th>
                           <th className={TH_BASE}>IP</th>
                           <th className={TH_BASE}>模型</th>
+                          <th className={TH_BASE}>结果</th>
                           <th className={TH_BASE}>Token 用量</th>
                           <th className={`${TH_BASE} text-right`}>费用</th>
                           <th className={`${TH_BASE} text-right`}>Kiro Credits</th>
@@ -244,6 +247,15 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                   )}
                                 </div>
                               </td>
+                              <td className={`${CELL} whitespace-nowrap text-[11.5px]`}>
+                                {r.outcome === 'failed' ? (
+                                  <span className={`${BADGE_CLS} bg-danger-soft text-danger`}>失败</span>
+                                ) : r.outcome === 'client_aborted' ? (
+                                  <span className={`${BADGE_CLS} bg-surface-3 text-ink-2`}>客户端取消</span>
+                                ) : (
+                                  <span className={`${BADGE_CLS} bg-ok-soft text-ok`}>完成</span>
+                                )}
+                              </td>
                               <td className={CELL}>
                                 <div className="space-y-0.5 text-left text-[11.5px]">
                                   <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, r.inputTokens - (r.cacheReadInputTokens ?? 0)))}</span></div>
@@ -262,11 +274,17 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                 </div>
                               </td>
                               <td className={`${CELL} text-right tabular-nums font-medium text-[12px] text-warn`}>
-                                {formatCost(r.estimatedCost)}
+                                {r.outcome ? <span className="text-ink-3">—</span> : formatCost(r.estimatedCost)}
                               </td>
                               <td className={`${CELL} text-right tabular-nums font-medium text-[12px] text-ok`}>
-                                {r.creditsUsed != null ? r.creditsUsed.toFixed(4) : (r.estimatedCost / 0.72).toFixed(4)}
-                                {r.creditsUsed != null && <span className="ml-1 text-xs text-ok">✓</span>}
+                                {r.outcome ? (
+                                  <span className="text-ink-3">—</span>
+                                ) : (
+                                  <>
+                                    {r.creditsUsed != null ? r.creditsUsed.toFixed(4) : (r.estimatedCost / 0.72).toFixed(4)}
+                                    {r.creditsUsed != null && <span className="ml-1 text-xs text-ok">✓</span>}
+                                  </>
+                                )}
                               </td>
                             </tr>
                           )

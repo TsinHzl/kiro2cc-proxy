@@ -155,11 +155,41 @@ export function DurationCell({ record }: { record: UsageRecord }) {
   )
 }
 
+/**
+ * 「结果」单元格：完成 / 失败 / 客户端取消。
+ * 失败附带原因（截断一行，完整内容在悬停提示里）；无 outcome 的旧记录视同完成。
+ */
+export function OutcomeCell({ record }: { record: UsageRecord }) {
+  const { t } = useTranslation()
+  if (record.outcome === 'failed') {
+    return (
+      <div className="flex max-w-[168px] flex-col items-start gap-px">
+        <span
+          className={`${BADGE_CLS} bg-danger-soft text-danger`}
+          title={record.errorMessage}
+        >
+          {t('common.outcomeFailed')}
+        </span>
+        {record.errorMessage && (
+          <span className="w-full truncate text-[10px] text-ink-3" title={record.errorMessage}>
+            {record.errorMessage}
+          </span>
+        )}
+      </div>
+    )
+  }
+  if (record.outcome === 'client_aborted') {
+    return <span className={`${BADGE_CLS} bg-surface-3 text-ink-2`}>{t('common.outcomeClientAborted')}</span>
+  }
+  return <span className={`${BADGE_CLS} bg-ok-soft text-ok`}>{t('common.outcomeCompleted')}</span>
+}
+
 const LOG_COLS: { labelKey: string; num?: boolean }[] = [
   { labelKey: 'common.colTime' },
   { labelKey: 'common.colIp' },
   { labelKey: 'common.colAccount' },
   { labelKey: 'common.colModel' },
+  { labelKey: 'common.colResult' },
   { labelKey: 'common.colTokenUsage' },
   { labelKey: 'common.colDuration' },
   { labelKey: 'common.colCost', num: true },
@@ -206,6 +236,8 @@ export function UsageLogTable({
           records.map((record, idx) => {
             const geo = record.clientIp ? geoMap.get(record.clientIp) : undefined
             const hitRate = cacheHitRate(record)
+            // 失败 / 客户端取消不计费，费用与 credits 列显示占位符而非 $0.0000
+            const billed = record.outcome == null
             return (
               <tr key={`${record.createdAt}-${record.model}-${idx}`} className="transition-colors hover:bg-surface-2">
                 <td className={`${CELL} whitespace-nowrap text-[11.5px] text-ink-2`}>
@@ -266,6 +298,9 @@ export function UsageLogTable({
                     )}
                   </div>
                 </td>
+                <td className={`${CELL} whitespace-nowrap text-[11px]`}>
+                  <OutcomeCell record={record} />
+                </td>
                 <td className={`${CELL} whitespace-nowrap text-[11px] text-ink-2`}>
                   <div className="flex flex-col gap-px">
                     <span>
@@ -315,10 +350,10 @@ export function UsageLogTable({
                   <DurationCell record={record} />
                 </td>
                 <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-warn`}>
-                  {formatCost(record.estimatedCost)}
+                  {billed ? formatCost(record.estimatedCost) : <span className="text-ink-3">—</span>}
                 </td>
                 <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-brand`}>
-                  {recordCredits(record).toFixed(4)}
+                  {billed ? recordCredits(record).toFixed(4) : <span className="text-ink-3">—</span>}
                 </td>
               </tr>
             )

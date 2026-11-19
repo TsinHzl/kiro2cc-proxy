@@ -114,12 +114,17 @@ pub async fn get_usage_records(
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(50)
         .min(500);
-    Json(state.usage_tracker.get_records_paged(
+    let mut page_data = state.usage_tracker.get_records_paged(
         ctx.key_id,
         page,
         page_size,
         &std::collections::HashMap::new(),
-    ))
+    );
+    // 失败原因可能含上游/账号侧细节，与账号标签一样不向 Key 持有者暴露（只保留 outcome）
+    for record in &mut page_data.records {
+        record.error_message = None;
+    }
+    Json(page_data)
 }
 
 /// 单批次最多允许查询的 IP 数量

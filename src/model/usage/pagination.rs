@@ -85,6 +85,8 @@ impl UsageTracker {
                     thinking_token_count: r.thinking_token_count,
                     is_stream: r.is_stream,
                     user_agent: r.user_agent,
+                    outcome: r.outcome,
+                    error_message: r.error_message,
                 }
             })
             .collect();
@@ -159,6 +161,12 @@ pub struct UsageRecordItem {
     /// 客户端 User-Agent（截断至 256 字符、最坏 1024 字节；None 表示旧数据或客户端未携带）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
+    /// 请求结果：`failed` / `client_aborted`；None 表示正常完成（含旧数据）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    /// 失败原因（仅 `failed` 记录）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
 }
 
 impl UsageTracker {
@@ -237,6 +245,8 @@ impl UsageTracker {
                     thinking_token_count: r.thinking_token_count,
                     is_stream: r.is_stream,
                     user_agent: r.user_agent,
+                    outcome: r.outcome,
+                    error_message: r.error_message,
                 }
             })
             .collect();

@@ -314,7 +314,14 @@ export interface UsageRecord {
   thinkingTokenCount?: number
   isStream?: boolean
   userAgent?: string
+  /** 请求结果；缺省表示正常完成（含旧数据） */
+  outcome?: UsageOutcome
+  /** 失败原因（仅 failed 记录，仅管理端返回） */
+  errorMessage?: string
 }
+
+/** 非完成的请求结果：失败 / 客户端取消 */
+export type UsageOutcome = 'failed' | 'client_aborted'
 
 // 分页原始记录响应
 export interface UsageRecordsResponse {

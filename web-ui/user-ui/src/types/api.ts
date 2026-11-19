@@ -54,6 +54,8 @@ export interface UsageRecordItem {
   thinkingTokenCount?: number
   isStream?: boolean
   userAgent?: string
+  /** 请求结果；缺省表示正常完成（含旧数据） */
+  outcome?: 'failed' | 'client_aborted'
 }
 
 export interface UsageRecordsPage {

@@ -237,6 +237,43 @@
       radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .10) 0%, transparent 68%),
       radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .10) 0%, transparent 66%);
   }
+
+  /* 全站页面画布：与对话页同款双柔光，但铺在整页而非卡片内。
+     浓度取 5%（对话页卡片内是 10%）：页面底色上直接承载正文，实测 72 个主题块 ×
+     ink / ink-2 / ink-3 / brand-ink / ok / warn / danger 共 504 次比对，最低为
+     theme-default 亮色的 --brand-ink 4.56:1，全数达 WCAG AA；提到 6% 即跌到 4.50 以下。
+     用 fixed 伪元素而非直接给元素设 background-image：长页面上背景会被拉伸到数千像素，
+     中段退化为纯色；fixed 锚定视口后滚动时光晕位置保持不变。
+     isolation:isolate 必须保留 —— 根容器 dashboard.tsx 带 bg-background 底色，
+     不建立层叠上下文的话 z-index:-1 的伪元素会沉到该底色之下而完全不可见。
+     left 取 --page-canvas-left，用于跳过固定定位的侧栏（桌面 208px / 折叠 64px / 窄屏 0）。 */
+  .bg-page-canvas {
+    position: relative;
+    isolation: isolate;
+    --page-canvas-left: 0px;
+  }
+  .bg-page-canvas::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: var(--page-canvas-left);
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .05) 0%, transparent 68%),
+      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .05) 0%, transparent 66%);
+  }
+  @media (min-width: 768px) {
+    .bg-page-canvas {
+      --page-canvas-left: 208px;
+    }
+    /* 折叠态：侧栏 64px。属性由 dashboard.tsx 仅在折叠时渲染 */
+    .bg-page-canvas[data-sidebar-collapsed] {
+      --page-canvas-left: 64px;
+    }
+  }
 }
 
 /* 组件类白名单（design.md 决策 2）：仅以下三类落 CSS，其余一律 Tailwind 原子类。

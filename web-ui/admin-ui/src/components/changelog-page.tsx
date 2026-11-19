@@ -201,7 +201,7 @@ export function ChangelogPage({ onBack }: ChangelogPageProps) {
 
   return (
     <div>
-      <div className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 bg-background px-9 max-md:px-3.5 pt-7 max-md:pt-3">
+      <div className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 bg-background/70 px-9 max-md:px-3.5 pt-7 max-md:pt-3 backdrop-blur-md">
         <PageHead
           onBack={onBack}
           crumb={[t('dashboard.navSystem'), t('changelog.pageTitle')]}

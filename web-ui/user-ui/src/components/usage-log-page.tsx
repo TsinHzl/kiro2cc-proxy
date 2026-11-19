@@ -80,7 +80,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
   const pageCredits = allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background bg-page-canvas">
       <div className="w-[90%] max-md:w-full mx-auto px-4 max-md:px-3.5 py-6 max-md:py-4">
         <PageHead
           crumb={['请求日志']}

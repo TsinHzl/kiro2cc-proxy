@@ -340,50 +340,7 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
             </div>
           )}
 
-          {/* 阶梯 2.5：配额分解三卡片（主配额 / 免费试用 / 奖励总计），对齐 KAM 账号详情 */}
-          {balance && (
-            <div className="grid grid-cols-3 gap-2">
-              {/* 主配额 */}
-              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
-                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBase')}</div>
-                <div className="font-mono text-[13px] font-semibold text-ink">
-                  {formatQuota(baseUsage)}
-                  <span className="text-ink-3"> / {formatQuota(baseLimit)}</span>
-                </div>
-                <div className="truncate text-[10px] text-ink-3">
-                  {t('credentials.quotaResetAt', { time: formatTimestamp(balance.nextResetAt) })}
-                </div>
-              </div>
-
-              {/* 免费试用：恒渲染，无额度时 0/0 + 占位文案 */}
-              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
-                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardFreeTrial')}</div>
-                <div className="font-mono text-[13px] font-semibold text-ink">
-                  {formatQuota(balance.freeTrial?.currentUsage ?? 0)}
-                  <span className="text-ink-3"> / {formatQuota(balance.freeTrial?.usageLimit ?? 0)}</span>
-                </div>
-                <div className="truncate text-[10px] text-ink-3">
-                  {balance.freeTrial
-                    ? t('credentials.quotaExpiresAt', { time: formatTimestamp(balance.freeTrial.expiresAt) })
-                    : t('credentials.quotaFreeTrialNone')}
-                </div>
-              </div>
-
-              {/* 奖励总计：N 个生效奖励 */}
-              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
-                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBonuses')}</div>
-                <div className="font-mono text-[13px] font-semibold text-ink">
-                  {formatQuota(bonusTotalUsage)}
-                  <span className="text-ink-3"> / {formatQuota(bonusTotalLimit)}</span>
-                </div>
-                <div className="truncate text-[10px] text-ink-3">
-                  {t('credentials.quotaActiveBonusCount', { count: activeBonuses.length })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 阶梯 2.6：生效奖励明细（无 ACTIVE 数据时整块隐藏） */}
+          {/* 阶梯 2.5：生效奖励明细（无 ACTIVE 数据时整块隐藏） */}
           {balance && activeBonuses.length > 0 && (
             <div className="space-y-2.5 rounded-lg border border-transparent bg-surface-2 p-3 px-3.5">
               <CardHeader
@@ -442,6 +399,49 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* 阶梯 2.6：配额分解三卡片（主配额 / 免费试用 / 奖励总计），对齐 KAM 账号详情 */}
+          {balance && (
+            <div className="grid grid-cols-3 gap-2">
+              {/* 主配额 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBase')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(baseUsage)}
+                  <span className="text-ink-3"> / {formatQuota(baseLimit)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {t('credentials.quotaResetAt', { time: formatTimestamp(balance.nextResetAt) })}
+                </div>
+              </div>
+
+              {/* 免费试用：恒渲染，无额度时 0/0 + 占位文案 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardFreeTrial')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(balance.freeTrial?.currentUsage ?? 0)}
+                  <span className="text-ink-3"> / {formatQuota(balance.freeTrial?.usageLimit ?? 0)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {balance.freeTrial
+                    ? t('credentials.quotaExpiresAt', { time: formatTimestamp(balance.freeTrial.expiresAt) })
+                    : t('credentials.quotaFreeTrialNone')}
+                </div>
+              </div>
+
+              {/* 奖励总计：N 个生效奖励 */}
+              <div className="space-y-1.5 rounded-lg border border-transparent bg-surface-2 p-2.5 px-3">
+                <div className="text-[10.5px] font-medium text-ink-3">{t('credentials.quotaCardBonuses')}</div>
+                <div className="font-mono text-[13px] font-semibold text-ink">
+                  {formatQuota(bonusTotalUsage)}
+                  <span className="text-ink-3"> / {formatQuota(bonusTotalLimit)}</span>
+                </div>
+                <div className="truncate text-[10px] text-ink-3">
+                  {t('credentials.quotaActiveBonusCount', { count: activeBonuses.length })}
+                </div>
+              </div>
             </div>
           )}
 

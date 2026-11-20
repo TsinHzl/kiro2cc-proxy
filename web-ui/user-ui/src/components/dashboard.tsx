@@ -12,16 +12,26 @@ import { storage } from '@/lib/storage'
 import { copyToClipboard } from '@/lib/clipboard'
 import { importToCcSwitch, type CcSwitchApp } from '@/lib/ccswitch'
 import { ChatGptIcon, ClaudeIcon } from '@/components/brand-icons'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress, QuotaPercentBadge } from '@/components/ui/progress'
 import { UsageLogPage } from '@/components/usage-log-page'
 import { PageHead } from '@/components/page-head'
+import { Metric, MetricFoot, MetricValue, MetricsBar, Ring } from '@/components/metrics'
+import { CELL, PANEL, PANEL_TITLE, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 import { useTheme } from '@/hooks/use-theme'
 
 interface DashboardProps {
   onLogout: () => void
+}
+
+function getModelTone(model: string): { text: string; pip: string } {
+  const lower = model.toLowerCase()
+  if (lower.includes('opus')) return { text: 'text-brand', pip: 'bg-brand' }
+  if (lower.includes('sonnet')) return { text: 'text-ok', pip: 'bg-ok' }
+  if (lower.includes('haiku')) return { text: 'text-warn', pip: 'bg-warn' }
+  return { text: 'text-ink-2', pip: 'bg-ink-3' }
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
@@ -82,12 +92,29 @@ export function Dashboard({ onLogout }: DashboardProps) {
     if (!data) return null
     if (data.expiresAt) {
       const expired = new Date(data.expiresAt) < new Date()
-      if (expired) return <Badge variant="destructive">已过期</Badge>
+      if (expired) {
+        return (
+          <Badge variant="destructive">
+            <span className="size-[5px] rounded-full bg-danger" aria-hidden="true" />
+            已过期
+          </Badge>
+        )
+      }
     }
     if (data.spendingLimit && usedAmount >= data.spendingLimit) {
-      return <Badge variant="destructive">额度已用完</Badge>
+      return (
+        <Badge variant="destructive">
+          <span className="size-[5px] rounded-full bg-danger" aria-hidden="true" />
+          额度已用完
+        </Badge>
+      )
     }
-    return <Badge variant="success">正常</Badge>
+    return (
+      <Badge variant="success">
+        <span className="size-[5px] rounded-full bg-ok" aria-hidden="true" />
+        正常
+      </Badge>
+    )
   }
 
   const spendingPercent = data?.spendingLimit
@@ -108,193 +135,225 @@ export function Dashboard({ onLogout }: DashboardProps) {
     return <UsageLogPage onBack={() => setShowLog(false)} />
   }
 
+  const maxModelCost = data?.byModel.length
+    ? Math.max(...data.byModel.map((m) => m.cost), 0)
+    : 0
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="w-[90%] max-md:w-full mx-auto px-4 max-md:px-3.5 py-6 max-md:py-4">
+      <div className="mx-auto w-[90%] max-w-[1280px] px-4 py-7 max-md:w-full max-md:px-3.5 max-md:py-4">
         <PageHead
-          crumb={['额度用量监控']}
+          crumb={['Kiro2CCProxy', '额度用量监控']}
           title="额度用量监控"
           note={getStatusBadge() ?? undefined}
           actions={
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setShowLog(true)}
               >
-                <FileText className="h-4 w-4 mr-1" />
+                <FileText className="h-3.5 w-3.5" />
                 查看日志
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={() => refetch()}
                 disabled={isRefetching}
                 aria-label="刷新"
               >
-                <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={toggleTheme}
                 aria-label={theme === 'dark' ? '切换到白天模式' : '切换到夜间模式'}
               >
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
               </Button>
               <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-1" />
+                <LogOut className="h-3.5 w-3.5" />
                 退出
               </Button>
             </div>
           }
         />
 
-        <div className="space-y-6">
-          {/* Key 信息 */}
+        <div className="space-y-4">
+          {/* Key 信息与额度概览 */}
           {data && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  {data.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
-                  {data.activatedAt && (
-                    <div className="flex items-center gap-2 text-ink-3">
-                      <Clock className="h-3.5 w-3.5" />
-                      激活时间: {formatDate(data.activatedAt)}
+            <section className="overflow-hidden rounded-[14px] border border-transparent bg-chat-canvas shadow-panel">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b-[0.5px] border-hairline px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-soft text-brand ring-[0.5px] ring-inset ring-brand-line">
+                    <Zap className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
+                      {data.name}
                     </div>
-                  )}
-                  {data.expiresAt && (
-                    <div className="flex items-center gap-2 text-ink-3">
-                      <Clock className="h-3.5 w-3.5" />
-                      到期时间: {formatDate(data.expiresAt)}
-                    </div>
-                  )}
+                    {(data.activatedAt || data.expiresAt) && (
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-ink-3">
+                        {data.activatedAt && (
+                          <span className="inline-flex items-center gap-1.5 tabular-nums">
+                            <Clock className="h-3 w-3" />
+                            激活时间: {formatDate(data.activatedAt)}
+                          </span>
+                        )}
+                        {data.expiresAt && (
+                          <span className="inline-flex items-center gap-1.5 tabular-nums">
+                            <Clock className="h-3 w-3" />
+                            到期时间: {formatDate(data.expiresAt)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {/* 额度进度条 */}
+
                 {data.spendingLimit && spendingPercent !== null && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-ink-3">
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-[11px] font-medium text-ink-3">
                         额度使用{isCredits ? '（credits）' : ''}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        {formatLimitAmount(usedAmount)} / {formatLimitAmount(data.spendingLimit)}
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-end gap-2 font-mono text-[13px] font-semibold tabular-nums text-ink">
+                        <span>
+                          {formatLimitAmount(usedAmount)}
+                          <span className="font-normal text-ink-3"> / {formatLimitAmount(data.spendingLimit)}</span>
+                        </span>
                         <QuotaPercentBadge percent={spendingPercent} />
-                      </span>
+                      </div>
                     </div>
-                    <Progress value={spendingPercent} />
+                    <Ring percent={spendingPercent} size={48}>
+                      <span className="font-mono text-[11px] font-bold tabular-nums text-ink">
+                        {spendingPercent.toFixed(0)}%
+                      </span>
+                    </Ring>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {data.spendingLimit && spendingPercent !== null && (
+                <div className="bg-[color-mix(in_srgb,var(--surface-2)_35%,transparent)] px-5 py-3">
+                  <Progress value={spendingPercent} className="h-2" />
+                </div>
+              )}
+            </section>
           )}
 
           {/* 一键导入 cc-switch：由 cc-switch 桌面端接管客户端配置文件，无需手写 ~/.codex/.env */}
           {data && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-medium flex items-center gap-2">
+            <section className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] border border-transparent bg-chat-canvas px-5 py-4 shadow-hair">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-[8px] bg-surface-3/80 text-ink-2">
                   <Download className="h-4 w-4" />
-                  一键导入 cc-switch
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('claude')}>
-                    <ClaudeIcon className="h-4 w-4 mr-1" />
-                    导入 Claude Code
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('codex')}>
-                    <ChatGptIcon className="h-4 w-4 mr-1" />
-                    导入 Codex
-                  </Button>
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink">
+                    一键导入 cc-switch
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-3">
+                    需先安装 cc-switch 桌面端。导入后只会新增供应商条目，不会自动切换当前供应商。
+                  </p>
                 </div>
-                <p className="text-xs text-ink-3">
-                  需先安装 cc-switch 桌面端。导入后只会新增供应商条目，不会自动切换当前供应商。
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('claude')}>
+                  <ClaudeIcon className="h-4 w-4" />
+                  导入 Claude Code
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleImportToCcSwitch('codex')}>
+                  <ChatGptIcon className="h-4 w-4" />
+                  导入 Codex
+                </Button>
+              </div>
+            </section>
           )}
+
           {/* 用量概览 */}
           {data && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-ink-3 text-sm mb-1">
-                    <Activity className="h-3.5 w-3.5" />
-                    总请求数
-                  </div>
-                  <div className="text-2xl font-bold">{data.totalRequests.toLocaleString()}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-ink-3 text-sm mb-1">
-                    <ArrowUpFromLine className="h-3.5 w-3.5" />
-                    输入 Tokens
-                  </div>
-                  <div className="text-2xl font-bold">{formatTokens(data.totalInputTokens)}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-ink-3 text-sm mb-1">
-                    <ArrowDownToLine className="h-3.5 w-3.5" />
-                    输出 Tokens
-                  </div>
-                  <div className="text-2xl font-bold">{formatTokens(data.totalOutputTokens)}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-ink-3 text-sm mb-1">
-                    <DollarSign className="h-3.5 w-3.5" />
-                    总费用
-                  </div>
-                  <div className="text-2xl font-bold">{formatCost(data.totalCost)}</div>
-                </CardContent>
-              </Card>
-            </div>
+            <MetricsBar>
+              <Metric label="总请求数" icon={<Activity />}>
+                <MetricValue value={data.totalRequests.toLocaleString()} />
+                <MetricFoot>累计代理请求次数</MetricFoot>
+              </Metric>
+              <Metric label="输入 Tokens" icon={<ArrowUpFromLine />}>
+                <MetricValue value={formatTokens(data.totalInputTokens)} />
+                <MetricFoot>累计输入 Token 消耗</MetricFoot>
+              </Metric>
+              <Metric label="输出 Tokens" icon={<ArrowDownToLine />}>
+                <MetricValue value={formatTokens(data.totalOutputTokens)} />
+                <MetricFoot>累计输出 Token 消耗</MetricFoot>
+              </Metric>
+              <Metric label="总费用" icon={<DollarSign />}>
+                <MetricValue value={formatCost(data.totalCost)} />
+                <MetricFoot>累计估算费用</MetricFoot>
+              </Metric>
+            </MetricsBar>
           )}
 
           {/* 按模型分组 */}
           {data && data.byModel.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-medium">按模型分组</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {data.byModel.map((m) => (
-                    <div key={m.model} className="flex items-center justify-between py-2 border-b border-hairline last:border-0">
-                      <div>
-                        <div className="font-medium text-sm">{m.model}</div>
-                        <div className="text-xs text-ink-3 mt-0.5">
-                          {m.requests} 次请求
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{formatCost(m.cost)}</div>
-                        <div className="text-xs text-ink-3 mt-0.5">
-                          {formatTokens(m.inputTokens)} in / {formatTokens(m.outputTokens)} out
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            <div className="pt-1">
+              <h3 className={PANEL_TITLE}>按模型分组</h3>
+              <section className={PANEL}>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className={TH_BASE}>模型</th>
+                        <th className={`${TH_BASE} text-right`}>请求数</th>
+                        <th className={`${TH_BASE} text-right`}>输入 / 输出 Tokens</th>
+                        <th className={`${TH_BASE} w-[180px]`}>费用占比</th>
+                        <th className={`${TH_BASE} text-right`}>费用</th>
+                      </tr>
+                    </thead>
+                    <tbody className="[&_tr:last-child>td]:border-b-0">
+                      {data.byModel.map((m) => {
+                        const tone = getModelTone(m.model)
+                        const barPct = maxModelCost > 0 ? (m.cost / maxModelCost) * 100 : 0
+                        return (
+                          <tr key={m.model} className={ROW_HOVER}>
+                            <td className={CELL}>
+                              <span className="inline-flex items-center gap-2 font-mono text-[12.5px] font-medium">
+                                <span className={`size-2 shrink-0 rounded-full ${tone.pip}`} aria-hidden="true" />
+                                <span className={tone.text}>{m.model}</span>
+                              </span>
+                            </td>
+                            <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                              {m.requests} 次请求
+                            </td>
+                            <td className={`${CELL} text-right font-mono text-[12px] tabular-nums text-ink-2`}>
+                              {formatTokens(m.inputTokens)} in / {formatTokens(m.outputTokens)} out
+                            </td>
+                            <td className={CELL}>
+                              <span className="block h-[5px] w-full overflow-hidden rounded-full bg-track">
+                                <span
+                                  className="block h-full rounded-full bg-brand transition-all duration-300"
+                                  style={{ width: `${Math.min(100, Math.max(0, barPct))}%` }}
+                                />
+                              </span>
+                            </td>
+                            <td className={`${CELL} text-right font-mono text-[12.5px] font-semibold tabular-nums text-ink`}>
+                              {formatCost(m.cost)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </CardContent>
-            </Card>
+              </section>
+            </div>
           )}
 
           {/* 无数据提示 */}
           {data && data.totalRequests === 0 && (
             <Card>
-              <CardContent className="py-12 text-center text-ink-3">
+              <CardContent className="py-12 text-center text-[13px] text-ink-3">
                 暂无用量数据
               </CardContent>
             </Card>

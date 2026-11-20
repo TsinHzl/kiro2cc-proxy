@@ -104,6 +104,15 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      textColor: {
+        brand: {
+          DEFAULT: 'var(--brand-ink)',
+          hover: 'var(--brand-hover)',
+          fg: 'var(--brand-fg)',
+          soft: 'var(--brand-soft)',
+          line: 'var(--brand-line)',
+        },
+      },
       // 不覆盖 Tailwind 内置的 shadow-sm / shadow-md：其他 6 页仍在使用其默认值
       boxShadow: {
         hair: 'var(--shadow-sm)',

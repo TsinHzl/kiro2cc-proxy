@@ -1,31 +1,32 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Brain, RefreshCw, BarChart3, DollarSign } from 'lucide-react'
+import { Brain, RefreshCw, BarChart3, DollarSign, Coins, Layers } from 'lucide-react'
 import { getUsageRecords } from '@/api/user'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useIpGeo } from '@/hooks/use-ip-geo'
 import { PageHead } from '@/components/page-head'
-import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TH_BASE } from '@/components/table-kit'
+import { Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE } from '@/components/table-kit'
 
 interface UsageLogPageProps {
   onBack: () => void
 }
 
 /** 模型色调：按名称映射到令牌色（brand/ok/warn/danger/ink-2 兜底），替代原硬编码 orange/blue/green */
-const MODEL_TONE: Record<string, string> = {
-  opus: 'text-brand',
-  sonnet: 'text-ok',
-  haiku: 'text-warn',
+const MODEL_TONE: Record<string, { text: string; pip: string }> = {
+  opus: { text: 'text-brand', pip: 'bg-brand' },
+  sonnet: { text: 'text-ok', pip: 'bg-ok' },
+  haiku: { text: 'text-warn', pip: 'bg-warn' },
 }
 
-function getModelTone(model: string): string {
+function getModelTone(model: string): { text: string; pip: string } {
   const lower = model.toLowerCase()
   for (const [key, cls] of Object.entries(MODEL_TONE)) {
     if (lower.includes(key)) return cls
   }
-  return 'text-ink-2'
+  return { text: 'text-ink-2', pip: 'bg-ink-3' }
 }
 
 function formatCost(n: number) {
@@ -33,14 +34,14 @@ function formatCost(n: number) {
 }
 
 /** 流式/非流徽章基类：与 admin-ui BADGE_CLS 同构（user-ui 独立 app，不跨仓共享） */
-const BADGE_CLS = 'rounded-[4px] px-1 py-px text-[9.5px] font-semibold leading-tight'
+const BADGE_CLS = 'inline-flex items-center gap-1 rounded-[5px] px-1.5 py-px text-[10px] font-semibold leading-tight'
 
 /** 请求结果徽章：outcome 缺省（含旧数据）视为正常完成；新增结果状态只需在此补一行 */
-const OUTCOME_BADGE: Record<string, { cls: string; label: string }> = {
-  failed: { cls: 'bg-danger-soft text-danger', label: '失败' },
-  client_aborted: { cls: 'bg-surface-3 text-ink-2', label: '客户端取消' },
+const OUTCOME_BADGE: Record<string, { cls: string; pip: string; label: string }> = {
+  failed: { cls: 'bg-danger-soft text-danger', pip: 'bg-danger', label: '失败' },
+  client_aborted: { cls: 'bg-surface-3 text-ink-2', pip: 'bg-ink-3', label: '客户端取消' },
 }
-const OUTCOME_DONE_BADGE = { cls: 'bg-ok-soft text-ok', label: '完成' }
+const OUTCOME_DONE_BADGE = { cls: 'bg-ok-soft text-ok', pip: 'bg-ok', label: '完成' }
 
 /** UA 短标识：取首个空格前段（如 claude-cli/2.1.5），完整原文走 title 悬停展示 */
 function uaShort(ua: string): string {
@@ -83,26 +84,28 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
     return acc
   }, {})
 
+  const pageInputTokens = allRecords.reduce((s, r) => s + r.inputTokens, 0)
+  const pageOutputTokens = allRecords.reduce((s, r) => s + r.outputTokens, 0)
   const pageCost = allRecords.reduce((s, r) => s + r.estimatedCost, 0)
   const pageCredits = allRecords.reduce((s, r) => s + (r.creditsUsed ?? r.estimatedCost / 0.72), 0)
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="w-[90%] max-md:w-full mx-auto px-4 max-md:px-3.5 py-6 max-md:py-4">
+      <div className="mx-auto w-[90%] max-w-[1280px] px-4 py-7 max-md:w-full max-md:px-3.5 max-md:py-4">
         <PageHead
-          crumb={['请求日志']}
+          crumb={['额度用量监控', '请求日志']}
           title="请求日志"
           note={data ? `共 ${data.total} 条` : undefined}
           onBack={onBack}
           actions={
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
               onClick={() => refetch()}
               disabled={isFetching}
               aria-label="刷新"
             >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             </Button>
           }
         />
@@ -114,79 +117,65 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
             </div>
           ) : !data || data.total === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center text-ink-3">
+              <CardContent className="py-12 text-center text-[13px] text-ink-3">
                 暂无请求日志
               </CardContent>
             </Card>
           ) : (
             <>
-              {/* 汇总卡片 */}
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-ink-3 flex items-center gap-1">
-                      <BarChart3 className="h-3.5 w-3.5" />
-                      总请求数
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{data.total}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-ink-3">本页 Tokens</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-sm font-bold">
-                      入 {formatTokens(allRecords.reduce((s, r) => s + r.inputTokens, 0))} /
-                      出 {formatTokens(allRecords.reduce((s, r) => s + r.outputTokens, 0))}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-ink-3">本页 Credits</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-ok">
-                      {pageCredits.toFixed(4)}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-ink-3 flex items-center gap-1">
-                      <DollarSign className="h-3.5 w-3.5" />
-                      本页费用
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-warn">
-                      {formatCost(pageCost)}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              {/* 汇总指标条 */}
+              <MetricsBar>
+                <Metric label="总请求数" icon={<BarChart3 />}>
+                  <MetricValue value={data.total.toLocaleString()} />
+                  <MetricFoot>第 {data.page} / {data.totalPages} 页</MetricFoot>
+                </Metric>
+                <Metric label="本页 Tokens" icon={<Layers />}>
+                  <MetricValue value={formatTokens(pageInputTokens + pageOutputTokens)} />
+                  <MetricFoot>
+                    入 {formatTokens(pageInputTokens)} / 出 {formatTokens(pageOutputTokens)}
+                  </MetricFoot>
+                </Metric>
+                <Metric label="本页 Credits" icon={<Coins />}>
+                  <MetricValue value={pageCredits.toFixed(4)} valueClass="text-ok" />
+                  <MetricFoot>当前页消耗积分</MetricFoot>
+                </Metric>
+                <Metric label="本页费用" icon={<DollarSign />}>
+                  <MetricValue value={formatCost(pageCost)} valueClass="text-warn" />
+                  <MetricFoot>当前页估算费用</MetricFoot>
+                </Metric>
+              </MetricsBar>
 
               {/* 按模型分组 */}
               {Object.keys(byModel).length > 0 && (
                 <div>
                   <h3 className={PANEL_TITLE}>按模型分组（当前页）</h3>
-                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-                    {Object.entries(byModel).map(([model, m]) => (
-                      <Card key={model}>
-                        <CardContent className="py-3 px-4">
-                          <div className={`text-sm font-medium truncate ${getModelTone(model)}`}>{model}</div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-ink-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {Object.entries(byModel).map(([model, m]) => {
+                      const tone = getModelTone(model)
+                      return (
+                        <div
+                          key={model}
+                          className="rounded-[12px] border border-transparent bg-chat-canvas px-4 py-3.5 shadow-hair"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex min-w-0 items-center gap-2">
+                              <span className={`size-2 shrink-0 rounded-full ${tone.pip}`} aria-hidden="true" />
+                              <span className={`truncate font-mono text-[12.5px] font-semibold ${tone.text}`}>
+                                {model}
+                              </span>
+                            </span>
+                            <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-warn">
+                              {formatCost(m.cost)}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[11px] tabular-nums text-ink-3">
                             <span>{m.requests} 次</span>
                             <span>入 {formatTokens(m.inputTokens)}</span>
                             <span>出 {formatTokens(m.outputTokens)}</span>
-                            <span className="font-medium text-warn">{formatCost(m.cost)}</span>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -212,8 +201,9 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                         {allRecords.map((r) => {
                           const geo = r.clientIp ? geoMap.get(r.clientIp) : undefined
                           const badge = (r.outcome && OUTCOME_BADGE[r.outcome]) || OUTCOME_DONE_BADGE
+                          const tone = getModelTone(r.model)
                           return (
-                            <tr key={r.createdAt} className="transition-colors hover:bg-surface-2">
+                            <tr key={r.createdAt} className={ROW_HOVER}>
                               <td className={`${CELL} whitespace-nowrap font-mono text-[11.5px] text-ink-2`}>
                                 {formatDate(r.createdAt)}
                               </td>
@@ -239,9 +229,9 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                   </span>
                                 )}
                               </td>
-                              <td className={`${CELL} text-[11.5px] max-w-[200px]`}>
-                                <div className="flex flex-col items-start gap-px">
-                                  <span className={`max-w-full truncate font-mono ${getModelTone(r.model)}`} title={r.model}>
+                              <td className={`${CELL} max-w-[200px] text-[11.5px]`}>
+                                <div className="flex flex-col items-start gap-1">
+                                  <span className={`max-w-full truncate font-mono font-medium ${tone.text}`} title={r.model}>
                                     {r.model}
                                   </span>
                                   {r.isStream != null && (
@@ -256,29 +246,32 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                 </div>
                               </td>
                               <td className={`${CELL} whitespace-nowrap text-[11.5px]`}>
-                                <span className={`${BADGE_CLS} ${badge.cls}`}>{badge.label}</span>
+                                <span className={`${BADGE_CLS} ${badge.cls}`}>
+                                  <span className={`size-[5px] rounded-full ${badge.pip}`} aria-hidden="true" />
+                                  {badge.label}
+                                </span>
                               </td>
                               <td className={CELL}>
-                                <div className="space-y-0.5 text-left text-[11.5px]">
-                                  <div>输入 Tokens：<span className="tabular-nums">{formatTokens(Math.max(0, r.inputTokens - (r.cacheReadInputTokens ?? 0)))}</span></div>
+                                <div className="space-y-0.5 text-left text-[11.5px] text-ink-2">
+                                  <div>输入 Tokens：<span className="font-mono tabular-nums">{formatTokens(Math.max(0, r.inputTokens - (r.cacheReadInputTokens ?? 0)))}</span></div>
                                   <div className={(r.thinkingTokenCount ?? 0) > 0 ? 'flex items-center gap-2' : undefined}>
-                                    <div>输出 Tokens：<span className="tabular-nums">{formatTokens(r.outputTokens)}</span></div>
+                                    <div>输出 Tokens：<span className="font-mono tabular-nums">{formatTokens(r.outputTokens)}</span></div>
                                     {r.thinkingTokenCount != null && r.thinkingTokenCount > 0 && (
-                                      <div className="inline-flex items-center gap-0.5 text-warn" title="深度思考 Tokens">
+                                      <div className="inline-flex items-center gap-0.5 rounded-full bg-warn-soft px-1.5 py-px font-mono text-[10px] font-semibold text-warn" title="深度思考 Tokens">
                                         <span className="sr-only">深度思考 Tokens：</span>
                                         <Brain className="size-3" aria-hidden="true" />
                                         <span className="tabular-nums">{formatTokens(r.thinkingTokenCount)}</span>
                                       </div>
                                     )}
                                   </div>
-                                  <div className="text-ok">缓存读取：<span className="tabular-nums">{formatTokens(r.cacheReadInputTokens ?? 0)}</span></div>
-                                  <div className="font-medium">输入总计：<span className="tabular-nums">{formatTokens(r.inputTokens)}</span></div>
+                                  <div className="text-ok">缓存读取：<span className="font-mono tabular-nums">{formatTokens(r.cacheReadInputTokens ?? 0)}</span></div>
+                                  <div className="font-medium text-ink">输入总计：<span className="font-mono tabular-nums">{formatTokens(r.inputTokens)}</span></div>
                                 </div>
                               </td>
-                              <td className={`${CELL} text-right tabular-nums font-medium text-[12px] text-warn`}>
+                              <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-warn`}>
                                 {r.outcome ? <span className="text-ink-3">—</span> : formatCost(r.estimatedCost)}
                               </td>
-                              <td className={`${CELL} text-right tabular-nums font-medium text-[12px] text-ok`}>
+                              <td className={`${CELL} text-right font-mono text-[12px] font-medium tabular-nums text-ok`}>
                                 {r.outcome ? (
                                   <span className="text-ink-3">—</span>
                                 ) : (

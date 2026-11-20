@@ -40,6 +40,7 @@
     --ink-2: #5F646B;
     --ink-3: #71777A;
     --brand: #0D7A6F;
+    --brand-ink: #0D7A6F;
     --brand-hover: #0A655C;
     /* 品牌渐变末端：设计稿 color-mix(in srgb, brand 62%, #063B36) 的预算值，不依赖 color-mix 浏览器支持 */
     --brand-deep: #0A6259;
@@ -70,10 +71,13 @@
     --quota-danger-badge-bg: #fff1f2;
     --quota-danger-badge-text: #e11d48;
     --code-bg: #FBFBFC;
-    --shadow-sm: 0 1px 2px rgba(16, 18, 20, .05);
-    --shadow-md: 0 4px 14px -4px rgba(16, 18, 20, .12), 0 1px 3px rgba(16, 18, 20, .06);
-    --shadow-pop: 0 12px 32px -8px rgba(16, 18, 20, .2), 0 2px 6px rgba(16, 18, 20, .08);
+    --shadow-sm: 0 1px 2px rgba(16, 18, 20, .05), 0 0 0 0.5px var(--hairline);
+    --shadow-md: 0 4px 16px -4px rgba(16, 18, 20, .10), 0 1px 3px rgba(16, 18, 20, .05), 0 0 0 0.5px var(--hairline);
+    --shadow-pop: 0 16px 40px -10px rgba(16, 18, 20, .18), 0 2px 8px rgba(16, 18, 20, .08), 0 0 0 0.5px var(--hairline-2);
     --grid-dot: rgba(15, 17, 19, .045);
+    --ring-grad-from: #34d399;
+    --ring-grad-to: #059669;
+    --ring-glow: rgba(16, 185, 129, .2);
   }
 
   .dark {
@@ -107,6 +111,7 @@
     --ink-2: #9AA1A9;
     --ink-3: #79818B;               /* 设计稿 #6C737C 提亮一级，深卡对比度 3.75 → 4.55 达 AA */
     --brand: #2BB8A6;
+    --brand-ink: #2BB8A6;
     --brand-hover: #3FCBB8;
     --brand-deep: #1D897B;
     --brand-fg: #04201D;
@@ -132,10 +137,13 @@
     --quota-danger-badge-bg: rgba(244, 63, 94, .15);
     --quota-danger-badge-text: #fb7185;
     --code-bg: #0A0B0D;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-md: 0 6px 20px -6px rgba(0, 0, 0, .6), 0 1px 3px rgba(0, 0, 0, .4);
-    --shadow-pop: 0 16px 40px -10px rgba(0, 0, 0, .72), 0 2px 8px rgba(0, 0, 0, .5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .42), 0 0 0 0.5px var(--hairline), inset 0 1px 0 rgba(255, 255, 255, .03);
+    --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, .6), 0 1px 3px rgba(0, 0, 0, .42), 0 0 0 0.5px var(--hairline), inset 0 1px 0 rgba(255, 255, 255, .04);
+    --shadow-pop: 0 20px 48px -12px rgba(0, 0, 0, .75), 0 2px 8px rgba(0, 0, 0, .5), 0 0 0 0.5px var(--hairline-2), inset 0 1px 0 rgba(255, 255, 255, .05);
     --grid-dot: rgba(255, 255, 255, .035);
+    --ring-grad-from: #34d399;
+    --ring-grad-to: #059669;
+    --ring-glow: rgba(16, 185, 129, .35);
   }
 }
 
@@ -171,6 +179,14 @@
   .bg-grid-dot {
     background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
     background-size: 16px 16px;
+  }
+
+  /* 内容区画布：带柔和极光渐变底色，与 admin-ui 保持统一视觉气质 */
+  .bg-chat-canvas {
+    background-color: var(--surface);
+    background-image:
+      radial-gradient(140% 120% at 0% 0%, hsl(var(--primary) / .055) 0%, transparent 66%),
+      radial-gradient(130% 110% at 100% 100%, hsl(var(--primary) / .055) 0%, transparent 64%);
   }
 }
 

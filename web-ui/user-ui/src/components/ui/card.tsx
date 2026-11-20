@@ -8,9 +8,8 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      // 设计稿 .panel：11px 圆角（rounded-lg = var(--radius)）+ surface 底 + hairline 边 + shadow-md
-      // 与已验收的 account-table.tsx（同为 .panel 角色）保持同一档阴影；指标卡那档才是 shadow-hair
-      'rounded-lg border border-hairline bg-surface text-ink shadow-panel',
+      // 设计稿 .panel：12px 圆角 + 画布渐变底 + hairline 阴影环
+      'rounded-[12px] border border-transparent bg-chat-canvas text-ink shadow-panel',
       className
     )}
     {...props}

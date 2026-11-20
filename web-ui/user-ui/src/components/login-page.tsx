@@ -44,35 +44,33 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    // 登录页按已建立的令牌与原语推导：`bg` 页面底 + `.panel` 卡片 + `.field` + `.btn-primary`
-    <div className="grid min-h-screen place-items-center bg-background p-4">
-      <div className="w-full max-w-[352px] rounded-[11px] border border-hairline bg-surface p-[26px] shadow-pop">
-        {/* 品牌区：徽标与文案沿用侧栏同一套渐变与字号比例，放大一档 */}
-        <div className="flex items-center gap-3">
-          <span
-            className="grid size-10 shrink-0 place-items-center rounded-[12px] text-brand-fg shadow-hair"
-            style={{ backgroundImage: 'linear-gradient(150deg, var(--brand), var(--brand-deep))' }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-[22px]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.9}
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M5 20V7a7 7 0 0 1 14 0v13l-2.3-2-2.4 2-2.3-2-2.3 2-2.4-2z" />
-              <path d="M9.5 10h.01M14.5 10h.01" />
-            </svg>
-          </span>
+    // 登录页按已建立的令牌与原语推导：`bg` 页面底 + 氛围极光柔光 + `.panel` 卡片 + `.field` + `.btn-primary`
+    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-background p-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"
+        style={{ background: 'radial-gradient(circle, hsl(var(--primary) / 0.36) 0%, transparent 70%)' }}
+      />
+      <div className="relative w-full max-w-[380px] rounded-[16px] border border-transparent bg-chat-canvas p-7 shadow-pop">
+        {/* 品牌区：与 admin-ui 统一的 Aurora 徽标 */}
+        <div className="flex items-center gap-3.5">
+          <img
+            src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
+            alt="Kiro2CCProxy"
+            className="hidden size-[42px] shrink-0 rounded-[10px] shadow-hair dark:block"
+          />
+          <img
+            src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
+            alt="Kiro2CCProxy"
+            className="size-[42px] shrink-0 rounded-[10px] shadow-hair dark:hidden"
+          />
           <div className="min-w-0">
-            <div className="text-[17px] font-semibold leading-[1.2] tracking-[-.02em]">额度用量监控</div>
-            <div className="text-[11px] tracking-[.02em] text-ink-3">额度用量监控控制台</div>
+            <div className="text-[18px] font-semibold leading-[1.2] tracking-[-.025em] text-ink">额度用量监控</div>
+            <div className="mt-0.5 text-[11.5px] tracking-[.02em] text-ink-3">额度用量监控控制台</div>
           </div>
         </div>
 
-        <p className="mt-[18px] text-[11.5px] leading-[1.55] text-ink-3">
+        <p className="mt-5 text-[12px] leading-[1.6] text-ink-2">
           请输入您的 API Key 或粘贴发货信息查看用量数据
         </p>
 
@@ -86,10 +84,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             placeholder="sk-... 或粘贴发货信息"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            className="flex h-[68px] w-full rounded-[7px] border border-hairline-2 bg-surface-2 px-3 py-2 text-[12.5px] text-ink placeholder:text-ink-3 focus-visible:border-brand focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 font-mono resize-none"
+            className="flex h-[74px] w-full resize-none rounded-[8px] border-[0.5px] border-hairline-2 bg-surface-2 px-3 py-2.5 font-mono text-[12.5px] text-ink transition-shadow placeholder:text-ink-3 focus-visible:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-soft disabled:cursor-not-allowed disabled:opacity-50"
             rows={3}
           />
-          <Button type="submit" className="mt-2 h-[34px] w-full" disabled={!apiKey.trim() || loading}>
+          <Button type="submit" className="mt-2.5 h-9 w-full rounded-[8px]" disabled={!apiKey.trim() || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {loading ? '验证中...' : '查看用量'}
           </Button>

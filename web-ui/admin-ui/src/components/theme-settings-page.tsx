@@ -355,7 +355,8 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
 
 export function ThemeSettingsPage() {
   const { t } = useTranslation()
-  const { themeMode, colorTheme, theme, setThemeMode, setColorTheme, resetTheme } = useTheme()
+  const { themeMode, colorTheme, theme, canvasGradient, setThemeMode, setColorTheme, setCanvasGradient, resetTheme } =
+    useTheme()
   const [search, setSearch] = useState('')
   const [group, setGroup] = useState<'all' | ThemeGroup>('all')
 
@@ -455,6 +456,39 @@ export function ThemeSettingsPage() {
                 </button>
               )
             })}
+          </div>
+          {/* 全站内容区背景渐变开关（默认关闭；开启后与 <html class="canvas-gradient"> 联动） */}
+          <div className="mt-4 flex items-center justify-between gap-4 border-t-[0.5px] border-hairline pt-3.5">
+            <div className="min-w-0">
+              <label
+                htmlFor="canvas-gradient-switch"
+                id="canvas-gradient-label"
+                className="block cursor-pointer text-[12.5px] font-medium text-ink"
+              >
+                {t('themeSettings.canvasGradientTitle')}
+              </label>
+              <p id="canvas-gradient-desc" className="mt-0.5 text-[11px] leading-snug text-ink-3">
+                {t('themeSettings.canvasGradientDesc')}
+              </p>
+            </div>
+            <button
+              id="canvas-gradient-switch"
+              type="button"
+              role="switch"
+              aria-checked={canvasGradient}
+              aria-labelledby="canvas-gradient-label"
+              aria-describedby="canvas-gradient-desc"
+              onClick={() => setCanvasGradient(!canvasGradient)}
+              className={`relative h-[18px] w-8 flex-none rounded-[10px] border border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                canvasGradient ? 'bg-brand' : 'bg-track'
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 size-3 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,.28)] transition-transform ${
+                  canvasGradient ? 'translate-x-[14px]' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
           <p className="mt-2.5 inline-flex items-center gap-1 text-[10.5px] text-ink-3">
             {t('themeSettings.localPreference')}

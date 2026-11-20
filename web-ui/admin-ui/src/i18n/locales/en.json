@@ -938,6 +938,8 @@
     },
     "autoSave": "Selections save automatically",
     "currentAppearance": "YOUR APPEARANCE",
+    "canvasGradientTitle": "Canvas background gradient",
+    "canvasGradientDesc": "Off by default for a flat surface background. Turn on to add a soft brand-color gradient to content areas across all pages.",
     "localPreference": "Saved in this browser, ready for your next visit.",
     "selectTheme": "Apply {{theme}} theme",
     "applied": "In use",

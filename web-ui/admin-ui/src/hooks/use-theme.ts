@@ -10,12 +10,15 @@ export type Theme = 'light' | 'dark'
 
 const MODE_STORAGE_KEY = 'admin-ui-theme-mode'
 const COLOR_STORAGE_KEY = 'admin-ui-color-theme'
+const GRADIENT_STORAGE_KEY = 'admin-ui-canvas-gradient'
 /** 旧版单值 key（存 light/dark），升级后迁移到 MODE_STORAGE_KEY */
 const LEGACY_STORAGE_KEY = 'admin-ui-theme'
 
 const DEFAULT_MODE: ThemeMode = 'light'
 /** 开箱默认色彩主题：Spotify 律动绿 */
 const DEFAULT_COLOR_THEME: ColorTheme = 'spotify'
+/** 开箱默认关闭内容区渐变色 */
+const DEFAULT_CANVAS_GRADIENT = false
 
 function readStoredMode(): ThemeMode {
   try {
@@ -44,12 +47,24 @@ function applyTheme(mode: ThemeMode) {
   document.documentElement.classList.toggle('dark', mode === 'dark')
 }
 
+function readStoredCanvasGradient(): boolean {
+  try {
+    return localStorage.getItem(GRADIENT_STORAGE_KEY) === 'true'
+  } catch {
+    return DEFAULT_CANVAS_GRADIENT
+  }
+}
+
 function applyColorTheme(id: ColorTheme) {
   const root = document.documentElement
   COLOR_THEMES.forEach((item) => {
     root.classList.remove(`theme-${item.id}`)
   })
   root.classList.add(`theme-${id}`)
+}
+
+function applyCanvasGradient(enabled: boolean) {
+  document.documentElement.classList.toggle('canvas-gradient', enabled)
 }
 
 /** View Transitions 圆形扩散动画是否可用（浏览器支持 + 未开启减弱动态效果） */
@@ -66,6 +81,7 @@ export function useTheme() {
   /** 解析后的实际明暗（当前与 themeMode 等价，直接派生避免双 state 失同步） */
   const theme: Theme = themeMode
   const [colorTheme, setColorThemeState] = useState<ColorTheme>(readStoredColorTheme)
+  const [canvasGradient, setCanvasGradientState] = useState<boolean>(readStoredCanvasGradient)
 
   useEffect(() => {
     applyTheme(themeMode)
@@ -74,6 +90,10 @@ export function useTheme() {
   useEffect(() => {
     applyColorTheme(colorTheme)
   }, [colorTheme])
+
+  useEffect(() => {
+    applyCanvasGradient(canvasGradient)
+  }, [canvasGradient])
 
   /** 内部切模式：持久化 + 同步解析后的明暗，动画外壳由调用方决定 */
   const commitMode = useCallback((mode: ThemeMode) => {
@@ -126,6 +146,15 @@ export function useTheme() {
     setColorThemeState(id)
   }, [])
 
+  const setCanvasGradient = useCallback((enabled: boolean) => {
+    try {
+      localStorage.setItem(GRADIENT_STORAGE_KEY, String(enabled))
+    } catch {
+      /* localStorage 不可用时仅内存生效 */
+    }
+    setCanvasGradientState(enabled)
+  }, [])
+
   const toggleTheme = useCallback(
     (x?: number, y?: number) => {
       setThemeMode(theme === 'dark' ? 'light' : 'dark', x, y)
@@ -134,17 +163,29 @@ export function useTheme() {
   )
 
   const resetTheme = useCallback(() => {
-    // 恢复为出厂默认：浅色 + Spotify 律动绿（DEFAULT_MODE / DEFAULT_COLOR_THEME）
+    // 恢复为出厂默认：浅色 + Spotify 律动绿 + 关闭画布渐变
     try {
       localStorage.removeItem(MODE_STORAGE_KEY)
       localStorage.removeItem(LEGACY_STORAGE_KEY)
       localStorage.removeItem(COLOR_STORAGE_KEY)
+      localStorage.removeItem(GRADIENT_STORAGE_KEY)
     } catch {
       /* localStorage 不可用时仅内存生效 */
     }
     setThemeModeState(DEFAULT_MODE)
     setColorThemeState(DEFAULT_COLOR_THEME)
+    setCanvasGradientState(DEFAULT_CANVAS_GRADIENT)
   }, [])
 
-  return { theme, themeMode, colorTheme, setThemeMode, setColorTheme, toggleTheme, resetTheme }
+  return {
+    theme,
+    themeMode,
+    colorTheme,
+    canvasGradient,
+    setThemeMode,
+    setColorTheme,
+    setCanvasGradient,
+    toggleTheme,
+    resetTheme,
+  }
 }

@@ -224,18 +224,22 @@
     background-size: 16px 16px;
   }
 
-  /* 内容区画布：左上 / 右下两束品牌色大柔光（对话页及全站各页内容面板/卡片共用）。
-     色值取 hsl(var(--primary) / .10)：--primary 是全部 36 主题（亮暗各一）都有的 HSL 三元组，
+  /* 内容区画布：默认仅铺纯 --surface 底色；当主题设置开启“画布渐变”时（<html class="canvas-gradient">），
+     叠加左上 / 右下两束品牌色大柔光（对话页及全站各页内容面板/卡片共用）。
+     色值取 hsl(var(--primary) / .07)：--primary 是全部 36 主题（亮暗各一）都有的 HSL 三元组，
      直接复用可保证画布与按钮、勾选框等品牌元素同色相；不用 --brand-soft 是因为它在亮色主题下
      是不透明淡彩（≈11% 浓度但无 alpha），只能靠收窄几何范围削弱，导致光晕小到几乎不可见。
-     半径放到 150%×130% 让柔光铺满整块画布，浓度仍控制在 10%：实测 72 个主题块中最差为
-     亮色 theme-default 4.58:1、暗色 theme-nord 5.39:1，均达 WCAG AA。
-     侧栏为不透明表面，不参与叠色；各页面内层表头/面板脚等改为半透明以免遮挡两角柔光。 */
+     半径放到 150%×130% 让柔光铺满整块画布，浓度折中取 7%（比初始 10% 更柔和，比 5% 更显色），
+     实测全部 74 个主题变体下全部直接前景色令牌（含 --enable）对比度最低 4.540:1，均达 WCAG AA。
+     侧栏为不透明表面，不参与叠色；各页面内层表头/面板脚等为半透明，开启渐变时可透出两角柔光。 */
   .bg-chat-canvas {
     background-color: var(--surface);
+  }
+
+  :root.canvas-gradient .bg-chat-canvas {
     background-image:
-      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .10) 0%, transparent 68%),
-      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .10) 0%, transparent 66%);
+      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .07) 0%, transparent 68%),
+      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .07) 0%, transparent 66%);
   }
 }
 

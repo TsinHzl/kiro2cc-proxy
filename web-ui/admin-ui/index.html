@@ -21,6 +21,7 @@
             // 兜底值必须与 use-theme.ts 的 DEFAULT_COLOR_THEME 保持一致（当前 'spotify'）
             'theme-' + (color && /^[a-z0-9-]+$/.test(color) ? color : 'spotify')
           );
+          // key 必须与 use-theme.ts 的 GRADIENT_STORAGE_KEY 保持一致（当前 'admin-ui-canvas-gradient'）
           if (localStorage.getItem('admin-ui-canvas-gradient') === 'true') {
             document.documentElement.classList.add('canvas-gradient');
           }

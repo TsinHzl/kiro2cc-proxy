@@ -35,6 +35,13 @@ function formatCost(n: number) {
 /** 流式/非流徽章基类：与 admin-ui BADGE_CLS 同构（user-ui 独立 app，不跨仓共享） */
 const BADGE_CLS = 'rounded-[4px] px-1 py-px text-[9.5px] font-semibold leading-tight'
 
+/** 请求结果徽章：outcome 缺省（含旧数据）视为正常完成；新增结果状态只需在此补一行 */
+const OUTCOME_BADGE: Record<string, { cls: string; label: string }> = {
+  failed: { cls: 'bg-danger-soft text-danger', label: '失败' },
+  client_aborted: { cls: 'bg-surface-3 text-ink-2', label: '客户端取消' },
+}
+const OUTCOME_DONE_BADGE = { cls: 'bg-ok-soft text-ok', label: '完成' }
+
 /** UA 短标识：取首个空格前段（如 claude-cli/2.1.5），完整原文走 title 悬停展示 */
 function uaShort(ua: string): string {
   return ua.split(/\s+/)[0] || ua
@@ -204,6 +211,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                       <tbody className="[&_tr:last-child>td]:border-b-0">
                         {allRecords.map((r) => {
                           const geo = r.clientIp ? geoMap.get(r.clientIp) : undefined
+                          const badge = (r.outcome && OUTCOME_BADGE[r.outcome]) || OUTCOME_DONE_BADGE
                           return (
                             <tr key={r.createdAt} className="transition-colors hover:bg-surface-2">
                               <td className={`${CELL} whitespace-nowrap font-mono text-[11.5px] text-ink-2`}>
@@ -248,13 +256,7 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
                                 </div>
                               </td>
                               <td className={`${CELL} whitespace-nowrap text-[11.5px]`}>
-                                {r.outcome === 'failed' ? (
-                                  <span className={`${BADGE_CLS} bg-danger-soft text-danger`}>失败</span>
-                                ) : r.outcome === 'client_aborted' ? (
-                                  <span className={`${BADGE_CLS} bg-surface-3 text-ink-2`}>客户端取消</span>
-                                ) : (
-                                  <span className={`${BADGE_CLS} bg-ok-soft text-ok`}>完成</span>
-                                )}
+                                <span className={`${BADGE_CLS} ${badge.cls}`}>{badge.label}</span>
                               </td>
                               <td className={CELL}>
                                 <div className="space-y-0.5 text-left text-[11.5px]">

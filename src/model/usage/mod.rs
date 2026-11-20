@@ -82,7 +82,7 @@ pub struct UsageRecord {
     /// 非完成记录只进明细（供使用日志展示），不计入日汇总与任何费用/credits 统计。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome: Option<String>,
-    /// 失败原因（仅 `failed` 记录，已截断；None 表示非失败记录）
+    /// 失败原因（仅 `failed` 记录，已脱敏并截断；None 表示非失败记录）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
 }

@@ -3,12 +3,14 @@
 #[cfg(test)]
 mod tests {
 
+    use crate::model::usage::outcome::{OUTCOME_CLIENT_ABORTED, OUTCOME_FAILED, OutcomeOptions};
     use crate::model::usage::{
-        RecordOptions, UsageTracker, calculate_cost, credits_for_cache_read,
+        RecordOptions, RequestGuard, UsageTracker, calculate_cost, credits_for_cache_read,
         get_claude_credit_rates, get_k_ref, infer_cache_read_from_credits,
         refine_prefix_cache_read,
     };
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     /// 每个测试使用独立目录隔离明细文件与累计基数文件（api_key_lifetime.json
     /// 固定落在明细同目录，仅隔离文件名会让所有测试共享/互踩同一累计文件）
@@ -1594,10 +1596,6 @@ mod tests {
 
     // ---- 失败 / 客户端取消记录 ----
 
-    use crate::model::usage::RequestGuard;
-    use crate::model::usage::outcome::{OUTCOME_CLIENT_ABORTED, OUTCOME_FAILED, OutcomeOptions};
-    use std::sync::Arc;
-
     fn guard_for(tracker: &Arc<UsageTracker>) -> RequestGuard {
         RequestGuard::new(
             Some(tracker),
@@ -1697,6 +1695,63 @@ mod tests {
         let msg = page.records[0].error_message.clone().unwrap();
         assert_eq!(msg.chars().count(), 301);
         assert!(msg.ends_with('…'));
+        cleanup_usage_path(&path);
+    }
+
+    /// 失败原因落库前脱敏：上游 HTTP 错误只保留状态码，丢弃响应体 / 结构化负载 / URL
+    #[tokio::test]
+    async fn test_record_outcome_redacts_sensitive_error_message() {
+        let path = temp_usage_path("outcome_redact");
+        let tracker = UsageTracker::load(&path).unwrap();
+        let cases = [
+            (
+                "Kiro API 请求失败: 429 Too Many Requests {\"message\":\"token=secret-abc\"}",
+                "Kiro API 请求失败: HTTP 429",
+            ),
+            (
+                "Kiro API 请求失败（所有账号已用尽）: 402 Payment Required internal-host:8080",
+                "Kiro API 请求失败（所有账号已用尽）: HTTP 402",
+            ),
+            (
+                "Upstream stream interrupted after 5s: error sending request for url https://q.us-east-1.amazonaws.com/x [secret]",
+                "Upstream stream interrupted after 5s: error sending request for url <url>",
+            ),
+            (
+                "{\"only\":\"payload\"}",
+                "Upstream error (details redacted)",
+            ),
+            (
+                "Upstream returned an empty response",
+                "Upstream returned an empty response",
+            ),
+        ];
+        for (raw, _) in &cases {
+            tracker.record_outcome(
+                1,
+                "m".to_string(),
+                OUTCOME_FAILED,
+                OutcomeOptions {
+                    error_message: Some((*raw).to_string()),
+                    ..Default::default()
+                },
+            );
+        }
+        let page = tracker.get_records_paged(1, 1, 10, &HashMap::new());
+        let stored: Vec<&str> = page
+            .records
+            .iter()
+            .map(|r| r.error_message.as_deref().unwrap())
+            .collect();
+        for (_, expected) in &cases {
+            assert!(
+                stored.contains(expected),
+                "缺少脱敏结果 {expected:?}，实际 {stored:?}"
+            );
+        }
+        for msg in &stored {
+            assert!(!msg.contains("secret"), "脱敏后仍含敏感内容: {msg}");
+            assert!(!msg.contains("internal-host"), "脱敏后仍含内部地址: {msg}");
+        }
         cleanup_usage_path(&path);
     }
 

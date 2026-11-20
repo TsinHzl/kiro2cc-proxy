@@ -107,6 +107,10 @@ function ThemeThumbnail({ swatch }: { swatch: ThemePreviewSwatch }) {
 
 /* ---------- 主题卡片 ---------- */
 
+/** 选择卡片未选中态：透明底，悬停时透出半透明 surface-2（主题卡片与外观模式卡片共用） */
+const CHOICE_CARD_IDLE =
+  'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
+
 function ThemeStyleCard({
   item,
   swatch,
@@ -131,7 +135,7 @@ function ThemeStyleCard({
       className={`relative rounded-lg border p-2 text-left transition-colors ${
         active
           ? 'border-brand bg-brand-soft'
-          : 'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
+          : CHOICE_CARD_IDLE
       }`}
     >
       {item.recommended && (
@@ -443,7 +447,7 @@ export function ThemeSettingsPage() {
                   className={`rounded-lg border p-3 text-left transition-colors ${
                     active
                       ? 'border-brand bg-brand-soft'
-                      : 'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
+                      : CHOICE_CARD_IDLE
                   }`}
                 >
                   <AppearanceThumbnail swatch={getThemePreviewSwatch(activeItem, option.id)} />

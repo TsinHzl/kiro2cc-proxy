@@ -38,6 +38,9 @@ pub struct OutcomeOptions {
     pub duration_ms: Option<u64>,
 }
 
+/// 上游 HTTP 错误文本的固定前缀标记（见 `kiro/provider/retry.rs` 的 `"{api_type} API 请求失败: {status} {body}"`）
+const UPSTREAM_FAILED_MARKER: &str = "API 请求失败";
+
 fn truncate_message(message: &str) -> String {
     let mut chars = message.trim().chars();
     let head: String = chars.by_ref().take(MAX_ERROR_MESSAGE_CHARS).collect();
@@ -46,6 +49,50 @@ fn truncate_message(message: &str) -> String {
     } else {
         head
     }
+}
+
+/// 从文本中取第一个 100..=599 的三位数字（HTTP 状态码）
+fn first_http_status(text: &str) -> Option<u16> {
+    text.split(|c: char| !c.is_ascii_digit())
+        .filter(|s| s.len() == 3)
+        .filter_map(|s| s.parse::<u16>().ok())
+        .find(|code| (100..600).contains(code))
+}
+
+/// 失败原因落库前脱敏：明细文件会长期保留，且管理端可见，而上游错误原文可能带有响应体、
+/// 内部地址等敏感信息，因此只保留可诊断的最小信息。
+///
+/// - 上游 HTTP 错误（`... API 请求失败: {status} {body}`）：只保留状态码，丢弃响应体；
+/// - 其余文本：丢弃第一个 `{` / `[` 之后的结构化负载，URL 替换为 `<url>`；
+/// - 最后统一按字符截断。
+fn sanitize_error_message(message: &str) -> String {
+    let message = message.trim();
+    if let Some(idx) = message.find(UPSTREAM_FAILED_MARKER)
+        && let tail = &message[idx..]
+        && let Some(code) = first_http_status(tail)
+    {
+        // 保留状态码之前的限定词（如「（所有账号已用尽）」），其后的响应体一律丢弃
+        let label = tail
+            .find([':', '：'])
+            .map_or(UPSTREAM_FAILED_MARKER, |colon| tail[..colon].trim_end());
+        return truncate_message(&format!("{}{label}: HTTP {code}", &message[..idx]));
+    }
+    let end = message.find(['{', '[']).unwrap_or(message.len());
+    let redacted = message[..end]
+        .split_whitespace()
+        .map(|token| {
+            if token.starts_with("http://") || token.starts_with("https://") {
+                "<url>"
+            } else {
+                token
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if redacted.is_empty() {
+        return "Upstream error (details redacted)".to_string();
+    }
+    truncate_message(&redacted)
 }
 
 impl UsageTracker {
@@ -88,7 +135,7 @@ impl UsageTracker {
             is_stream: Some(is_stream),
             user_agent,
             outcome: Some(outcome.to_string()),
-            error_message: error_message.as_deref().map(truncate_message),
+            error_message: error_message.as_deref().map(sanitize_error_message),
         });
     }
 }

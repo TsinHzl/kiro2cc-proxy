@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 import { COLOR_THEMES, type ColorTheme } from '@/theme-definitions'
 
@@ -76,26 +76,76 @@ function supportsCircularReveal() {
   )
 }
 
+interface ThemeSnapshot {
+  themeMode: ThemeMode
+  colorTheme: ColorTheme
+  canvasGradient: boolean
+}
+
+const STORAGE_KEYS = new Set([MODE_STORAGE_KEY, LEGACY_STORAGE_KEY, COLOR_STORAGE_KEY, GRADIENT_STORAGE_KEY])
+
+function readSnapshot(): ThemeSnapshot {
+  return {
+    themeMode: readStoredMode(),
+    colorTheme: readStoredColorTheme(),
+    canvasGradient: readStoredCanvasGradient(),
+  }
+}
+
+function applyAllThemeState(state: ThemeSnapshot) {
+  if (typeof document === 'undefined') return
+  applyTheme(state.themeMode)
+  applyColorTheme(state.colorTheme)
+  applyCanvasGradient(state.canvasGradient)
+}
+
+function sameSnapshot(a: ThemeSnapshot, b: ThemeSnapshot): boolean {
+  return a.themeMode === b.themeMode && a.colorTheme === b.colorTheme && a.canvasGradient === b.canvasGradient
+}
+
+// 模块级共享状态：保证主题设置页、侧边栏切换按钮等多个 useTheme() 调用方始终同步
+let themeSnapshot: ThemeSnapshot = readSnapshot()
+const listeners = new Set<() => void>()
+
+function updateThemeSnapshot(next: ThemeSnapshot) {
+  if (sameSnapshot(themeSnapshot, next)) return
+  themeSnapshot = next
+  applyAllThemeState(next)
+  listeners.forEach((listener) => listener())
+}
+
+function handleStorage(e: StorageEvent) {
+  if (e.key !== null && !STORAGE_KEYS.has(e.key)) return
+  updateThemeSnapshot(readSnapshot())
+}
+
+function subscribe(listener: () => void) {
+  if (listeners.size === 0 && typeof window !== 'undefined') {
+    window.addEventListener('storage', handleStorage)
+  }
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+    if (listeners.size === 0 && typeof window !== 'undefined') {
+      window.removeEventListener('storage', handleStorage)
+    }
+  }
+}
+
+function getSnapshot(): ThemeSnapshot {
+  return themeSnapshot
+}
+
 export function useTheme() {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(readStoredMode)
+  const { themeMode, colorTheme, canvasGradient } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   /** 解析后的实际明暗（当前与 themeMode 等价，直接派生避免双 state 失同步） */
   const theme: Theme = themeMode
-  const [colorTheme, setColorThemeState] = useState<ColorTheme>(readStoredColorTheme)
-  const [canvasGradient, setCanvasGradientState] = useState<boolean>(readStoredCanvasGradient)
 
   useEffect(() => {
-    applyTheme(themeMode)
-  }, [themeMode])
+    applyAllThemeState({ themeMode, colorTheme, canvasGradient })
+  }, [themeMode, colorTheme, canvasGradient])
 
-  useEffect(() => {
-    applyColorTheme(colorTheme)
-  }, [colorTheme])
-
-  useEffect(() => {
-    applyCanvasGradient(canvasGradient)
-  }, [canvasGradient])
-
-  /** 内部切模式：持久化 + 同步解析后的明暗，动画外壳由调用方决定 */
+  /** 内部切模式：持久化 + 同步全局快照，动画外壳由调用方决定 */
   const commitMode = useCallback((mode: ThemeMode) => {
     try {
       localStorage.setItem(MODE_STORAGE_KEY, mode)
@@ -104,11 +154,12 @@ export function useTheme() {
     } catch {
       /* localStorage 不可用时仅内存生效 */
     }
-    setThemeModeState(mode)
+    updateThemeSnapshot({ ...themeSnapshot, themeMode: mode })
   }, [])
 
   const setThemeMode = useCallback(
     (mode: ThemeMode, x?: number, y?: number) => {
+      if (mode === themeSnapshot.themeMode) return
       if (!supportsCircularReveal()) {
         commitMode(mode)
         return
@@ -117,7 +168,7 @@ export function useTheme() {
       const cy = y ?? window.innerHeight / 2
       const radius = Math.hypot(Math.max(cx, window.innerWidth - cx), Math.max(cy, window.innerHeight - cy))
       document.startViewTransition(() => {
-        // flushSync 强制同步渲染 + useEffect 切换 class，保证新快照已反映目标主题
+        // flushSync 强制同步渲染，保证所有订阅组件与根节点 class 同时反映目标主题
         flushSync(() => {
           commitMode(mode)
         })
@@ -143,7 +194,7 @@ export function useTheme() {
     } catch {
       /* localStorage 不可用时仅内存生效 */
     }
-    setColorThemeState(id)
+    updateThemeSnapshot({ ...themeSnapshot, colorTheme: id })
   }, [])
 
   const setCanvasGradient = useCallback((enabled: boolean) => {
@@ -152,14 +203,14 @@ export function useTheme() {
     } catch {
       /* localStorage 不可用时仅内存生效 */
     }
-    setCanvasGradientState(enabled)
+    updateThemeSnapshot({ ...themeSnapshot, canvasGradient: enabled })
   }, [])
 
   const toggleTheme = useCallback(
     (x?: number, y?: number) => {
-      setThemeMode(theme === 'dark' ? 'light' : 'dark', x, y)
+      setThemeMode(themeSnapshot.themeMode === 'dark' ? 'light' : 'dark', x, y)
     },
-    [setThemeMode, theme],
+    [setThemeMode],
   )
 
   const resetTheme = useCallback(() => {
@@ -172,9 +223,11 @@ export function useTheme() {
     } catch {
       /* localStorage 不可用时仅内存生效 */
     }
-    setThemeModeState(DEFAULT_MODE)
-    setColorThemeState(DEFAULT_COLOR_THEME)
-    setCanvasGradientState(DEFAULT_CANVAS_GRADIENT)
+    updateThemeSnapshot({
+      themeMode: DEFAULT_MODE,
+      colorTheme: DEFAULT_COLOR_THEME,
+      canvasGradient: DEFAULT_CANVAS_GRADIENT,
+    })
   }, [])
 
   return {

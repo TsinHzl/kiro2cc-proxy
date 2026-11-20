@@ -24,20 +24,20 @@ import { LANG_STORAGE_KEY } from '@/i18n'
 
 /** 分区标题（设计稿 .set-cap） */
 const SET_CAP =
-  'flex items-center gap-1.5 px-0.5 pb-2 text-[10.5px] font-semibold uppercase tracking-[.08em] text-ink-3'
+  'flex items-center gap-2 px-0.5 pb-2.5 text-[11px] font-semibold uppercase tracking-[.08em] text-ink-3'
 /** 分区卡片（设计稿 .set-card）：复用画布渐变 */
-const SET_CARD = 'overflow-hidden rounded-lg border border-transparent bg-chat-canvas shadow-hair'
+const SET_CARD = 'overflow-hidden rounded-[12px] border border-transparent bg-chat-canvas shadow-hair'
 /** 配置行（设计稿 .set-row） */
-const SET_ROW = 'flex items-center gap-4 border-b-[0.5px] border-hairline px-4 py-[13px] last:border-b-0'
+const SET_ROW = 'flex items-center gap-4 border-b-[0.5px] border-hairline px-[18px] py-3.5 transition-colors hover:bg-[color-mix(in_srgb,var(--surface-2)_45%,transparent)] last:border-b-0'
 /** 行键名（设计稿 .set-k） */
-const SET_K = 'flex items-center gap-[7px] text-[12.5px] font-semibold'
+const SET_K = 'flex items-center gap-[7px] text-[12.5px] font-semibold text-ink'
 /** 行说明（设计稿 .set-d） */
-const SET_D = 'mt-0.5 max-w-[760px] text-[11px] leading-[1.5] text-ink-3'
+const SET_D = 'mt-0.5 max-w-[760px] text-[11.5px] leading-[1.5] text-ink-3'
 /** 行控件区（设计稿 .set-c） */
 const SET_C = 'ml-auto flex flex-none items-center gap-2'
 /** 只读值框（设计稿 .field.w-s） */
 const FIELD_S =
-  'flex h-[31px] min-w-[96px] items-center rounded-[7px] border border-transparent bg-surface-2 px-2.5 font-mono text-[12px] text-ink-2'
+  'flex h-[31px] min-w-[96px] items-center rounded-[7px] border-[0.5px] border-hairline bg-surface-2 px-2.5 font-mono text-[12px] text-ink-2'
 /** 分段器容器（设计稿 .seg，8px 圆角与 borderRadius.lg 的 11px 不同，故用字面量） */
 const SEG = 'flex flex-none gap-0.5 rounded-[8px] bg-surface-3 p-0.5'
 /** 分段器档位（设计稿 .seg button） */
@@ -58,7 +58,9 @@ function Section({ icon: Icon, title, children }: { icon: LucideIcon; title: str
   return (
     <section>
       <div className={SET_CAP}>
-        <Icon className="size-3.5" aria-hidden="true" />
+        <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-surface-3/80 text-ink-2">
+          <Icon className="size-3" aria-hidden="true" />
+        </span>
         {title}
       </div>
       <div className={SET_CARD}>{children}</div>

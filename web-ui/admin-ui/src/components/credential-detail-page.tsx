@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { RotateCw } from 'lucide-react'
+import { Activity, Calendar, Coins, Cpu, DollarSign, Layers, RotateCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { ModelAggPanel } from '@/components/model-agg-panel'
@@ -121,7 +121,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
 
       {/* 指标条（设计稿 .metrics）：主值统一 ink 色，费用/积分不再单独染色 */}
       <MetricsBar cols={8}>
-        <Metric label={t('common.statTotalRequests')}>
+        <Metric label={t('common.statTotalRequests')} icon={<Activity />}>
           <MetricValue value={totalRequests.toLocaleString(localeTag())} />
           <MetricFoot className="min-w-0">
             <span className="min-w-0 truncate">
@@ -129,7 +129,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalTokensLabel')}>
+        <Metric label={t('dailyStats.metricTotalTokensLabel')} icon={<Cpu />}>
           <MetricValue value={hasUsageSummary ? tokenText(totalTokens) : '—'} />
           <MetricFoot className="min-w-0">
             <span className="min-w-0 truncate" title={t('dailyStats.totalTokensHint')}>
@@ -137,7 +137,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalCreditsLabel')}>
+        <Metric label={t('dailyStats.metricTotalCreditsLabel')} icon={<Coins />}>
           <MetricValue
             value={hasUsageSummary ? creditsText(totalCredits) : '—'}
             unit={t('dailyStats.unitCredits')}
@@ -148,7 +148,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalCostLabel')}>
+        <Metric label={t('dailyStats.metricTotalCostLabel')} icon={<DollarSign />}>
           <MetricValue value={hasUsageSummary ? formatCost(totalCost) : '—'} />
           <MetricFoot className="min-w-0">
             <span className="min-w-0 truncate" title={t('dailyStats.totalCostHint')}>
@@ -156,7 +156,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('credentials.pageTokens')}>
+        <Metric label={t('credentials.pageTokens')} icon={<Layers />}>
           <MetricValue value={formatTokenCount(pageInput + pageOutput)} />
           <MetricFoot className="whitespace-nowrap">
             <span>{t('common.inboundPrefix', { value: formatCompactToken(pageInput) })}</span>
@@ -164,7 +164,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             <span>{t('common.outboundPrefix', { value: formatCompactToken(pageOutput) })}</span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('common.pageCredits')}>
+        <Metric label={t('common.pageCredits')} icon={<Wallet />}>
           <MetricValue value={creditsText(pageCredits)} unit={t('dailyStats.unitCredits')} />
           <MetricFoot className="min-w-0">
             <span className="min-w-0 truncate">
@@ -173,7 +173,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('common.pageCost')}>
+        <Metric label={t('common.pageCost')} icon={<DollarSign />}>
           <MetricValue value={formatCost(pageCost)} />
           <MetricFoot className="min-w-0">
             <span className="min-w-0 truncate">
@@ -182,7 +182,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('credentials.todayCredits')}>
+        <Metric label={t('credentials.todayCredits')} icon={<Calendar />}>
           <MetricValue
             value={creditsText(todaySummary?.totalCredits ?? 0)}
             unit={t('dailyStats.unitCredits')}

@@ -188,10 +188,10 @@ export function AccountRow({
       </td>
       <td className={CELL}>
         {/* .acct：26px 头像 + 昵称行 + 脱敏邮箱行 */}
-        <div className="flex min-w-0 items-center gap-[9px]">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div
             aria-hidden="true"
-            className={`grid size-[26px] flex-none place-items-center rounded-[7px] text-[11px] font-semibold tracking-[-0.02em] ${visual.avatarClass}`}
+            className={`grid size-7 flex-none place-items-center rounded-[8px] text-[11px] font-semibold tracking-[-0.02em] ring-[0.5px] ring-inset ring-hairline/70 ${visual.avatarClass}`}
           >
             {initial}
           </div>
@@ -200,15 +200,15 @@ export function AccountRow({
               <span className="truncate">{displayName}</span>
               <span
                 title={t('credentials.priorityLabel') + credential.priority}
-                className="flex-none rounded-[4px] border border-transparent px-[3px] text-[9.5px] font-semibold tracking-[0.02em] text-ink-3"
+                className="flex-none rounded-[4px] bg-surface-3/80 px-1 py-px font-mono text-[9.5px] font-semibold tracking-[0.02em] text-ink-3"
               >
                 P{credential.priority}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex min-w-0 items-center gap-1.5">
               <span
                 title={credential.email || undefined}
-                className="min-w-0 break-all font-mono text-[10.5px] text-ink-3"
+                className="min-w-0 truncate font-mono text-[10.5px] text-ink-3"
               >
                 {credential.email || '—'}
               </span>
@@ -255,11 +255,11 @@ export function AccountRow({
       </td>
       {/* 消费额度（设计稿 .quota）：已查询 = 已用值/总额 + 已用% + 4px 进度条；未查询 = 文案 + — + 空轨 */}
       <td className={CELL}>
-        <div className="flex min-w-[132px] flex-col gap-[5px]">
+        <div className="flex min-w-[120px] flex-col gap-[5px]">
           <div className="flex items-baseline justify-between gap-2">
             {balance && usedPct !== null ? (
               <>
-                <span className="font-mono text-[11.5px] tabular-nums text-ink-2">
+                <span className="whitespace-nowrap font-mono text-[11.5px] tabular-nums text-ink-2">
                   <b className={`font-semibold ${usedValue !== null && usedValue > balance.usageLimit ? 'text-danger' : 'text-ink'}`}>
                     {usedValue !== null ? usedValue.toFixed(1) : '—'}
                   </b> /{' '}
@@ -277,13 +277,13 @@ export function AccountRow({
             )}
           </div>
           <div
-            className={`flex h-1 overflow-hidden rounded-[3px] bg-track ${
+            className={`flex h-[5px] overflow-hidden rounded-full bg-track ${
               !balance && loadingBalance ? 'animate-pulse' : ''
             }`}
           >
             {remainingPct !== null && (
               <span
-                className="block h-full rounded-[3px] transition-all duration-300"
+                className="block h-full rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, usedPct ?? 0)}%`, backgroundImage: quotaTone(remainingPct).grad }}
               />
             )}
@@ -366,7 +366,7 @@ export function AccountRow({
       </td>
       {/* 操作（设计稿 .rowops）：开关 → 分隔 → 3 个常规图标 → ⋯ 菜单；破坏性操作只在菜单内 */}
       <td className={`${CELL} text-right`}>
-        <div className="flex items-center justify-end gap-[2px]">
+        <div className="flex items-center justify-end gap-0">
           {/* 启停按钮（替代原 Switch 滑块）：启用中显示「禁用」（danger 红），禁用后显示「启用」（荧光绿，与禁用对称） */}
           <button
             type="button"
@@ -375,14 +375,14 @@ export function AccountRow({
             aria-label={t('credentials.toggleEnabled', { name: label })}
             className={
               credential.disabled
-                ? 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-enable transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-                : 'inline-flex h-[26px] flex-none items-center gap-[5px] rounded-[6px] px-[8px] text-[11.5px] font-medium text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                ? 'inline-flex h-[26px] flex-none items-center gap-[4px] rounded-[6px] px-[6px] text-[11.5px] font-medium text-enable transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                : 'inline-flex h-[26px] flex-none items-center gap-[4px] rounded-[6px] px-[6px] text-[11.5px] font-medium text-danger transition-colors hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
             }
           >
             <Power className="size-[13px]" strokeWidth={1.7} />
             {credential.disabled ? t('credentials.stateActionEnable') : t('credentials.stateActionDisable')}
           </button>
-          <span aria-hidden="true" className="mx-[5px] h-4 w-[0.5px] flex-none bg-hairline" />
+          <span aria-hidden="true" className="mx-[3px] h-4 w-[0.5px] flex-none bg-hairline" />
           {/* 账号级 thinking adaptive 注入：点击直接切换，图标与颜色显示当前状态 */}
           <button
             type="button"

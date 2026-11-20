@@ -33,29 +33,34 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   }
 
   return (
-    // 登录页无设计稿，按已建立的令牌与原语推导：`bg` 页面底 + 画布渐变卡片 + `.field` + `.btn-primary`
-    <div className="grid min-h-screen place-items-center bg-background p-4">
-      <div className="w-full max-w-[352px] rounded-[11px] border border-transparent bg-chat-canvas p-[26px] shadow-pop">
-        {/* 品牌区：徽标与文案沿用侧栏同款 Aurora 徽标与字号比例，放大一档（30→40px） */}
-        <div className="flex items-center gap-3">
+    // 登录页无设计稿，按已建立的令牌与原语推导：`bg` 页面底 + 氛围极光柔光 + `.panel` 卡片 + `.field` + `.btn-primary`
+    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-background p-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"
+        style={{ background: 'radial-gradient(circle, hsl(var(--primary) / 0.36) 0%, transparent 70%)' }}
+      />
+      <div className="relative w-full max-w-[368px] rounded-[16px] border border-transparent bg-chat-canvas p-7 shadow-pop">
+        {/* 品牌区：徽标与文案沿用侧栏同款 Aurora 徽标与字号比例，放大一档（30→42px） */}
+        <div className="flex items-center gap-3.5">
           {/* 须走 BASE_URL 拼接（vite base 只重写 index.html 的 src，不重写 TS 字符串），详见 sidebar.tsx 注释 */}
           <img
             src={`${import.meta.env.BASE_URL}logo-aurora-dark.svg`}
             alt="Kiro2CCProxy"
-            className="hidden size-10 shrink-0 rounded-[9px] shadow-hair dark:block"
+            className="hidden size-[42px] shrink-0 rounded-[10px] shadow-hair dark:block"
           />
           <img
             src={`${import.meta.env.BASE_URL}logo-aurora-light.svg`}
             alt="Kiro2CCProxy"
-            className="size-10 shrink-0 rounded-[9px] shadow-hair dark:hidden"
+            className="size-[42px] shrink-0 rounded-[10px] shadow-hair dark:hidden"
           />
           <div className="min-w-0">
-            <div className="text-[17px] font-semibold leading-[1.2] tracking-[-.02em]">Kiro2CCProxy</div>
-            <div className="text-[11px] tracking-[.02em] text-ink-3">{t('dashboard.consoleSubtitle')}</div>
+            <div className="text-[18px] font-semibold leading-[1.2] tracking-[-.025em] text-ink">Kiro2CCProxy</div>
+            <div className="mt-0.5 text-[11.5px] tracking-[.02em] text-ink-3">{t('dashboard.consoleSubtitle')}</div>
           </div>
         </div>
 
-        <p className="mt-[18px] text-[11.5px] leading-[1.55] text-ink-3">{t('login.description')}</p>
+        <p className="mt-5 text-[12px] leading-[1.6] text-ink-2">{t('login.description')}</p>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-2">
           <label htmlFor="admin-psw" className={LABEL}>
@@ -67,9 +72,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             autoComplete="current-password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            className="h-[34px] text-[12.5px]"
+            className="h-9 rounded-[8px] text-[12.5px]"
           />
-          <Button type="submit" className="mt-2 h-[34px] w-full" disabled={!apiKey.trim()}>
+          <Button type="submit" className="mt-2.5 h-9 w-full rounded-[8px]" disabled={!apiKey.trim()}>
             {t('login.loginButton')}
           </Button>
         </form>

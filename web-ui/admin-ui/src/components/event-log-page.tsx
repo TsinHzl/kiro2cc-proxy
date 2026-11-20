@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { Loader2, RotateCw, SearchX, type LucideIcon } from 'lucide-react'
+import { Database, Hash, History, Loader2, RotateCw, SearchX, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
@@ -129,10 +129,10 @@ export function EventLogPage({
 
       {/* 指标条（设计稿 .metrics）：本页记录数按色调着色，另两项为中性参照值 */}
       <MetricsBar cols={3}>
-        <Metric label={t(totalLabelKey)}>
+        <Metric label={t(totalLabelKey)} icon={<Hash />}>
           <MetricValue value={total.toLocaleString(localeTag())} valueClass={visual.value} />
         </Metric>
-        <Metric label={t(cumulativeLabelKey)}>
+        <Metric label={t(cumulativeLabelKey)} icon={<History />}>
           <MetricValue value={(credential ? cumulativeOf(credential) : 0).toLocaleString(localeTag())} />
           <MetricFoot className="min-w-0">
             <span className="truncate" title={t(cumulativeHintKey)}>
@@ -140,7 +140,7 @@ export function EventLogPage({
             </span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('logs.recordLimitLabel')}>
+        <Metric label={t('logs.recordLimitLabel')} icon={<Database />}>
           <MetricValue value={RECORD_LIMIT.toLocaleString(localeTag())} />
           <MetricFoot>{t('logs.limitExceededHint')}</MetricFoot>
         </Metric>
@@ -186,8 +186,10 @@ export function EventLogPage({
                           {record.requestType.toUpperCase()}
                         </span>
                       </td>
-                      <td className={`${CELL} font-mono text-[12px] font-medium tabular-nums ${visual.value}`}>
-                        {record.statusCode}
+                      <td className={CELL}>
+                        <span className={`${TAG} ${visual.tag} font-mono tabular-nums`}>
+                          {record.statusCode}
+                        </span>
                       </td>
                       <td className={CELL}>
                         {/* 改版前挂在 td 上的 onClick 键盘不可达，改为 button 并补 title 显示全文 */}

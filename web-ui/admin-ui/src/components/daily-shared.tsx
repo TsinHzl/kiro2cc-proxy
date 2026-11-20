@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Activity, Coins, Cpu, DollarSign, Layers, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -92,26 +93,26 @@ export function UsageMetricsBar({
 
   return (
     <div className="shrink-0" aria-busy={isDailyLoading}>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-ink-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-3">
         <span role={isDailyError ? 'alert' : undefined}>{note}</span>
-        <span className="font-mono tabular-nums">
+        <span className="inline-flex items-center rounded-full border-[0.5px] border-hairline bg-surface px-2 py-0.5 font-mono text-[10.5px] tabular-nums text-ink-2">
           {from === to ? from : `${from} — ${to}`} · UTC+8
         </span>
       </div>
       <MetricsBar cols={7}>
-        <Metric label={t('common.statTotalRequests')}>
+        <Metric label={t('common.statTotalRequests')} icon={<Activity />}>
           <MetricValue value={(hasDaily ? totals.requests : totalRecords).toLocaleString(localeTag())} />
           <MetricFoot className="min-w-0">
             <FootText>{t('common.pageInfoSimple', { current: page, total: totalPages })}</FootText>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalTokensLabel')}>
+        <Metric label={t('dailyStats.metricTotalTokensLabel')} icon={<Cpu />}>
           <MetricValue value={hasDaily ? tokenText(totals.tokens) : '—'} />
           <MetricFoot className="min-w-0">
             <FootText title={t('dailyStats.totalTokensHint')}>{t('dailyStats.totalTokensHint')}</FootText>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalCreditsLabel')}>
+        <Metric label={t('dailyStats.metricTotalCreditsLabel')} icon={<Coins />}>
           <MetricValue
             value={hasDaily ? creditsText(totals.credits) : '—'}
             unit={t('dailyStats.unitCredits')}
@@ -120,13 +121,13 @@ export function UsageMetricsBar({
             <FootText title={t('dailyStats.totalCreditsHint')}>{t('dailyStats.totalCreditsHint')}</FootText>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricTotalCostLabel')}>
+        <Metric label={t('dailyStats.metricTotalCostLabel')} icon={<DollarSign />}>
           <MetricValue value={hasDaily ? formatCost(totals.cost) : '—'} />
           <MetricFoot className="min-w-0">
             <FootText title={t('dailyStats.totalCostHint')}>{t('dailyStats.totalCostHint')}</FootText>
           </MetricFoot>
         </Metric>
-        <Metric label={t('dailyStats.metricPageTokensLabel')}>
+        <Metric label={t('dailyStats.metricPageTokensLabel')} icon={<Layers />}>
           <MetricValue value={tokenText(pageTokens)} />
           <MetricFoot className="min-w-0">
             <FootText>
@@ -137,7 +138,7 @@ export function UsageMetricsBar({
             <span className="shrink-0">{cacheShare.toFixed(1)}%</span>
           </MetricFoot>
         </Metric>
-        <Metric label={t('common.pageCredits')}>
+        <Metric label={t('common.pageCredits')} icon={<Wallet />}>
           <MetricValue value={creditsText(pageCredits)} unit={t('dailyStats.unitCredits')} />
           <MetricFoot className="min-w-0">
             <FootText>
@@ -146,7 +147,7 @@ export function UsageMetricsBar({
             </FootText>
           </MetricFoot>
         </Metric>
-        <Metric label={t('common.pageCost')}>
+        <Metric label={t('common.pageCost')} icon={<DollarSign />}>
           <MetricValue value={formatCost(pageCost)} />
           <MetricFoot className="min-w-0">
             <FootText>

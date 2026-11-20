@@ -73,9 +73,9 @@ export function SearchBox({
 
   return (
     <label
-      className={`flex h-[31px] ${widthClass} max-md:w-full max-md:min-w-[160px] max-md:flex-1 shrink-0 items-center gap-[7px] rounded-[7px] border border-transparent bg-surface px-2.5 text-ink-3 shadow-hair focus-within:border-brand`}
+      className={`flex h-[32px] ${widthClass} max-md:w-full max-md:min-w-[160px] max-md:flex-1 shrink-0 items-center gap-[7px] rounded-[8px] border border-transparent bg-surface px-2.5 text-ink-3 shadow-hair transition-shadow focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft`}
     >
-      <Search className="size-[15px] shrink-0" />
+      <Search className="size-[14px] shrink-0" />
       <input
         ref={inputRef}
         value={value}
@@ -89,18 +89,18 @@ export function SearchBox({
           type="button"
           onClick={() => onChange('')}
           aria-label={clearLabel}
-          className="shrink-0 text-ink-3 transition-colors hover:text-ink"
+          className="grid size-4 shrink-0 place-items-center rounded-full bg-surface-3 text-ink-3 transition-colors hover:text-ink"
         >
-          <X className="size-[13px]" />
+          <X className="size-[11px]" />
         </button>
       ) : (
         shortcut && (
-          <span
+          <kbd
             aria-hidden="true"
-            className="shrink-0 rounded-[4px] border border-transparent px-1 py-px font-mono text-[10px] text-ink-3"
+            className="shrink-0 rounded-[5px] border-[0.5px] border-hairline-2 bg-surface-2 px-1.5 py-[1px] font-mono text-[10px] font-medium text-ink-3 shadow-[0_1px_0_var(--hairline)]"
           >
             {SHORTCUT_HINT}
-          </span>
+          </kbd>
         )
       )}
     </label>

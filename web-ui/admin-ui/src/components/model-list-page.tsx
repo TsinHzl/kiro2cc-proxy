@@ -2,7 +2,7 @@
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { Boxes, Copy, Download, Loader2, RotateCw, SearchX } from 'lucide-react'
+import { Boxes, CheckCircle2, Copy, Download, Gauge, Layers, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
@@ -238,7 +238,7 @@ export function ModelListPage() {
       />
 
       <MetricsBar>
-        <Metric label={t('models.metricTotalLabel')}>
+        <Metric label={t('models.metricTotalLabel')} icon={<Boxes />}>
           <MetricValue value={String(models.length)} unit={t('models.unitModels')} />
           <MetricFoot className="truncate">
             <span>{t('models.metricProviders', { n: providerCount })}</span>
@@ -256,7 +256,7 @@ export function ModelListPage() {
           </MetricFoot>
         </Metric>
 
-        <Metric label={t('models.metricFamiliesLabel')}>
+        <Metric label={t('models.metricFamiliesLabel')} icon={<Layers />}>
           <MetricValue value={String(familyGroups.length)} unit={t('models.unitFamilies')} />
           <MetricFoot className="truncate">
             {familyGroups.length === 0 ? (
@@ -279,7 +279,7 @@ export function ModelListPage() {
           </MetricFoot>
         </Metric>
 
-        <Metric label={t('models.metricRateCoverageLabel')}>
+        <Metric label={t('models.metricRateCoverageLabel')} icon={<CheckCircle2 />}>
           <MetricValue value={String(syncedCount)} unit={t('models.metricRateOfTotal', { total: models.length })} />
           <MetricFoot className="truncate">
             <span>
@@ -292,7 +292,7 @@ export function ModelListPage() {
           </MetricFoot>
         </Metric>
 
-        <Metric label={t('models.metricRateRangeLabel')}>
+        <Metric label={t('models.metricRateRangeLabel')} icon={<Gauge />}>
           <MetricValue
             value={allRange ? formatRate(allRange.min) : '—'}
             unit={allRange && allRange.min !== allRange.max ? `－ ${formatRate(allRange.max)}` : undefined}
@@ -458,9 +458,9 @@ export function ModelListPage() {
                               <span className="font-mono text-[12px] text-ink-3">—</span>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <span className="block h-1 min-w-[48px] flex-1 overflow-hidden rounded-[3px] bg-track">
+                                <span className="block h-[5px] min-w-[48px] flex-1 overflow-hidden rounded-full bg-track">
                                   <span
-                                    className={`block h-full rounded-[3px] ${isTop ? 'bg-warn' : 'bg-brand'}`}
+                                    className={`block h-full rounded-full transition-all duration-300 ${isTop ? 'bg-warn' : 'bg-brand'}`}
                                     style={{ width: `${Math.min(100, Math.max(0, barWidth))}%` }}
                                   />
                                 </span>

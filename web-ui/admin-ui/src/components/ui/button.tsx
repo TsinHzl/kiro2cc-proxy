@@ -6,13 +6,13 @@ import { cn } from '@/lib/utils'
 const buttonVariants = cva(
   // 设计稿 .btn 基类：31px 高 / 7px 圆角 / 12.5px 字号；阴影随变体（.btn-ghost 明确 box-shadow:none）
   // svg 取色（.btn svg / .btn:hover svg）也属基类；反色变体自带 [&_svg]:* 覆盖（tailwind-merge 后者胜）
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[7px] border border-transparent text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[15px] [&_svg]:shrink-0 [&_svg]:text-ink-3 hover:[&_svg]:text-ink-2',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] border border-transparent text-[12.5px] font-medium transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-[15px] [&_svg]:shrink-0 [&_svg]:text-ink-3 hover:[&_svg]:text-ink-2',
   {
     variants: {
       variant: {
         /** .btn-primary */
         default:
-          'border-transparent bg-brand font-semibold text-brand-fg shadow-hair [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover hover:[&_svg]:text-brand-fg',
+          'border-transparent bg-brand font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)] [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover hover:[&_svg]:text-brand-fg',
         /** .btn-danger */
         destructive:
           'bg-surface text-danger shadow-hair [&_svg]:text-danger hover:bg-danger-soft hover:[&_svg]:text-danger',

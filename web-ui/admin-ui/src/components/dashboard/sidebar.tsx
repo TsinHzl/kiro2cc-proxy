@@ -185,14 +185,20 @@ export function Sidebar({
                       }}
                       aria-label={fullLabel}
                       aria-current={active ? 'true' : undefined}
-                      className={`mb-0.5 flex h-[33px] w-full items-center rounded-[7px] text-[12.5px] transition-colors ${collapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand' : 'font-[450] text-ink-2 hover:bg-surface-3 hover:text-ink'}`}
+                      className={`relative mb-0.5 flex h-[34px] w-full items-center rounded-[8px] text-[12.5px] transition-all duration-150 ${collapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand shadow-[inset_0_0_0_0.5px_var(--brand-line)]' : 'font-[450] text-ink-2 hover:bg-surface-3/80 hover:text-ink'}`}
                     >
+                      {active && !collapsed && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-brand"
+                        />
+                      )}
                       <Icon className="w-4 h-4 shrink-0" />
                       {!collapsed && (
                         <>
                           <span className="truncate">{label}</span>
                           {count !== undefined && (
-                            <span className={`ml-auto text-[10.5px] font-medium ${active ? 'text-brand' : 'text-ink-3'}`}>{count}</span>
+                            <span className={`ml-auto rounded-full px-1.5 py-px font-mono text-[10px] font-semibold tabular-nums ${active ? 'bg-surface/75 text-brand' : 'bg-surface-3/80 text-ink-3'}`}>{count}</span>
                           )}
                         </>
                       )}

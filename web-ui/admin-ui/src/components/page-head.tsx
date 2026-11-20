@@ -27,31 +27,31 @@ export function PageHead({ crumb, title, note, actions, onBack }: PageHeadProps)
         {crumb.length > 0 && (
           <div
             aria-hidden={crumb[crumb.length - 1] === title || undefined}
-            className="mb-[5px] text-[11px] tracking-[.02em] text-ink-3"
+            className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium tracking-[.02em] text-ink-3"
           >
             {crumb.map((seg, i) => (
-              <span key={i}>
-                {i > 0 && <>&nbsp;/&nbsp;</>}
-                {i === crumb.length - 1 ? <b className="font-medium text-ink-2">{seg}</b> : seg}
+              <span key={i} className="inline-flex items-center gap-1.5">
+                {i > 0 && <span className="text-hairline-2">/</span>}
+                {i === crumb.length - 1 ? <b className="font-semibold text-ink-2">{seg}</b> : seg}
               </span>
             ))}
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {onBack && (
             <button
               type="button"
               onClick={onBack}
               aria-label={t('common.back')}
-              className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] border border-transparent bg-surface text-ink-2 shadow-hair transition-all hover:bg-surface-2 hover:text-ink active:scale-95"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5" />
             </button>
           )}
-          <h1 className="text-[19px] font-semibold leading-[1.2] tracking-[-.02em]">{title}</h1>
+          <h1 className="text-[20px] font-semibold leading-[1.2] tracking-[-.025em] text-ink">{title}</h1>
         </div>
       </div>
-      {note && <p className="ml-0.5 min-w-0 truncate pb-0.5 text-[11.5px] text-ink-3">{note}</p>}
+      {note && <p className="ml-0.5 min-w-0 truncate pb-0.5 text-[12px] text-ink-3">{note}</p>}
       {actions && <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
     </div>
   )

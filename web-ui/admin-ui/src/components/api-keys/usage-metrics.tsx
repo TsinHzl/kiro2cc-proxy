@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 // API Keys 指标条区块（自 api-keys-panel.tsx 拆出，纯代码搬移）
 import { useTranslation } from 'react-i18next'
+import { Activity, BarChart2, Gauge, KeyRound } from 'lucide-react'
 import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring, Sparkline } from '@/components/metrics'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import { quotaTone } from '@/components/api-key-row'
@@ -35,7 +36,7 @@ export function ApiKeysUsageMetrics({
   return (
     <div className="mt-[15px]">
         <MetricsBar>
-          <Metric label={t('apiKeys.metricKeysLabel')}>
+          <Metric label={t('apiKeys.metricKeysLabel')} icon={<KeyRound />}>
             <MetricValue value={String(statusCounts.all)} unit={t('apiKeys.metricKeysUnit')} />
             <MetricFoot>
               <span>
@@ -72,7 +73,7 @@ export function ApiKeysUsageMetrics({
             </MetricFoot>
           </Metric>
 
-          <Metric label={t('apiKeys.metricTodayLabel')}>
+          <Metric label={t('apiKeys.metricTodayLabel')} icon={<Activity />}>
             <MetricValue
               value={todayRequests === null ? '—' : todayRequests.toLocaleString(localeTag())}
               trailing={requestsDeltaPercent === null ? undefined : <Delta percent={requestsDeltaPercent} />}
@@ -95,7 +96,7 @@ export function ApiKeysUsageMetrics({
             )}
           </Metric>
 
-          <Metric label={t('apiKeys.metricTotalLabel')}>
+          <Metric label={t('apiKeys.metricTotalLabel')} icon={<BarChart2 />}>
             <MetricValue value={cumulative.requests.toLocaleString(localeTag())} />
             <MetricFoot>
               <span>
@@ -110,7 +111,7 @@ export function ApiKeysUsageMetrics({
             </MetricFoot>
           </Metric>
 
-          <Metric label={t('apiKeys.metricQuotaLabel')}>
+          <Metric label={t('apiKeys.metricQuotaLabel')} icon={<Gauge />}>
             <MetricValue
               value={topQuota === null ? '—' : String(Math.round(topQuota.percent))}
               unit={topQuota === null ? undefined : '%'}

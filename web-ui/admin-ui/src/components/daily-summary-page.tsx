@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { CalendarDays, Loader2, RotateCw, SearchX } from 'lucide-react'
+import { CalendarCheck2, CalendarDays, Coins, Gauge, Loader2, RotateCw, SearchX, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DailyCreditsTrendChart } from '@/components/daily-credits-trend-chart'
 import { Delta, FootSep, Metric, MetricAside, MetricFoot, MetricValue, MetricsBar, Ring } from '@/components/metrics'
@@ -320,7 +320,7 @@ function SummaryMetrics({
 
   return (
     <MetricsBar>
-      <Metric label={t('dailyStats.metricTotalLabel')}>
+      <Metric label={t('dailyStats.metricTotalLabel')} icon={<Coins />}>
         <MetricValue value={total.toFixed(2)} unit={t('dailyStats.unitCredits')} />
         <MetricFoot className="truncate">
           <span>{t('dailyStats.rangeDays', { days })}</span>
@@ -342,7 +342,7 @@ function SummaryMetrics({
         </MetricFoot>
       </Metric>
 
-      <Metric label={t('dailyStats.metricPeakLabel')}>
+      <Metric label={t('dailyStats.metricPeakLabel')} icon={<TrendingUp />}>
         <MetricValue value={peak ? peak.credits.toFixed(2) : '—'} unit={peak ? peak.date.slice(5) : undefined} />
         <MetricFoot className="truncate">
           {peak && total > 0 ? (
@@ -363,7 +363,7 @@ function SummaryMetrics({
         </MetricFoot>
       </Metric>
 
-      <Metric label={t('dailyStats.metricActiveDaysLabel')}>
+      <Metric label={t('dailyStats.metricActiveDaysLabel')} icon={<CalendarCheck2 />}>
         <MetricValue value={String(activeCount)} unit={t('dailyStats.metricOfDays', { days })} />
         {/* pr 给 .m-aside 的 42px 环形图让位 */}
         <MetricFoot className="truncate pr-[62px]">
@@ -385,7 +385,7 @@ function SummaryMetrics({
         </MetricAside>
       </Metric>
 
-      <Metric label={t('dailyStats.metricAvgActiveLabel')}>
+      <Metric label={t('dailyStats.metricAvgActiveLabel')} icon={<Gauge />}>
         <MetricValue value={avgActive.toFixed(2)} unit={t('dailyStats.unitCreditsPerDay')} />
         <MetricFoot className="truncate">
           <span>
@@ -517,9 +517,9 @@ function SummaryTable({
                           {share.toFixed(1)}%
                         </span>
                       </div>
-                      <span className="block h-1 overflow-hidden rounded-[3px] bg-track">
+                      <span className="block h-[5px] overflow-hidden rounded-full bg-track">
                         <span
-                          className="block h-full rounded-[3px] bg-brand"
+                          className="block h-full rounded-full bg-brand transition-all duration-300"
                           style={{ width: `${Math.min(100, Math.max(0, barWidth))}%` }}
                         />
                       </span>

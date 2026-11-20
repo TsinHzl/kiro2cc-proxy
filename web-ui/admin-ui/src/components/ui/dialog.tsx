@@ -20,7 +20,7 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       // 注：tailwindcss-animate 未安装，动画走 tailwind.config.js 自带的 overlay-in/out 关键帧
-      'fixed inset-0 z-50 bg-black/80',
+      'fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px]',
       'data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none',
       className
     )}
@@ -40,8 +40,8 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // 设计稿面板：11px 圆角 + surface 底 + hairline 边 + shadow-pop
-        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-transparent bg-surface p-4 shadow-pop sm:p-6',
+        // 设计稿面板：14px 圆角 + surface 底 + hairline 边 + shadow-pop
+        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[14px] border border-transparent bg-surface p-4 shadow-pop sm:p-6',
         'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none',
         className
       )}

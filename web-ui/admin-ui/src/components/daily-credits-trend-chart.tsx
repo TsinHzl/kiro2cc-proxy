@@ -120,27 +120,27 @@ export function DailyCreditsTrendChart({ points }: { points: TrendPoint[] }) {
   )
 
   return (
-    <section className="shrink-0 overflow-hidden rounded-[11px] border border-transparent bg-chat-canvas shadow-panel">
+    <section className="shrink-0 overflow-hidden rounded-[14px] border border-transparent bg-chat-canvas shadow-panel">
       {/* 设计稿 .chart-head */}
-      <div className="flex flex-wrap items-center gap-2.5 px-4 pt-[13px]">
+      <div className="flex flex-wrap items-center gap-2.5 px-[18px] pt-4">
         <div>
-          <div className="text-[13px] font-semibold tracking-[-.01em]">{t('dailyStats.trendTitle')}</div>
-          <div className="text-[11px] text-ink-3">{t('dailyStats.chartSub')}</div>
+          <div className="text-[13.5px] font-semibold tracking-[-.01em] text-ink">{t('dailyStats.trendTitle')}</div>
+          <div className="mt-0.5 text-[11px] text-ink-3">{t('dailyStats.chartSub')}</div>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-x-[13px] gap-y-1 text-[11px] text-ink-3">
-          <span className="flex items-center gap-[5px]">
-            <i aria-hidden="true" className="block size-[9px] rounded-[2px] bg-brand" />
+        <div className="ml-auto flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] text-ink-3">
+          <span className="flex items-center gap-1.5">
+            <i aria-hidden="true" className="block size-2 rounded-full bg-brand" />
             {t('dailyStats.legendDaily')}
           </span>
-          <span className="flex items-center gap-[5px]">
-            <i aria-hidden="true" className="block size-[9px] rounded-[2px] border border-transparent bg-surface-3" />
+          <span className="flex items-center gap-1.5">
+            <i aria-hidden="true" className="block size-2 rounded-[2px] border-[0.5px] border-hairline-2 bg-surface-3" />
             {t('dailyStats.legendZeroBand')}
           </span>
         </div>
       </div>
 
       {/* 设计稿 .chart-body */}
-      <div className="px-4 pb-3.5 pt-2.5">
+      <div className="px-[18px] pb-4 pt-3">
         {!plottable ? (
           <div className="grid h-[184px] place-items-center text-[12.5px] text-ink-3">
             {t('dailyStats.chartEmpty')}

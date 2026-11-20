@@ -37,7 +37,7 @@ export function MetricsBar({
   return (
     <CompactContext.Provider value={compact}>
       <section
-        className={`grid shrink-0 ${compact ? 'overflow-x-auto' : 'overflow-hidden'} rounded-[16px] border border-transparent bg-chat-canvas shadow-hair [&>*:last-child_.metric-divider]:hidden`}
+        className={`grid shrink-0 ${compact ? 'overflow-x-auto' : 'overflow-hidden'} rounded-[14px] border border-transparent bg-chat-canvas shadow-hair [&>*:last-child_.metric-divider]:hidden`}
         style={{ gridTemplateColumns: template }}
       >
         {children}
@@ -59,17 +59,29 @@ export function Metric({
   children: ReactNode
 }) {
   const compact = useContext(CompactContext)
-  const shell = `relative grid grid-rows-[auto_1fr_18px] ${compact ? 'min-w-0 px-4 py-3' : 'px-6 py-3.5'} text-left`
+  const shell = `relative grid grid-rows-[auto_1fr_18px] ${compact ? 'min-w-0 px-4 py-3.5' : 'px-5 py-4'} text-left`
   const inner = (
     <>
       {/* cell-header：icon 在 label 左侧，space-between 对齐 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {/* 标签必须单行省略：窄视口下换行会让整条指标条变高，数据到达后数值变宽再触发折行会造成页面跳动。
             省略号须落在文本节点所在的元素上 —— 加在 flex 容器上只会硬切，不出现 … */}
-        <div className={`flex min-w-0 items-center gap-1.5 font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
-          {icon && <span className="shrink-0 text-ink-3 [&>svg]:h-[14px] [&>svg]:w-[14px]">{icon}</span>}
+        <div className={`flex min-w-0 items-center gap-2 font-medium text-ink-2 ${compact ? 'text-[12px]' : 'text-[12.5px]'}`}>
+          {icon && (
+            <span className="grid size-[22px] shrink-0 place-items-center rounded-[6px] bg-surface-3/80 text-ink-3 transition-colors group-hover:bg-brand-soft group-hover:text-brand [&>svg]:h-[13px] [&>svg]:w-[13px]">
+              {icon}
+            </span>
+          )}
           <span className="min-w-0 truncate">{label}</span>
         </div>
+        {onClick && (
+          <span
+            aria-hidden="true"
+            className="text-[11px] font-medium text-ink-3 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:text-brand group-hover:opacity-100"
+          >
+            ↗
+          </span>
+        )}
       </div>
       {children}
       {/* cell ::after divider 等价：右侧 1px 竖线，top/bottom 18px；末列由 MetricsBar 的 last:hidden 自动隐藏 */}
@@ -83,7 +95,7 @@ export function Metric({
     <button
       type="button"
       onClick={onClick}
-      className={`${shell} transition-colors hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand`}
+      className={`group ${shell} cursor-pointer transition-colors hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand`}
     >
       {inner}
     </button>

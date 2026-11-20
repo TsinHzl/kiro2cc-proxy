@@ -271,14 +271,14 @@ export function ChangelogPage({ onBack }: ChangelogPageProps) {
                   </div>
 
                   {note.groups.length > 0 && (
-                    <div className="mt-[9px] overflow-hidden rounded-[10px] border border-transparent bg-chat-canvas shadow-hair">
+                    <div className="mt-2.5 overflow-hidden rounded-[12px] border border-transparent bg-chat-canvas shadow-hair">
                       {note.groups.map((group, groupIdx) => {
                         const kind = kindOf(group)
                         const Icon = SECTION_ICON[kind]
                         return (
-                          <div key={groupIdx} className="border-b-[0.5px] border-hairline px-[14px] py-[11px] last:border-b-0">
+                          <div key={groupIdx} className="border-b-[0.5px] border-hairline px-4 py-3 last:border-b-0">
                             <div
-                              className={`mb-[7px] flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.07em] ${SECTION_STYLE[kind]}`}
+                              className={`mb-2 inline-flex items-center gap-1.5 rounded-[5px] bg-surface-3/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.07em] ${SECTION_STYLE[kind]}`}
                             >
                               <Icon className="size-3" aria-hidden="true" />
                               {lang === 'zh' ? group.title_zh : group.title_en}

@@ -80,8 +80,8 @@ export function SessionsSidebar({
                     onClick={() => onSelect(session.id)}
                     disabled={locked && !active}
                     aria-current={active || undefined}
-                    className={`block w-full rounded-lg py-2 pl-3 pr-9 text-left transition-colors disabled:pointer-events-none disabled:opacity-60 ${
-                      active ? 'bg-brand-soft' : 'hover:bg-[color-mix(in_srgb,var(--brand-soft)_60%,transparent)]'
+                    className={`block w-full rounded-[9px] py-2 pl-3 pr-9 text-left transition-all disabled:pointer-events-none disabled:opacity-60 ${
+                      active ? 'bg-brand-soft shadow-[inset_0_0_0_0.5px_var(--brand-line)]' : 'hover:bg-[color-mix(in_srgb,var(--brand-soft)_45%,transparent)]'
                     }`}
                   >
                     <div className={`truncate text-[13px] ${active ? 'font-semibold text-ink' : 'text-ink-2'}`}>

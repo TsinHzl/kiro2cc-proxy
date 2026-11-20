@@ -320,12 +320,17 @@ const MessageItem = memo(function MessageItem({ message, canRegenerate, onRegene
 function EmptyState({ hasKey }: { hasKey: boolean }) {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full min-h-[240px] flex-col items-center justify-center px-4 text-center">
-      <div className="mb-5 grid size-11 place-items-center rounded-xl border-[0.5px] border-hairline-2 bg-surface-2 text-ink-2">
+    <div className="relative flex h-full min-h-[240px] flex-col items-center justify-center px-4 text-center">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-48 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"
+        style={{ background: 'radial-gradient(circle, hsl(var(--primary) / 0.35) 0%, transparent 70%)' }}
+      />
+      <div className="relative mb-5 grid size-12 place-items-center rounded-[14px] border-[0.5px] border-hairline-2 bg-surface-2 text-brand shadow-hair">
         <MessageSquarePlus className="size-5" aria-hidden="true" />
       </div>
-      <h2 className="text-[22px] font-semibold tracking-[-.02em]">{t('playground.emptyTitle')}</h2>
-      <p className="mt-2 max-w-md text-[13px] leading-6 text-ink-3">
+      <h2 className="relative text-[22px] font-semibold tracking-[-.025em] text-ink">{t('playground.emptyTitle')}</h2>
+      <p className="relative mt-2 max-w-md text-[13px] leading-6 text-ink-2">
         {hasKey ? t('playground.emptyHint') : t('playground.noKeyHint')}
       </p>
     </div>

@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { ChevronDown, RotateCw } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowUpFromLine, ChevronDown, Coins, DollarSign, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Metric, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
@@ -109,22 +109,22 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
 
       {/* 指标条（设计稿 .metrics）：主值统一 ink 色，费用/积分不再单独染色 */}
       <MetricsBar cols={5}>
-        <Metric label={t('common.statTotalRequests')}>
+        <Metric label={t('common.statTotalRequests')} icon={<Activity />}>
           <MetricValue value={(summary?.totalRequests ?? 0).toLocaleString(localeTag())} />
         </Metric>
-        <Metric label={t('apiKeys.colInputTokens')}>
+        <Metric label={t('apiKeys.colInputTokens')} icon={<ArrowUpFromLine />}>
           <MetricValue value={formatTokenCount(summary?.totalInputTokens ?? 0)} />
         </Metric>
-        <Metric label={t('apiKeys.colOutputTokens')}>
+        <Metric label={t('apiKeys.colOutputTokens')} icon={<ArrowDownToLine />}>
           <MetricValue value={formatTokenCount(summary?.totalOutputTokens ?? 0)} />
         </Metric>
-        <Metric label={t('apiKeys.totalCreditsLabel')}>
+        <Metric label={t('apiKeys.totalCreditsLabel')} icon={<Coins />}>
           <MetricValue
             value={fallbackCredits(summary?.totalCost ?? 0).toFixed(4)}
             unit="cr"
           />
         </Metric>
-        <Metric label={t('apiKeys.totalCostLabel')}>
+        <Metric label={t('apiKeys.totalCostLabel')} icon={<DollarSign />}>
           <MetricValue value={formatCost(summary?.totalCost ?? 0)} />
         </Metric>
       </MetricsBar>

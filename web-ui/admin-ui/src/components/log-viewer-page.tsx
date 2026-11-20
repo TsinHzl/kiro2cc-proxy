@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { Copy, Download, Pause, Play, Trash2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Copy, Database, Download, Layers, Pause, Play, Trash2 } from 'lucide-react'
 import { useLogStream, MAX_FRONT_LOGS, type LogEntry } from '@/hooks/use-log-stream'
 import { copyToClipboard } from '@/lib/clipboard'
 import { storage } from '@/lib/storage'
@@ -345,7 +345,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
       )}
 
       <MetricsBar>
-        <Metric label={t('logs.metricBufferLabel')}>
+        <Metric label={t('logs.metricBufferLabel')} icon={<Database />}>
           <MetricValue value={formatTokenCount(shownLogs.length)} unit={`/ ${formatTokenCount(MAX_FRONT_LOGS)}`} />
           <MetricFoot className="truncate pr-12">
             <span className="shrink-0">{t('logs.metricRingBuffer')}</span>
@@ -365,7 +365,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
           </MetricAside>
         </Metric>
 
-        <Metric label={t('logs.metricErrorsLabel')}>
+        <Metric label={t('logs.metricErrorsLabel')} icon={<AlertCircle />}>
           <MetricValue
             value={String(recent.errors)}
             unit={t('logs.unitEntries')}
@@ -376,7 +376,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
           </MetricFoot>
         </Metric>
 
-        <Metric label={t('logs.metricWarnsLabel')}>
+        <Metric label={t('logs.metricWarnsLabel')} icon={<AlertTriangle />}>
           <MetricValue
             value={String(recent.warns)}
             unit={t('logs.unitEntries')}
@@ -387,7 +387,7 @@ export function LogViewerPage({ embedded, initialLevelFilter = 'ALL', initialKey
           </MetricFoot>
         </Metric>
 
-        <Metric label={t('logs.metricLevelsLabel')}>
+        <Metric label={t('logs.metricLevelsLabel')} icon={<Layers />}>
           <MetricValue
             value={shownLogs.length > 0 ? topLevel : '—'}
             unit={shownLogs.length > 0 ? t('logs.metricLevelShare', { percent: topShare.toFixed(0) }) : undefined}

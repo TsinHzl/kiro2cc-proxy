@@ -15,13 +15,13 @@ export function formatLocalDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 操作条按钮基类（设计稿 .btn）：31px 高 / 7px 圆角 / 15px 图标 */
+/** 操作条按钮基类（设计稿 .btn）：31px 高 / 8px 圆角 / 15px 图标 */
 const ACTION_BTN_BASE =
-  'inline-flex h-[31px] items-center gap-1.5 whitespace-nowrap rounded-[7px] border px-[11px] text-[12.5px] font-medium shadow-hair transition-colors [&_svg]:size-[15px] [&_svg]:shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50'
+  'inline-flex h-[31px] items-center gap-1.5 whitespace-nowrap rounded-[8px] border px-[11px] text-[12.5px] font-medium shadow-hair transition-all duration-150 active:scale-[0.985] [&_svg]:size-[15px] [&_svg]:shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50'
 /** 常规态（设计稿 .btn） */
 export const ACTION_BTN = `${ACTION_BTN_BASE} border-transparent bg-surface text-ink-2 [&_svg]:text-ink-3 hover:bg-surface-2 hover:text-ink hover:[&_svg]:text-ink-2`
 /** 主按钮（设计稿 .btn-primary） */
-export const ACTION_BTN_PRIMARY = `${ACTION_BTN_BASE} border-transparent bg-brand font-semibold text-brand-fg [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover`
+export const ACTION_BTN_PRIMARY = `${ACTION_BTN_BASE} border-transparent bg-brand font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)] [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover`
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = 'sidebar-collapsed'
 export const CHAT_SIDEBAR_OPEN_STORAGE_KEY = 'playground:v1:sidebar-open'

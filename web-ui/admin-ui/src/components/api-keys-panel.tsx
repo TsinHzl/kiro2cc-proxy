@@ -564,10 +564,12 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
 
       {/* 连接卡（设计稿 .conn）：客户端接入所需的 Base URL 与兼容协议一次给全。
           设计稿右侧的「在新窗口打开」未实现 —— 本服务无可浏览端点（/v1/* 均需认证），渲染即死交互 */}
-      <section className="flex shrink-0 flex-wrap items-center gap-4 rounded-[11px] border border-transparent bg-chat-canvas px-4 py-[13px] shadow-hair">
+      <section className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 rounded-[14px] border border-transparent bg-chat-canvas px-[18px] py-3.5 shadow-hair">
         <div className="min-w-0">
-          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
-            <Link2 className="size-[13px] shrink-0" />
+          <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-brand-soft text-brand">
+              <Link2 className="size-[11px]" />
+            </span>
             {t('apiKeys.connCcBaseUrlLabel')}
             {/* 标题行复制按钮：copiedType 反馈复制成功；max-lg 扩大触屏点击区（视觉尺寸不变） */}
             <button
@@ -575,32 +577,34 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
               aria-label={t('apiKeys.connCopyCcUrl')}
               title={t('apiKeys.connCopyCcUrl')}
               onClick={() => copyToClipboard(window.location.origin, 'cc')}
-              className="relative inline-flex size-[18px] flex-none items-center justify-center rounded-[4px] transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-lg:after:-inset-[14px]"
+              className="relative inline-flex size-5 flex-none items-center justify-center rounded-[5px] bg-surface-3/70 transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-lg:after:-inset-[14px]"
             >
-              {copiedType === 'cc' ? <Check className="size-[12px] text-ok" /> : <Copy className="size-[12px] hover:text-ink" />}
+              {copiedType === 'cc' ? <Check className="size-[11px] text-ok" /> : <Copy className="size-[11px]" />}
             </button>
           </div>
-          <div className="mt-1 truncate font-mono text-[14px] font-medium tracking-[-.01em]">
+          <div className="mt-1.5 truncate font-mono text-[13.5px] font-medium tracking-[-.01em]">
             <span className="text-ink-3">{`${window.location.protocol}//`}</span>
             {window.location.host}
           </div>
         </div>
         <span aria-hidden="true" className="mx-0.5 hidden w-[0.5px] self-stretch bg-hairline sm:block" />
         <div className="min-w-0">
-          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
-            <Link2 className="size-[13px] shrink-0" />
+          <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-brand-soft text-brand">
+              <Link2 className="size-[11px]" />
+            </span>
             {t('apiKeys.connCodexBaseUrlLabel')}
             <button
               type="button"
               aria-label={t('apiKeys.connCopyCodexUrl')}
               title={t('apiKeys.connCopyCodexUrl')}
               onClick={() => copyToClipboard(`${window.location.origin}/v1`, 'codex')}
-              className="relative inline-flex size-[18px] flex-none items-center justify-center rounded-[4px] transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-lg:after:-inset-[14px]"
+              className="relative inline-flex size-5 flex-none items-center justify-center rounded-[5px] bg-surface-3/70 transition-colors after:absolute after:-inset-2 after:content-[''] hover:bg-surface-3 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-lg:after:-inset-[14px]"
             >
-              {copiedType === 'codex' ? <Check className="size-[12px] text-ok" /> : <Copy className="size-[12px] hover:text-ink" />}
+              {copiedType === 'codex' ? <Check className="size-[11px] text-ok" /> : <Copy className="size-[11px]" />}
             </button>
           </div>
-          <div className="mt-1 truncate font-mono text-[14px] font-medium tracking-[-.01em]">
+          <div className="mt-1.5 truncate font-mono text-[13.5px] font-medium tracking-[-.01em]">
             <span className="text-ink-3">{`${window.location.protocol}//`}</span>
             {window.location.host}
             <span className="text-ink-3">/v1</span>
@@ -608,15 +612,17 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
         </div>
         <span aria-hidden="true" className="mx-0.5 hidden w-[0.5px] self-stretch bg-hairline sm:block" />
         <div className="min-w-0">
-          <div className="flex items-center gap-[5px] text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
-            <Box className="size-[13px] shrink-0" />
+          <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+            <span className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-surface-3 text-ink-2">
+              <Box className="size-[11px]" />
+            </span>
             {t('apiKeys.connProtocolLabel')}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {['Anthropic Messages', 'Claude Code /cc/v1', 'Codex Responses', 'OpenAI Chat'].map((protocol) => (
               <span
                 key={protocol}
-                className="whitespace-nowrap rounded-[5px] border border-transparent bg-surface-3 px-1.5 py-px text-[10.5px] font-semibold tracking-[.03em] text-ink-2"
+                className="whitespace-nowrap rounded-[6px] border-[0.5px] border-hairline bg-surface-2 px-2 py-0.5 text-[10.5px] font-semibold tracking-[.02em] text-ink-2"
               >
                 {protocol}
               </span>

@@ -179,7 +179,7 @@ export function Composer({
   const hasKeys = keys.length > 0
 
   return (
-    <div className="rounded-[24px] border-[0.5px] border-hairline-2 bg-chat-canvas px-4 pb-2.5 pt-3.5 shadow-panel transition-colors focus-within:border-brand">
+    <div className="rounded-[24px] border-[0.5px] border-hairline-2 bg-chat-canvas px-4 pb-2.5 pt-3.5 shadow-panel transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft">
       {(attachments.length > 0 || processing > 0) && (
         <div className="mb-2 flex flex-wrap gap-2 px-1 pt-1">
           {attachments.map((a) => (

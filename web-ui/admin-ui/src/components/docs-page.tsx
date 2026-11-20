@@ -82,14 +82,14 @@ function OsToggle({
   label: string
 }) {
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-[6px] bg-surface-3 p-0.5" role="group" aria-label={label}>
+    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] bg-surface-3 p-0.5" role="group" aria-label={label}>
       {(['unix', 'windows'] as const).map((value) => (
         <button
           key={value}
           type="button"
           onClick={() => onChange(value)}
           aria-pressed={active === value}
-          className={`rounded-[5px] px-2 py-[3px] text-[10.5px] font-semibold transition-colors ${
+          className={`whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[10.5px] font-semibold transition-colors ${
             active === value ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
           }`}
         >
@@ -501,10 +501,10 @@ print(resp.choices[0].message.content)`
                       key={key}
                       id={QUICK_STEP_ANCHORS[i]}
                       data-toc-id={QUICK_STEP_ANCHORS[i]}
-                      className="flex scroll-mt-32 flex-col rounded-[11px] border-[0.5px] border-hairline bg-chat-canvas p-4 shadow-panel"
+                      className="flex scroll-mt-32 flex-col rounded-[13px] border border-transparent bg-chat-canvas p-4 shadow-panel transition-shadow hover:shadow-pop"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[10px] font-bold tracking-[.14em] text-ink-3">
+                        <span className="inline-flex items-center rounded-[5px] bg-surface-3/80 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[.12em] text-ink-3">
                           {t('docs.stepLabel')} 0{i + 1}
                         </span>
                         <StatusBadge label={status.label} tone={status.tone} />
@@ -575,7 +575,7 @@ print(resp.choices[0].message.content)`
                           )}
                           <div className="mt-2.5 space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+                              <span className="whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
                                 {t('docs.osForClaude')}
                               </span>
                               <OsToggle
@@ -585,7 +585,7 @@ print(resp.choices[0].message.content)`
                               />
                             </div>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
+                              <span className="whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[.07em] text-ink-3">
                                 {t('docs.osForCodex')}
                               </span>
                               <OsToggle

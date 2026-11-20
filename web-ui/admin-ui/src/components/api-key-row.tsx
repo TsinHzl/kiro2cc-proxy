@@ -121,10 +121,10 @@ export function ApiKeyRow({
         />
       </td>
 
-      {/* 名称（设计稿 .acct）：26px 图钥头像 + 名称 + 副行序号；.pri 优先级徽章无对应字段，不渲染 */}
+      {/* 名称（设计稿 .acct）：28px 图钥头像 + 名称 + 副行序号；.pri 优先级徽章无对应字段，不渲染 */}
       <td className={CELL}>
-        <div className="flex min-w-0 items-center gap-[9px]">
-          <span className="grid size-[26px] flex-none place-items-center rounded-[7px] border border-transparent bg-surface-3 text-ink-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="grid size-7 flex-none place-items-center rounded-[8px] border border-transparent bg-surface-3 text-ink-2 ring-[0.5px] ring-inset ring-hairline">
             <KeyRound className="size-[13px]" strokeWidth={1.7} />
           </span>
           <div className="min-w-0">
@@ -221,9 +221,9 @@ export function ApiKeyRow({
               </span>
               <span className={`font-semibold ${tone.text}`}>{Math.round(percent)}%</span>
             </div>
-            <span className="flex h-1 overflow-hidden rounded-[3px] bg-track">
+            <span className="flex h-[5px] overflow-hidden rounded-full bg-track">
               <span
-                className="block h-full rounded-[3px] transition-all"
+                className="block h-full rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, Math.max(0, percent))}%`, backgroundImage: quotaGradTone(remainingPct).grad }}
               />
             </span>

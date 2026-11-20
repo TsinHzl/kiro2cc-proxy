@@ -109,7 +109,7 @@ function ThemeThumbnail({ swatch }: { swatch: ThemePreviewSwatch }) {
 
 /** 选择卡片未选中态：透明底，悬停时透出半透明 surface-2（主题卡片与外观模式卡片共用） */
 const CHOICE_CARD_IDLE =
-  'border-transparent bg-transparent hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'
+  'border-hairline/70 bg-transparent hover:border-hairline-2 hover:bg-[color-mix(in_srgb,var(--surface-2)_65%,transparent)] hover:shadow-hair'
 
 function ThemeStyleCard({
   item,
@@ -132,9 +132,9 @@ function ThemeStyleCard({
       aria-pressed={active}
       aria-label={t('themeSettings.selectTheme', { theme: name })}
       aria-describedby={`theme-description-${item.id}`}
-      className={`relative rounded-lg border p-2 text-left transition-colors ${
+      className={`relative rounded-[11px] border p-2.5 text-left transition-all duration-150 ${
         active
-          ? 'border-brand bg-brand-soft'
+          ? 'border-brand bg-brand-soft shadow-[0_0_0_1px_var(--brand)]'
           : CHOICE_CARD_IDLE
       }`}
     >
@@ -430,7 +430,7 @@ export function ThemeSettingsPage() {
 
       <div className="space-y-6">
         {/* 外观模式三卡 */}
-        <section aria-labelledby="appearance-modes-heading" className="rounded-xl border border-transparent bg-chat-canvas p-4">
+        <section aria-labelledby="appearance-modes-heading" className="rounded-[14px] border border-transparent bg-chat-canvas p-5 shadow-hair">
           <h2 id="appearance-modes-heading" className="text-[13px] font-semibold text-ink">
             {t('themeSettings.modeTitle')}
           </h2>
@@ -500,7 +500,7 @@ export function ThemeSettingsPage() {
         </section>
 
         {/* 当前主题 + 实时预览 */}
-        <section aria-label={t('themeSettings.currentTheme', { theme: t(`common.theme.${activeItem.nameKey}`) })} className="rounded-xl border border-transparent bg-chat-canvas p-4">
+        <section aria-label={t('themeSettings.currentTheme', { theme: t(`common.theme.${activeItem.nameKey}`) })} className="rounded-[14px] border border-transparent bg-chat-canvas p-5 shadow-hair">
           <div className="mb-3 flex items-center gap-2.5">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-brand-soft text-brand">
               <Palette className="h-4 w-4" />
@@ -519,7 +519,7 @@ export function ThemeSettingsPage() {
         </section>
 
         {/* 主题库：搜索 + 分组筛选 + 网格 */}
-        <section aria-labelledby="styles-heading" className="rounded-xl border border-transparent bg-chat-canvas p-4">
+        <section aria-labelledby="styles-heading" className="rounded-[14px] border border-transparent bg-chat-canvas p-5 shadow-hair">
           <div className="flex flex-wrap items-center gap-2">
             <h2 id="styles-heading" className="text-[13px] font-semibold text-ink">
               {t('themeSettings.stylesTitle')}

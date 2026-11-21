@@ -944,7 +944,7 @@
     "autoSave": "Selections save automatically",
     "currentAppearance": "YOUR APPEARANCE",
     "canvasGradientTitle": "Canvas background gradient",
-    "canvasGradientDesc": "Off by default for a flat surface background. Turn on to add a soft brand-color gradient to content areas across all pages.",
+    "canvasGradientDesc": "On by default; renders soft multi-hue aurora gradients behind transparent content panels and popups. Turn off for flat surface backgrounds.",
     "localPreference": "Saved in this browser, ready for your next visit.",
     "selectTheme": "Apply {{theme}} theme",
     "applied": "In use",

@@ -21,12 +21,13 @@
             // 兜底值必须与 use-theme.ts 的 DEFAULT_COLOR_THEME 保持一致（当前 'spotify'）
             'theme-' + (color && /^[a-z0-9-]+$/.test(color) ? color : 'spotify')
           );
-          // key 必须与 use-theme.ts 的 GRADIENT_STORAGE_KEY 保持一致（当前 'admin-ui-canvas-gradient'）
-          if (localStorage.getItem('admin-ui-canvas-gradient') === 'true') {
+          // 默认开启，key 与默认值须与 use-theme.ts 保持一致（当前 'admin-ui-canvas-gradient'）
+          if (localStorage.getItem('admin-ui-canvas-gradient') !== 'false') {
             document.documentElement.classList.add('canvas-gradient');
           }
         } catch (e) {
-          /* localStorage 被禁用，走默认浅色 + spotify + 关闭画布渐变，由 use-theme.ts 正常接管 */
+          /* localStorage 被禁用，走默认浅色 + spotify + 开启画布渐变，由 use-theme.ts 正常接管 */
+          document.documentElement.classList.add('canvas-gradient');
         }
       })();
     </script>

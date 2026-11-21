@@ -590,7 +590,7 @@ export function ThemeSettingsPage() {
               )
             })}
           </div>
-          {/* 全站内容区背景渐变开关（默认关闭；开启后与 <html class="canvas-gradient"> 联动） */}
+          {/* 全站内容区背景渐变开关（默认开启；开启后与 <html class="canvas-gradient"> 联动） */}
           <div className="mt-4 flex items-center justify-between gap-4 border-t-[0.5px] border-hairline pt-3.5">
             <div className="min-w-0">
               <label

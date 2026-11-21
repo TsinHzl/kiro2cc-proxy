@@ -17,8 +17,8 @@ const LEGACY_STORAGE_KEY = 'admin-ui-theme'
 const DEFAULT_MODE: ThemeMode = 'light'
 /** 开箱默认色彩主题：Spotify 律动绿 */
 const DEFAULT_COLOR_THEME: ColorTheme = 'spotify'
-/** 开箱默认关闭内容区渐变色 */
-const DEFAULT_CANVAS_GRADIENT = false
+/** 开箱默认开启内容区渐变色 */
+const DEFAULT_CANVAS_GRADIENT = true
 
 function readStoredMode(): ThemeMode {
   try {
@@ -49,10 +49,13 @@ function applyTheme(mode: ThemeMode) {
 
 function readStoredCanvasGradient(): boolean {
   try {
-    return localStorage.getItem(GRADIENT_STORAGE_KEY) === 'true'
+    const stored = localStorage.getItem(GRADIENT_STORAGE_KEY)
+    if (stored === 'true') return true
+    if (stored === 'false') return false
   } catch {
-    return DEFAULT_CANVAS_GRADIENT
+    /* localStorage 不可用（隐私模式等），走默认值 */
   }
+  return DEFAULT_CANVAS_GRADIENT
 }
 
 function applyColorTheme(id: ColorTheme) {
@@ -214,7 +217,7 @@ export function useTheme() {
   )
 
   const resetTheme = useCallback(() => {
-    // 恢复为出厂默认：浅色 + Spotify 律动绿 + 关闭画布渐变
+    // 恢复为出厂默认：浅色 + Spotify 律动绿 + 开启画布渐变
     try {
       localStorage.removeItem(MODE_STORAGE_KEY)
       localStorage.removeItem(LEGACY_STORAGE_KEY)

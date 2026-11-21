@@ -225,6 +225,12 @@
   --grad-aurora-1: color-mix(in srgb, hsl(var(--primary)) 7%, #ffffff);
   --grad-aurora-2: color-mix(in srgb, hsl(var(--primary)) 5%, #ffffff);
   --grad-aurora-3: color-mix(in srgb, hsl(var(--primary)) 4%, #ffffff);
+  /* 全局视口极光图层，供 .bg-app-canvas::before 与吸顶滚动表头共用，保证滚动时对齐且无接缝 */
+  --grad-aurora-canvas:
+    radial-gradient(66% 58% at 12% 4%, var(--grad-aurora-1) 0%, transparent 72%),
+    radial-gradient(60% 54% at 88% 10%, var(--grad-aurora-2) 0%, transparent 70%),
+    radial-gradient(68% 58% at 54% 96%, var(--grad-aurora-3) 0%, transparent 74%),
+    radial-gradient(46% 42% at 96% 86%, var(--grad-aurora-1) 0%, transparent 72%);
   --glass-bg-strong: color-mix(in srgb, var(--surface) 94%, transparent);
   --glass-pop-inset: color-mix(in srgb, var(--surface-2) 45%, transparent);
   --glass-pop-sheen: rgba(255, 255, 255, .18);
@@ -340,11 +346,7 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-image:
-      radial-gradient(66% 58% at 12% 4%, var(--grad-aurora-1) 0%, transparent 72%),
-      radial-gradient(60% 54% at 88% 10%, var(--grad-aurora-2) 0%, transparent 70%),
-      radial-gradient(68% 58% at 54% 96%, var(--grad-aurora-3) 0%, transparent 74%),
-      radial-gradient(46% 42% at 96% 86%, var(--grad-aurora-1) 0%, transparent 72%);
+    background-image: var(--grad-aurora-canvas);
   }
 
   /* 侧栏与移动端顶栏：移动端抽屉与顶栏滑过内容上方需保持磨砂防透字；桌面端侧栏与主区并排不重叠，直接全透明融于极光 */
@@ -462,7 +464,8 @@
     border-color: var(--glass-border);
   }
 
-  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏切为磨砂底防止行文重叠透字 */
+  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏用视口固定对齐的极光实底防止透字且延续渐变
+     （不能叠加 backdrop-filter：Chromium 对同元素 backdrop-filter + background-attachment:fixed 会脱离视口锚点并退化为白底） */
   .bg-panel-head {
     background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);
     -webkit-backdrop-filter: blur(12px);
@@ -478,14 +481,17 @@
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    transition-property: none;
     border-bottom-color: var(--glass-border);
   }
 
   :root.canvas-gradient .bg-chat-canvas [data-scrolled] .bg-panel-head {
-    background-color: var(--glass-bg-strong);
-    background-image: none;
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    backdrop-filter: blur(16px) saturate(140%);
+    background-color: hsl(var(--background));
+    background-image: var(--grad-aurora-canvas);
+    background-attachment: fixed;
+    box-shadow: inset 0 1px 0 var(--glass-edge);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-foot {

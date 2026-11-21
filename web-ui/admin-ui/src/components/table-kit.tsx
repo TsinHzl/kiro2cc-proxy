@@ -14,13 +14,13 @@ export const PANEL_TITLE = 'mb-2 text-[10.5px] font-semibold uppercase tracking-
 export const PANEL_FOOT =
   'flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-panel-foot px-3.5 py-2.5 text-[11.5px] text-ink-3'
 
-/** 设计稿 thead th：10.5px 大写字距 .07em + sticky，开启画布渐变时静态透出顶部柔光、滚动时切为磨砂防透字 */
+/** 设计稿 thead th：10.5px 大写字距 .07em + sticky，开启画布渐变时静态透明融于画布、滚动时切为视口同源极光实底防透字 */
 export const TH_BASE =
   'sticky top-0 z-[2] whitespace-nowrap border-b-[0.5px] border-hairline bg-panel-head px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3 transition-[background-color] duration-150'
 
 /**
  * 表格内滚容器：滚动离顶后同步 `data-scrolled` 属性，配合 `.bg-panel-head` 实现
- * 「未滚动时不遮挡顶部画布柔光，滚动后切为磨砂底防止透字」。
+ * 「未滚动时不遮挡画布，滚动后切为与视口对齐的极光实底防止透字」。
  */
 export function TableScroll({ className, children }: { className?: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)

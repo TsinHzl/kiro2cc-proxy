@@ -340,7 +340,7 @@ export function ModelListPage() {
 
       <section className={`flex min-h-0 flex-1 flex-col ${PANEL}`}>
         <TableScroll className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[12.5px]">
+          <table className="w-full border-separate border-spacing-0 text-[12.5px]">
             <colgroup>
               {COLUMN_WIDTHS.map((w, i) => (
                 <col key={i} style={w ? { width: w } : undefined} />

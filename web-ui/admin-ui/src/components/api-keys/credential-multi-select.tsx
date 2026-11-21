@@ -48,7 +48,7 @@ export function CredentialMultiSelect({
       <button
         type="button"
         onClick={() => { onOpenChange(!open); onSearchChange('') }}
-        className="w-full flex items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent/50 transition-colors"
+        className="w-full flex items-center justify-between gap-2 rounded-md border border-input bg-background bg-control-glass px-3 py-2 text-sm shadow-sm hover:bg-accent/50 transition-colors"
       >
         <div className="flex flex-wrap gap-1 flex-1 min-w-0">
           {selected.length === 0 ? (
@@ -81,7 +81,7 @@ export function CredentialMultiSelect({
 
       {/* 下拉面板 */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-transparent bg-glass-pop shadow-pop">
           <div className="p-2 border-b">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

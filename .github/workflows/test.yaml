@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -38,6 +38,10 @@ jobs:
       - name: Build admin-ui
         working-directory: web-ui/admin-ui
         run: pnpm build
+
+      - name: Test admin-ui
+        working-directory: web-ui/admin-ui
+        run: pnpm test
 
       - name: Install user-ui dependencies
         working-directory: web-ui/user-ui

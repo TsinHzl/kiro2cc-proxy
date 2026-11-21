@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const { formatQuotaResetCountdown } = await import('../src/lib/quota-reset.ts')
+const { formatQuotaResetCountdown, isValidResetTimestamp } = await import('../src/lib/quota-reset.ts')
 const zh = JSON.parse(readFileSync(new URL('../src/i18n/locales/zh.json', import.meta.url), 'utf8'))
 const en = JSON.parse(readFileSync(new URL('../src/i18n/locales/en.json', import.meta.url), 'utf8'))
 
@@ -20,8 +20,10 @@ const tEn = makeT(en)
 
 test('无效或缺失时间戳返回 null', () => {
   for (const val of [null, undefined, 0, -100, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(isValidResetTimestamp(val), false)
     assert.equal(formatQuotaResetCountdown(val, tZh, 1_700_000_000_000), null)
   }
+  assert.equal(isValidResetTimestamp(1_700_000_000), true)
 })
 
 test('剩余时间大于等于 1 天时展示天数', () => {

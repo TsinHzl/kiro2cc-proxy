@@ -10,7 +10,9 @@ const listeners = new Set<() => void>()
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   if (timer === null) {
-    currentNow = Date.now()
+    if (Date.now() - currentNow >= TICK_INTERVAL_MS) {
+      currentNow = Date.now()
+    }
     timer = setInterval(() => {
       currentNow = Date.now()
       listeners.forEach((fn) => fn())
@@ -26,6 +28,10 @@ function subscribe(listener: () => void): () => void {
 }
 
 function getSnapshot(): number {
+  // 无定时器运行时 currentNow 可能已陈旧：超过一个心跳周期则刷新（同一渲染周期内保持稳定快照）
+  if (timer === null && Date.now() - currentNow >= TICK_INTERVAL_MS) {
+    currentNow = Date.now()
+  }
   return currentNow
 }
 

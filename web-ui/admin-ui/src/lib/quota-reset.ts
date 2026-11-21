@@ -5,6 +5,11 @@ const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
 
+/** 校验额度重置时间戳（Unix 秒）是否为有效正数 */
+export function isValidResetTimestamp(v: number | null | undefined): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0
+}
+
 /**
  * 格式化额度重置倒计时：
  * - ≥ 1 天：展示剩余天数
@@ -16,7 +21,7 @@ export function formatQuotaResetCountdown(
   t: TFunction,
   nowMs: number = Date.now(),
 ): string | null {
-  if (typeof nextResetAtSeconds !== 'number' || !Number.isFinite(nextResetAtSeconds) || nextResetAtSeconds <= 0) {
+  if (!isValidResetTimestamp(nextResetAtSeconds)) {
     return null
   }
   const diffMs = nextResetAtSeconds * 1000 - nowMs

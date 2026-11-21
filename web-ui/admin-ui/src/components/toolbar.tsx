@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Search, X } from 'lucide-react'
+import { useNowTick } from '@/hooks/use-now-tick'
 
 /**
  * 设计稿 `.toolbar` 系视觉原语（design.md 决策 8）。
@@ -16,8 +17,8 @@ const PLATFORM =
 // 大小写不敏感：UA-CH 返回 'macOS'，旧 API 返回 'MacIntel'
 const SHORTCUT_HINT = /mac|iphone|ipad/i.test(PLATFORM) ? '⌘K' : 'Ctrl K'
 
-function formatAgo(timestamp: number, t: TFunction): string {
-  const diff = Date.now() - timestamp
+function formatAgo(timestamp: number, t: TFunction, nowMs: number = Date.now()): string {
+  const diff = nowMs - timestamp
   if (diff < 0) return t('credentials.justNow')
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return t('credentials.secondsAgo', { count: seconds })
@@ -200,13 +201,8 @@ export function Toggle({ checked, onChange, label }: ToggleProps) {
 /** 「更新于 X 前」（设计稿 .refresh-note）；dataUpdatedAt 为 0（尚未取到数据）时不渲染 */
 export function UpdatedAgo({ dataUpdatedAt }: { dataUpdatedAt: number }) {
   const { t } = useTranslation()
-  // 纯时间推移的展示，靠 30s 心跳重渲染，避免文案冻结在首次渲染时刻
-  const [, tick] = useState(0)
-
-  useEffect(() => {
-    const timer = setInterval(() => tick((n) => n + 1), 30_000)
-    return () => clearInterval(timer)
-  }, [])
+  // 纯时间推移的展示，复用全局 30s 共享心跳重渲染，避免文案冻结在首次渲染时刻
+  const nowMs = useNowTick()
 
   // 无数据时也占位渲染：工具栏是 flex-wrap，手机端该 span 会独占一行，
   // 条件渲染会让数据到达后凭空多出一行（430/600/640/940/980px 实测 +24.5px），整页下移。
@@ -218,7 +214,7 @@ export function UpdatedAgo({ dataUpdatedAt }: { dataUpdatedAt: number }) {
       className={`ml-auto shrink-0 text-[11px] text-ink-3 ${ready ? '' : 'invisible'}`}
       aria-hidden={ready ? undefined : true}
     >
-      {ready ? t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t) }) : placeholder}
+      {ready ? t('credentials.updatedAgo', { time: formatAgo(dataUpdatedAt, t, nowMs) }) : placeholder}
     </span>
   )
 }

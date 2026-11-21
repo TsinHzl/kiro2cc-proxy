@@ -32,7 +32,7 @@ import {
 import { useNowTick } from '@/hooks/use-now-tick'
 import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
 import { localeTag } from '@/lib/locale'
-import { formatQuotaResetCountdown } from '@/lib/quota-reset'
+import { formatQuotaResetCountdown, isValidResetTimestamp } from '@/lib/quota-reset'
 import { extractErrorMessage, getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
 
@@ -121,10 +121,9 @@ export function AccountRow({
   const numFmt = localeTag()
   const nowMs = useNowTick()
   const resetCountdown = balance ? formatQuotaResetCountdown(balance.nextResetAt, t, nowMs) : null
-  const resetTitle =
-    balance?.nextResetAt != null && Number.isFinite(balance.nextResetAt) && balance.nextResetAt > 0
-      ? t('credentials.quotaResetAt', { time: new Date(balance.nextResetAt * 1000).toLocaleString(numFmt) })
-      : undefined
+  const resetTitle = isValidResetTimestamp(balance?.nextResetAt)
+    ? t('credentials.quotaResetAt', { time: new Date(balance.nextResetAt * 1000).toLocaleString(numFmt) })
+    : undefined
   // 设计稿对「已禁用」与「从未调用」行的 RPM 显示 —（原型行 968/1007/1046），数字对这两类行无意义
   const rpmIdle = credential.disabled || credential.lastUsedAt === null
 

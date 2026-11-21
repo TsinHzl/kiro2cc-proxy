@@ -39,12 +39,12 @@ const SET_C = 'ml-auto flex flex-none items-center gap-2'
 const FIELD_S =
   'flex h-[31px] min-w-[96px] items-center rounded-[7px] border-[0.5px] border-hairline bg-surface-2 px-2.5 font-mono text-[12px] text-ink-2'
 /** 分段器容器（设计稿 .seg，8px 圆角与 borderRadius.lg 的 11px 不同，故用字面量） */
-const SEG = 'flex flex-none gap-0.5 rounded-[8px] bg-surface-3 p-0.5'
+const SEG = 'flex flex-none gap-0.5 rounded-[8px] bg-surface-3 bg-track-glass p-0.5'
 /** 分段器档位（设计稿 .seg button） */
 const SEG_BTN =
   'flex h-[27px] items-center gap-[5px] whitespace-nowrap rounded-[6px] px-2.5 text-[12px] font-medium text-ink-2 transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50'
 /** 分段器激活档（设计稿 .seg button.on） */
-const SEG_BTN_ON = 'bg-surface font-semibold text-ink shadow-hair'
+const SEG_BTN_ON = 'bg-surface bg-control-glass font-semibold text-ink shadow-hair'
 /** 开关（设计稿 .sw） */
 const SW =
   'relative h-[18px] w-8 flex-none rounded-[10px] border border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
@@ -164,7 +164,7 @@ function Sw({ label, on, onToggle, disabled }: { label: string; on: boolean; onT
       aria-label={label}
       disabled={disabled}
       onClick={onToggle}
-      className={`${SW} ${on ? 'bg-brand' : 'bg-track'} disabled:pointer-events-none disabled:opacity-50`}
+      className={`${SW} ${on ? 'bg-brand switch-brand-track' : 'bg-track'} disabled:pointer-events-none disabled:opacity-50`}
     >
       <span className={`${SW_DOT} ${on ? 'right-0.5' : 'left-0.5'}`} />
     </button>

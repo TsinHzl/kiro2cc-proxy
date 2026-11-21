@@ -34,7 +34,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   return (
     // 登录页无设计稿，按已建立的令牌与原语推导：`bg` 页面底 + 氛围极光柔光 + `.panel` 卡片 + `.field` + `.btn-primary`
-    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-background p-4">
+    <div className="relative grid min-h-screen place-items-center overflow-hidden bg-app-canvas p-4">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 blur-3xl"

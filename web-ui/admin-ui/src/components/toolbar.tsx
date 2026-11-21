@@ -74,7 +74,7 @@ export function SearchBox({
 
   return (
     <label
-      className={`flex h-[32px] ${widthClass} max-md:w-full max-md:min-w-[160px] max-md:flex-1 shrink-0 items-center gap-[7px] rounded-[8px] border border-transparent bg-surface px-2.5 text-ink-3 shadow-hair transition-shadow focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft`}
+      className={`flex h-[32px] ${widthClass} max-md:w-full max-md:min-w-[160px] max-md:flex-1 shrink-0 items-center gap-[7px] rounded-[8px] border border-transparent bg-surface bg-control-glass px-2.5 text-ink-3 shadow-hair transition-shadow focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft`}
     >
       <Search className="size-[14px] shrink-0" />
       <input
@@ -131,7 +131,7 @@ export interface SegmentedProps<T extends string> {
  */
 export function Segmented<T extends string>({ value, onChange, groupLabel, options }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={groupLabel} className="flex shrink-0 max-md:max-w-full max-md:overflow-x-auto gap-0.5 rounded-[8px] bg-surface-3 p-0.5">
+    <div role="radiogroup" aria-label={groupLabel} className="flex shrink-0 max-md:max-w-full max-md:overflow-x-auto gap-0.5 rounded-[8px] bg-surface-3 bg-track-glass p-0.5">
       {options.map((opt) => {
         const on = value === opt.key
         return (
@@ -142,7 +142,7 @@ export function Segmented<T extends string>({ value, onChange, groupLabel, optio
             aria-checked={on}
             onClick={() => onChange(opt.key)}
             className={`flex h-[27px] items-center gap-[5px] whitespace-nowrap rounded-[6px] px-2.5 text-[12px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-              on ? 'bg-surface font-semibold text-ink shadow-hair' : 'font-medium text-ink-2 hover:text-ink'
+              on ? 'bg-surface bg-control-glass font-semibold text-ink shadow-hair' : 'font-medium text-ink-2 hover:text-ink'
             }`}
           >
             {opt.pipClass && <span aria-hidden="true" className={`size-[5px] shrink-0 rounded-full ${opt.pipClass}`} />}
@@ -185,7 +185,7 @@ export function Toggle({ checked, onChange, label }: ToggleProps) {
       <span
         aria-hidden="true"
         className={`relative h-[19px] w-[34px] shrink-0 rounded-full transition-colors ${
-          checked ? 'bg-brand' : 'bg-hairline-2'
+          checked ? 'bg-brand switch-brand-track' : 'bg-hairline-2'
         }`}
       >
         <span

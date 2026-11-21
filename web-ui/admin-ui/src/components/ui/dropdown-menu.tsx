@@ -18,7 +18,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       align={align}
       className={cn(
-        'z-50 min-w-[172px] overflow-hidden rounded-[8px] border border-transparent bg-surface p-1 shadow-pop',
+        'z-50 min-w-[172px] overflow-hidden rounded-[8px] border border-transparent bg-glass-pop p-1 shadow-pop',
         // 从触发点方向展开：origin 取 Radix 注入的变量
         'origin-[var(--radix-dropdown-menu-content-transform-origin)] data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none',
         className,

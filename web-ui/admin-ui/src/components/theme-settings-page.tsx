@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 // 主题设置页（移植自 codex2api ThemeSettings.tsx + ThemePreview.tsx，uiStyle/CinematicThemeSwitcher 不移植）。
 // 样式全部使用 Tailwind 原子类；预览色块用内联 style 消费 ThemePreviewSwatch 的实际色值。
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import {
   Check,
   CheckCheck,
@@ -48,56 +48,171 @@ function matchesGroup(item: ColorThemeDef, group: 'all' | ThemeGroup) {
   return group === 'all' || (group === 'recommended' ? !!item.recommended : item.group === group)
 }
 
-/* ---------- 缩略图（移植自 codex2api ThemePreview.tsx，色值直接内联） ---------- */
+/* ---------- 缩略图与实时预览渐变辅助（色值来自 ThemePreviewSwatch） ---------- */
+
+function hexToHsl(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const raw = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1]
+  const n = parseInt(raw, 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  if (max === min) return [0, 0, l * 100]
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h = 0
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
+  else if (max === g) h = (b - r) / d + 2
+  else h = (r - g) / d + 4
+  return [(h / 6) * 360, s * 100, l * 100]
+}
+
+interface PreviewVisuals {
+  windowStyle: CSSProperties
+  chromeStyle: CSSProperties
+  sidebarStyle: CSSProperties
+  cardStyle: CSSProperties
+  pillGradient: string
+}
+
+function buildPreviewVisuals(
+  swatch: ThemePreviewSwatch,
+  mode: ThemeMode,
+  canvasGradient: boolean,
+): PreviewVisuals {
+  const sidebarBg = swatch.sidebar ?? swatch.surface
+  if (!canvasGradient) {
+    return {
+      windowStyle: { background: swatch.bg },
+      chromeStyle: { background: swatch.surface, borderColor: swatch.muted },
+      sidebarStyle: { background: sidebarBg, borderColor: swatch.muted },
+      cardStyle: { background: swatch.surface, borderColor: swatch.muted },
+      pillGradient: swatch.primary,
+    }
+  }
+  const isDark = mode === 'dark'
+  const hsl = hexToHsl(swatch.primary) ?? [174, 60, isDark ? 50 : 35]
+  const [h, s] = hsl
+  const sat = s < 3 ? s : isDark ? Math.min(s * 0.95, 82) : Math.min(s * 0.78, 72)
+  const glowL = isDark ? 45 : 88
+  const g1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${glowL}%, ${isDark ? 0.30 : 0.72})`
+  const g2 = `hsla(${Math.round((h + 44) % 360)}, ${Math.round(sat * 0.9)}%, ${glowL}%, ${isDark ? 0.25 : 0.66})`
+  const g3 = `hsla(${Math.round((h + 328) % 360)}, ${Math.round(sat * 0.8)}%, ${isDark ? 38 : 90}%, ${isDark ? 0.18 : 0.56})`
+  const c1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${isDark ? 52 : 91}%, ${isDark ? 0.16 : 0.42})`
+  const c2 = `hsla(${Math.round((h + 44) % 360)}, ${Math.round(sat * 0.88)}%, ${isDark ? 48 : 91}%, ${isDark ? 0.14 : 0.38})`
+  const sheen = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.68)'
+  const edge = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.9)'
+  return {
+    windowStyle: {
+      backgroundColor: swatch.bg,
+      backgroundImage: [
+        `radial-gradient(75% 65% at 10% 6%, ${g1} 0%, transparent 72%)`,
+        `radial-gradient(68% 60% at 90% 14%, ${g2} 0%, transparent 70%)`,
+        `radial-gradient(72% 64% at 62% 96%, ${g3} 0%, transparent 74%)`,
+      ].join(', '),
+    },
+    chromeStyle: {
+      backgroundColor: `color-mix(in srgb, ${swatch.surface} ${isDark ? '80%' : '82%'}, transparent)`,
+      borderColor: `color-mix(in srgb, ${swatch.primary} 22%, ${swatch.muted})`,
+      backdropFilter: 'blur(8px)',
+    },
+    sidebarStyle: {
+      backgroundColor: `color-mix(in srgb, ${sidebarBg} ${isDark ? '74%' : '76%'}, transparent)`,
+      borderColor: `color-mix(in srgb, ${swatch.primary} 20%, ${swatch.muted})`,
+      backdropFilter: 'blur(8px)',
+    },
+    cardStyle: {
+      backgroundColor: `color-mix(in srgb, ${swatch.surface} ${isDark ? '74%' : '80%'}, transparent)`,
+      backgroundImage: [
+        `linear-gradient(155deg, ${sheen} 0%, transparent 48%)`,
+        `radial-gradient(120% 110% at 0% 0%, ${c1} 0%, transparent 62%)`,
+        `radial-gradient(110% 100% at 100% 100%, ${c2} 0%, transparent 60%)`,
+      ].join(', '),
+      borderColor: `color-mix(in srgb, ${swatch.primary} 24%, ${swatch.muted})`,
+      boxShadow: `inset 0 1px 0 ${edge}, 0 4px 12px -6px ${isDark ? 'rgba(0,0,0,0.45)' : 'rgba(16,18,20,0.08)'}`,
+    },
+    pillGradient: `linear-gradient(135deg, ${swatch.primary}, color-mix(in srgb, ${swatch.primary} 78%, ${isDark ? '#ffffff' : swatch.surface}))`,
+  }
+}
 
 const BARS = [28, 43, 35, 55, 42, 66, 52, 70, 57, 76, 65, 90, 73, 86, 68, 96, 82, 92]
 
-function AppearanceThumbnail({ swatch }: { swatch: ThemePreviewSwatch }) {
+function AppearanceThumbnail({
+  swatch,
+  mode,
+  canvasGradient,
+}: {
+  swatch: ThemePreviewSwatch
+  mode: ThemeMode
+  canvasGradient: boolean
+}) {
+  const visuals = buildPreviewVisuals(swatch, mode, canvasGradient)
   return (
     <div
       aria-hidden
       className="flex h-14 overflow-hidden rounded-md"
-      style={{ background: swatch.bg }}
+      style={visuals.windowStyle}
     >
-      <div className="flex w-6 flex-col gap-1 p-1.5" style={{ background: swatch.sidebar ?? swatch.surface }}>
+      <div className={`flex w-6 flex-col gap-1 p-1.5 ${canvasGradient ? 'border-r-[0.5px]' : ''}`} style={visuals.sidebarStyle}>
         {[0, 1, 2].map((i) => (
-          <span key={i} className="block h-1 rounded-full" style={{ background: i === 0 ? swatch.primary : swatch.muted }} />
+          <span
+            key={i}
+            className="block h-1 rounded-full"
+            style={{ background: i === 0 ? visuals.pillGradient : swatch.muted }}
+          />
         ))}
       </div>
       <div className="flex-1 p-2">
-        <span className="mb-1.5 block h-1.5 w-3/4 rounded-full" style={{ background: swatch.primary }} />
+        <span className="mb-1.5 block h-1.5 w-3/4 rounded-full" style={{ background: visuals.pillGradient }} />
         <span className="block h-1 w-1/2 rounded-full" style={{ background: swatch.muted }} />
       </div>
     </div>
   )
 }
 
-function ThemeThumbnail({ swatch }: { swatch: ThemePreviewSwatch }) {
+function ThemeThumbnail({
+  swatch,
+  mode,
+  canvasGradient,
+}: {
+  swatch: ThemePreviewSwatch
+  mode: ThemeMode
+  canvasGradient: boolean
+}) {
+  const visuals = buildPreviewVisuals(swatch, mode, canvasGradient)
   return (
     <div
       aria-hidden
       className="flex h-24 overflow-hidden rounded-md text-left"
-      style={{ background: swatch.bg }}
+      style={visuals.windowStyle}
     >
-      <div className="flex w-12 shrink-0 flex-col gap-1.5 p-2" style={{ background: swatch.sidebar ?? swatch.surface }}>
-        <span className="block h-2 w-6 rounded-sm" style={{ background: swatch.primary }} />
+      <div className={`flex w-12 shrink-0 flex-col gap-1.5 p-2 ${canvasGradient ? 'border-r-[0.5px]' : ''}`} style={visuals.sidebarStyle}>
+        <span className="block h-2 w-6 rounded-sm" style={{ background: visuals.pillGradient }} />
         {[0, 1, 2].map((i) => (
-          <span key={i} className="block h-1 rounded-full" style={{ background: i === 0 ? swatch.primary : swatch.muted, opacity: i === 0 ? 1 : 0.55 }} />
+          <span
+            key={i}
+            className="block h-1 rounded-full"
+            style={{ background: i === 0 ? visuals.pillGradient : swatch.muted, opacity: i === 0 ? 1 : 0.55 }}
+          />
         ))}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-2">
         <div className="space-y-1">
-          <span className="block h-1.5 w-2/3 rounded-full" style={{ background: swatch.primary }} />
+          <span className="block h-1.5 w-2/3 rounded-full" style={{ background: visuals.pillGradient }} />
           <span className="block h-1 w-1/3 rounded-full" style={{ background: swatch.muted, opacity: 0.7 }} />
         </div>
         <div className="grid grid-cols-3 gap-1">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="block h-3 rounded-sm" style={{ background: swatch.surface }} />
+            <span key={i} className={`block h-3 rounded-sm ${canvasGradient ? 'border-[0.5px]' : ''}`} style={visuals.cardStyle} />
           ))}
         </div>
         <div className="flex h-8 items-end gap-[2px]">
           {BARS.filter((_, i) => i % 2 === 0).map((h, i) => (
-            <span key={i} className="flex-1 rounded-t-[1px]" style={{ height: `${h}%`, background: swatch.primary, opacity: 0.75 }} />
+            <span key={i} className="flex-1 rounded-t-[1px]" style={{ height: `${h}%`, background: visuals.pillGradient, opacity: 0.78 }} />
           ))}
         </div>
       </div>
@@ -114,11 +229,15 @@ const CHOICE_CARD_IDLE =
 function ThemeStyleCard({
   item,
   swatch,
+  mode,
+  canvasGradient,
   active,
   onSelect,
 }: {
   item: ColorThemeDef
   swatch: ThemePreviewSwatch
+  mode: ThemeMode
+  canvasGradient: boolean
   active: boolean
   onSelect: () => void
 }) {
@@ -139,17 +258,17 @@ function ThemeStyleCard({
       }`}
     >
       {item.recommended && (
-        <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-0.5 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-semibold text-brand-fg">
+        <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-0.5 rounded-full bg-brand btn-brand-gradient px-1.5 py-0.5 text-[9px] font-semibold text-brand-fg">
           <Sparkles className="h-2.5 w-2.5" />
           {t('themeSettings.recommendedBadge')}
         </span>
       )}
       {active && (
-        <span className="absolute right-2 bottom-2 z-10 grid h-5 w-5 place-items-center rounded-full bg-brand text-brand-fg">
+        <span className="absolute right-2 bottom-2 z-10 grid h-5 w-5 place-items-center rounded-full bg-brand btn-brand-gradient text-brand-fg">
           <Check className="h-3 w-3" />
         </span>
       )}
-      <ThemeThumbnail swatch={swatch} />
+      <ThemeThumbnail swatch={swatch} mode={mode} canvasGradient={canvasGradient} />
       <div className="mt-2 flex items-center gap-1.5">
         <span className="text-[12.5px] font-medium text-ink">{name}</span>
         <span className="flex gap-0.5">
@@ -174,11 +293,20 @@ function ThemeStyleCard({
 
 type PreviewScene = 'workbench' | 'components'
 
-function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode }) {
+function ThemeLivePreview({
+  item,
+  mode,
+  canvasGradient,
+}: {
+  item: ColorThemeDef
+  mode: ThemeMode
+  canvasGradient: boolean
+}) {
   const { t } = useTranslation()
   const [scene, setScene] = useState<PreviewScene>('workbench')
   const swatch = getThemePreviewSwatch(item, mode)
   const sidebarBg = swatch.sidebar ?? swatch.surface
+  const visuals = buildPreviewVisuals(swatch, mode, canvasGradient)
   const primaryOnBg = readableText(swatch.primary, swatch.bg)
   const primaryOnSurface = readableText(swatch.primary, swatch.surface)
   const primaryOnSidebar = readableText(swatch.primary, sidebarBg)
@@ -194,13 +322,13 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
   ]
 
   return (
-    <div className="rounded-xl border border-transparent bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] p-3">
+    <div className="rounded-xl border border-transparent bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] bg-track-glass p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[12px] font-medium text-ink">{t('themeSettings.previewTitle')}</p>
           <p className="text-[10.5px] text-ink-3">{t('themeSettings.previewDesc')}</p>
         </div>
-        <div role="tablist" aria-label={t('themeSettings.previewScene')} className="flex gap-1 rounded-md border border-transparent bg-surface p-0.5">
+        <div role="tablist" aria-label={t('themeSettings.previewScene')} className="flex gap-1 rounded-md border border-transparent bg-surface bg-control-glass p-0.5">
           {scenes.map((s) => (
             <button
               key={s.id}
@@ -227,10 +355,10 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
           theme: t(`common.theme.${item.nameKey}`),
           mode: mode === 'dark' ? t('settings.themeDark') : t('settings.themeLight'),
         })}
-        className="overflow-hidden rounded-lg border border-transparent"
-        style={{ background: swatch.bg }}
+        className="overflow-hidden rounded-lg border border-transparent shadow-hair"
+        style={visuals.windowStyle}
       >
-        <div className="flex items-center gap-1.5 border-b px-3 py-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
+        <div className="flex items-center gap-1.5 border-b px-3 py-2" style={visuals.chromeStyle}>
           <span className="flex gap-1">
             {['#EE6A5F', '#F5BD4F', '#61C454'].map((c) => (
               <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
@@ -246,7 +374,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
 
         {scene === 'workbench' ? (
           <div className="flex min-h-[168px]">
-            <div className="w-28 shrink-0 space-y-1.5 border-r p-2.5" style={{ background: sidebarBg, borderColor: swatch.muted }}>
+            <div className="w-28 shrink-0 space-y-1.5 border-r p-2.5" style={visuals.sidebarStyle}>
               <p className="text-[10px] font-semibold" style={{ color: primaryOnSidebar }}>
                 kiro2cc
               </p>
@@ -255,7 +383,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
                   key={k}
                   className="rounded px-1.5 py-0.5 text-[9.5px]"
                   style={{
-                    background: i === 0 ? swatch.primary : 'transparent',
+                    background: i === 0 ? visuals.pillGradient : 'transparent',
                     color: i === 0 ? onPrimary : mutedOnSidebar,
                   }}
                 >
@@ -265,27 +393,27 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
             </div>
             <div className="flex-1 space-y-2 p-3">
               <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
+                <div className="rounded-md border p-2" style={visuals.cardStyle}>
                   <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.requests')}</p>
                   <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>24,680</p>
                 </div>
-                <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
+                <div className="rounded-md border p-2" style={visuals.cardStyle}>
                   <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.successRate')}</p>
                   <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>99.9%</p>
                 </div>
-                <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
+                <div className="rounded-md border p-2" style={visuals.cardStyle}>
                   <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.latency')}</p>
                   <p className="text-[12px] font-semibold" style={{ color: primaryOnSurface }}>128ms</p>
                 </div>
               </div>
-              <div className="rounded-md border p-2" style={{ background: swatch.surface, borderColor: swatch.muted }}>
+              <div className="rounded-md border p-2" style={visuals.cardStyle}>
                 <div className="mb-1 flex items-center justify-between">
                   <p className="text-[9px]" style={{ color: mutedOnSurface }}>{t('themeSettings.demo.traffic')} · {t('themeSettings.demo.week')}</p>
                   <p className="text-[8.5px]" style={{ color: mutedOnSurface }}>00:00 – 24:00</p>
                 </div>
                 <div className="flex h-12 items-end gap-[2px]">
                   {BARS.map((h, i) => (
-                    <span key={i} className="flex-1 rounded-t-[1px]" style={{ height: `${h}%`, background: swatch.primary, opacity: 0.75 }} />
+                    <span key={i} className="flex-1 rounded-t-[1px]" style={{ height: `${h}%`, background: visuals.pillGradient, opacity: 0.78 }} />
                   ))}
                 </div>
               </div>
@@ -298,23 +426,23 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
           <div className="space-y-2.5 p-3">
             <p className="text-[10px] font-medium" style={{ color: primaryOnBg }}>{t('themeSettings.demo.componentsTitle')}</p>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md px-2 py-1 text-[9px] font-medium" style={{ background: swatch.primary, color: onPrimary }}>
+              <span className="rounded-md px-2 py-1 text-[9px] font-medium" style={{ background: visuals.pillGradient, color: onPrimary }}>
                 {t('themeSettings.demo.primary')}
               </span>
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ borderColor: swatch.muted, color: primaryOnBg }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ ...visuals.cardStyle, color: primaryOnBg }}>
                 {t('themeSettings.demo.secondary')}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: mutedOnSurface }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ ...visuals.cardStyle, color: mutedOnSurface }}>
                 {t('themeSettings.demo.input')}
               </span>
-              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ background: swatch.surface, borderColor: swatch.muted, color: mutedOnSurface }}>
+              <span className="rounded-md border px-2 py-1 text-[9px]" style={{ ...visuals.cardStyle, color: mutedOnSurface }}>
                 {t('themeSettings.demo.selection')}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.primary, color: onPrimary }}>
+              <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: visuals.pillGradient, color: onPrimary }}>
                 {t('themeSettings.demo.enabled')}
               </span>
               <span className="rounded-full px-1.5 py-0.5 text-[8.5px]" style={{ background: swatch.muted, color: primaryOnMuted }}>
@@ -326,7 +454,7 @@ function ThemeLivePreview({ item, mode }: { item: ColorThemeDef; mode: ThemeMode
             </div>
             <div className="flex items-center gap-2">
               <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: swatch.muted }}>
-                <div className="h-full rounded-full" style={{ width: '68%', background: swatch.primary }} />
+                <div className="h-full rounded-full" style={{ width: '68%', background: visuals.pillGradient }} />
               </div>
               <span className="text-[8.5px]" style={{ color: mutedOnBg }}>68%</span>
             </div>
@@ -419,7 +547,7 @@ export function ThemeSettingsPage() {
                 clearFilters()
               }}
               title={t('themeSettings.resetDesc')}
-              className="inline-flex items-center gap-1 rounded-md border border-transparent bg-surface px-2.5 py-1.5 text-[11.5px] text-ink-2 transition-colors hover:text-ink"
+              className="inline-flex items-center gap-1 rounded-md border border-transparent bg-surface bg-control-glass px-2.5 py-1.5 text-[11.5px] text-ink-2 transition-colors hover:text-ink"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               {t('themeSettings.reset')}
@@ -450,7 +578,11 @@ export function ThemeSettingsPage() {
                       : CHOICE_CARD_IDLE
                   }`}
                 >
-                  <AppearanceThumbnail swatch={getThemePreviewSwatch(activeItem, option.id)} />
+                  <AppearanceThumbnail
+                    swatch={getThemePreviewSwatch(activeItem, option.id)}
+                    mode={option.id}
+                    canvasGradient={canvasGradient}
+                  />
                   <div className="mt-2 flex items-center gap-1.5">
                     <option.icon className="h-3.5 w-3.5 text-ink-2" />
                     <span className="text-[12.5px] font-medium text-ink">{t(option.labelKey)}</span>
@@ -484,7 +616,7 @@ export function ThemeSettingsPage() {
               aria-describedby="canvas-gradient-desc"
               onClick={() => setCanvasGradient(!canvasGradient)}
               className={`relative h-[18px] w-8 flex-none rounded-[10px] border border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-                canvasGradient ? 'bg-brand' : 'bg-track'
+                canvasGradient ? 'bg-brand switch-brand-track' : 'bg-track'
               }`}
             >
               <span
@@ -515,7 +647,7 @@ export function ThemeSettingsPage() {
               </p>
             </div>
           </div>
-          <ThemeLivePreview item={activeItem} mode={themeMode} />
+          <ThemeLivePreview item={activeItem} mode={themeMode} canvasGradient={canvasGradient} />
         </section>
 
         {/* 主题库：搜索 + 分组筛选 + 网格 */}
@@ -537,7 +669,7 @@ export function ThemeSettingsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('themeSettings.searchPlaceholder')}
                 aria-label={t('themeSettings.searchLabel')}
-                className="w-full rounded-md border-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface)_65%,transparent)] py-1.5 pl-8 pr-8 text-[12px] text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
+                className="w-full rounded-md border-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface)_65%,transparent)] bg-control-glass py-1.5 pl-8 pr-8 text-[12px] text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
               />
               {search && (
                 <button
@@ -563,7 +695,7 @@ export function ThemeSettingsPage() {
                   onClick={() => setGroup(f.id)}
                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
                     active
-                      ? 'border-brand bg-brand text-brand-fg'
+                      ? 'border-brand bg-brand btn-brand-gradient text-brand-fg'
                       : 'border-transparent bg-transparent text-ink-2 hover:bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)]'
                   }`}
                 >
@@ -599,6 +731,8 @@ export function ThemeSettingsPage() {
                   key={item.id}
                   item={item}
                   swatch={getThemePreviewSwatch(item, theme)}
+                  mode={theme}
+                  canvasGradient={canvasGradient}
                   active={item.id === colorTheme}
                   onSelect={() => setColorTheme(item.id)}
                 />

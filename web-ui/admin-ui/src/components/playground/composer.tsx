@@ -179,7 +179,7 @@ export function Composer({
   const hasKeys = keys.length > 0
 
   return (
-    <div className="rounded-[24px] border-[0.5px] border-hairline-2 bg-chat-canvas px-4 pb-2.5 pt-3.5 shadow-panel transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft">
+    <div className="rounded-[24px] border-[0.5px] border-hairline-2 bg-composer-canvas px-4 pb-2.5 pt-3.5 shadow-panel transition-all focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft">
       {(attachments.length > 0 || processing > 0) && (
         <div className="mb-2 flex flex-wrap gap-2 px-1 pt-1">
           {attachments.map((a) => (
@@ -346,7 +346,7 @@ export function Composer({
               disabled={!canSend}
               title={t('playground.send')}
               aria-label={t('playground.send')}
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-brand text-brand-fg transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-3"
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-brand btn-brand-gradient text-brand-fg transition-all hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-ink-3"
             >
               <ArrowUp className="size-[18px]" />
             </button>

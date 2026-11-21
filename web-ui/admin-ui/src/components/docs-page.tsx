@@ -82,7 +82,7 @@ function OsToggle({
   label: string
 }) {
   return (
-    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] bg-surface-3 p-0.5" role="group" aria-label={label}>
+    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] bg-surface-3 bg-track-glass p-0.5" role="group" aria-label={label}>
       {(['unix', 'windows'] as const).map((value) => (
         <button
           key={value}
@@ -90,7 +90,7 @@ function OsToggle({
           onClick={() => onChange(value)}
           aria-pressed={active === value}
           className={`whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[10.5px] font-semibold transition-colors ${
-            active === value ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
+            active === value ? 'bg-surface bg-control-glass text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'
           }`}
         >
           {value === 'unix' ? 'macOS / Linux' : 'Windows'}
@@ -414,7 +414,7 @@ print(resp.choices[0].message.content)`
 
   return (
     <div>
-      <header className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 -mt-7 max-md:mt-0 border-b-[0.5px] border-hairline bg-background px-9 max-md:px-3.5 pb-3 pt-7 max-md:pt-3">
+      <header className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 -mt-7 max-md:mt-0 border-b-[0.5px] border-hairline bg-sticky-canvas px-9 max-md:px-3.5 pb-3 pt-7 max-md:pt-3">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <div className="docs-eyebrow">
@@ -651,7 +651,7 @@ print(resp.choices[0].message.content)`
                     type="button"
                     disabled={!selectedKey}
                     onClick={handleCcSwitchImport}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-brand px-3 text-[12.5px] font-semibold text-brand-fg transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] bg-brand btn-brand-gradient px-3 text-[12.5px] font-semibold text-brand-fg transition-all hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ExternalLink className="size-3.5" />
                     {t('docs.ccSwitchLaunch')}

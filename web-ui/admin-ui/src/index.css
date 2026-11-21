@@ -217,6 +217,114 @@
   }
 }
 
+/* 开启「内容区渐变背景」（<html class="canvas-gradient">）时的极光渐变与磨砂玻璃令牌。
+   亮色模式将暗色 --primary 提亮至高明度柔和粉彩并衍生 +44° / -32° 邻近色相，
+   避免直接叠加低亮度品牌色导致白卡泛灰发暗，全部 74 主题变体对比度仍 ≥ 4.55:1；
+   暗色模式叠加深邃宝石感双色柔光，配合半透明面板实现立体玻璃质感。 */
+:root.canvas-gradient {
+  --grad-aurora-1: color-mix(in srgb, hsl(var(--primary)) 7%, #ffffff);
+  --grad-aurora-2: color-mix(in srgb, hsl(var(--primary)) 5%, #ffffff);
+  --grad-aurora-3: color-mix(in srgb, hsl(var(--primary)) 4%, #ffffff);
+  --grad-card-1: color-mix(in srgb, hsl(var(--primary)) 6%, transparent);
+  --grad-card-2: color-mix(in srgb, hsl(var(--primary)) 5%, transparent);
+  --glass-bg: color-mix(in srgb, var(--surface) 78%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--surface) 88%, transparent);
+  --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 76%, transparent);
+  --glass-sticky-bg: color-mix(in srgb, var(--background) 74%, transparent);
+  --glass-control-bg: color-mix(in srgb, var(--surface) 78%, transparent);
+  --glass-control-hover: color-mix(in srgb, var(--surface) 92%, transparent);
+  --glass-track-bg: color-mix(in srgb, var(--surface-3) 64%, transparent);
+  --glass-head-bg: color-mix(in srgb, var(--surface-2) 52%, transparent);
+  --glass-foot-bg: color-mix(in srgb, var(--surface-2) 38%, transparent);
+  --glass-sheen: rgba(255, 255, 255, .60);
+  --glass-edge: rgba(255, 255, 255, .88);
+  --glass-border: color-mix(in srgb, var(--brand-line) 56%, var(--hairline-2));
+  --glass-shadow-tint: color-mix(in srgb, hsl(var(--primary)) 16%, transparent);
+  --glass-panel-shadow:
+    0 10px 30px -12px var(--glass-shadow-tint),
+    0 2px 8px -2px rgba(16, 18, 20, .05),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 var(--glass-edge);
+  --glass-pop-shadow:
+    0 24px 56px -14px rgba(16, 18, 20, .18),
+    0 6px 20px -6px var(--glass-shadow-tint),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 var(--glass-edge);
+  --glass-control-shadow:
+    0 1px 2px rgba(16, 18, 20, .04),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 var(--glass-edge);
+  --glass-btn-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .26),
+    0 6px 16px -6px color-mix(in srgb, var(--brand) 52%, transparent),
+    0 0 0 0.5px color-mix(in srgb, var(--brand-hover) 45%, transparent);
+  --glass-btn-shadow-hover:
+    inset 0 1px 0 rgba(255, 255, 255, .32),
+    0 8px 20px -5px color-mix(in srgb, var(--brand) 64%, transparent),
+    0 0 0 0.5px var(--brand-hover);
+}
+
+:root.dark.canvas-gradient {
+  --grad-aurora-1: color-mix(in srgb, hsl(var(--primary)) 18%, transparent);
+  --grad-aurora-2: color-mix(in srgb, hsl(var(--primary)) 14%, transparent);
+  --grad-aurora-3: color-mix(in srgb, hsl(var(--primary)) 10%, transparent);
+  --grad-card-1: color-mix(in srgb, hsl(var(--primary)) 10%, transparent);
+  --grad-card-2: color-mix(in srgb, hsl(var(--primary)) 8%, transparent);
+  --glass-bg: color-mix(in srgb, var(--surface) 74%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--surface) 86%, transparent);
+  --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 74%, transparent);
+  --glass-sticky-bg: color-mix(in srgb, var(--background) 72%, transparent);
+  --glass-control-bg: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  --glass-control-hover: color-mix(in srgb, var(--surface-3) 82%, transparent);
+  --glass-track-bg: color-mix(in srgb, var(--surface-3) 60%, transparent);
+  --glass-head-bg: color-mix(in srgb, var(--surface-2) 56%, transparent);
+  --glass-foot-bg: color-mix(in srgb, var(--surface-2) 38%, transparent);
+  --glass-sheen: rgba(255, 255, 255, .055);
+  --glass-edge: rgba(255, 255, 255, .10);
+  --glass-border: color-mix(in srgb, var(--brand-line) 54%, var(--hairline-2));
+  --glass-shadow-tint: rgba(0, 0, 0, .58);
+  --glass-panel-shadow:
+    0 14px 34px -10px rgba(0, 0, 0, .62),
+    0 2px 6px rgba(0, 0, 0, .42),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 var(--glass-edge);
+  --glass-pop-shadow:
+    0 24px 56px -12px rgba(0, 0, 0, .78),
+    0 4px 14px rgba(0, 0, 0, .52),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 rgba(255, 255, 255, .13);
+  --glass-control-shadow:
+    0 1px 2px rgba(0, 0, 0, .35),
+    0 0 0 0.5px var(--glass-border),
+    inset 0 1px 0 var(--glass-edge);
+  --glass-btn-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .20),
+    0 6px 18px -5px color-mix(in srgb, var(--brand) 48%, transparent),
+    0 0 0 0.5px color-mix(in srgb, var(--brand-hover) 45%, transparent);
+  --glass-btn-shadow-hover:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    0 8px 22px -4px color-mix(in srgb, var(--brand) 60%, transparent),
+    0 0 0 0.5px var(--brand-hover);
+}
+
+@supports (color: oklch(from red l c h)) {
+  :root.canvas-gradient {
+    --grad-aurora-1: oklch(from hsl(var(--primary)) 0.958 min(c * 0.60, 0.060) h / .90);
+    --grad-aurora-2: oklch(from hsl(var(--primary)) 0.959 min(c * 0.56, 0.056) calc(h + 44) / .88);
+    --grad-aurora-3: oklch(from hsl(var(--primary)) 0.964 min(c * 0.48, 0.048) calc(h - 32) / .82);
+    --grad-card-1: oklch(from hsl(var(--primary)) 0.960 min(c * 0.54, 0.056) h / .38);
+    --grad-card-2: oklch(from hsl(var(--primary)) 0.960 min(c * 0.50, 0.052) calc(h + 44) / .36);
+  }
+
+  :root.dark.canvas-gradient {
+    --grad-aurora-1: oklch(from hsl(var(--primary)) 0.44 min(c * 0.95, 0.16) h / .24);
+    --grad-aurora-2: oklch(from hsl(var(--primary)) 0.42 min(c * 0.88, 0.15) calc(h + 44) / .20);
+    --grad-aurora-3: oklch(from hsl(var(--primary)) 0.38 min(c * 0.80, 0.13) calc(h - 34) / .14);
+    --grad-card-1: oklch(from hsl(var(--primary)) 0.48 min(c * 0.90, 0.15) h / .11);
+    --grad-card-2: oklch(from hsl(var(--primary)) 0.46 min(c * 0.82, 0.14) calc(h + 44) / .09);
+  }
+}
+
 @layer utilities {
   /* 侧栏极淡点阵纹理（design.md 决策 2 例外）：设计稿 .side，16px 网格 */
   .bg-grid-dot {
@@ -224,26 +332,117 @@
     background-size: 16px 16px;
   }
 
-  /* 内容区画布：默认仅铺纯 --surface 底色；当主题设置开启“画布渐变”时（<html class="canvas-gradient">），
-     叠加左上 / 右下两束品牌色大柔光（对话页及全站各页内容面板/卡片共用）。
-     色值取 hsl(var(--primary) / .07)：--primary 是全部 36 主题（亮暗各一）都有的 HSL 三元组，
-     直接复用可保证画布与按钮、勾选框等品牌元素同色相；不用 --brand-soft 是因为它在亮色主题下
-     是不透明淡彩（≈11% 浓度但无 alpha），只能靠收窄几何范围削弱，导致光晕小到几乎不可见。
-     半径放到 150%×130% 让柔光铺满整块画布，浓度折中取 7%（比初始 10% 更柔和，比 5% 更显色），
-     实测全部 74 个主题变体下全部直接前景色令牌（含 --enable）对比度最低 4.540:1，均达 WCAG AA。
-     侧栏为不透明表面，不参与叠色；各页面内层表头/面板脚等为半透明，开启渐变时可透出两角柔光。 */
+  /* 全局页面极光底画布：默认纯色 --background；开启渐变后通过视口固定 ::before 层铺设多色极光光晕，
+     长页面滚动不拉伸且不阻塞固定定位元素与 Portal 浮层 */
+  .bg-app-canvas {
+    background-color: var(--background);
+  }
+
+  :root.canvas-gradient .bg-app-canvas {
+    position: relative;
+    isolation: isolate;
+  }
+
+  :root.canvas-gradient .bg-app-canvas::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(66% 58% at 12% 4%, var(--grad-aurora-1) 0%, transparent 72%),
+      radial-gradient(60% 54% at 88% 10%, var(--grad-aurora-2) 0%, transparent 70%),
+      radial-gradient(68% 58% at 54% 96%, var(--grad-aurora-3) 0%, transparent 74%),
+      radial-gradient(46% 42% at 96% 86%, var(--grad-aurora-1) 0%, transparent 72%);
+  }
+
+  /* 侧栏与移动端顶栏：保留 .bg-grid-dot 点阵纹理，仅调控底色透明度以透出底层极光并加磨砂 */
+  .bg-sidebar-canvas {
+    background-color: var(--sidebar);
+  }
+
+  :root.canvas-gradient .bg-sidebar-canvas {
+    background-color: var(--glass-sidebar-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    backdrop-filter: blur(22px) saturate(145%);
+    border-color: var(--glass-border);
+    box-shadow: 0 6px 24px -14px var(--glass-shadow-tint);
+  }
+
+  :root.canvas-gradient #admin-sidebar button[aria-current="true"] {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-soft) 96%, transparent),
+      color-mix(in srgb, var(--brand-soft) 62%, transparent)
+    );
+    box-shadow:
+      inset 0 0 0 0.5px var(--brand-line),
+      inset 0 1px 0 var(--glass-edge),
+      0 4px 12px -6px var(--glass-shadow-tint);
+  }
+
+  /* 吸顶页头（文档 / 更新日志）：避免实色底横切极光背景 */
+  .bg-sticky-canvas {
+    background-color: var(--background);
+  }
+
+  :root.canvas-gradient .bg-sticky-canvas {
+    background-color: var(--glass-sticky-bg);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    border-bottom-color: var(--glass-border);
+  }
+
+  /* 内容面板与卡片画布：开启渐变后变为透出极光的磨砂玻璃层，附带顶部镜面高光与邻近双色柔光 */
   .bg-chat-canvas {
     background-color: var(--surface);
   }
 
   :root.canvas-gradient .bg-chat-canvas {
+    background-color: var(--glass-bg);
     background-image:
-      radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .07) 0%, transparent 68%),
-      radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .07) 0%, transparent 66%);
+      linear-gradient(160deg, var(--glass-sheen) 0%, transparent 45%),
+      radial-gradient(125% 115% at 0% 0%, var(--grad-card-1) 0%, transparent 62%),
+      radial-gradient(120% 110% at 100% 100%, var(--grad-card-2) 0%, transparent 58%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: var(--glass-panel-shadow);
   }
 
-  /* 表格面板顶栏 / 页脚：默认（非画布渐变或弹窗等无 .bg-chat-canvas 容器）保持 --surface-2 半透明分层；
-     开启画布渐变后，顶栏未滚动时与页脚一律全透明，让两角柔光完整延伸至面板顶底边缘；表体开始滚动后再切为磨砂底防止透字。 */
+  :root.canvas-gradient .bg-chat-canvas[class*="border-hairline"] {
+    border-color: var(--glass-border);
+  }
+
+  /* 对话输入框浮层：在 Playground 磨砂主画布之上保持清爽高光层次，不重复叠加角落色块 */
+  .bg-composer-canvas {
+    background-color: var(--surface);
+  }
+
+  :root.canvas-gradient .bg-composer-canvas {
+    background-color: var(--glass-bg-strong);
+    background-image: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 55%);
+    -webkit-backdrop-filter: blur(16px) saturate(135%);
+    backdrop-filter: blur(16px) saturate(135%);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-panel-shadow);
+  }
+
+  /* 弹窗 / 下拉菜单 / 通知浮层磨砂质感 */
+  .bg-glass-pop {
+    background-color: var(--surface);
+  }
+
+  :root.canvas-gradient .bg-glass-pop {
+    background-color: var(--glass-bg-strong);
+    background-image:
+      linear-gradient(165deg, var(--glass-sheen) 0%, transparent 42%),
+      radial-gradient(110% 90% at 100% 0%, var(--grad-card-2) 0%, transparent 55%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    backdrop-filter: blur(22px) saturate(145%);
+    box-shadow: var(--glass-pop-shadow);
+  }
+
+  /* 表格面板顶栏 / 页脚：渐变模式下采用轻度半透明玻璃带，保留栏头区分并透出面板顶部光泽 */
   .bg-panel-head {
     background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);
     -webkit-backdrop-filter: blur(12px);
@@ -255,19 +454,58 @@
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-head {
-    background-color: transparent;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    background-color: var(--glass-head-bg);
+    background-image: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 100%);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-bottom-color: var(--glass-border);
   }
 
   :root.canvas-gradient .bg-chat-canvas [data-scrolled] .bg-panel-head {
-    background-color: color-mix(in srgb, var(--surface) 78%, transparent);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    background-color: var(--glass-bg-strong);
+    background-image: none;
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-foot {
-    background-color: transparent;
+    background-color: var(--glass-foot-bg);
+    border-top-color: var(--glass-border);
+  }
+
+  /* 主按钮、开关与玻璃态次级控件（--brand ↔ --brand-hover 均已过对比度审计，禁用态保留原底色） */
+  :root.canvas-gradient .btn-brand-gradient:not(:disabled):not([aria-disabled="true"]) {
+    background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-hover) 100%);
+    box-shadow: var(--glass-btn-shadow);
+  }
+
+  :root.canvas-gradient .btn-brand-gradient:not(:disabled):not([aria-disabled="true"]):hover {
+    background-image: linear-gradient(135deg, var(--brand-hover) 0%, var(--brand) 100%);
+    box-shadow: var(--glass-btn-shadow-hover);
+  }
+
+  :root.canvas-gradient .switch-brand-track {
+    background-image: linear-gradient(135deg, var(--brand) 0%, var(--brand-hover) 100%);
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--brand) 55%, transparent), inset 0 1px 0 rgba(255, 255, 255, .24);
+  }
+
+  :root.canvas-gradient .bg-control-glass {
+    background-color: var(--glass-control-bg);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+
+  :root.canvas-gradient .bg-control-glass:not(:focus-within) {
+    box-shadow: var(--glass-control-shadow);
+  }
+
+  :root.canvas-gradient .bg-control-glass:hover:not(:disabled) {
+    background-color: var(--glass-control-hover);
+  }
+
+  :root.canvas-gradient .bg-track-glass {
+    background-color: var(--glass-track-bg);
+    box-shadow: inset 0 0 0 0.5px var(--glass-border);
   }
 }
 

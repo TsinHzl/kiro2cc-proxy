@@ -41,7 +41,7 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         // 设计稿面板：14px 圆角 + surface 底 + hairline 边 + shadow-pop
-        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[14px] border border-transparent bg-surface p-4 shadow-pop sm:p-6',
+        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[14px] border border-transparent bg-glass-pop p-4 shadow-pop sm:p-6',
         'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none',
         className
       )}

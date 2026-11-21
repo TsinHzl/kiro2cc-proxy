@@ -228,7 +228,7 @@ export function BalanceDialog({ credentialId, credential, open, onOpenChange }: 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* flex 列布局：Header 固定不参与滚动，仅下方内容区滚动 */}
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[536px] p-0 gap-0 sm:p-0 rounded-2xl border-transparent bg-surface">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[536px] p-0 gap-0 sm:p-0 rounded-2xl border-transparent bg-glass-pop">
         {/* 阶梯一：顶栏资产标识与全局状态 */}
         <DialogHeader className="flex shrink-0 flex-col gap-1 border-b-[0.5px] border-hairline px-[22px] pt-5 pb-4 text-left">
           {/* pr-6 为右上角关闭按钮让位，避免标题与其重叠 */}

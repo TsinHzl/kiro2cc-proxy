@@ -43,7 +43,7 @@ export function PageHead({ crumb, title, note, actions, onBack }: PageHeadProps)
               type="button"
               onClick={onBack}
               aria-label={t('common.back')}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] border border-transparent bg-surface text-ink-2 shadow-hair transition-all hover:bg-surface-2 hover:text-ink active:scale-95"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] border border-transparent bg-surface bg-control-glass text-ink-2 shadow-hair transition-all hover:bg-surface-2 hover:text-ink active:scale-95"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
             </button>

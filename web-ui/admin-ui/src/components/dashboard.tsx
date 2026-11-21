@@ -709,7 +709,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   // 切换负载均衡模式
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-app-canvas">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">{t('common.loading')}</p>
@@ -720,7 +720,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center bg-app-canvas p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <div className="text-danger mb-4">{t('common.loadFailed')}</div>
@@ -758,9 +758,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-app-canvas">
       {/* 移动端固定顶栏（仅 <768px 显示，桌面端隐藏） */}
-      <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center justify-between border-b-[0.5px] border-hairline bg-sidebar px-3.5 md:hidden">
+      <header className="fixed inset-x-0 top-0 z-20 flex h-12 items-center justify-between border-b-[0.5px] border-hairline bg-sidebar-canvas px-3.5 md:hidden">
         <div className="flex min-w-0 items-center gap-2.5">
           <Button
             variant="ghost"

@@ -130,7 +130,7 @@ export function AccountTable({
                       <button
                         type="button"
                         onClick={onClearFilters}
-                        className="rounded-[6px] border border-transparent bg-surface px-2.5 py-1 text-[11.5px] font-medium text-ink-2 shadow-hair transition-colors hover:bg-surface-2 hover:text-ink"
+                        className="rounded-[6px] border border-transparent bg-surface bg-control-glass px-2.5 py-1 text-[11.5px] font-medium text-ink-2 shadow-hair transition-colors hover:bg-surface-2 hover:text-ink"
                       >
                         {t('credentials.clearFilters')}
                       </button>

@@ -12,13 +12,13 @@ const buttonVariants = cva(
       variant: {
         /** .btn-primary */
         default:
-          'border-transparent bg-brand font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)] [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover hover:[&_svg]:text-brand-fg',
+          'border-transparent bg-brand btn-brand-gradient font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)] [&_svg]:text-brand-fg [&_svg]:opacity-90 hover:bg-brand-hover hover:[&_svg]:text-brand-fg',
         /** .btn-danger */
         destructive:
           'bg-surface text-danger shadow-hair [&_svg]:text-danger hover:bg-danger-soft hover:[&_svg]:text-danger',
         /** .btn 常规态 */
         outline:
-          'bg-surface text-ink-2 shadow-hair hover:bg-surface-2 hover:text-ink',
+          'bg-surface bg-control-glass text-ink-2 shadow-hair hover:bg-surface-2 hover:text-ink',
         /** 次级：常规态去阴影 + surface-3 底（设计稿无对应档，按令牌体系推导） */
         secondary: 'border-transparent bg-surface-3 text-ink-2 hover:bg-hairline hover:text-ink',
         /** .btn-ghost */

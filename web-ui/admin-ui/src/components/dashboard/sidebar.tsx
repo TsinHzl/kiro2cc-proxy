@@ -79,7 +79,7 @@ export function Sidebar({
       )}
       <aside
         id="admin-sidebar"
-        className={`${sidebarCollapsed ? 'w-16' : 'w-[208px]'} max-md:w-[208px] max-md:z-40 ${mobileOpen ? 'max-md:visible max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'} bg-sidebar bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}
+        className={`${sidebarCollapsed ? 'w-16' : 'w-[208px]'} max-md:w-[208px] max-md:z-40 ${mobileOpen ? 'max-md:visible max-md:translate-x-0' : 'max-md:invisible max-md:-translate-x-full'} bg-sidebar-canvas bg-grid-dot border-r-[0.5px] border-hairline fixed top-0 left-0 bottom-0 flex flex-col z-10 transition-all duration-200`}
       >
         {/* 内容区整体做一次透明度过渡：把 header/nav/footer 所有跟随收起态瞬时切换的布局
             （flex 方向、文字显隐、ml-auto）都藏在这次淡出淡入的不可见瞬间，避免逐处单独处理时互相错位 */}
@@ -185,14 +185,8 @@ export function Sidebar({
                       }}
                       aria-label={fullLabel}
                       aria-current={active ? 'true' : undefined}
-                      className={`relative mb-0.5 flex h-[34px] w-full items-center rounded-[8px] text-[12.5px] transition-all duration-150 ${collapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand shadow-[inset_0_0_0_0.5px_var(--brand-line)]' : 'font-[450] text-ink-2 hover:bg-surface-3/80 hover:text-ink'}`}
+                      className={`mb-0.5 flex h-[34px] w-full items-center rounded-[8px] text-[12.5px] transition-all duration-150 ${collapsed ? 'justify-center' : 'gap-[9px] px-2.5'} ${active ? 'bg-brand-soft font-semibold text-brand shadow-[inset_0_0_0_0.5px_var(--brand-line)]' : 'font-[450] text-ink-2 hover:bg-surface-3/80 hover:text-ink'}`}
                     >
-                      {active && !collapsed && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute left-0 top-1/2 h-4 w-[2.5px] -translate-y-1/2 rounded-r-full bg-brand"
-                        />
-                      )}
                       <Icon className="w-4 h-4 shrink-0" />
                       {!collapsed && (
                         <>

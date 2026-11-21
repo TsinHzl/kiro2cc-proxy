@@ -29,8 +29,10 @@ import {
   useSetDisabled,
   useUpdateCredential,
 } from '@/hooks/use-credentials'
+import { useNowTick } from '@/hooks/use-now-tick'
 import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
 import { localeTag } from '@/lib/locale'
+import { formatQuotaResetCountdown } from '@/lib/quota-reset'
 import { extractErrorMessage, getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
 
@@ -117,6 +119,12 @@ export function AccountRow({
   // 剩余百分比：进度条按”剩余”语义渲染（越消费越短），超额用完时为 0%
   const remainingPct = usedPct === null ? null : Math.max(0, 100 - Math.min(100, usedPct))
   const numFmt = localeTag()
+  const nowMs = useNowTick()
+  const resetCountdown = balance ? formatQuotaResetCountdown(balance.nextResetAt, t, nowMs) : null
+  const resetTitle =
+    balance?.nextResetAt != null && Number.isFinite(balance.nextResetAt) && balance.nextResetAt > 0
+      ? t('credentials.quotaResetAt', { time: new Date(balance.nextResetAt * 1000).toLocaleString(numFmt) })
+      : undefined
   // 设计稿对「已禁用」与「从未调用」行的 RPM 显示 —（原型行 968/1007/1046），数字对这两类行无意义
   const rpmIdle = credential.disabled || credential.lastUsedAt === null
 
@@ -288,6 +296,14 @@ export function AccountRow({
               />
             )}
           </div>
+          {resetCountdown && (
+            <span
+              title={resetTitle}
+              className="whitespace-nowrap text-[10px] leading-tight tracking-[0.01em] text-ink-3 tabular-nums"
+            >
+              {resetCountdown}
+            </span>
+          )}
         </div>
       </td>
       {/* 调用（设计稿 .calls 两段）+ 限流第三段：失败与限流 > 0 时可点击进对应日志 */}

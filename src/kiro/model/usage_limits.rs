@@ -269,6 +269,12 @@ impl UsageLimitsResponse {
         self.usage_breakdown_list.first()
     }
 
+    /// 获取下次重置时间（Unix 时间戳，秒）：优先顶层 `nextDateReset`，缺失时回退首个 breakdown
+    pub fn next_date_reset(&self) -> Option<f64> {
+        self.next_date_reset
+            .or_else(|| self.primary_breakdown().and_then(|b| b.next_date_reset))
+    }
+
     /// 获取总使用限额（精确值）
     ///
     /// 累加基础额度、激活的免费试用额度和激活的奖励额度
@@ -571,5 +577,22 @@ mod tests {
             resp.subscription_info.unwrap().subscription_type.as_deref(),
             Some("Q_DEVELOPER_STANDALONE_PRO")
         );
+    }
+
+    #[test]
+    fn next_date_reset_prefers_top_level_then_falls_back_to_breakdown() {
+        let top: UsageLimitsResponse = serde_json::from_str(
+            r#"{"nextDateReset": 1799136000, "usageBreakdownList": [{"nextDateReset": 1799222400}]}"#,
+        )
+        .unwrap();
+        assert_eq!(top.next_date_reset(), Some(1799136000.0));
+
+        let fallback: UsageLimitsResponse =
+            serde_json::from_str(r#"{"usageBreakdownList": [{"nextDateReset": 1799222400}]}"#)
+                .unwrap();
+        assert_eq!(fallback.next_date_reset(), Some(1799222400.0));
+
+        let empty: UsageLimitsResponse = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty.next_date_reset(), None);
     }
 }

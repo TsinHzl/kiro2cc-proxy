@@ -295,7 +295,7 @@ impl AdminService {
             usage_limit,
             remaining,
             usage_percentage,
-            next_reset_at: usage.next_date_reset,
+            next_reset_at: usage.next_date_reset(),
             detail,
         })
     }

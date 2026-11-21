@@ -6,7 +6,7 @@ import { DataCheckbox, PANEL, TH_BASE } from '@/components/table-kit'
 import type { AccountSortKey, SortDirection } from '@/lib/account-state'
 
 /** 列宽（设计稿 colgroup）：账号列为 undefined = auto，吃掉剩余宽度 */
-const COLUMN_WIDTHS: (number | undefined)[] = [32, 42, undefined, 82, 92, 146, 98, 44, 78, 198]
+const COLUMN_WIDTHS: (number | undefined)[] = [32, 42, undefined, 82, 92, 158, 98, 44, 78, 198]
 /** 空状态行需要横跨全部列 */
 export const ACCOUNT_TABLE_COLUMNS = COLUMN_WIDTHS.length
 

@@ -225,24 +225,20 @@
   --grad-aurora-1: color-mix(in srgb, hsl(var(--primary)) 7%, #ffffff);
   --grad-aurora-2: color-mix(in srgb, hsl(var(--primary)) 5%, #ffffff);
   --grad-aurora-3: color-mix(in srgb, hsl(var(--primary)) 4%, #ffffff);
-  --grad-card-1: color-mix(in srgb, hsl(var(--primary)) 6%, transparent);
   --grad-card-2: color-mix(in srgb, hsl(var(--primary)) 5%, transparent);
-  --glass-bg: color-mix(in srgb, var(--surface) 78%, transparent);
   --glass-bg-strong: color-mix(in srgb, var(--surface) 88%, transparent);
   --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 76%, transparent);
-  --glass-sticky-bg: color-mix(in srgb, var(--background) 74%, transparent);
-  --glass-control-bg: color-mix(in srgb, var(--surface) 78%, transparent);
-  --glass-control-hover: color-mix(in srgb, var(--surface) 92%, transparent);
-  --glass-track-bg: color-mix(in srgb, var(--surface-3) 64%, transparent);
-  --glass-head-bg: color-mix(in srgb, var(--surface-2) 52%, transparent);
-  --glass-foot-bg: color-mix(in srgb, var(--surface-2) 38%, transparent);
+  --glass-sticky-bg: color-mix(in srgb, var(--background) 52%, transparent);
+  --glass-control-bg: color-mix(in srgb, var(--surface) 38%, transparent);
+  --glass-control-hover: color-mix(in srgb, var(--surface) 64%, transparent);
+  --glass-track-bg: color-mix(in srgb, var(--surface-3) 32%, transparent);
   --glass-sheen: rgba(255, 255, 255, .60);
-  --glass-edge: rgba(255, 255, 255, .88);
+  --glass-edge: rgba(255, 255, 255, .85);
   --glass-border: color-mix(in srgb, var(--brand-line) 56%, var(--hairline-2));
   --glass-shadow-tint: color-mix(in srgb, hsl(var(--primary)) 16%, transparent);
   --glass-panel-shadow:
-    0 10px 30px -12px var(--glass-shadow-tint),
-    0 2px 8px -2px rgba(16, 18, 20, .05),
+    0 10px 28px -14px var(--glass-shadow-tint),
+    0 2px 8px -2px rgba(16, 18, 20, .04),
     0 0 0 0.5px var(--glass-border),
     inset 0 1px 0 var(--glass-edge);
   --glass-pop-shadow:
@@ -268,24 +264,20 @@
   --grad-aurora-1: color-mix(in srgb, hsl(var(--primary)) 18%, transparent);
   --grad-aurora-2: color-mix(in srgb, hsl(var(--primary)) 14%, transparent);
   --grad-aurora-3: color-mix(in srgb, hsl(var(--primary)) 10%, transparent);
-  --grad-card-1: color-mix(in srgb, hsl(var(--primary)) 10%, transparent);
   --grad-card-2: color-mix(in srgb, hsl(var(--primary)) 8%, transparent);
-  --glass-bg: color-mix(in srgb, var(--surface) 74%, transparent);
   --glass-bg-strong: color-mix(in srgb, var(--surface) 86%, transparent);
   --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 74%, transparent);
-  --glass-sticky-bg: color-mix(in srgb, var(--background) 72%, transparent);
-  --glass-control-bg: color-mix(in srgb, var(--surface-2) 72%, transparent);
-  --glass-control-hover: color-mix(in srgb, var(--surface-3) 82%, transparent);
-  --glass-track-bg: color-mix(in srgb, var(--surface-3) 60%, transparent);
-  --glass-head-bg: color-mix(in srgb, var(--surface-2) 56%, transparent);
-  --glass-foot-bg: color-mix(in srgb, var(--surface-2) 38%, transparent);
+  --glass-sticky-bg: color-mix(in srgb, var(--background) 50%, transparent);
+  --glass-control-bg: color-mix(in srgb, var(--surface-2) 38%, transparent);
+  --glass-control-hover: color-mix(in srgb, var(--surface-3) 62%, transparent);
+  --glass-track-bg: color-mix(in srgb, var(--surface-3) 32%, transparent);
   --glass-sheen: rgba(255, 255, 255, .055);
   --glass-edge: rgba(255, 255, 255, .10);
   --glass-border: color-mix(in srgb, var(--brand-line) 54%, var(--hairline-2));
   --glass-shadow-tint: rgba(0, 0, 0, .58);
   --glass-panel-shadow:
-    0 14px 34px -10px rgba(0, 0, 0, .62),
-    0 2px 6px rgba(0, 0, 0, .42),
+    0 14px 32px -12px rgba(0, 0, 0, .58),
+    0 2px 6px rgba(0, 0, 0, .38),
     0 0 0 0.5px var(--glass-border),
     inset 0 1px 0 var(--glass-edge);
   --glass-pop-shadow:
@@ -312,7 +304,6 @@
     --grad-aurora-1: oklch(from hsl(var(--primary)) 0.958 min(c * 0.60, 0.060) h / .90);
     --grad-aurora-2: oklch(from hsl(var(--primary)) 0.959 min(c * 0.56, 0.056) calc(h + 44) / .88);
     --grad-aurora-3: oklch(from hsl(var(--primary)) 0.964 min(c * 0.48, 0.048) calc(h - 32) / .82);
-    --grad-card-1: oklch(from hsl(var(--primary)) 0.960 min(c * 0.54, 0.056) h / .38);
     --grad-card-2: oklch(from hsl(var(--primary)) 0.960 min(c * 0.50, 0.052) calc(h + 44) / .36);
   }
 
@@ -320,7 +311,6 @@
     --grad-aurora-1: oklch(from hsl(var(--primary)) 0.44 min(c * 0.95, 0.16) h / .24);
     --grad-aurora-2: oklch(from hsl(var(--primary)) 0.42 min(c * 0.88, 0.15) calc(h + 44) / .20);
     --grad-aurora-3: oklch(from hsl(var(--primary)) 0.38 min(c * 0.80, 0.13) calc(h - 34) / .14);
-    --grad-card-1: oklch(from hsl(var(--primary)) 0.48 min(c * 0.90, 0.15) h / .11);
     --grad-card-2: oklch(from hsl(var(--primary)) 0.46 min(c * 0.82, 0.14) calc(h + 44) / .09);
   }
 }
@@ -356,7 +346,7 @@
       radial-gradient(46% 42% at 96% 86%, var(--grad-aurora-1) 0%, transparent 72%);
   }
 
-  /* 侧栏与移动端顶栏：保留 .bg-grid-dot 点阵纹理，仅调控底色透明度以透出底层极光并加磨砂 */
+  /* 侧栏与移动端顶栏：移动端抽屉与顶栏滑过内容上方需保持磨砂防透字；桌面端侧栏与主区并排不重叠，直接全透明融于极光 */
   .bg-sidebar-canvas {
     background-color: var(--sidebar);
   }
@@ -367,6 +357,15 @@
     backdrop-filter: blur(22px) saturate(145%);
     border-color: var(--glass-border);
     box-shadow: 0 6px 24px -14px var(--glass-shadow-tint);
+  }
+
+  @media (min-width: 768px) {
+    :root.canvas-gradient #admin-sidebar.bg-sidebar-canvas {
+      background-color: transparent;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      box-shadow: none;
+    }
   }
 
   :root.canvas-gradient #admin-sidebar button[aria-current="true"] {
@@ -381,31 +380,28 @@
       0 4px 12px -6px var(--glass-shadow-tint);
   }
 
-  /* 吸顶页头（文档 / 更新日志）：避免实色底横切极光背景 */
+  /* 吸顶页头（文档 / 更新日志）：滚动正文会穿过下方，保留轻量半透明磨砂防透字 */
   .bg-sticky-canvas {
     background-color: var(--background);
   }
 
   :root.canvas-gradient .bg-sticky-canvas {
     background-color: var(--glass-sticky-bg);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
     border-bottom-color: var(--glass-border);
   }
 
-  /* 内容面板与卡片画布：开启渐变后变为透出极光的磨砂玻璃层，附带顶部镜面高光与邻近双色柔光 */
+  /* 内容面板与卡片画布：开启渐变后背景色全透明，直接透出全局极光底画布，仅保留纤细玻璃描边与顶部高光分隔层次 */
   .bg-chat-canvas {
     background-color: var(--surface);
   }
 
   :root.canvas-gradient .bg-chat-canvas {
-    background-color: var(--glass-bg);
-    background-image:
-      linear-gradient(160deg, var(--glass-sheen) 0%, transparent 45%),
-      radial-gradient(125% 115% at 0% 0%, var(--grad-card-1) 0%, transparent 62%),
-      radial-gradient(120% 110% at 100% 100%, var(--grad-card-2) 0%, transparent 58%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    backdrop-filter: blur(18px) saturate(140%);
+    background-color: transparent;
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     box-shadow: var(--glass-panel-shadow);
   }
 
@@ -413,21 +409,24 @@
     border-color: var(--glass-border);
   }
 
-  /* 对话输入框浮层：在 Playground 磨砂主画布之上保持清爽高光层次，不重复叠加角落色块 */
+  /* 对话输入框浮层：渐变模式下背景全透明，聚焦态保留品牌描边与外发光环 */
   .bg-composer-canvas {
     background-color: var(--surface);
   }
 
   :root.canvas-gradient .bg-composer-canvas {
-    background-color: var(--glass-bg-strong);
-    background-image: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 55%);
-    -webkit-backdrop-filter: blur(16px) saturate(135%);
-    backdrop-filter: blur(16px) saturate(135%);
+    background-color: transparent;
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  :root.canvas-gradient .bg-composer-canvas:not(:focus-within) {
     border-color: var(--glass-border);
     box-shadow: var(--glass-panel-shadow);
   }
 
-  /* 弹窗 / 下拉菜单 / 通知浮层磨砂质感 */
+  /* 弹窗 / 下拉菜单 / 通知浮层磨砂质感（浮于页面之上需保持半透明磨砂防下方透字） */
   .bg-glass-pop {
     background-color: var(--surface);
   }
@@ -442,7 +441,7 @@
     box-shadow: var(--glass-pop-shadow);
   }
 
-  /* 表格面板顶栏 / 页脚：渐变模式下采用轻度半透明玻璃带，保留栏头区分并透出面板顶部光泽 */
+  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏切为磨砂底防止行文重叠透字 */
   .bg-panel-head {
     background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);
     -webkit-backdrop-filter: blur(12px);
@@ -454,10 +453,10 @@
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-head {
-    background-color: var(--glass-head-bg);
-    background-image: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 100%);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    background-color: transparent;
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     border-bottom-color: var(--glass-border);
   }
 
@@ -469,7 +468,7 @@
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-foot {
-    background-color: var(--glass-foot-bg);
+    background-color: transparent;
     border-top-color: var(--glass-border);
   }
 

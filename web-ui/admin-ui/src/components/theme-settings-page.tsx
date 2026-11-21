@@ -102,10 +102,8 @@ function buildPreviewVisuals(
   const g1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${glowL}%, ${isDark ? 0.30 : 0.72})`
   const g2 = `hsla(${Math.round((h + 44) % 360)}, ${Math.round(sat * 0.9)}%, ${glowL}%, ${isDark ? 0.25 : 0.66})`
   const g3 = `hsla(${Math.round((h + 328) % 360)}, ${Math.round(sat * 0.8)}%, ${isDark ? 38 : 90}%, ${isDark ? 0.18 : 0.56})`
-  const c1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${isDark ? 52 : 91}%, ${isDark ? 0.16 : 0.42})`
-  const c2 = `hsla(${Math.round((h + 44) % 360)}, ${Math.round(sat * 0.88)}%, ${isDark ? 48 : 91}%, ${isDark ? 0.14 : 0.38})`
-  const sheen = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.68)'
-  const edge = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.9)'
+  const edge = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.88)'
+  const rimBorder = `color-mix(in srgb, ${swatch.primary} 24%, ${swatch.muted})`
   return {
     windowStyle: {
       backgroundColor: swatch.bg,
@@ -116,23 +114,16 @@ function buildPreviewVisuals(
       ].join(', '),
     },
     chromeStyle: {
-      backgroundColor: `color-mix(in srgb, ${swatch.surface} ${isDark ? '80%' : '82%'}, transparent)`,
-      borderColor: `color-mix(in srgb, ${swatch.primary} 22%, ${swatch.muted})`,
-      backdropFilter: 'blur(8px)',
+      backgroundColor: 'transparent',
+      borderColor: rimBorder,
     },
     sidebarStyle: {
-      backgroundColor: `color-mix(in srgb, ${sidebarBg} ${isDark ? '74%' : '76%'}, transparent)`,
+      backgroundColor: 'transparent',
       borderColor: `color-mix(in srgb, ${swatch.primary} 20%, ${swatch.muted})`,
-      backdropFilter: 'blur(8px)',
     },
     cardStyle: {
-      backgroundColor: `color-mix(in srgb, ${swatch.surface} ${isDark ? '74%' : '80%'}, transparent)`,
-      backgroundImage: [
-        `linear-gradient(155deg, ${sheen} 0%, transparent 48%)`,
-        `radial-gradient(120% 110% at 0% 0%, ${c1} 0%, transparent 62%)`,
-        `radial-gradient(110% 100% at 100% 100%, ${c2} 0%, transparent 60%)`,
-      ].join(', '),
-      borderColor: `color-mix(in srgb, ${swatch.primary} 24%, ${swatch.muted})`,
+      backgroundColor: 'transparent',
+      borderColor: rimBorder,
       boxShadow: `inset 0 1px 0 ${edge}, 0 4px 12px -6px ${isDark ? 'rgba(0,0,0,0.45)' : 'rgba(16,18,20,0.08)'}`,
     },
     pillGradient: `linear-gradient(135deg, ${swatch.primary}, color-mix(in srgb, ${swatch.primary} 78%, ${isDark ? '#ffffff' : swatch.surface}))`,
@@ -322,7 +313,13 @@ function ThemeLivePreview({
   ]
 
   return (
-    <div className="rounded-xl border border-transparent bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)] bg-track-glass p-3">
+    <div
+      className={`rounded-xl border p-3 ${
+        canvasGradient
+          ? 'border-hairline/70 bg-transparent'
+          : 'border-transparent bg-[color-mix(in_srgb,var(--surface-2)_50%,transparent)]'
+      }`}
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[12px] font-medium text-ink">{t('themeSettings.previewTitle')}</p>

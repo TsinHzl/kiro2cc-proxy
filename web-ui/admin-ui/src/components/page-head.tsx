@@ -37,15 +37,15 @@ export function PageHead({ crumb, title, note, actions, onBack }: PageHeadProps)
             ))}
           </div>
         )}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {onBack && (
             <button
               type="button"
               onClick={onBack}
               aria-label={t('common.back')}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] border border-transparent bg-surface bg-control-glass text-ink-2 shadow-hair transition-all hover:bg-surface-2 hover:text-ink active:scale-95"
+              className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md text-ink-3 transition-all hover:bg-surface-3 hover:text-ink active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
           <h1 className="text-[20px] font-semibold leading-[1.2] tracking-[-.025em] text-ink">{title}</h1>

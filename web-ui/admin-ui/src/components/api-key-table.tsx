@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, SearchX } from 'lucide-react'
-import { DataCheckbox, PANEL, TH_BASE } from '@/components/table-kit'
+import { DataCheckbox, PANEL, TH_BASE, TableScroll } from '@/components/table-kit'
 
 /** 列宽（设计稿 #p-keys colgroup）：名称列为 undefined = auto，吃掉剩余宽度 */
 const COLUMN_WIDTHS: (number | undefined)[] = [34, undefined, 200, 88, 150, 168, 108, 76, 112, 124]
@@ -57,7 +57,7 @@ export function ApiKeyTable({
           md:max-h-none：桌面端由父级 flex 决定高度（面板内滚），70vh 上限只留给手机端内容流。
           md:min-h-0：矮桌面视口下允许表体收缩，否则最小高度会把兄弟节点页脚挤出外壳被裁剪。
           min-h-[200px] 而非 199：空态行实测 199.5px，取整到 199 会让数据到达后收缩 0.5px（docH 舍入成 1px 跳动） */}
-      <div className="max-h-[70vh] min-h-[200px] flex-1 overflow-y-auto md:min-h-0 md:max-h-none">
+      <TableScroll className="max-h-[70vh] min-h-[200px] flex-1 overflow-y-auto md:min-h-0 md:max-h-none">
         <table className="w-full border-separate border-spacing-0">
           <colgroup>
             {COLUMN_WIDTHS.map((width, index) => (
@@ -111,7 +111,7 @@ export function ApiKeyTable({
             )}
           </tbody>
         </table>
-      </div>
+      </TableScroll>
       {footer}
     </section>
   )

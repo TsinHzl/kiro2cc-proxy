@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { CustomRangeDialog, RANGE_DAYS, UsageMetricsBar, cstDateString, type CustomRange } from '@/components/daily-shared'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
-import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager } from '@/components/table-kit'
+import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TableScroll } from '@/components/table-kit'
 import { Segmented } from '@/components/toolbar'
 import { UsageLogTable } from '@/components/usage-log-table'
 import { useDailyUsage, useDailyUsageRecords, useUsageRecordsByRange } from '@/hooks/use-credentials'
@@ -236,7 +236,7 @@ function TodayRecordsView({ daily, dailyLoading, dailyError }: DailyTotalsProps)
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
             {isError ? (
               <div className="px-4 py-12 text-center text-[12.5px] text-ink-3">
                 {t('common.loadFailed')}
@@ -244,7 +244,7 @@ function TodayRecordsView({ daily, dailyLoading, dailyError }: DailyTotalsProps)
             ) : (
               <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
             )}
-          </div>
+          </TableScroll>
 
           <div className={PANEL_FOOT}>
             <div className="ml-auto flex flex-none items-center gap-2">
@@ -332,7 +332,7 @@ function CustomRangeRecordsView({
           </div>
         </div>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
             {isError ? (
               <div className="px-4 py-12 text-center text-[12.5px] text-ink-3">
                 {t('common.loadFailed')}
@@ -340,7 +340,7 @@ function CustomRangeRecordsView({
             ) : (
               <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
             )}
-          </div>
+          </TableScroll>
 
           <div className={PANEL_FOOT}>
             <div className="ml-auto flex flex-none items-center gap-2">

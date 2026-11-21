@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
-import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE, TableScroll } from '@/components/table-kit'
 import { useCredentials } from '@/hooks/use-credentials'
 import { accountLabel } from '@/lib/account-state'
 import { extractErrorMessage } from '@/lib/utils'
@@ -150,7 +150,7 @@ export function EventLogPage({
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t(titleKey)}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
             <table className="w-full border-separate border-spacing-0">
               <thead>
                 <tr>
@@ -207,7 +207,7 @@ export function EventLogPage({
                 )}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/* 面板脚（设计稿 .panel-foot）：右区计数 + 页码 + 每页条数；服务端分页 */}
           <div className={PANEL_FOOT}>

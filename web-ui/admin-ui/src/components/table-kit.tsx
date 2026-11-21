@@ -1,4 +1,5 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { Check, ChevronLeft, ChevronRight, Minus } from 'lucide-react'
@@ -9,13 +10,44 @@ export const PANEL = 'overflow-hidden rounded-[12px] border border-transparent b
 /** 面板上方小标题（设计稿 .panel 前的段标题） */
 export const PANEL_TITLE = 'mb-2 text-[10.5px] font-semibold uppercase tracking-[.08em] text-ink-3'
 
-/** 面板脚（设计稿 .panel-foot）：半透明底色以便透出面板右下角柔光 */
+/** 面板脚（设计稿 .panel-foot）：非渐变时保持半透明底色，开启画布渐变后透出底部柔光 */
 export const PANEL_FOOT =
-  'flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_45%,transparent)] px-3.5 py-2.5 text-[11.5px] text-ink-3'
+  'flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t-[0.5px] border-hairline bg-panel-foot px-3.5 py-2.5 text-[11.5px] text-ink-3'
 
-/** 设计稿 thead th：10.5px 大写字距 .07em + 半透明磨砂底 + sticky，避免遮挡左上角柔光与滚动透字 */
+/** 设计稿 thead th：10.5px 大写字距 .07em + sticky，开启画布渐变时静态透出顶部柔光、滚动时切为磨砂防透字 */
 export const TH_BASE =
-  'sticky top-0 z-[2] whitespace-nowrap border-b-[0.5px] border-hairline bg-[color-mix(in_srgb,var(--surface-2)_72%,transparent)] px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3 backdrop-blur-md'
+  'sticky top-0 z-[2] whitespace-nowrap border-b-[0.5px] border-hairline bg-panel-head px-3 py-[9px] text-left text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3 transition-[background-color] duration-150'
+
+/**
+ * 表格内滚容器：滚动离顶后同步 `data-scrolled` 属性，配合 `.bg-panel-head` 实现
+ * 「未滚动时不遮挡顶部画布柔光，滚动后切为磨砂底防止透字」。
+ */
+export function TableScroll({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const sync = () => el.toggleAttribute('data-scrolled', el.scrollTop > 0)
+    sync()
+    // 筛选或翻页使表体高度收缩回弹至顶部时未必触发 scroll 事件，监听尺寸变化兜底校准
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    return () => ro.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      onScroll={(e) => e.currentTarget.toggleAttribute('data-scrolled', e.currentTarget.scrollTop > 0)}
+      className={className}
+    >
+      {children}
+    </div>
+  )
+}
 
 /** 表格行悬停高亮：半透明底色以免遮挡面板画布渐变 */
 export const ROW_HOVER = 'transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--surface-2)_55%,transparent)]'

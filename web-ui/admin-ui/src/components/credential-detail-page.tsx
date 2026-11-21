@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
-import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager } from '@/components/table-kit'
+import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TableScroll } from '@/components/table-kit'
 import { UsageLogTable, formatCost, recordCredits } from '@/components/usage-log-table'
 import {
   useCredentials,
@@ -202,9 +202,9 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
             <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
-          </div>
+          </TableScroll>
 
           {/* 面板脚（设计稿 .panel-foot）：右区计数 + 页码 + 每页条数；服务端分页 */}
           <div className={PANEL_FOOT}>

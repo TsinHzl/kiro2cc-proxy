@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Metric, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { STATUS_VISUAL, TAG_BASE, type KeyStatus } from '@/components/api-key-row'
-import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE, TableScroll } from '@/components/table-kit'
 import { UsageLogTable, fallbackCredits, formatCost, getModelColor } from '@/components/usage-log-table'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
@@ -152,7 +152,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
           </h3>
           {/* 折叠时保留 DOM 并置 hidden，避免 aria-controls 指向已卸载节点 */}
           <section id={modelBodyId} aria-label={t('apiKeys.byModelTitle')} className={PANEL} hidden={!modelOpen}>
-            <div className="max-h-[42vh] overflow-y-auto">
+            <TableScroll className="max-h-[42vh] overflow-y-auto">
               <table className="w-full border-separate border-spacing-0">
                 <thead>
                   <tr>
@@ -188,7 +188,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           </section>
         </div>
       )}
@@ -197,9 +197,9 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
             <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
-          </div>
+          </TableScroll>
 
           {/* 面板脚（设计稿 .panel-foot）：右区计数 + 页码 + 每页条数；服务端分页 */}
           <div className={PANEL_FOOT}>

@@ -4,7 +4,7 @@
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown } from 'lucide-react'
-import { CELL, PANEL, ROW_HOVER, TH_BASE } from '@/components/table-kit'
+import { CELL, PANEL, ROW_HOVER, TH_BASE, TableScroll } from '@/components/table-kit'
 import { formatCost, getModelColor, recordCredits } from '@/components/usage-log-table'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { UsageRecord } from '@/types/api'
@@ -80,7 +80,7 @@ export function ModelAggPanel({ records }: { records: UsageRecord[] }) {
       </div>
       {open && (
         <section id={bodyId} aria-label={t('credentials.groupByModel')} className={PANEL}>
-          <div className="max-h-[42vh] overflow-y-auto">
+          <TableScroll className="max-h-[42vh] overflow-y-auto">
             <table className="w-full border-separate border-spacing-0">
               <thead>
                 <tr>
@@ -116,7 +116,7 @@ export function ModelAggPanel({ records }: { records: UsageRecord[] }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         </section>
       )}
     </div>

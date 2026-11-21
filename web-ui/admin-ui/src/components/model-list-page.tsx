@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { SearchBox, UpdatedAgo } from '@/components/toolbar'
-import { CELL, ICON_BTN, PANEL, PANEL_FOOT, ROW_HOVER, TH_BASE } from '@/components/table-kit'
+import { CELL, ICON_BTN, PANEL, PANEL_FOOT, ROW_HOVER, TH_BASE, TableScroll } from '@/components/table-kit'
 import { TAG_BASE } from '@/components/api-key-row'
 import { useModels } from '@/hooks/use-credentials'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -339,7 +339,7 @@ export function ModelListPage() {
       </div>
 
       <section className={`flex min-h-0 flex-1 flex-col ${PANEL}`}>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <TableScroll className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-[12.5px]">
             <colgroup>
               {COLUMN_WIDTHS.map((w, i) => (
@@ -501,7 +501,7 @@ export function ModelListPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         <div className={PANEL_FOOT}>
           <span>{t('models.footRateNote')}</span>

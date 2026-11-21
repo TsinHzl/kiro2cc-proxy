@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { UsageMetricsBar } from '@/components/daily-shared'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
-import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager } from '@/components/table-kit'
+import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TableScroll } from '@/components/table-kit'
 import { UsageLogTable } from '@/components/usage-log-table'
 import { useDailyUsage, useDailyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
@@ -99,9 +99,9 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
       <div className="mt-[15px] flex min-h-0 flex-1 flex-col">
         <h3 className={PANEL_TITLE}>{t('common.requestLog')}</h3>
         <section className={`${PANEL} flex min-h-0 flex-1 flex-col`}>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <TableScroll className="min-h-0 flex-1 overflow-y-auto">
             <UsageLogTable records={records} geoMap={geoMap} isLoading={isLoading} />
-          </div>
+          </TableScroll>
 
           <div className={PANEL_FOOT}>
             <div className="ml-auto flex flex-none items-center gap-2">

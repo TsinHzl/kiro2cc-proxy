@@ -241,6 +241,34 @@
       radial-gradient(150% 130% at 0% 0%, hsl(var(--primary) / .07) 0%, transparent 68%),
       radial-gradient(140% 120% at 100% 100%, hsl(var(--primary) / .07) 0%, transparent 66%);
   }
+
+  /* 表格面板顶栏 / 页脚：默认（非画布渐变或弹窗等无 .bg-chat-canvas 容器）保持 --surface-2 半透明分层；
+     开启画布渐变后，顶栏未滚动时与页脚一律全透明，让两角柔光完整延伸至面板顶底边缘；表体开始滚动后再切为磨砂底防止透字。 */
+  .bg-panel-head {
+    background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  .bg-panel-foot {
+    background-color: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  }
+
+  :root.canvas-gradient .bg-chat-canvas .bg-panel-head {
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  :root.canvas-gradient .bg-chat-canvas [data-scrolled] .bg-panel-head {
+    background-color: color-mix(in srgb, var(--surface) 78%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  :root.canvas-gradient .bg-chat-canvas .bg-panel-foot {
+    background-color: transparent;
+  }
 }
 
 /* 组件类白名单（design.md 决策 2）：仅以下三类落 CSS，其余一律 Tailwind 原子类。

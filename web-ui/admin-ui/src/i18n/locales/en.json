@@ -1064,5 +1064,20 @@
     "verifyLink": "Connection checks →",
     "endpointsGroup": "Public endpoints",
     "tocTitle": "On this page"
+  },
+  "datePicker": {
+    "placeholder": "Select date",
+    "dialogLabel": "Select date",
+    "today": "Today",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "prevYear": "Previous year",
+    "nextYear": "Next year",
+    "prevDecade": "Previous 12 years",
+    "nextDecade": "Next 12 years",
+    "selectMonthYear": "Choose month and year",
+    "selectYear": "Choose year",
+    "backToDays": "Back to calendar",
+    "yearLabel": "{{year}}"
   }
 }

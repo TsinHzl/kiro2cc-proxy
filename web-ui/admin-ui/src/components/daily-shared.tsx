@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, Coins, Cpu, DollarSign, Layers, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import {
   Dialog,
   DialogContent,
@@ -206,12 +207,8 @@ export function weekdayLabel(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString(localeTag(), { weekday: 'short', timeZone: 'UTC' })
 }
 
-/** 起始 / 结束两个日期输入框共用的样式（改一处即两边同步） */
-const DATE_INPUT_CLASS =
-  'h-9 rounded-[7px] border border-transparent bg-surface-2 px-3 font-mono text-[12.5px] text-ink shadow-hair outline-none focus-visible:border-brand'
-
 /**
- * 自定义区间日期对话框：两个原生 date input（YYYY-MM-DD 由浏览器保证）+ 应用/取消。
+ * 自定义区间日期对话框：两个自定义 DatePicker（YYYY-MM-DD）+ 应用/取消。
  * 非法（任一为空或起始>结束）时点应用显示红字提示、不关弹窗不发请求；
  * 取消/遮罩/ESC 由 onOpenChange(false) 上抛，调用方 range 不变即回退前一 tab。
  * 重开时用上次已应用区间回填（切走再切回不重弹窗，但重开保留上一次选择）。
@@ -228,6 +225,8 @@ export function CustomRangeDialog({
   initial: CustomRange | null
 }) {
   const { t } = useTranslation()
+  const fromId = useId()
+  const toId = useId()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [touched, setTouched] = useState(false)
@@ -255,32 +254,44 @@ export function CustomRangeDialog({
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-ink-2">{t('dailyStats.customFromLabel')}</span>
-            <input
-              type="date"
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={fromId} className="text-[12px] font-medium text-ink-2">
+              {t('dailyStats.customFromLabel')}
+            </label>
+            <DatePicker
+              id={fromId}
+              aria-label={t('dailyStats.customFromLabel')}
               value={from}
               max={todayCst}
-              onChange={(e) => {
-                setFrom(e.target.value)
+              today={todayCst}
+              rangeStart={from}
+              rangeEnd={to}
+              align="start"
+              onChange={(next) => {
+                setFrom(next)
                 setTouched(true)
               }}
-              className={DATE_INPUT_CLASS}
             />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-ink-2">{t('dailyStats.customToLabel')}</span>
-            <input
-              type="date"
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={toId} className="text-[12px] font-medium text-ink-2">
+              {t('dailyStats.customToLabel')}
+            </label>
+            <DatePicker
+              id={toId}
+              aria-label={t('dailyStats.customToLabel')}
               value={to}
               max={todayCst}
-              onChange={(e) => {
-                setTo(e.target.value)
+              today={todayCst}
+              rangeStart={from}
+              rangeEnd={to}
+              align="end"
+              onChange={(next) => {
+                setTo(next)
                 setTouched(true)
               }}
-              className={DATE_INPUT_CLASS}
             />
-          </label>
+          </div>
         </div>
 
         {/* 仅在用户改过且非法时提示（初次打开的空输入不红字轰炸）。

@@ -1062,5 +1062,20 @@
     "verifyLink": "连接排查 →",
     "endpointsGroup": "公开端点",
     "tocTitle": "本页目录"
+  },
+  "datePicker": {
+    "placeholder": "选择日期",
+    "dialogLabel": "选择日期",
+    "today": "今天",
+    "prevMonth": "上个月",
+    "nextMonth": "下个月",
+    "prevYear": "上一年",
+    "nextYear": "下一年",
+    "prevDecade": "前 12 年",
+    "nextDecade": "后 12 年",
+    "selectMonthYear": "切换年月",
+    "selectYear": "切换年份",
+    "backToDays": "返回日期视图",
+    "yearLabel": "{{year}}年"
   }
 }

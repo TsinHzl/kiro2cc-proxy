@@ -479,6 +479,16 @@ impl AdminService {
             .collect()
     }
 
+    /// 构建账号 ID -> 邮箱的映射（仅含已有非空邮箱的账号）
+    pub fn credential_emails(&self) -> std::collections::HashMap<u64, String> {
+        self.token_manager
+            .snapshot()
+            .entries
+            .into_iter()
+            .filter_map(|e| e.email.filter(|s| !s.is_empty()).map(|m| (e.id, m)))
+            .collect()
+    }
+
     /// 获取负载均衡模式
     pub fn get_load_balancing_mode(&self) -> LoadBalancingModeResponse {
         LoadBalancingModeResponse {

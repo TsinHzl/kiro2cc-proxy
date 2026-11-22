@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, ChevronDown, Coins, DollarSign, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DownloadCsvButton } from '@/components/download-csv-button'
 import { Metric, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
 import { STATUS_VISUAL, TAG_BASE, type KeyStatus } from '@/components/api-key-row'
@@ -11,6 +12,7 @@ import { CELL, PANEL, PANEL_FOOT, PANEL_TITLE, Pager, ROW_HOVER, TH_BASE, TableS
 import { UsageLogTable, fallbackCredits, formatCost, getModelColor } from '@/components/usage-log-table'
 import { useApiKeys, useAllUsage, useKeyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
+import { downloadKeyUsageRecordsCsv } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { formatTokenCount, localeTag } from '@/lib/locale'
 import type { ApiKeyItem } from '@/types/api'
@@ -99,6 +101,7 @@ export function ApiKeyDetailPage({ keyId, onBack }: ApiKeyDetailPageProps) {
                 {t(STATUS_VISUAL[status].labelKey)}
               </span>
             )}
+            <DownloadCsvButton onDownload={() => downloadKeyUsageRecordsCsv(keyId)} />
             <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
               <RotateCw className={isLoading ? 'animate-spin' : ''} />
               {t('common.refresh')}

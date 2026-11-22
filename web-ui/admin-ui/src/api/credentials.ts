@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import axios from 'axios'
 import { storage } from '@/lib/storage'
+import { downloadFile } from '@/lib/download'
 import type {
   CredentialsStatusResponse,
   BalanceResponse,
@@ -312,6 +313,23 @@ export async function getCredentialUsageRecords(
     { params: { page, page_size: pageSize } }
   )
   return data
+}
+
+// ============ 使用日志 CSV 下载 ============
+
+// 下载 CST 闭区间 [from, to] 内全部请求记录（from/to 为 YYYY-MM-DD）
+export function downloadUsageRecordsCsv(from: string, to: string): Promise<void> {
+  return downloadFile('/api/admin/usage/records/download', { from, to }, `usage-logs-${from}_${to}.csv`)
+}
+
+// 下载单个账号全部留存的请求记录
+export function downloadCredentialUsageRecordsCsv(id: number): Promise<void> {
+  return downloadFile(`/api/admin/credentials/${id}/usage/records/download`, undefined, `usage-logs-credential-${id}.csv`)
+}
+
+// 下载单个 API Key 全部留存的请求记录
+export function downloadKeyUsageRecordsCsv(id: number): Promise<void> {
+  return downloadFile(`/api/admin/api-keys/${id}/usage/records/download`, undefined, `usage-logs-key-${id}.csv`)
 }
 
 // 获取单账号全部留存记录的用量汇总（不限日期）

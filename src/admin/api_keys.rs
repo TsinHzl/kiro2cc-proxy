@@ -5,7 +5,7 @@ use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use serde::Serialize;
 
@@ -16,6 +16,8 @@ use super::{
         UpdateApiKeyRequest,
     },
 };
+use crate::common::download::csv_attachment;
+use crate::model::usage::{ExportAudience, ExportScope};
 
 /// GET /api/admin/server-info
 /// 获取服务器信息
@@ -361,31 +363,10 @@ pub async fn get_usage_records(
         let error = AdminErrorResponse::internal_error("用量追踪未启用");
         return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
     };
-    let Some(from) = params.get("from") else {
-        let error = AdminErrorResponse::invalid_request("缺少 from 参数");
-        return (StatusCode::BAD_REQUEST, Json(error)).into_response();
+    let (from, to) = match parse_cst_date_range(&params) {
+        Ok(range) => range,
+        Err(message) => return bad_request(message),
     };
-    let Some(to) = params.get("to") else {
-        let error = AdminErrorResponse::invalid_request("缺少 to 参数");
-        return (StatusCode::BAD_REQUEST, Json(error)).into_response();
-    };
-    // 格式校验：严格 YYYY-MM-DD（零填充、合法日期；2026-13-01、2026-1-1 均拒绝。
-    // parse_from_str 的 %Y-%m-%d 接受非零填充，故先验长度/分隔符再 parse）；
-    // 合法格式前提下字符串比较等价日期比较
-    let is_valid_date = |s: &str| {
-        s.len() == 10
-            && s.as_bytes()[4] == b'-'
-            && s.as_bytes()[7] == b'-'
-            && chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
-    };
-    if !is_valid_date(from) || !is_valid_date(to) {
-        let error = AdminErrorResponse::invalid_request("from/to 须为 YYYY-MM-DD 格式");
-        return (StatusCode::BAD_REQUEST, Json(error)).into_response();
-    }
-    if from > to {
-        let error = AdminErrorResponse::invalid_request("from 不能晚于 to");
-        return (StatusCode::BAD_REQUEST, Json(error)).into_response();
-    }
     let page = params
         .get("page")
         .and_then(|v| v.parse::<usize>().ok())
@@ -397,6 +378,109 @@ pub async fn get_usage_records(
     let labels = state.service.credential_labels();
     Json(tracker.get_records_paged_by_date_range(from, to, page, page_size, &labels))
         .into_response()
+}
+
+/// 400 响应（invalid_request）
+fn bad_request(message: &str) -> Response {
+    let error = AdminErrorResponse::invalid_request(message);
+    (StatusCode::BAD_REQUEST, Json(error)).into_response()
+}
+
+/// 解析并校验 `from` / `to` 查询参数：严格 YYYY-MM-DD（零填充、合法日期）且 from <= to。
+/// 失败时返回对应的错误文案（调用方转 400）。
+fn parse_cst_date_range(
+    params: &std::collections::HashMap<String, String>,
+) -> Result<(&str, &str), &'static str> {
+    let Some(from) = params.get("from") else {
+        return Err("缺少 from 参数");
+    };
+    let Some(to) = params.get("to") else {
+        return Err("缺少 to 参数");
+    };
+    // 格式校验：严格 YYYY-MM-DD（零填充、合法日期；2026-13-01、2026-1-1 均拒绝。
+    // parse_from_str 的 %Y-%m-%d 接受非零填充，故先验长度/分隔符再 parse）；
+    // 合法格式前提下字符串比较等价日期比较
+    let is_valid_date = |s: &str| {
+        s.len() == 10
+            && s.as_bytes()[4] == b'-'
+            && s.as_bytes()[7] == b'-'
+            && chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
+    };
+    if !is_valid_date(from) || !is_valid_date(to) {
+        return Err("from/to 须为 YYYY-MM-DD 格式");
+    }
+    if from > to {
+        return Err("from 不能晚于 to");
+    }
+    Ok((from.as_str(), to.as_str()))
+}
+
+/// 导出文件名里的时间戳
+fn export_timestamp() -> String {
+    chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string()
+}
+
+/// GET /api/admin/usage/records/download?from=YYYY-MM-DD&to=YYYY-MM-DD
+/// 下载 CST 闭区间 [from, to] 内全部 Key 的请求记录（CSV，不分页、不截断）
+pub async fn download_usage_records(
+    State(state): State<AdminState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let (from, to) = match parse_cst_date_range(&params) {
+        Ok(range) => range,
+        Err(message) => return bad_request(message),
+    };
+    let emails = state.service.credential_emails();
+    let csv = tracker.export_records_csv(
+        ExportScope::DateRange { from, to },
+        ExportAudience::Admin,
+        &emails,
+    );
+    csv_attachment(
+        &format!("usage-logs-{from}_{to}-{}.csv", export_timestamp()),
+        csv,
+    )
+}
+
+/// GET /api/admin/credentials/:id/usage/records/download
+/// 下载单个账号全部留存的请求记录（CSV）
+pub async fn download_credential_usage_records(
+    State(state): State<AdminState>,
+    Path(id): Path<u64>,
+) -> Response {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let emails = state.service.credential_emails();
+    let csv =
+        tracker.export_records_csv(ExportScope::Credential(id), ExportAudience::Admin, &emails);
+    csv_attachment(
+        &format!("usage-logs-credential-{id}-{}.csv", export_timestamp()),
+        csv,
+    )
+}
+
+/// GET /api/admin/api-keys/:id/usage/records/download
+/// 下载单个 API Key 全部留存的请求记录（CSV）
+pub async fn download_key_usage_records(
+    State(state): State<AdminState>,
+    Path(id): Path<u32>,
+) -> Response {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let emails = state.service.credential_emails();
+    let csv = tracker.export_records_csv(ExportScope::ApiKey(id), ExportAudience::Admin, &emails);
+    csv_attachment(
+        &format!("usage-logs-key-{id}-{}.csv", export_timestamp()),
+        csv,
+    )
 }
 
 /// GET /api/admin/credentials/:id/failure-logs?page=1&page_size=50
@@ -690,5 +774,132 @@ mod tests {
             call_usage_records(empty_admin_state(), "from=2026-10-01&to=2026-10-07").await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(body["error"]["type"], "internal_error");
+    }
+
+    // ============ usage records CSV 下载端点测试 ============
+
+    async fn call_download(
+        state: AdminState,
+        query: &str,
+    ) -> (axum::http::HeaderMap, StatusCode, String) {
+        let params: std::collections::HashMap<String, String> = query
+            .split('&')
+            .filter(|kv| !kv.is_empty())
+            .map(|kv| {
+                let (k, v) = kv.split_once('=').expect("查询串须为 k=v 形式");
+                (k.to_string(), v.to_string())
+            })
+            .collect();
+        let response = download_usage_records(State(state), axum::extract::Query(params)).await;
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("读取响应体失败");
+        (headers, status, String::from_utf8(body.to_vec()).unwrap())
+    }
+
+    /// 下载：参数校验与分页接口同口径（共用解析函数）
+    #[tokio::test]
+    async fn test_download_usage_records_invalid_params_rejected() {
+        let (state, _tracker, _guard) = admin_state_with_usage_tracker();
+        for query in [
+            "to=2026-10-07",
+            "from=2026-10-01",
+            "from=2026-1-1&to=2026-10-07",
+            "from=2026-10-08&to=2026-10-07",
+        ] {
+            let (_, status, _) = call_download(state.clone(), query).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "应拒绝：{query}");
+        }
+    }
+
+    /// 下载：返回 CSV 附件，只含所选 CST 区间内的记录，且不受分页参数影响
+    #[tokio::test]
+    async fn test_download_usage_records_returns_csv_for_range() {
+        let (state, tracker, _guard) = admin_state_with_usage_tracker();
+        inject_usage_record(&tracker, utc_at("2026-10-01T18:00:00Z"), Some(7), None); // CST 10-02
+        inject_usage_record(&tracker, utc_at("2026-10-03T18:00:00Z"), None, None); // CST 10-04
+        inject_usage_record(&tracker, utc_at("2026-10-05T02:00:00Z"), None, None); // CST 10-05（区间外）
+
+        let (headers, status, body) =
+            call_download(state, "from=2026-10-02&to=2026-10-04&page=1&page_size=1").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers["content-type"], "text/csv; charset=utf-8");
+        let disposition = headers["content-disposition"].to_str().unwrap();
+        assert!(
+            disposition.starts_with("attachment; filename=\"usage-logs-2026-10-02_2026-10-04-"),
+            "文件名应含所选区间：{disposition}"
+        );
+        assert!(disposition.ends_with(".csv\""));
+        // 表头 + 区间内 2 条（忽略 page_size=1）
+        assert_eq!(body.trim_end().split("\r\n").count(), 3);
+        assert!(body.contains("2026-10-04 02:00:00"));
+        assert!(body.contains("2026-10-02 02:00:00"));
+        assert!(!body.contains("2026-10-05"));
+    }
+
+    /// 下载：用量追踪未启用时 503
+    #[tokio::test]
+    async fn test_download_usage_records_tracker_disabled_503() {
+        let (_, status, _) =
+            call_download(empty_admin_state(), "from=2026-10-01&to=2026-10-07").await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    /// 账号 / Key 下载只含各自的记录，文件名带 ID
+    #[tokio::test]
+    async fn test_download_credential_and_key_scopes() {
+        let (state, tracker, _guard) = admin_state_with_usage_tracker();
+        inject_usage_record(&tracker, utc_at("2026-10-01T00:00:00Z"), Some(7), None);
+        inject_usage_record(&tracker, utc_at("2026-10-02T00:00:00Z"), Some(8), None);
+
+        let response = download_credential_usage_records(State(state.clone()), Path(7)).await;
+        let disposition = response.headers()["content-disposition"]
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            disposition.contains("usage-logs-credential-7-"),
+            "{disposition}"
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body = String::from_utf8(body.to_vec()).unwrap();
+        assert_eq!(
+            body.trim_end().split("\r\n").count(),
+            2,
+            "表头 + 账号 7 的 1 条"
+        );
+        assert!(body.contains("2026-10-01 08:00:00"));
+
+        // inject_usage_record 固定 api_key_id=1
+        let response = download_key_usage_records(State(state.clone()), Path(1)).await;
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(body.to_vec())
+                .unwrap()
+                .trim_end()
+                .split("\r\n")
+                .count(),
+            3
+        );
+
+        let response = download_key_usage_records(State(state), Path(99)).await;
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(body.to_vec())
+                .unwrap()
+                .trim_end()
+                .split("\r\n")
+                .count(),
+            1,
+            "无记录的 Key 只有表头"
+        );
     }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
 import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DownloadCsvButton } from '@/components/download-csv-button'
 import { UsageMetricsBar } from '@/components/daily-shared'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
@@ -11,6 +12,7 @@ import { PANEL, PANEL_FOOT, PANEL_TITLE, Pager, TableScroll } from '@/components
 import { UsageLogTable } from '@/components/usage-log-table'
 import { useDailyUsage, useDailyUsageRecords } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
+import { downloadUsageRecordsCsv } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { localeTag } from '@/lib/locale'
 
@@ -73,10 +75,13 @@ export function DailyDetailPage({ date, onBack }: DailyDetailPageProps) {
         note={t('dailyStats.detailNote', { size: PAGE_SIZE })}
         onBack={onBack}
         actions={
-          <Button variant="outline" onClick={handleRefresh} disabled={isLoading || refreshing}>
-            <RotateCw className={isLoading || refreshing ? 'animate-spin' : ''} aria-hidden="true" />
-            {t('common.refresh')}
-          </Button>
+          <>
+            <DownloadCsvButton onDownload={() => downloadUsageRecordsCsv(date, date)} />
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading || refreshing}>
+              <RotateCw className={isLoading || refreshing ? 'animate-spin' : ''} aria-hidden="true" />
+              {t('common.refresh')}
+            </Button>
+          </>
         }
       />
 

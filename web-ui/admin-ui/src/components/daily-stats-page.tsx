@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/toast'
 import { BarChart3, CalendarDays, RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DownloadCsvButton } from '@/components/download-csv-button'
 import { CustomRangeDialog, RANGE_DAYS, UsageMetricsBar, cstDateString, type CustomRange } from '@/components/daily-shared'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
@@ -13,6 +14,7 @@ import { Segmented } from '@/components/toolbar'
 import { UsageLogTable } from '@/components/usage-log-table'
 import { useDailyUsage, useDailyUsageRecords, useUsageRecordsByRange } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
+import { downloadUsageRecordsCsv } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { DailySummary } from '@/types/api'
 
@@ -53,6 +55,11 @@ export function DailyStatsPage({
   const fixedRangeObj = isFixedRange
     ? { from: cstDateString(RANGE_DAYS[range] - 1), to: todayCst }
     : null
+  // 下载 CSV 的区间：与页面当前展示的明细区间严格一致（今日 / 最近 N 天 / 已应用的自定义区间）
+  const exportRange: CustomRange =
+    range === 'custom' && customRange
+      ? customRange
+      : (fixedRangeObj ?? { from: todayCst, to: todayCst })
 
   // 使全部用量查询失效并等待重拉：当前 tab 的明细（dailyUsageRecords /
   // usageRecordsByRange）与汇总数据（dailyUsage）一并刷新，避免刷新按钮与可见内容脱钩。
@@ -132,6 +139,9 @@ export function DailyStatsPage({
               <BarChart3 aria-hidden="true" />
               {t('dailyStats.navSummaryButton')}
             </Button>
+            <DownloadCsvButton
+              onDownload={() => downloadUsageRecordsCsv(exportRange.from, exportRange.to)}
+            />
             <Button variant="outline" onClick={handleRefreshClick} disabled={isLoading || refreshing}>
               <RotateCw className={isLoading || refreshing ? 'animate-spin' : ''} aria-hidden="true" />
               {t('common.refresh')}

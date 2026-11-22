@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
 import { Activity, Calendar, Coins, Cpu, DollarSign, Layers, RotateCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DownloadCsvButton } from '@/components/download-csv-button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { ModelAggPanel } from '@/components/model-agg-panel'
 import { PageHead } from '@/components/page-head'
@@ -17,6 +18,7 @@ import {
 } from '@/hooks/use-credentials'
 import { useIpGeo } from '@/hooks/use-ip-geo'
 import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
+import { downloadCredentialUsageRecordsCsv } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import { formatCompactToken, formatTokenCount, localeTag } from '@/lib/locale'
 
@@ -111,6 +113,7 @@ export function CredentialDetailPage({ credentialId, onBack }: CredentialDetailP
                 {t(visual.labelKey)}
               </span>
             )}
+            <DownloadCsvButton onDownload={() => downloadCredentialUsageRecordsCsv(credentialId)} />
             <Button variant="outline" onClick={handleRefresh} disabled={isLoading || refreshing}>
               <RotateCw className={isLoading || refreshing ? 'animate-spin' : ''} aria-hidden="true" />
               {t('common.refresh')}

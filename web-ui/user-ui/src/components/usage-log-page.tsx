@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Brain, RefreshCw, BarChart3, DollarSign, Coins, Layers } from 'lucide-react'
-import { getUsageRecords } from '@/api/user'
+import { Brain, RefreshCw, BarChart3, DollarSign, Coins, Layers, Download, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { downloadUsageRecordsCsv, getUsageRecords } from '@/api/user'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useIpGeo } from '@/hooks/use-ip-geo'
@@ -61,7 +62,20 @@ function formatDate(iso: string) {
 
 export function UsageLogPage({ onBack }: UsageLogPageProps) {
   const [page, setPage] = useState(1)
+  const [downloading, setDownloading] = useState(false)
   const pageSize = 100
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      await downloadUsageRecordsCsv()
+      toast.success('已开始下载')
+    } catch (error) {
+      toast.error(`下载失败：${error instanceof Error ? error.message : '未知错误'}`)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['usageRecords', page, pageSize],
@@ -98,15 +112,29 @@ export function UsageLogPage({ onBack }: UsageLogPageProps) {
           note={data ? `共 ${data.total} 条` : undefined}
           onBack={onBack}
           actions={
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              aria-label="刷新"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={handleDownload}
+                disabled={downloading}
+              >
+                {downloading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                下载 CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                aria-label="刷新"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              </Button>
+            </>
           }
         />
 

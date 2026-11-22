@@ -1,12 +1,19 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 //! User API 端点：子 Key 登录换取会话、个人用量概览与分页用量记录查询。
 
-use axum::{Extension, Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum::{
+    Extension, Json,
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::middleware::{UserContext, UserErrorResponse, UserState};
+use crate::common::download::csv_attachment;
 use crate::model::api_key::ApiKeyAuthResult;
+use crate::model::usage::{ExportAudience, ExportScope};
 
 /// POST /api/user/login
 /// 验证 API Key，返回 key 基本信息
@@ -125,6 +132,21 @@ pub async fn get_usage_records(
         record.error_message = None;
     }
     Json(page_data)
+}
+
+/// GET /api/user/usage/records/download
+/// 下载当前用户全部留存的请求日志（CSV；不含账号标识与失败原因，与页面同口径）
+pub async fn download_usage_records(
+    State(state): State<UserState>,
+    Extension(ctx): Extension<UserContext>,
+) -> Response {
+    let csv = state.usage_tracker.export_records_csv(
+        ExportScope::ApiKey(ctx.key_id),
+        ExportAudience::User,
+        &HashMap::new(),
+    );
+    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    csv_attachment(&format!("usage-logs-{timestamp}.csv"), csv)
 }
 
 /// 单批次最多允许查询的 IP 数量

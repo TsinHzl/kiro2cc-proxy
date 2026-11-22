@@ -634,6 +634,7 @@ impl UsageTracker {
 
 mod aggregate;
 mod daily;
+mod export;
 mod outcome;
 mod pagination;
 mod pricing;
@@ -641,6 +642,7 @@ mod pricing;
 #[cfg(test)]
 mod tests;
 
+pub use export::{ExportAudience, ExportScope};
 pub use outcome::RequestGuard;
 pub(crate) use pricing::{
     MIN_INFER_INPUT_TOKENS, calculate_cost, get_k_ref, infer_cache_read_from_credits,

@@ -431,7 +431,7 @@
     "statusExpired": "已过期",
     "statusDisabled": "已禁用",
     "pageTitle": "API Key 管理",
-    "sortNewest": "最新",
+    "sortSerial": "序号",
     "sortCostDesc": "费用↓",
     "sortCostAsc": "费用↑",
     "createButton": "创建 Key",

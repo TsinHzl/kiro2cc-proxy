@@ -431,7 +431,7 @@
     "statusExpired": "Expired",
     "statusDisabled": "Disabled",
     "pageTitle": "API Key Management",
-    "sortNewest": "Newest",
+    "sortSerial": "Serial",
     "sortCostDesc": "Cost↓",
     "sortCostAsc": "Cost↑",
     "createButton": "Create Key",

@@ -57,7 +57,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
   const [editLimitUnit, setEditLimitUnit] = useState<'usd' | 'credits'>('usd')
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [copiedType, setCopiedType] = useState<'cc' | 'codex' | null>(null)
-  const [sortBy, setSortBy] = useState<SortBy>('newest')
+  const [sortBy, setSortBy] = useState<SortBy>('serial')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<KeyStatusFilter>('all')
   /** 跨页保留的勾选集合（与账号管理页一致） */
@@ -405,7 +405,7 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     { key: 'expired', label: t('apiKeys.statusExpired'), pipClass: 'bg-warn', count: statusCounts.expired },
   ]
   const sortSegments: SegmentedOption<SortBy>[] = [
-    { key: 'newest', label: t('apiKeys.sortNewest') },
+    { key: 'serial', label: t('apiKeys.sortSerial') },
     { key: 'cost-desc', label: t('apiKeys.sortCostDesc') },
     { key: 'cost-asc', label: t('apiKeys.sortCostAsc') },
   ]
@@ -434,7 +434,8 @@ export function ApiKeysPanel({ onViewDetail }: ApiKeysPanelProps) {
     return [...filteredKeys].sort((a, b) => {
       if (sortBy === 'cost-desc') return costOf(b) - costOf(a)
       if (sortBy === 'cost-asc') return costOf(a) - costOf(b)
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      // 序号升序：id 越小越靠前（id 即「名称」列下方的 #001/#002 编号）
+      return a.id - b.id
     })
   }, [filteredKeys, sortBy, usageData])
 

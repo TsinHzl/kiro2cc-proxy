@@ -3,7 +3,7 @@
 import type { KeyStatus } from '@/components/api-key-row'
 
 export type KeyStatusFilter = 'all' | KeyStatus
-export type SortBy = 'newest' | 'cost-desc' | 'cost-asc'
+export type SortBy = 'serial' | 'cost-desc' | 'cost-asc'
 
 /** 到期预警阈值：距今 ≤ 7 天 */
 export const EXPIRING_SOON_MS = 7 * 24 * 60 * 60 * 1000

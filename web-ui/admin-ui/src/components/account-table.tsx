@@ -62,9 +62,9 @@ export function AccountTable({
 
   return (
     <section className={`flex min-h-0 flex-1 flex-col ${PANEL}`}>
-      {/* .tscroll：sticky 表头依赖这里的滚动容器。整页撑满的 flex 外壳不在本轮范围，
-          先用视口比例给出滚动上限（每页 50 行时必然触发内滚） */}
-      <TableScroll className="max-h-[70vh] min-h-0 flex-1 overflow-y-auto">
+      {/* .tscroll：sticky 表头依赖这里的滚动容器。外层由账号管理页给出整页高度的
+          flex 列外壳，这里吃满剩余空间，账号多时仅在列表区域内滚动 */}
+      <TableScroll className="relative min-h-0 flex-1 overflow-y-auto">
         <table className="w-full border-separate border-spacing-0">
           <colgroup>
             {COLUMN_WIDTHS.map((width, index) => (

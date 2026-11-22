@@ -888,7 +888,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
             onBack={() => setDetailCredentialId(null)}
           />
         ) : (
-        <>
+        /* 整页撑满视口的 flex 列：页头/指标条/工具栏自然高度，凭据列表面板吃满剩余空间并在内部滚动。
+           56px 补偿 <main> 的 py-7（28px × 2），与使用日志页同口径 */
+        <div className="flex h-[calc(100vh-56px)] min-h-[480px] flex-col">
         {/* 页头 + 指标条（自本文件拆出，纯代码搬移） */}
         <DashboardHeadMetrics
           total={data?.total ?? 0}
@@ -966,7 +968,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           setDetailCredentialId={setDetailCredentialId}
           handleRefetchBalance={handleRefetchBalance}
         />
-        </>
+        </div>
         )}
       </main>
 

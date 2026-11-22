@@ -42,7 +42,7 @@ export function CredentialActionBar({
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-wrap items-center gap-[7px]">
+    <div className="flex shrink-0 flex-wrap items-center gap-[7px]">
               {allCredentials.length > 0 && (
                 <button
                   type="button"

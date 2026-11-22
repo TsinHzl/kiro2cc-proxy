@@ -1,0 +1,29 @@
+web-ui/admin-ui/src/components/dashboard/credential-action-bar.tsx
+  887e5f80c0135443 45
+web-ui/admin-ui/src/components/dashboard/credential-list.tsx
+  887e5f80c0135443 114
+web-ui/admin-ui/src/components/dashboard.tsx
+  887e5f80c0135443 891-893,971
+web-ui/admin-ui/src/components/account-table.tsx
+  887e5f80c0135443 65-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "2449e11a43be86a93f8b628610c51957f710f138",
+  "prompts": {
+    "887e5f80c0135443": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fee5887-bb78-47f4-bf3a-abbeb907ff1d",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 7,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

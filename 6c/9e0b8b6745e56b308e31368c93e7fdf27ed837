@@ -1,0 +1,27 @@
+web-ui/admin-ui/src/components/account-row.tsx
+  a08f1750547b2b40 34,271,273
+web-ui/admin-ui/src/lib/locale.ts
+  a08f1750547b2b40 21-25
+web-ui/admin-ui/src/components/account-metrics.tsx
+  a08f1750547b2b40 18,132,155,159,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6c9e0b8b6745e56b308e31368c93e7fdf27ed837",
+  "prompts": {
+    "a08f1750547b2b40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbd165dd-2997-40ac-9a9a-5b5dd4b2e46f",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 7,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}

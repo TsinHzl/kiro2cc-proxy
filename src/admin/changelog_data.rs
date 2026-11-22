@@ -69,6 +69,30 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.6.0".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "使用日志支持记录上游失败与客户端取消请求，管理端与用户端明细表新增「结果」列（管理端展示脱敏后的失败原因，用户端不暴露错误详情；失败与取消仅记入明细，不计入日汇总）",
+                        "Usage logs now record upstream failures and client-aborted requests, adding a Result column in both admin and user tables (admin shows sanitized error details while user views omit them; failed and aborted requests are excluded from daily summaries)",
+                    ),
+                    Bilingual::new(
+                        "账号管理表格消费额度列新增额度重置倒计时展示",
+                        "The account table's Used Quota column now shows a countdown to quota reset",
+                    ),
+                    Bilingual::new(
+                        "全新极光渐变与磨砂玻璃视觉升级：主题设置新增「内容区渐变背景」开关（默认开启），并同步对齐用户端极光风格及新增用量指标栏与环形进度组件",
+                        "Aurora gradient and frosted glass visual refresh: added a Content Area Gradient Background toggle in Theme Settings (on by default), and aligned the user UI with a new metrics bar and progress ring components",
+                    ),
+                ]),
+                fix_group(vec![Bilingual::new(
+                    "修复主题设置页与侧边栏明暗切换按钮状态不同步的问题",
+                    "Fixed light/dark mode toggles in Theme Settings and the sidebar falling out of sync",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.5.9".to_string(),
             is_latest: false,
             groups: vec![fix_group(vec![Bilingual::new(

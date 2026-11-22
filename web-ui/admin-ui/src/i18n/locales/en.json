@@ -943,7 +943,7 @@
     },
     "autoSave": "Selections save automatically",
     "currentAppearance": "YOUR APPEARANCE",
-    "canvasGradientTitle": "Aurora glass",
+    "canvasGradientTitle": "Aurora glass effect",
     "canvasGradientDesc": "On by default; applies a full-viewport multi-hue aurora gradient with transparent sidebar and panels, plus frosted-glass popups and controls. Turn off for solid, flat backgrounds.",
     "localPreference": "Saved in this browser, ready for your next visit.",
     "selectTheme": "Apply {{theme}} theme",

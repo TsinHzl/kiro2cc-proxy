@@ -941,7 +941,7 @@
     },
     "autoSave": "选择后自动保存",
     "currentAppearance": "当前外观",
-    "canvasGradientTitle": "极光玻璃",
+    "canvasGradientTitle": "极光玻璃效果",
     "canvasGradientDesc": "默认开启；全局背景呈现柔和多色极光渐变，侧栏与内容面板透明融入，弹窗与控件附带磨砂玻璃质感；关闭可切换为纯色背景与常规不透明面板。",
     "localPreference": "偏好保存在当前浏览器，下次打开时继续使用。",
     "selectTheme": "应用{{theme}}主题",

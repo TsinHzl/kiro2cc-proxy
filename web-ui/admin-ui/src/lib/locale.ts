@@ -18,6 +18,11 @@ export function formatCompactToken(n: number): string {
   return n.toLocaleString(localeTag())
 }
 
+/** 积分数值展示：最多两位小数，末尾 0 不展示（6.00 → 6、943.70 → 943.7、4.10 → 4.1） */
+export function formatCredits(n: number): string {
+  return n.toFixed(2).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+}
+
 export function formatDateTime(dateStr: string): string {
   return new Date(dateStr).toLocaleString(localeTag(), {
     year: 'numeric', month: '2-digit', day: '2-digit',

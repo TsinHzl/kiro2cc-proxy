@@ -31,7 +31,7 @@ import {
 } from '@/hooks/use-credentials'
 import { useNowTick } from '@/hooks/use-now-tick'
 import { ACCOUNT_STATE_VISUAL, accountLabel, deriveAccountState } from '@/lib/account-state'
-import { localeTag } from '@/lib/locale'
+import { formatCredits, localeTag } from '@/lib/locale'
 import { formatQuotaResetCountdown, isValidResetTimestamp } from '@/lib/quota-reset'
 import { extractErrorMessage, getSubscriptionColor } from '@/lib/utils'
 import type { BalanceResponse, CredentialStatusItem } from '@/types/api'
@@ -268,9 +268,9 @@ export function AccountRow({
               <>
                 <span className="whitespace-nowrap font-mono text-[11.5px] tabular-nums text-ink-2">
                   <b className={`font-semibold ${usedValue !== null && usedValue > balance.usageLimit ? 'text-danger' : 'text-ink'}`}>
-                    {usedValue !== null ? usedValue.toFixed(1) : '—'}
+                    {usedValue !== null ? formatCredits(usedValue) : '—'}
                   </b> /{' '}
-                  {balance.usageLimit.toFixed(0)}
+                  {formatCredits(balance.usageLimit)}
                 </span>
                 <QuotaPercentBadge percent={usedPct} />
               </>

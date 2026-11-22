@@ -15,6 +15,7 @@ import {
   StatusDot,
 } from '@/components/metrics'
 import { QUOTA_TIER_THRESHOLDS } from '@/components/ui/progress'
+import { formatCredits } from '@/lib/locale'
 
 export interface AccountMetricsProps {
   /** 账号总数 */
@@ -128,7 +129,7 @@ export function AccountMetrics({
       {/* 卡 2：全局剩余积分（环形图：avg 剩余百分比 + 充裕/紧张/告急 label；Ring 走 MetricAside 悬浮，不参与高度撑高） */}
       <Metric label={t('credentials.metricCreditsLabel')} icon={<Wallet />}>
         <MetricBody>
-          <MetricValue value={credits === null ? '—' : credits.toFixed(1)} />
+          <MetricValue value={credits === null ? '—' : formatCredits(credits)} />
         </MetricBody>
         <MetricFoot className="truncate pr-[80px]">
           {credits === null
@@ -151,11 +152,11 @@ export function AccountMetrics({
       <Metric label={t('credentials.metricConsumedLabel')} icon={<Coins />}>
         <MetricBody>
           <MetricValue
-            value={consumed === null ? '—' : consumed.toFixed(1)}
+            value={consumed === null ? '—' : formatCredits(consumed)}
             unit={
               consumed === null || consumptionLimitTotal === null
                 ? undefined
-                : `/ ${consumptionLimitTotal.toFixed(0)}`
+                : `/ ${formatCredits(consumptionLimitTotal)}`
             }
             unitClass="text-[17px] font-normal text-ink-2 tabular-nums"
           />
@@ -200,7 +201,7 @@ export function AccountMetrics({
       <Metric label={t('credentials.metricCreditsUsedLabel')} icon={<CreditCard />} onClick={onTodayClick}>
         <MetricBody>
           <MetricValue
-            value={usedCredits === null ? '—' : usedCredits.toFixed(1)}
+            value={usedCredits === null ? '—' : formatCredits(usedCredits)}
             trailing={creditsDeltaPercent === null ? undefined : <Delta percent={creditsDeltaPercent} />}
           />
           {creditsTrend.length >= 2 && <Sparkline values={creditsTrend} tone="ok" />}

@@ -97,20 +97,22 @@ function buildPreviewVisuals(
   const isDark = mode === 'dark'
   const hsl = hexToHsl(swatch.primary) ?? [174, 60, isDark ? 50 : 35]
   const [h, s] = hsl
-  const sat = s < 3 ? s : isDark ? Math.min(s * 0.95, 82) : Math.min(s * 0.78, 72)
-  const glowL = isDark ? 45 : 88
-  const g1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${glowL}%, ${isDark ? 0.30 : 0.72})`
-  const g2 = `hsla(${Math.round((h + 44) % 360)}, ${Math.round(sat * 0.9)}%, ${glowL}%, ${isDark ? 0.25 : 0.66})`
-  const g3 = `hsla(${Math.round((h + 328) % 360)}, ${Math.round(sat * 0.8)}%, ${isDark ? 38 : 90}%, ${isDark ? 0.18 : 0.56})`
-  const edge = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.88)'
-  const rimBorder = `color-mix(in srgb, ${swatch.primary} 24%, ${swatch.muted})`
+  const sat = s < 3 ? s : isDark ? Math.min(s * 1.15, 92) : Math.min(s * 0.78, 72)
+  const glowL = isDark ? 50 : 88
+  const g1 = `hsla(${Math.round(h)}, ${Math.round(sat)}%, ${glowL}%, ${isDark ? 0.34 : 0.72})`
+  const g2 = `hsla(${Math.round((h + (isDark ? 58 : 44)) % 360)}, ${Math.round(sat * 0.92)}%, ${glowL}%, ${isDark ? 0.32 : 0.66})`
+  const g3 = `hsla(${Math.round((h + (isDark ? 318 : 328)) % 360)}, ${Math.round(sat * 0.84)}%, ${isDark ? 45 : 90}%, ${isDark ? 0.26 : 0.56})`
+  const edge = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.88)'
+  const rimBorder = isDark
+    ? `color-mix(in srgb, ${swatch.primary} 32%, rgba(255,255,255,0.16))`
+    : `color-mix(in srgb, ${swatch.primary} 24%, ${swatch.muted})`
   return {
     windowStyle: {
       backgroundColor: swatch.bg,
       backgroundImage: [
-        `radial-gradient(75% 65% at 10% 6%, ${g1} 0%, transparent 72%)`,
-        `radial-gradient(68% 60% at 90% 14%, ${g2} 0%, transparent 70%)`,
-        `radial-gradient(72% 64% at 62% 96%, ${g3} 0%, transparent 74%)`,
+        `radial-gradient(75% 65% at ${isDark ? '22% 8%' : '10% 6%'}, ${g1} 0%, transparent 74%)`,
+        `radial-gradient(68% 60% at 88% 12%, ${g2} 0%, transparent 72%)`,
+        `radial-gradient(72% 64% at 54% 96%, ${g3} 0%, transparent 76%)`,
       ].join(', '),
     },
     chromeStyle: {
@@ -121,11 +123,18 @@ function buildPreviewVisuals(
       backgroundColor: 'transparent',
       borderColor: `color-mix(in srgb, ${swatch.primary} 20%, ${swatch.muted})`,
     },
-    cardStyle: {
-      backgroundColor: 'transparent',
-      borderColor: rimBorder,
-      boxShadow: `inset 0 1px 0 ${edge}, 0 4px 12px -6px ${isDark ? 'rgba(0,0,0,0.45)' : 'rgba(16,18,20,0.08)'}`,
-    },
+    cardStyle: isDark
+      ? {
+          backgroundColor: `color-mix(in srgb, ${swatch.surface} 42%, transparent)`,
+          backgroundImage: 'linear-gradient(155deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.014) 32%, transparent 65%)',
+          borderColor: rimBorder,
+          boxShadow: `inset 0 1px 0 ${edge}, inset 0 0 0 0.5px rgba(255,255,255,0.065), 0 6px 14px -6px rgba(0,0,0,0.65)`,
+        }
+      : {
+          backgroundColor: 'transparent',
+          borderColor: rimBorder,
+          boxShadow: `inset 0 1px 0 ${edge}, 0 4px 12px -6px rgba(16,18,20,0.08)`,
+        },
     pillGradient: `linear-gradient(135deg, ${swatch.primary}, color-mix(in srgb, ${swatch.primary} 78%, ${isDark ? '#ffffff' : swatch.surface}))`,
   }
 }

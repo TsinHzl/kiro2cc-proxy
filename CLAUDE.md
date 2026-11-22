@@ -20,10 +20,11 @@ cargo build               # debug；rust-embed 从磁盘读 dist，前端改动�
 cargo build --release     # release；web-ui/*/dist 编译期内嵌，dist 缺失会失败
 
 # 前端（产物必须存在，否则 release 构建失败）
-cd web-ui/admin-ui && pnpm install && pnpm build    # CI 用 pnpm
-cd web-ui/user-ui  && npm install  && npm run build # CI 用 npm
+# build-mac.sh 本地用 npm + registry.npmmirror.com；CI 用 pnpm（admin-ui）/ npm（user-ui）
+cd web-ui/admin-ui && npm install && npm run build   # pnpm test 跑 node --test scripts/*.test.mjs
+cd web-ui/user-ui  && npm install && npm run build
 
-# 测试（约 1250 个 #[test] / #[tokio::test]；模块内 #[cfg(test)] mod tests，大型模块用例放 tests/ 子目录）
+# 测试（当前 1309 个 #[test] / #[tokio::test]；模块内 #[cfg(test)] mod tests，大型模块用例放 tests/ 子目录）
 cargo test                                        # 全部
 cargo test <name-substring>                       # 单个/一组，如 cargo test additional_model_request_fields
 cargo llvm-cov --lcov --output-path lcov.info     # CI 覆盖率跑法（须先构建两套前端）
@@ -47,6 +48,7 @@ cargo run -- --config app/config/config.json --credentials app/config/credential
 ### 源码布局
 
 - `src/anthropic/` — 协议层：`router.rs`（端点装配）、`middleware.rs`（认证/RPM/用量）、`handlers/`（`post_messages`、`post_messages_cc`、`nonstream`、`stream`、`helpers`）、`converter/`（请求转换）、`stream/`（SSE 状态机）、`types.rs`、`websearch.rs`
+  - `stream/` 内部：`state.rs`（状态流转）、`context/`（流式请求上下文与 usage 聚合）、`thinking*.rs`（thinking 标签重建）、`calib.rs`（客户端 token 展示口径）、`credits_footer.rs`（会话 credits 汇总，opt-in）、`echo_guard.rs`（剔除模型回声的 system-reminder）
 - `src/openai/` — OpenAI 兼容层，翻译后调用 `anthropic::handlers::post_messages`，不改动 anthropic 实现
 - `src/kiro/` — 上游客户端：`provider/`（发送、重试、故障转移、并发信号量）、`token_manager/`（多账号池、保活）、`parser/`（二进制帧解码）、`model/`（请求/事件/凭据类型）、`endpoint.rs`（4 个限流桶）
 - `src/cache/` — prompt cache 记账：`fingerprint.rs`（账号级前缀指纹）、`breakpoint.rs`（cache_control 断点模拟）、`simulation.rs`（比例兜底）
@@ -55,7 +57,7 @@ cargo run -- --config app/config/config.json --credentials app/config/credential
 - `src/token.rs`（tiktoken 计数）、`src/http_client.rs`（reqwest Client/代理）、`src/logging.rs` + `src/log_capture.rs`（可热重载 tracing 与内存日志环）、`src/common/`
 - `web-ui/admin-ui`、`web-ui/user-ui` — React + Vite + Tailwind 源码，dist 由 rust-embed 内嵌
 
-端点装配（`src/anthropic/router.rs` + `src/main.rs`）：`/v1/models`、`/v1/messages`、`/v1/messages/count_tokens`、`/v1/chat/completions`、`/v1/responses`、`/cc/v1/messages`（300s deadline）；公开 `/v1/ping`、`/api/hello`；`admin_psw` 非空时再挂 `/api/admin`、`/admin`、`/api/user`、`/user`。
+端点装配（`src/anthropic/router.rs` + `src/main.rs`）：`/v1/models`、`/v1/models/{model_id}`、`/v1/messages`、`/v1/messages/count_tokens`、`/v1/chat/completions`、`/v1/responses`、`/cc/v1/messages`（300s deadline）；公开 `/v1/ping`、`/api/hello`；`admin_psw` 非空时再挂 `/api/admin`、`/admin`、`/api/user`、`/user`。
 
 ### 请求链路（Anthropic 协议层）
 
@@ -93,6 +95,7 @@ Client (Anthropic SSE format)
 - **Prompt cache 用量四层降级链**（`src/cache/mod.rs`）：metering 真值 → `token::count_prefix_tokens` 前缀估算 → fingerprint 前缀指纹追踪（账号级）→ 比例模拟兜底。
   开启 `promptCacheAccounting` 时，前缀估算被 `src/cache/breakpoint.rs` 的 cache_control 断点模拟取代（按 API Key + Kiro 模型 ID 隔离，直接解析原始 body，plan → 上游成功后 commit；本地模拟，不代表 Kiro 真实成本）。
 - **Token 计数用 tiktoken cl100k_base BPE**（`src/token.rs`，全局单例）。`stream/calib.rs` 的 `CLIENT_TOKEN_DISPLAY_SCALE`（0.6657）是配合旧公式校准的显示缩放系数，控制客户端 auto-compact 触发时机——改动 token 口径时需评估是否需重新校准。
+- **校准工具**：`scripts/calibrate_kref.py` 从日志 `[usage] 入库` 行反推 sonnet/opus 真实 k_ref；`test-cache.sh` 用 admin API 的 `creditsUsed` 反算实测缓存命中率（区别于代理模拟值）。
 - **history[0] 冻结是 prompt cache 的命脉**：系统提示中的 `cch=` 计费哈希规范化（`normalize_billing_header`）、`agentContinuationId` 由 conversationId 派生、标题生成请求隔离等机制都为让 history[0] 跨请求逐字节稳定。改动 converter 中系统提示/历史消息构建时必须保持这些不变量，否则 Kiro 侧缓存全量失效。
 
 ### 配置与运行时
@@ -104,7 +107,7 @@ Client (Anthropic SSE format)
 ## 开发约定（来自 openspec/project.md）
 
 - `cargo fmt` + `cargo clippy` clean 后才可提交
-- **打 tag 必须同步版本号（强约束）**：创建 vX.Y.Z tag 前，必须先提交 `chore: 发布 vX.Y.Z`，同步更新 `Cargo.toml` 的 `version` 与 `Cargo.lock`（运行 `cargo check` 刷新），并同步更新 `src/admin/changelog_data.rs` 中的版本条目（否则 `is_latest` 高亮失效）。禁止在版本号未同步的情况下打 tag
+- **打 tag 必须同步版本号（强约束）**：创建 vX.Y.Z tag 前，必须先提交 `chore: 发布 vX.Y.Z`，同步更新 `Cargo.toml` 的 `version` 与 `Cargo.lock`（运行 `cargo check` 刷新），并同步更新 `src/admin/changelog_data.rs` 中的版本条目（否则 `is_latest` 高亮失效）。禁止在版本号未同步的情况下打 tag；CI `build.yaml` pre-check 会校验 tag 与 `Cargo.toml` version，不一致即失败
 - 不引入新外部 crate（能用已有依赖解决的不新增）
   - **例外**：`ip2region`（IP 归属地离线解析，`Cargo.toml` 已引入）
 - 改动局限于最小必要范围，不做无关重构

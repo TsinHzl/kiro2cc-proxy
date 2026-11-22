@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
+  type CalendarCell,
   buildCalendarCells,
   formatIsoDate,
   isDateDisabled,
@@ -10,14 +11,18 @@ import {
   isYearDisabled,
   isYearRangeDisabled,
   parseIsoDate,
+  resolveTabStopDate,
   shiftIsoDate,
   shiftMonth,
+  utcDate,
   yearGridStart,
 } from '@/lib/calendar'
 import { localeTag } from '@/lib/locale'
 import { cn } from '@/lib/utils'
 
 type PickerView = 'day' | 'month' | 'year'
+type PopoverAlign = 'start' | 'end'
+type PopoverSide = 'top' | 'bottom'
 
 export interface DatePickerProps {
   /** 当前选中日期（YYYY-MM-DD） */
@@ -37,20 +42,276 @@ export interface DatePickerProps {
   placeholder?: string
   disabled?: boolean
   /** 桌面端相对触发器的水平对齐方式 */
-  align?: 'start' | 'end'
+  align?: PopoverAlign
   id?: string
   'aria-label'?: string
   className?: string
 }
 
+const DEFAULT_MIN_DATE = '1000-01-01'
+const DEFAULT_MAX_DATE = '9999-12-31'
 const POPOVER_ESTIMATED_HEIGHT = 336
 
 const NAV_BTN_CLASS =
   'grid size-7 shrink-0 place-items-center rounded-[7px] text-ink-3 transition-all hover:bg-surface-3 hover:text-ink active:scale-95 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-35'
 
+const SELECTED_CELL_CLASS =
+  'bg-brand btn-brand-gradient font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)]'
+
+const CURSOR_CELL_CLASS = 'bg-brand-soft font-semibold text-brand ring-1 ring-inset ring-brand-line'
+
+const POPOVER_POSITION_CLASS: Record<`${PopoverAlign}-${PopoverSide}`, string> = {
+  'start-top': 'bottom-full mb-1.5 left-0 origin-bottom-left',
+  'start-bottom': 'top-full mt-1.5 left-0 origin-top-left',
+  'end-top': 'bottom-full mb-1.5 left-0 origin-bottom-left sm:left-auto sm:right-0 sm:origin-bottom-right',
+  'end-bottom': 'top-full mt-1.5 left-0 origin-top-left sm:left-auto sm:right-0 sm:origin-top-right',
+}
+
+const DAY_ARROW_DELTA: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowRight: 1,
+  ArrowUp: -7,
+  ArrowDown: 7,
+}
+
 function localTodayString(): string {
   const now = new Date()
   return formatIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate())
+}
+
+interface NavAction {
+  disabled: boolean
+  label: string
+  onClick: () => void
+}
+
+interface DatePickerHeaderProps {
+  view: PickerView
+  titleLabel: string
+  titleAriaLabel: string
+  onCycleView: () => void
+  prev: NavAction
+  next: NavAction
+}
+
+/** 浮层顶栏：年月/decade 视图切换按钮 + 上/下翻页控制 */
+function DatePickerHeader({ view, titleLabel, titleAriaLabel, onCycleView, prev, next }: DatePickerHeaderProps) {
+  return (
+    <div className="mb-2.5 flex items-center justify-between gap-1">
+      <button
+        type="button"
+        onClick={onCycleView}
+        aria-label={titleAriaLabel}
+        className={cn(
+          'inline-flex h-7 items-center gap-1 rounded-[7px] px-2 font-semibold tracking-tight text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
+          view === 'day' ? 'text-[13px]' : 'font-mono tabular-nums',
+          view === 'month' && 'text-[13px]',
+          view === 'year' && 'text-[12.5px]',
+        )}
+      >
+        <span>{titleLabel}</span>
+        <ChevronDown
+          className={cn('size-3.5 text-ink-3', view === 'year' && 'rotate-180')}
+          strokeWidth={1.9}
+          aria-hidden="true"
+        />
+      </button>
+
+      <div className="flex items-center gap-0.5">
+        <button type="button" disabled={prev.disabled} aria-label={prev.label} onClick={prev.onClick} className={NAV_BTN_CLASS}>
+          <ChevronLeft className="size-[14px]" strokeWidth={1.9} aria-hidden="true" />
+        </button>
+        <button type="button" disabled={next.disabled} aria-label={next.label} onClick={next.onClick} className={NAV_BTN_CLASS}>
+          <ChevronRight className="size-[14px]" strokeWidth={1.9} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface DayGridProps {
+  cells: CalendarCell[]
+  weekdayLabels: Array<{ short: string; full: string }>
+  value: string
+  today: string
+  min: string
+  max: string
+  rangeStart?: string
+  rangeEnd?: string
+  tabStopDate: string | null
+  onSelect: (date: string) => void
+  onFocusDate: (date: string) => void
+  onDayKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, date: string) => void
+}
+
+/** 视图一：周日至周六 7×6 日期网格（roving tabindex + 方向键导航） */
+function DayGrid({
+  cells,
+  weekdayLabels,
+  value,
+  today,
+  min,
+  max,
+  rangeStart,
+  rangeEnd,
+  tabStopDate,
+  onSelect,
+  onFocusDate,
+  onDayKeyDown,
+}: DayGridProps) {
+  const validRange = rangeStart && rangeEnd && rangeStart <= rangeEnd ? { start: rangeStart, end: rangeEnd } : null
+
+  return (
+    <>
+      <div className="mb-1 grid grid-cols-7 gap-1">
+        {weekdayLabels.map((wd, idx) => (
+          <div
+            key={idx}
+            title={wd.full}
+            aria-label={wd.full}
+            className="py-1 text-center text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-3"
+          >
+            {wd.short}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell) => {
+          const isDisabled = isDateDisabled(cell.date, min, max)
+          const isSelected = cell.date === value
+          const isToday = cell.date === today
+          const isRangeEndpoint =
+            validRange !== null && !isSelected && (cell.date === validRange.start || cell.date === validRange.end)
+          const isInRange =
+            validRange !== null && !isSelected && !isRangeEndpoint && cell.date > validRange.start && cell.date < validRange.end
+
+          return (
+            <button
+              key={cell.date}
+              type="button"
+              data-date={cell.date}
+              tabIndex={!isDisabled && cell.date === tabStopDate ? 0 : -1}
+              disabled={isDisabled}
+              aria-label={cell.date}
+              aria-pressed={isSelected}
+              onClick={() => onSelect(cell.date)}
+              onFocus={() => onFocusDate(cell.date)}
+              onKeyDown={(e) => onDayKeyDown(e, cell.date)}
+              className={cn(
+                'relative grid h-8 w-full place-items-center rounded-[7px] font-mono text-[12px] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
+                isSelected && SELECTED_CELL_CLASS,
+                !isSelected && isRangeEndpoint && CURSOR_CELL_CLASS,
+                !isSelected &&
+                  isInRange &&
+                  (cell.inCurrentMonth ? 'bg-brand-soft text-ink' : 'bg-brand-soft text-ink-3 opacity-75'),
+                !isSelected &&
+                  !isRangeEndpoint &&
+                  !isInRange &&
+                  (cell.inCurrentMonth
+                    ? isToday
+                      ? 'font-semibold text-brand ring-1 ring-inset ring-brand-line hover:bg-brand-soft'
+                      : 'text-ink hover:bg-surface-3'
+                    : 'text-ink-3 opacity-45 hover:bg-surface-3 hover:opacity-85'),
+                isDisabled && 'pointer-events-none opacity-30',
+              )}
+            >
+              <span>{cell.day}</span>
+              {isToday && !isSelected && (
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-[3px] left-1/2 size-[3px] -translate-x-1/2 rounded-full bg-brand"
+                />
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+interface MonthGridProps {
+  year: number
+  cursorMonth: number
+  monthNames: string[]
+  selectedYear?: number
+  selectedMonth?: number
+  min: string
+  max: string
+  onSelectMonth: (month: number) => void
+}
+
+/** 视图二：12 月份选择网格 */
+function MonthGrid({ year, cursorMonth, monthNames, selectedYear, selectedMonth, min, max, onSelectMonth }: MonthGridProps) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5 py-1">
+      {monthNames.map((label, idx) => {
+        const monthNum = idx + 1
+        const monthDisabled = isMonthDisabled(year, monthNum, min, max)
+        const isSelected = selectedYear === year && selectedMonth === monthNum
+        const isCursor = cursorMonth === monthNum
+
+        return (
+          <button
+            key={monthNum}
+            type="button"
+            disabled={monthDisabled}
+            onClick={() => onSelectMonth(monthNum)}
+            className={cn(
+              'h-9 rounded-[8px] text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
+              isSelected && SELECTED_CELL_CLASS,
+              !isSelected && isCursor && CURSOR_CELL_CLASS,
+              !isSelected && !isCursor && 'text-ink hover:bg-surface-3',
+              monthDisabled && 'pointer-events-none opacity-30',
+            )}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+interface YearGridProps {
+  years: number[]
+  cursorYear: number
+  selectedYear?: number
+  min: string
+  max: string
+  onSelectYear: (year: number) => void
+}
+
+/** 视图三：12 年份选择网格 */
+function YearGrid({ years, cursorYear, selectedYear, min, max, onSelectYear }: YearGridProps) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5 py-1">
+      {years.map((y) => {
+        const yearDisabled = isYearDisabled(y, min, max)
+        const isSelected = selectedYear === y
+        const isCursor = cursorYear === y
+
+        return (
+          <button
+            key={y}
+            type="button"
+            disabled={yearDisabled}
+            onClick={() => onSelectYear(y)}
+            className={cn(
+              'h-9 rounded-[8px] font-mono text-[12px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
+              isSelected && SELECTED_CELL_CLASS,
+              !isSelected && isCursor && CURSOR_CELL_CLASS,
+              !isSelected && !isCursor && 'text-ink hover:bg-surface-3',
+              yearDisabled && 'pointer-events-none opacity-30',
+            )}
+          >
+            {y}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 /**
@@ -79,18 +340,28 @@ export function DatePicker({
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const effectiveToday = today ?? localTodayString()
-  // i18n.language 变更时重新取 localeTag，驱动星期/月份标题重算
+  // 未传 min/max 时兜底到 [1000, 9999]（若调用方显式传了早于 1000 的值或 min 则放开至 0000）
+  const effectiveMin = useMemo(() => {
+    if (min) return min < '0000-01-01' ? '0000-01-01' : min
+    return value && value < DEFAULT_MIN_DATE ? '0000-01-01' : DEFAULT_MIN_DATE
+  }, [min, value])
+  const effectiveMax = useMemo(() => {
+    if (max) return max > DEFAULT_MAX_DATE ? DEFAULT_MAX_DATE : max
+    return DEFAULT_MAX_DATE
+  }, [max])
+
   const locale = i18n.language === 'en' ? 'en-US' : localeTag()
 
   const resolveInitialViewMonth = useCallback(() => {
-    const parsed = parseIsoDate(value) ?? parseIsoDate(effectiveToday) ?? parseIsoDate(max ?? '') ?? parseIsoDate(min ?? '')
+    const parsed = parseIsoDate(value) ?? parseIsoDate(effectiveToday) ?? parseIsoDate(effectiveMax) ?? parseIsoDate(effectiveMin)
     return parsed ? { year: parsed.year, month: parsed.month } : { year: new Date().getFullYear(), month: new Date().getMonth() + 1 }
-  }, [value, effectiveToday, max, min])
+  }, [value, effectiveToday, effectiveMax, effectiveMin])
 
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<PickerView>('day')
-  const [side, setSide] = useState<'bottom' | 'top'>('bottom')
+  const [side, setSide] = useState<PopoverSide>('bottom')
   const [cursor, setCursor] = useState<{ year: number; month: number }>(resolveInitialViewMonth)
+  const [focusedDate, setFocusedDate] = useState<string | null>(null)
 
   const closePopover = useCallback((opts?: { restoreFocus?: boolean }) => {
     setOpen(false)
@@ -102,6 +373,7 @@ export function DatePicker({
   const openPopover = useCallback(() => {
     if (disabled) return
     setCursor(resolveInitialViewMonth())
+    setFocusedDate(null)
     setView('day')
     setOpen(true)
   }, [disabled, resolveInitialViewMonth])
@@ -119,8 +391,19 @@ export function DatePicker({
     setSide(spaceBelow < POPOVER_ESTIMATED_HEIGHT && spaceAbove > spaceBelow ? 'top' : 'bottom')
   }, [open])
 
-  // 点外部、焦点移出（Tab 切走）或按 Escape 时关闭；window capture 抢在 Radix Dialog 的 document capture 之前，
-  // 保证按 Escape 只收起日历浮层而不连带关掉外层弹窗
+  // 打开浮层或从月视图切回日视图时，将焦点移入当前 tabStop 日期格，使 ArrowDown / 方向键即开即用
+  useEffect(() => {
+    if (!open || view !== 'day') return
+    const rafId = requestAnimationFrame(() => {
+      const target =
+        popoverRef.current?.querySelector<HTMLButtonElement>('button[data-date][tabindex="0"]:not(:disabled)') ??
+        popoverRef.current?.querySelector<HTMLButtonElement>('button[data-date]:not(:disabled)')
+      target?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [open, view])
+
+  // 点外部、焦点移出（Tab 切走）或按 Escape 时关闭；window capture 抢在 Radix Dialog 的 document capture 之前
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
@@ -153,7 +436,7 @@ export function DatePicker({
   const weekdayLabels = useMemo(() => {
     // 2026-11-01 为周日，连续 7 天即周日..周六
     return Array.from({ length: 7 }, (_, idx) => {
-      const date = new Date(Date.UTC(2026, 10, 1 + idx))
+      const date = utcDate(2026, 11, 1 + idx)
       const full = date.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' })
       const short =
         locale === 'en-US'
@@ -165,36 +448,100 @@ export function DatePicker({
 
   const monthNames = useMemo(() => {
     return Array.from({ length: 12 }, (_, idx) =>
-      new Date(Date.UTC(2026, idx, 1)).toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' }),
+      utcDate(2026, idx + 1, 1).toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' }),
     )
   }, [locale])
 
   const headerYearMonthLabel = useMemo(() => {
-    return new Date(Date.UTC(cursor.year, cursor.month - 1, 1)).toLocaleDateString(locale, {
+    return utcDate(cursor.year, cursor.month, 1).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'long',
       timeZone: 'UTC',
     })
   }, [cursor.year, cursor.month, locale])
 
+  const selectedParts = useMemo(() => parseIsoDate(value), [value])
   const cells = useMemo(() => buildCalendarCells(cursor.year, cursor.month), [cursor.year, cursor.month])
   const decadeStart = yearGridStart(cursor.year)
   const years = useMemo(() => Array.from({ length: 12 }, (_, idx) => decadeStart + idx), [decadeStart])
 
   const prevMonth = shiftMonth(cursor.year, cursor.month, -1)
   const nextMonth = shiftMonth(cursor.year, cursor.month, 1)
-  const prevMonthDisabled = isMonthDisabled(prevMonth.year, prevMonth.month, min, max)
-  const nextMonthDisabled = isMonthDisabled(nextMonth.year, nextMonth.month, min, max)
-  const prevYearDisabled = isYearDisabled(cursor.year - 1, min, max)
-  const nextYearDisabled = isYearDisabled(cursor.year + 1, min, max)
-  const prevDecadeDisabled = isYearRangeDisabled(decadeStart - 12, 12, min, max)
-  const nextDecadeDisabled = isYearRangeDisabled(decadeStart + 12, 12, min, max)
-  const todayDisabled = isDateDisabled(effectiveToday, min, max)
+  const todayDisabled = isDateDisabled(effectiveToday, effectiveMin, effectiveMax)
 
-  const hasValidRange = Boolean(rangeStart && rangeEnd && rangeStart <= rangeEnd)
+  const tabStopDate = useMemo(
+    () => resolveTabStopDate(cells, focusedDate, value, effectiveToday, effectiveMin, effectiveMax),
+    [cells, focusedDate, value, effectiveToday, effectiveMin, effectiveMax],
+  )
+
+  const headerConfigByView: Record<PickerView, Omit<DatePickerHeaderProps, 'view'>> = {
+    day: {
+      titleLabel: headerYearMonthLabel,
+      titleAriaLabel: t('datePicker.selectMonthYear'),
+      onCycleView: () => setView('month'),
+      prev: {
+        disabled: isMonthDisabled(prevMonth.year, prevMonth.month, effectiveMin, effectiveMax),
+        label: t('datePicker.prevMonth'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor(prevMonth)
+        },
+      },
+      next: {
+        disabled: isMonthDisabled(nextMonth.year, nextMonth.month, effectiveMin, effectiveMax),
+        label: t('datePicker.nextMonth'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor(nextMonth)
+        },
+      },
+    },
+    month: {
+      titleLabel: t('datePicker.yearLabel', { year: cursor.year }),
+      titleAriaLabel: t('datePicker.selectYear'),
+      onCycleView: () => setView('year'),
+      prev: {
+        disabled: isYearDisabled(cursor.year - 1, effectiveMin, effectiveMax),
+        label: t('datePicker.prevYear'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor((c) => ({ ...c, year: c.year - 1 }))
+        },
+      },
+      next: {
+        disabled: isYearDisabled(cursor.year + 1, effectiveMin, effectiveMax),
+        label: t('datePicker.nextYear'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor((c) => ({ ...c, year: c.year + 1 }))
+        },
+      },
+    },
+    year: {
+      titleLabel: `${decadeStart} – ${decadeStart + 11}`,
+      titleAriaLabel: t('datePicker.backToDays'),
+      onCycleView: () => setView('day'),
+      prev: {
+        disabled: isYearRangeDisabled(decadeStart - 12, 12, effectiveMin, effectiveMax),
+        label: t('datePicker.prevDecade'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor((c) => ({ ...c, year: c.year - 12 }))
+        },
+      },
+      next: {
+        disabled: isYearRangeDisabled(decadeStart + 12, 12, effectiveMin, effectiveMax),
+        label: t('datePicker.nextDecade'),
+        onClick: () => {
+          setFocusedDate(null)
+          setCursor((c) => ({ ...c, year: c.year + 12 }))
+        },
+      },
+    },
+  }
 
   const selectDate = (date: string) => {
-    if (isDateDisabled(date, min, max)) return
+    if (isDateDisabled(date, effectiveMin, effectiveMax)) return
     onChange(date)
     closePopover({ restoreFocus: true })
   }
@@ -202,27 +549,21 @@ export function DatePicker({
   const focusDayCell = (targetDate: string) => {
     const parts = parseIsoDate(targetDate)
     if (!parts) return
+    setFocusedDate(targetDate)
     if (parts.year !== cursor.year || parts.month !== cursor.month) {
       setCursor({ year: parts.year, month: parts.month })
     }
     requestAnimationFrame(() => {
-      const btn = popoverRef.current?.querySelector<HTMLButtonElement>(`button[data-date="${targetDate}"]`)
-      btn?.focus()
+      popoverRef.current?.querySelector<HTMLButtonElement>(`button[data-date="${targetDate}"]`)?.focus({ preventScroll: true })
     })
   }
 
   const handleDayKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, date: string) => {
-    const deltaByKey: Record<string, number> = {
-      ArrowLeft: -1,
-      ArrowRight: 1,
-      ArrowUp: -7,
-      ArrowDown: 7,
-    }
-    const delta = deltaByKey[e.key]
+    const delta = DAY_ARROW_DELTA[e.key]
     if (delta === undefined) return
     e.preventDefault()
     const nextDate = shiftIsoDate(date, delta)
-    if (!nextDate || isDateDisabled(nextDate, min, max)) return
+    if (!nextDate || isDateDisabled(nextDate, effectiveMin, effectiveMax)) return
     focusDayCell(nextDate)
   }
 
@@ -268,247 +609,60 @@ export function DatePicker({
           className={cn(
             'absolute z-50 w-[280px] max-w-[calc(100vw-3rem)] rounded-[14px] border border-transparent bg-glass-pop p-3.5 shadow-pop outline-none',
             'animate-popover-in motion-reduce:animate-none',
-            side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
-            align === 'end'
-              ? side === 'top'
-                ? 'left-0 origin-bottom-left sm:left-auto sm:right-0 sm:origin-bottom-right'
-                : 'left-0 origin-top-left sm:left-auto sm:right-0 sm:origin-top-right'
-              : side === 'top'
-                ? 'left-0 origin-bottom-left'
-                : 'left-0 origin-top-left',
+            POPOVER_POSITION_CLASS[`${align}-${side}`],
           )}
         >
-          {/* 顶栏：年月切换触发器 + 上下翻页按钮 */}
-          <div className="mb-2.5 flex items-center justify-between gap-1">
-            {view === 'day' ? (
-              <button
-                type="button"
-                onClick={() => setView('month')}
-                aria-label={t('datePicker.selectMonthYear')}
-                className="inline-flex h-7 items-center gap-1 rounded-[7px] px-2 text-[13px] font-semibold tracking-tight text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-              >
-                <span>{headerYearMonthLabel}</span>
-                <ChevronDown className="size-3.5 text-ink-3" strokeWidth={1.9} aria-hidden="true" />
-              </button>
-            ) : view === 'month' ? (
-              <button
-                type="button"
-                onClick={() => setView('year')}
-                aria-label={t('datePicker.selectYear')}
-                className="inline-flex h-7 items-center gap-1 rounded-[7px] px-2 font-mono text-[13px] font-semibold tabular-nums tracking-tight text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-              >
-                <span>{t('datePicker.yearLabel', { year: cursor.year })}</span>
-                <ChevronDown className="size-3.5 text-ink-3" strokeWidth={1.9} aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setView('day')}
-                aria-label={t('datePicker.backToDays')}
-                className="inline-flex h-7 items-center gap-1 rounded-[7px] px-2 font-mono text-[12.5px] font-semibold tabular-nums tracking-tight text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
-              >
-                <span>
-                  {decadeStart} – {decadeStart + 11}
-                </span>
-                <ChevronDown className="size-3.5 rotate-180 text-ink-3" strokeWidth={1.9} aria-hidden="true" />
-              </button>
-            )}
+          <DatePickerHeader view={view} {...headerConfigByView[view]} />
 
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                disabled={
-                  view === 'day'
-                    ? prevMonthDisabled
-                    : view === 'month'
-                      ? prevYearDisabled
-                      : prevDecadeDisabled
-                }
-                aria-label={
-                  view === 'day'
-                    ? t('datePicker.prevMonth')
-                    : view === 'month'
-                      ? t('datePicker.prevYear')
-                      : t('datePicker.prevDecade')
-                }
-                onClick={() => {
-                  if (view === 'day') setCursor(prevMonth)
-                  else if (view === 'month') setCursor((c) => ({ ...c, year: c.year - 1 }))
-                  else setCursor((c) => ({ ...c, year: c.year - 12 }))
-                }}
-                className={NAV_BTN_CLASS}
-              >
-                <ChevronLeft className="size-[14px]" strokeWidth={1.9} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                disabled={
-                  view === 'day'
-                    ? nextMonthDisabled
-                    : view === 'month'
-                      ? nextYearDisabled
-                      : nextDecadeDisabled
-                }
-                aria-label={
-                  view === 'day'
-                    ? t('datePicker.nextMonth')
-                    : view === 'month'
-                      ? t('datePicker.nextYear')
-                      : t('datePicker.nextDecade')
-                }
-                onClick={() => {
-                  if (view === 'day') setCursor(nextMonth)
-                  else if (view === 'month') setCursor((c) => ({ ...c, year: c.year + 1 }))
-                  else setCursor((c) => ({ ...c, year: c.year + 12 }))
-                }}
-                className={NAV_BTN_CLASS}
-              >
-                <ChevronRight className="size-[14px]" strokeWidth={1.9} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-
-          {/* 视图一：日历 7×6 网格 */}
           {view === 'day' && (
-            <>
-              <div className="mb-1 grid grid-cols-7 gap-1">
-                {weekdayLabels.map((wd, idx) => (
-                  <div
-                    key={idx}
-                    title={wd.full}
-                    aria-label={wd.full}
-                    className="py-1 text-center text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-3"
-                  >
-                    {wd.short}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((cell) => {
-                  const isDisabled = isDateDisabled(cell.date, min, max)
-                  const isSelected = cell.date === value
-                  const isToday = cell.date === effectiveToday
-                  const isRangeEndpoint =
-                    hasValidRange && !isSelected && (cell.date === rangeStart || cell.date === rangeEnd)
-                  const isInRange =
-                    hasValidRange && !isSelected && !isRangeEndpoint && cell.date > rangeStart! && cell.date < rangeEnd!
-
-                  return (
-                    <button
-                      key={cell.date}
-                      type="button"
-                      data-date={cell.date}
-                      disabled={isDisabled}
-                      aria-label={cell.date}
-                      aria-pressed={isSelected}
-                      onClick={() => selectDate(cell.date)}
-                      onKeyDown={(e) => handleDayKeyDown(e, cell.date)}
-                      className={cn(
-                        'relative grid h-8 w-full place-items-center rounded-[7px] font-mono text-[12px] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
-                        isSelected &&
-                          'bg-brand btn-brand-gradient font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)]',
-                        !isSelected &&
-                          isRangeEndpoint &&
-                          'bg-brand-soft font-semibold text-brand ring-1 ring-inset ring-brand-line',
-                        !isSelected &&
-                          isInRange &&
-                          (cell.inCurrentMonth ? 'bg-brand-soft text-ink' : 'bg-brand-soft text-ink-3 opacity-75'),
-                        !isSelected &&
-                          !isRangeEndpoint &&
-                          !isInRange &&
-                          (cell.inCurrentMonth
-                            ? isToday
-                              ? 'font-semibold text-brand ring-1 ring-inset ring-brand-line hover:bg-brand-soft'
-                              : 'text-ink hover:bg-surface-3'
-                            : 'text-ink-3 opacity-45 hover:bg-surface-3 hover:opacity-85'),
-                        isDisabled && 'pointer-events-none opacity-30',
-                      )}
-                    >
-                      <span>{cell.day}</span>
-                      {isToday && !isSelected && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute bottom-[3px] left-1/2 size-[3px] -translate-x-1/2 rounded-full bg-brand"
-                        />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
+            <DayGrid
+              cells={cells}
+              weekdayLabels={weekdayLabels}
+              value={value}
+              today={effectiveToday}
+              min={effectiveMin}
+              max={effectiveMax}
+              rangeStart={rangeStart}
+              rangeEnd={rangeEnd}
+              tabStopDate={tabStopDate}
+              onSelect={selectDate}
+              onFocusDate={setFocusedDate}
+              onDayKeyDown={handleDayKeyDown}
+            />
           )}
 
-          {/* 视图二：12 月份选择网格 */}
           {view === 'month' && (
-            <div className="grid grid-cols-3 gap-1.5 py-1">
-              {monthNames.map((label, idx) => {
-                const monthNum = idx + 1
-                const monthDisabled = isMonthDisabled(cursor.year, monthNum, min, max)
-                const selectedParts = parseIsoDate(value)
-                const isSelectedMonth = selectedParts?.year === cursor.year && selectedParts?.month === monthNum
-                const isCursorMonth = cursor.month === monthNum
-
-                return (
-                  <button
-                    key={monthNum}
-                    type="button"
-                    disabled={monthDisabled}
-                    onClick={() => {
-                      setCursor((c) => ({ ...c, month: monthNum }))
-                      setView('day')
-                    }}
-                    className={cn(
-                      'h-9 rounded-[8px] text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
-                      isSelectedMonth &&
-                        'bg-brand btn-brand-gradient font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)]',
-                      !isSelectedMonth && isCursorMonth && 'bg-brand-soft font-semibold text-brand ring-1 ring-inset ring-brand-line',
-                      !isSelectedMonth && !isCursorMonth && 'text-ink hover:bg-surface-3',
-                      monthDisabled && 'pointer-events-none opacity-30',
-                    )}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
+            <MonthGrid
+              year={cursor.year}
+              cursorMonth={cursor.month}
+              monthNames={monthNames}
+              selectedYear={selectedParts?.year}
+              selectedMonth={selectedParts?.month}
+              min={effectiveMin}
+              max={effectiveMax}
+              onSelectMonth={(monthNum) => {
+                setFocusedDate(null)
+                setCursor((c) => ({ ...c, month: monthNum }))
+                setView('day')
+              }}
+            />
           )}
 
-          {/* 视图三：12 年份选择网格 */}
           {view === 'year' && (
-            <div className="grid grid-cols-3 gap-1.5 py-1">
-              {years.map((y) => {
-                const yearDisabled = isYearDisabled(y, min, max)
-                const selectedParts = parseIsoDate(value)
-                const isSelectedYear = selectedParts?.year === y
-                const isCursorYear = cursor.year === y
-
-                return (
-                  <button
-                    key={y}
-                    type="button"
-                    disabled={yearDisabled}
-                    onClick={() => {
-                      setCursor((c) => ({ ...c, year: y }))
-                      setView('month')
-                    }}
-                    className={cn(
-                      'h-9 rounded-[8px] font-mono text-[12px] font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand',
-                      isSelectedYear &&
-                        'bg-brand btn-brand-gradient font-semibold text-brand-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.18),var(--shadow-sm)]',
-                      !isSelectedYear && isCursorYear && 'bg-brand-soft font-semibold text-brand ring-1 ring-inset ring-brand-line',
-                      !isSelectedYear && !isCursorYear && 'text-ink hover:bg-surface-3',
-                      yearDisabled && 'pointer-events-none opacity-30',
-                    )}
-                  >
-                    {y}
-                  </button>
-                )
-              })}
-            </div>
+            <YearGrid
+              years={years}
+              cursorYear={cursor.year}
+              selectedYear={selectedParts?.year}
+              min={effectiveMin}
+              max={effectiveMax}
+              onSelectYear={(y) => {
+                setFocusedDate(null)
+                setCursor((c) => ({ ...c, year: y }))
+                setView('month')
+              }}
+            />
           )}
 
-          {/* 页脚：当前日期展示 + 今天快捷选择 */}
           <div className="mt-2.5 flex items-center justify-between gap-2 border-t-[0.5px] border-hairline pt-2.5">
             <span className="truncate font-mono text-[11px] tabular-nums text-ink-3">
               {value || placeholder || 'YYYY-MM-DD'}

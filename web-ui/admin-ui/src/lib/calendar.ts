@@ -17,15 +17,24 @@ export interface CalendarCell {
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 const DAY_MS = 86_400_000
 const GRID_CELL_COUNT = 42
+const MIN_ISO_YEAR = 0
+const MAX_ISO_YEAR = 9999
+
+/** 构造指定 UTC 公历日期（month 为 1–12），避免 Date.UTC 将 0–99 年映射为 1900–1999 */
+export function utcDate(year: number, month: number, day: number): Date {
+  const d = new Date(0)
+  d.setUTCFullYear(year, month - 1, day)
+  return d
+}
 
 /** 指定公历年月包含的天数（month 为 1–12） */
 export function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return utcDate(year, month + 1, 0).getUTCDate()
 }
 
 /** 指定公历年月 1 号的星期（0 = 周日 .. 6 = 周六，按 UTC 算术避免本地时区漂移） */
 export function firstWeekdayOfMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+  return utcDate(year, month, 1).getUTCDay()
 }
 
 /** 格式化公历日期为 YYYY-MM-DD */
@@ -53,23 +62,27 @@ export function shiftMonth(year: number, month: number, deltaMonths: number): { 
   return { year: nextYear, month: nextMonth }
 }
 
-/** 日期按天数偏移（UTC 算术，无夏令时与本地时区偏移问题） */
+/** 日期按天数偏移（UTC 算术，无夏令时与本地时区偏移问题；越出 0000–9999 返回 null） */
 export function shiftIsoDate(dateStr: string, deltaDays: number): string | null {
   const parts = parseIsoDate(dateStr)
   if (!parts) return null
-  const ms = Date.UTC(parts.year, parts.month - 1, parts.day) + deltaDays * DAY_MS
-  return new Date(ms).toISOString().slice(0, 10)
+  const shifted = new Date(utcDate(parts.year, parts.month, parts.day).getTime() + deltaDays * DAY_MS)
+  const year = shifted.getUTCFullYear()
+  if (year < MIN_ISO_YEAR || year > MAX_ISO_YEAR) return null
+  return formatIsoDate(year, shifted.getUTCMonth() + 1, shifted.getUTCDate())
 }
 
-/** 判断日历日是否超出 [min, max] 允许区间 */
+/** 判断日历日是否非法或超出 [min, max] 允许区间 */
 export function isDateDisabled(date: string, min?: string, max?: string): boolean {
+  if (!ISO_DATE_RE.test(date)) return true
   if (min && date < min) return true
   if (max && date > max) return true
   return false
 }
 
-/** 判断整月是否完全落在 [min, max] 之外 */
+/** 判断整月是否越出 0000–9999 或完全落在 [min, max] 之外 */
 export function isMonthDisabled(year: number, month: number, min?: string, max?: string): boolean {
+  if (year < MIN_ISO_YEAR || year > MAX_ISO_YEAR || month < 1 || month > 12) return true
   const start = formatIsoDate(year, month, 1)
   const end = formatIsoDate(year, month, daysInMonth(year, month))
   if (min && end < min) return true
@@ -77,8 +90,9 @@ export function isMonthDisabled(year: number, month: number, min?: string, max?:
   return false
 }
 
-/** 判断整年是否完全落在 [min, max] 之外 */
+/** 判断整年是否越出 0000–9999 或完全落在 [min, max] 之外 */
 export function isYearDisabled(year: number, min?: string, max?: string): boolean {
+  if (year < MIN_ISO_YEAR || year > MAX_ISO_YEAR) return true
   const start = formatIsoDate(year, 1, 1)
   const end = formatIsoDate(year, 12, 31)
   if (min && end < min) return true
@@ -138,4 +152,26 @@ export function buildCalendarCells(year: number, month: number): CalendarCell[] 
     })
   }
   return cells
+}
+
+/**
+ * 解析日历 42 格中唯一应设 tabIndex=0 的焦点日期（roving tabindex）：
+ * 优先保持格内已聚焦日期；否则在当月可用格中依次取已选日期、今日或首个可用日。
+ */
+export function resolveTabStopDate(
+  cells: readonly CalendarCell[],
+  focusedDate: string | null,
+  value: string,
+  today: string,
+  min?: string,
+  max?: string,
+): string | null {
+  if (focusedDate && cells.some((c) => c.date === focusedDate && !isDateDisabled(c.date, min, max))) {
+    return focusedDate
+  }
+  const currentEnabled = cells.filter((c) => c.inCurrentMonth && !isDateDisabled(c.date, min, max))
+  if (value && currentEnabled.some((c) => c.date === value)) return value
+  if (today && currentEnabled.some((c) => c.date === today)) return today
+  if (currentEnabled.length > 0) return currentEnabled[0].date
+  return cells.find((c) => !isDateDisabled(c.date, min, max))?.date ?? null
 }

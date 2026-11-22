@@ -82,8 +82,8 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
                         "The account table's Used Quota column now shows a countdown to quota reset",
                     ),
                     Bilingual::new(
-                        "全新极光渐变与磨砂玻璃视觉升级：主题设置新增「内容区渐变背景」开关（默认开启），并同步对齐用户端极光风格及新增用量指标栏与环形进度组件",
-                        "Aurora gradient and frosted glass visual refresh: added a Content Area Gradient Background toggle in Theme Settings (on by default), and aligned the user UI with a new metrics bar and progress ring components",
+                        "全新极光渐变与磨砂玻璃视觉升级：主题设置新增「极光玻璃」开关（默认开启），并同步对齐用户端极光风格及新增用量指标栏与环形进度组件",
+                        "Aurora gradient and frosted glass visual refresh: added an Aurora glass toggle in Theme Settings (on by default), and aligned the user UI with a new metrics bar and progress ring components",
                     ),
                 ]),
                 fix_group(vec![Bilingual::new(

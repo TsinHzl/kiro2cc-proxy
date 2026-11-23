@@ -169,6 +169,11 @@ export function usePlayground() {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const activeIdRef = useRef(activeId)
+  /**
+   * 当前 messages 实际属于哪个会话。点击切换时 activeId 会先于消息乐观更新，
+   * 加载失败时据此回滚到仍在显示的那个会话
+   */
+  const displayedIdRef = useRef<string | null>(activeId)
   /** 每次切换 / 新建 / 删除当前会话时自增，用于丢弃过期的异步结果 */
   const epochRef = useRef(0)
   /** 保存请求串行执行，避免同一会话的多次 PUT 乱序到达 */
@@ -209,7 +214,10 @@ export function usePlayground() {
             return targetId
           }
           const meta = await createChatSession(deriveTitle(msgs), msgs)
-          if (epoch === epochRef.current) setActive(meta.id)
+          if (epoch === epochRef.current) {
+            displayedIdRef.current = meta.id
+            setActive(meta.id)
+          }
           void refreshList()
           return meta.id
         } catch (error) {
@@ -236,11 +244,16 @@ export function usePlayground() {
     if (used) setConfig((prev) => (prev.model === used ? prev : { ...prev, model: used }))
   }, [])
 
-  /** 载入会话消息（不检查是否已是当前会话）。失败时保留当前内容 */
+  /**
+   * 载入会话消息（不检查是否已是当前会话）。
+   * 点击后立即把目标会话设为当前（侧边栏高亮、顶部标题马上切换），消息区显示加载态；
+   * 加载失败时回滚到仍在显示的会话并保留当前内容
+   */
   const openSession = useCallback(
     async (id: string) => {
       const epoch = ++epochRef.current
       setLoading(true)
+      setActive(id)
       try {
         await saveChainRef.current // 等待上一次保存落地，避免读到旧数据
         const session = await getChatSession<ChatMessage>(id)
@@ -248,7 +261,7 @@ export function usePlayground() {
         const loaded = normalizeMessages(session.messages)
         setMessages(loaded)
         restoreSessionModel(loaded)
-        setActive(id)
+        displayedIdRef.current = id
         setViewKey((k) => k + 1)
       } catch (error) {
         if (epoch !== epochRef.current) return
@@ -256,9 +269,11 @@ export function usePlayground() {
         if (notFound) {
           // 会话已被删除（例如在另一个窗口）
           setMessages([])
+          displayedIdRef.current = null
           setActive(null)
           void refreshList()
         } else {
+          setActive(displayedIdRef.current)
           toast.error(t('playground.loadFailed', { message: extractErrorMessage(error) }))
         }
       } finally {
@@ -482,6 +497,7 @@ export function usePlayground() {
     epochRef.current++
     dirtyRef.current = false
     setMessages([])
+    displayedIdRef.current = null
     setActive(null)
     setLoading(false)
     setViewKey((k) => k + 1)

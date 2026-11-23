@@ -2,7 +2,7 @@
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { Boxes, CheckCircle2, Copy, Download, Gauge, Layers, Loader2, RotateCw, SearchX } from 'lucide-react'
+import { Boxes, CheckCircle2, Copy, Gauge, Layers, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
@@ -88,7 +88,6 @@ const RATE_STATUS: Readonly<Record<RateStatus, { cls: string; pip: string; label
 
 /** 指标卡脚注最多列出的家族数 */
 const FAMILY_PREVIEW = 3
-const EXPORT_FILE_NAME = 'kiro2cc-models.json'
 const COLUMN_WIDTHS: (number | undefined)[] = [44, undefined, 118, 124, 96, 158, 108, 52]
 
 /** 输入模态徽章：Text 走中性面、Image 走品牌软底 —— 均复用既有设计令牌，不新增色板 */
@@ -130,18 +129,6 @@ function InputTypesCell({ inputTypes }: { inputTypes?: string[] | null }) {
       })}
     </div>
   )
-}
-
-function downloadJson(models: ModelItem[]): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(models, null, 2)], { type: 'application/json' }))
-  try {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = EXPORT_FILE_NAME
-    link.click()
-  } finally {
-    URL.revokeObjectURL(url)
-  }
 }
 
 export function ModelListPage() {
@@ -199,15 +186,6 @@ export function ModelListPage() {
     try {
       await copyToClipboard(models.map((m) => m.id).join('\n'))
       toast.success(t('models.toastCopiedIds', { n: models.length }))
-    } catch (error) {
-      toast.error(extractErrorMessage(error))
-    }
-  }
-
-  const handleExport = () => {
-    try {
-      downloadJson(models)
-      toast.success(t('models.toastExported'))
     } catch (error) {
       toast.error(extractErrorMessage(error))
     }
@@ -330,10 +308,6 @@ export function ModelListPage() {
         <Button variant="outline" onClick={handleCopyAll} disabled={models.length === 0}>
           <Copy aria-hidden="true" />
           {t('models.copyAllIds')}
-        </Button>
-        <Button variant="outline" onClick={handleExport} disabled={models.length === 0}>
-          <Download aria-hidden="true" />
-          {t('models.exportJson')}
         </Button>
         <UpdatedAgo dataUpdatedAt={dataUpdatedAt} />
       </div>

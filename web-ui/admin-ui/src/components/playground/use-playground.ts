@@ -266,15 +266,17 @@ export function usePlayground() {
       } catch (error) {
         if (epoch !== epochRef.current) return
         const notFound = (error as { response?: { status?: number } })?.response?.status === 404
-        if (notFound) {
-          // 会话已被删除（例如在另一个窗口）
+        if (notFound && displayedIdRef.current === id) {
+          // 当前显示的会话已被删除（例如在另一个窗口）
           setMessages([])
           displayedIdRef.current = null
           setActive(null)
           void refreshList()
         } else {
+          // 非 404，或 404 的目标并非已显示会话：回滚乐观切换，保留当前内容
           setActive(displayedIdRef.current)
-          toast.error(t('playground.loadFailed', { message: extractErrorMessage(error) }))
+          if (notFound) void refreshList()
+          else toast.error(t('playground.loadFailed', { message: extractErrorMessage(error) }))
         }
       } finally {
         if (epoch === epochRef.current) setLoading(false)
@@ -520,12 +522,19 @@ export function usePlayground() {
         await saveChainRef.current // 等待待落地的保存，避免随后到达的 PUT 命中已删除的会话
         await deleteChatSession(id)
         void refreshList()
-        if (id === activeIdRef.current) startNew()
+        if (id === displayedIdRef.current) {
+          startNew()
+        } else if (id === activeIdRef.current) {
+          // 该会话仍在加载、尚未显示：取消这次加载并撤销乐观高亮，保留已显示会话的消息
+          epochRef.current++
+          setLoading(false)
+          setActive(displayedIdRef.current)
+        }
       } catch (error) {
         toast.error(t('playground.deleteFailed', { message: extractErrorMessage(error) }))
       }
     },
-    [refreshList, startNew, t],
+    [refreshList, setActive, startNew, t],
   )
 
   const clearSessions = useCallback(async () => {

@@ -414,6 +414,24 @@ pub(crate) fn build_model_list() -> Vec<Model> {
             max_tokens: 128000,
         },
         Model {
+            id: "claude-fable-5-2".to_string(),
+            object: "model".to_string(),
+            created: 1795392000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Fable 5.2".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
+            id: "claude-fable-5-2-thinking".to_string(),
+            object: "model".to_string(),
+            created: 1795392000,
+            owned_by: "anthropic".to_string(),
+            display_name: "Claude Fable 5.2 (Thinking)".to_string(),
+            model_type: "chat".to_string(),
+            max_tokens: 128000,
+        },
+        Model {
             id: "claude-haiku-4-5-20251001".to_string(),
             object: "model".to_string(),
             created: 1727740800,
@@ -673,6 +691,7 @@ mod alias_tests {
         let upstream = [
             "claude-opus-5.5",
             "claude-sonnet-5.5",
+            "claude-fable-5.2",
             "claude-fable-5.1",
             "claude-opus-4.8",
             "claude-opus-4.7",

@@ -10,7 +10,7 @@
 
 ![Admin Panel](docs/assets/admin-panel.png)
 
-> **✅ Supported Models: Claude Sonnet 5.5 / Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 5.5 / Claude Opus 5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 5.5 / Claude Haiku 4.5 / Claude Fable 5.1 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder-Next / Kimi K3 / Grok 4.7 / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
+> **✅ Supported Models: Claude Sonnet 5.5 / Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 5.5 / Claude Opus 5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 5.5 / Claude Haiku 4.5 / Claude Fable 5.2 / Claude Fable 5.1 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder-Next / Kimi K3 / Grok 4.7 / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna**
 
 ### 📖 Quick Navigation
 
@@ -949,6 +949,7 @@ Any model name containing the following keywords is automatically mapped to the 
 | `*opus*` (including 4.7/4-7) | `claude-opus-4.7` |
 | `*opus*` (including 4.8/4-8) | `claude-opus-4.8` |
 | `*opus*` (others) | `claude-opus-4.6` |
+| `*fable*` (including 5.2/5-2) | `claude-fable-5.2` |
 | `*fable*` (including 5.1/5-1) | `claude-fable-5.1` |
 | `*fable*` (others) | `claude-fable-5` |
 | `*haiku*` (including 5.5/5-5) | `claude-haiku-5.5` |

@@ -14,6 +14,8 @@ fn test_model_max_output_tokens_fable() {
     assert_eq!(model_max_output_tokens("claude-fable-5"), 128000);
     assert_eq!(model_max_output_tokens("claude-fable-5.1"), 128000);
     assert_eq!(model_max_output_tokens("claude-fable-5-1-thinking"), 128000);
+    assert_eq!(model_max_output_tokens("claude-fable-5.2"), 128000);
+    assert_eq!(model_max_output_tokens("claude-fable-5-2-thinking"), 128000);
 }
 
 #[test]

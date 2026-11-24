@@ -170,10 +170,12 @@ export function usePlayground() {
   messagesRef.current = messages
   const activeIdRef = useRef(activeId)
   /**
-   * 当前 messages 实际属于哪个会话。点击切换时 activeId 会先于消息乐观更新，
-   * 加载失败时据此回滚到仍在显示的那个会话
+   * 当前 messages 实际属于哪个会话，消息载入或新建成功后才赋值，恢复上次会话期间为 null。
+   * 点击切换时 activeId 会先于消息乐观更新，加载失败时据此回滚到仍在显示的那个会话；
+   * 恢复期间回滚到 null 即回到空白新对话，不会停在「高亮会话 X 但消息为空」的状态
+   * （此时发送会用单条消息整体覆盖 X 的历史）
    */
-  const displayedIdRef = useRef<string | null>(activeId)
+  const displayedIdRef = useRef<string | null>(null)
   /** 每次切换 / 新建 / 删除当前会话时自增，用于丢弃过期的异步结果 */
   const epochRef = useRef(0)
   /** 保存请求串行执行，避免同一会话的多次 PUT 乱序到达 */

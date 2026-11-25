@@ -123,18 +123,13 @@ function buildPreviewVisuals(
       backgroundColor: 'transparent',
       borderColor: `color-mix(in srgb, ${swatch.primary} 20%, ${swatch.muted})`,
     },
-    cardStyle: isDark
-      ? {
-          backgroundColor: `color-mix(in srgb, ${swatch.surface} 42%, transparent)`,
-          backgroundImage: 'linear-gradient(155deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.014) 32%, transparent 65%)',
-          borderColor: rimBorder,
-          boxShadow: `inset 0 1px 0 ${edge}, inset 0 0 0 0.5px rgba(255,255,255,0.065), 0 6px 14px -6px rgba(0,0,0,0.65)`,
-        }
-      : {
-          backgroundColor: 'transparent',
-          borderColor: rimBorder,
-          boxShadow: `inset 0 1px 0 ${edge}, 0 4px 12px -6px rgba(16,18,20,0.08)`,
-        },
+    cardStyle: {
+      backgroundColor: 'transparent',
+      borderColor: rimBorder,
+      boxShadow: isDark
+        ? `inset 0 1px 0 ${edge}, inset 0 0 0 0.5px rgba(255,255,255,0.065), 0 6px 14px -6px rgba(0,0,0,0.65)`
+        : `inset 0 1px 0 ${edge}, 0 4px 12px -6px rgba(16,18,20,0.08)`,
+    },
     pillGradient: `linear-gradient(135deg, ${swatch.primary}, color-mix(in srgb, ${swatch.primary} 78%, ${isDark ? '#ffffff' : swatch.surface}))`,
   }
 }

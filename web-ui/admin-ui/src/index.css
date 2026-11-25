@@ -277,8 +277,6 @@
     radial-gradient(68% 60% at 86% 12%, var(--grad-aurora-2) 0%, color-mix(in srgb, var(--grad-aurora-2) 44%, transparent) 40%, transparent 74%),
     radial-gradient(76% 58% at 48% 94%, var(--grad-aurora-3) 0%, color-mix(in srgb, var(--grad-aurora-3) 38%, transparent) 44%, transparent 78%),
     radial-gradient(54% 50% at 94% 84%, var(--grad-aurora-1) 0%, transparent 72%);
-  --glass-card-bg: color-mix(in srgb, var(--surface-2) 42%, transparent);
-  --glass-card-sheen: linear-gradient(155deg, rgba(255, 255, 255, .050) 0%, rgba(255, 255, 255, .014) 28%, transparent 60%, rgba(255, 255, 255, .010) 100%);
   --glass-bg-strong: color-mix(in srgb, var(--surface) 84%, transparent);
   --glass-pop-inset: color-mix(in srgb, var(--surface-2) 56%, rgba(255, 255, 255, .02));
   /* 暗色弹窗顶部轻量镜面高光（渐隐至 28% 处消散，全 37 暗色变体对比度均 ≥ 4.6:1） */
@@ -420,7 +418,7 @@
     border-bottom-color: var(--glass-border);
   }
 
-  /* 内容面板与卡片画布：亮色透明透出粉彩极光；暗色铺设极淡烟熏玻璃底与顶部斜向镜面高光 */
+  /* 内容面板与卡片画布：开启极光玻璃后亮暗模式均设为全透明，直接透出全局极光底画布，仅保留玻璃描边与高光阴影分隔层次 */
   .bg-chat-canvas {
     background-color: var(--surface);
   }
@@ -433,16 +431,11 @@
     box-shadow: var(--glass-panel-shadow);
   }
 
-  :root.dark.canvas-gradient .bg-chat-canvas {
-    background-color: var(--glass-card-bg);
-    background-image: var(--glass-card-sheen);
-  }
-
   :root.canvas-gradient .bg-chat-canvas[class*="border-hairline"] {
     border-color: var(--glass-border);
   }
 
-  /* 对话输入框浮层：亮色透明，暗色复用烟熏玻璃质感，聚焦态保留品牌描边与外发光环 */
+  /* 对话输入框浮层：开启极光玻璃后亮暗模式均设为全透明，聚焦态保留品牌描边与外发光环 */
   .bg-composer-canvas {
     background-color: var(--surface);
   }
@@ -452,11 +445,6 @@
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-
-  :root.dark.canvas-gradient .bg-composer-canvas {
-    background-color: var(--glass-card-bg);
-    background-image: var(--glass-card-sheen);
   }
 
   :root.canvas-gradient .bg-composer-canvas:not(:focus-within) {
@@ -514,7 +502,7 @@
     border-color: var(--glass-border);
   }
 
-  /* 表格面板顶栏 / 页脚：静态与页脚融于面板；表体开始滚动后顶栏用视口固定对齐的极光实底防止透字且延续面板光泽
+  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏用视口固定对齐的极光实底防止透字且延续面板
      （不能叠加 backdrop-filter：Chromium 对同元素 backdrop-filter + background-attachment:fixed 会脱离视口锚点并退化为白底） */
   .bg-panel-head {
     background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);
@@ -542,14 +530,6 @@
     box-shadow: inset 0 1px 0 var(--glass-edge);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-
-  :root.dark.canvas-gradient .bg-chat-canvas [data-scrolled] .bg-panel-head {
-    background-image:
-      linear-gradient(155deg, rgba(255, 255, 255, .042), rgba(255, 255, 255, .012)),
-      linear-gradient(var(--glass-card-bg), var(--glass-card-bg)),
-      var(--grad-aurora-canvas);
-    background-attachment: scroll, scroll, fixed, fixed, fixed, fixed;
   }
 
   :root.canvas-gradient .bg-chat-canvas .bg-panel-foot {

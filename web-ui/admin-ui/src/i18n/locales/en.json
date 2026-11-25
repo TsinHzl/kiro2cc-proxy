@@ -737,7 +737,7 @@
   },
   "models": {
     "pageTitle": "Supported Models",
-    "headNote": "Models callable through this proxy and their billing multipliers",
+    "headNote": "Models callable through this proxy and their billing multipliers (all supported models are those supported by the accounts currently added)",
     "sourceLive": "Multipliers from live upstream query",
     "sourceFallback": "Fell back to the local static table",
     "emptyNoModels": "No models available",

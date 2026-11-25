@@ -735,7 +735,7 @@
   },
   "models": {
     "pageTitle": "支持模型",
-    "headNote": "可通过本代理调用的模型清单与计费倍率",
+    "headNote": "可通过本代理调用的模型清单与计费倍率（支持的所有模型为当前已加入账号所支持的模型）",
     "sourceLive": "倍率来自上游实时查询",
     "sourceFallback": "已回退本地静态表",
     "emptyNoModels": "暂无可用模型",

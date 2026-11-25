@@ -235,7 +235,6 @@
   --glass-pop-inset: color-mix(in srgb, var(--surface-2) 45%, transparent);
   --glass-pop-sheen: rgba(255, 255, 255, .18);
   --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 76%, transparent);
-  --glass-sticky-bg: color-mix(in srgb, hsl(var(--background)) 52%, transparent);
   --glass-control-bg: color-mix(in srgb, var(--surface) 38%, transparent);
   --glass-control-hover: color-mix(in srgb, var(--surface) 64%, transparent);
   --glass-track-bg: color-mix(in srgb, var(--surface-3) 32%, transparent);
@@ -282,7 +281,6 @@
   /* 暗色弹窗顶部轻量镜面高光（渐隐至 28% 处消散，全 37 暗色变体对比度均 ≥ 4.6:1） */
   --glass-pop-sheen: rgba(255, 255, 255, .045);
   --glass-sidebar-bg: color-mix(in srgb, var(--sidebar) 76%, transparent);
-  --glass-sticky-bg: color-mix(in srgb, hsl(var(--background)) 58%, transparent);
   --glass-control-bg: color-mix(in srgb, var(--surface-3) 44%, rgba(255, 255, 255, .035));
   --glass-control-hover: color-mix(in srgb, var(--surface-3) 68%, rgba(255, 255, 255, .065));
   --glass-track-bg: color-mix(in srgb, var(--surface-3) 42%, rgba(255, 255, 255, .025));
@@ -406,16 +404,26 @@
       0 4px 16px -5px color-mix(in srgb, hsl(var(--primary)) 32%, transparent);
   }
 
-  /* 吸顶页头（文档 / 更新日志）：滚动正文会穿过下方，保留轻量半透明磨砂防透字 */
+  /* 吸顶页头（文档 / 更新日志）：静态全透明融于极光；滚动离顶后用视口固定对齐的极光实底防止正文透字
+     （不能叠加 backdrop-filter：Chromium 对同元素 backdrop-filter + background-attachment:fixed 会脱离视口锚点并退化为白底） */
   .bg-sticky-canvas {
     background-color: hsl(var(--background));
   }
 
   :root.canvas-gradient .bg-sticky-canvas {
-    background-color: var(--glass-sticky-bg);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    backdrop-filter: blur(20px) saturate(140%);
+    background-color: transparent;
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     border-bottom-color: var(--glass-border);
+  }
+
+  :root.canvas-gradient .bg-sticky-canvas[data-scrolled] {
+    background-color: hsl(var(--background));
+    background-image: var(--grad-aurora-canvas);
+    background-attachment: fixed;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   /* 内容面板与卡片画布：开启极光玻璃后亮暗模式均设为全透明，直接透出全局极光底画布，仅保留玻璃描边与高光阴影分隔层次 */
@@ -502,7 +510,7 @@
     border-color: var(--glass-border);
   }
 
-  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏用视口固定对齐的极光实底防止透字且延续面板
+  /* 表格面板顶栏 / 页脚：静态与页脚全透明融于极光；表体开始滚动后顶栏用视口固定对齐的极光实底，防止透字并与透明面板下的极光底无缝衔接
      （不能叠加 backdrop-filter：Chromium 对同元素 backdrop-filter + background-attachment:fixed 会脱离视口锚点并退化为白底） */
   .bg-panel-head {
     background-color: color-mix(in srgb, var(--surface-2) 72%, transparent);

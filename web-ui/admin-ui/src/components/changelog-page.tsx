@@ -8,6 +8,7 @@ import { PANEL } from '@/components/table-kit'
 import { TAG_BASE } from '@/components/api-key-row'
 import { extractErrorMessage } from '@/lib/utils'
 import { useChangelog, useServerInfo } from '@/hooks/use-credentials'
+import { useWindowScrolled } from '@/hooks/use-window-scrolled'
 import type { ReleaseNote, ReleaseNoteGroup } from '@/types/api'
 
 /** 分区语义档：与后端 changelog_data.rs 固定的三类分组一一对应，未知标题落 other */
@@ -154,6 +155,7 @@ export function ChangelogPage({ onBack }: ChangelogPageProps) {
   const { recent, archive } = useMemo(() => buildIndex(notes), [notes])
   const [activeVersion, setActiveVersion] = useState<string | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
+  const scrolled = useWindowScrolled()
 
   // 视口内最靠前的版本高亮索引；notes 按版本降序，nodes 顺序即展示顺序
   useEffect(() => {
@@ -201,7 +203,10 @@ export function ChangelogPage({ onBack }: ChangelogPageProps) {
 
   return (
     <div>
-      <div className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 bg-sticky-canvas px-9 max-md:px-3.5 pt-7 max-md:pt-3">
+      <div
+        data-scrolled={scrolled ? '' : undefined}
+        className="sticky top-0 max-md:top-12 z-20 -mx-9 max-md:-mx-3.5 bg-sticky-canvas px-9 max-md:px-3.5 pt-7 max-md:pt-3"
+      >
         <PageHead
           onBack={onBack}
           crumb={[t('dashboard.navSystem'), t('changelog.pageTitle')]}

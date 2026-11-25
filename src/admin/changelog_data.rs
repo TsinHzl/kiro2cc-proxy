@@ -69,6 +69,34 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn build_release_notes() -> Vec<ReleaseNote> {
     let mut notes = vec![
         ReleaseNote {
+            version: "3.6.1".to_string(),
+            is_latest: false,
+            groups: vec![
+                feat_group(vec![
+                    Bilingual::new(
+                        "支持 Claude Fable 5.2（#72）；Kiro 目前仅以 Preview 形式对 Enterprise 组织开放，能否使用取决于账号权限",
+                        "Added Claude Fable 5.2 support (#72); Kiro currently offers it only as a Preview to Enterprise organizations, so availability depends on account access",
+                    ),
+                    Bilingual::new(
+                        "使用日志页新增下载 CSV 功能",
+                        "Added CSV download to the usage log page",
+                    ),
+                    Bilingual::new(
+                        "自定义时间范围改用统一风格的自定义日期选择器",
+                        "The custom time range now uses a new date picker that matches the rest of the UI",
+                    ),
+                ]),
+                improve_group(vec![Bilingual::new(
+                    "账号管理页积分数值保留两位小数并裁掉末尾 0，列表面板撑满视口、滚动收敛在列表区域内；API Key 列表默认按序号升序排列",
+                    "The account page shows credits with up to two decimals (trailing zeros trimmed), the list panel fills the viewport with scrolling kept inside the list, and the API Key list is sorted by index ascending by default",
+                )]),
+                fix_group(vec![Bilingual::new(
+                    "修复对话页点击历史会话后高亮与标题不立即切换，以及会话加载或恢复期间删除、404、回滚可能清空或覆盖已显示会话的问题",
+                    "Fixed the chat page not switching highlight and title right after selecting a history session, and sessions being cleared or overwritten when a load or restore hit a deletion, a 404, or a rollback",
+                )]),
+            ],
+        },
+        ReleaseNote {
             version: "3.6.0".to_string(),
             is_latest: false,
             groups: vec![

@@ -105,6 +105,7 @@
     "navSettings": "设置",
     "toggleLightMode": "切换到白天模式",
     "toggleDarkMode": "切换到夜间模式",
+    "openGitHub": "打开 GitHub 仓库",
     "switchLanguageTo": "切换为{{language}}",
     "collapseSidebar": "收起侧边栏",
     "expandSidebar": "展开侧边栏",

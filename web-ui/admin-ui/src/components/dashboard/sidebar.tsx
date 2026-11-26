@@ -1,11 +1,13 @@
 // Copyright (c) 2026 Harllan He. Licensed under MIT.
 // 侧边栏区块（自 dashboard.tsx 拆出，纯代码搬移）
 import { useTranslation } from 'react-i18next'
-import { Languages, LogOut, Server, PanelLeft, Sun, Moon } from 'lucide-react'
+import { Github, Languages, LogOut, Server, PanelLeft, Sun, Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { LANG_STORAGE_KEY } from '@/i18n'
 import { useLatestGitHubVersion, isNewerVersion } from '@/hooks/use-credentials'
+
+const GITHUB_REPO_URL = 'https://github.com/TsinHzl/kiro2cc-proxy'
 
 export interface NavItem {
   key: string
@@ -230,7 +232,23 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon"
+            asChild
             className={`h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2 ${collapsed ? '' : 'ml-auto'}`}
+          >
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t('dashboard.openGitHub')}
+              aria-label={t('dashboard.openGitHub')}
+            >
+              <Github className="h-3.5 w-3.5" />
+            </a>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-ink-3 hover:bg-surface-3 hover:text-ink-2"
             onClick={(e) => toggleTheme(e.clientX, e.clientY)}
             title={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}
             aria-label={theme === 'dark' ? t('dashboard.toggleLightMode') : t('dashboard.toggleDarkMode')}

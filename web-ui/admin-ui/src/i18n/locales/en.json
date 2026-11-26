@@ -105,6 +105,7 @@
     "navSettings": "Settings",
     "toggleLightMode": "Switch to light mode",
     "toggleDarkMode": "Switch to dark mode",
+    "openGitHub": "Open GitHub repository",
     "switchLanguageTo": "Switch to {{language}}",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",

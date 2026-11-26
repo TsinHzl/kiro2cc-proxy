@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "4bed10cc19564390a6876a754646141df369a404",
+  "prompts": {
+    "acb6a89cd8e03a9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53203129-0f92-4b6c-88e7-5359a0ccd0de",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 114,
+      "overriden_lines": 0
+    }
+  }
+}

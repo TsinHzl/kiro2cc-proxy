@@ -880,7 +880,7 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-Model name can be `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`, or any `claude-*` model name (passed through as-is to upstream). Codex CLI's built-in `gpt-5-codex` / `gpt-5.1-codex` auto-map to `gpt-5.6-terra`, and `gpt-5.1-codex-max` maps to `gpt-5.6-luna`.
+Model name can be `gpt-6.2-astra` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`, or any `claude-*` model name (passed through as-is to upstream). Codex CLI's built-in `gpt-5-codex` / `gpt-5.1-codex` auto-map to `gpt-5.6-terra`, and `gpt-5.1-codex-max` maps to `gpt-5.6-luna`.
 
 ### Known Limitations
 

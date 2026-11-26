@@ -901,7 +901,7 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-模型名可填 `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`，也可直接填 `claude-*` 系模型名（原样透传给上游）。Codex CLI 自带的 `gpt-5-codex` / `gpt-5.1-codex` 会自动映射到 `gpt-5.6-terra`，`gpt-5.1-codex-max` 映射到 `gpt-5.6-luna`。
+模型名可填 `gpt-6.2-astra` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`，也可直接填 `claude-*` 系模型名（原样透传给上游）。Codex CLI 自带的 `gpt-5-codex` / `gpt-5.1-codex` 会自动映射到 `gpt-5.6-terra`，`gpt-5.1-codex-max` 映射到 `gpt-5.6-luna`。
 
 ### 已知限制
 

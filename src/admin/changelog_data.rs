@@ -78,6 +78,10 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
                         "Added Claude Fable 5.2 support (#72); Kiro currently offers it only as a Preview to Enterprise organizations, so availability depends on account access",
                     ),
                     Bilingual::new(
+                        "支持 GPT 6.2 Astra（gpt-6.2-astra）模型映射与透传",
+                        "Added GPT 6.2 Astra (gpt-6.2-astra) model mapping and passthrough",
+                    ),
+                    Bilingual::new(
                         "使用日志页新增下载 CSV 功能",
                         "Added CSV download to the usage log page",
                     ),
@@ -90,10 +94,16 @@ pub fn build_release_notes() -> Vec<ReleaseNote> {
                     "账号管理页积分数值保留两位小数并裁掉末尾 0，列表面板撑满视口、滚动收敛在列表区域内；API Key 列表默认按序号升序排列",
                     "The account page shows credits with up to two decimals (trailing zeros trimmed), the list panel fills the viewport with scrolling kept inside the list, and the API Key list is sorted by index ascending by default",
                 )]),
-                fix_group(vec![Bilingual::new(
-                    "修复对话页点击历史会话后高亮与标题不立即切换，以及会话加载或恢复期间删除、404、回滚可能清空或覆盖已显示会话的问题",
-                    "Fixed the chat page not switching highlight and title right after selecting a history session, and sessions being cleared or overwritten when a load or restore hit a deletion, a 404, or a rollback",
-                )]),
+                fix_group(vec![
+                    Bilingual::new(
+                        "修复对话页点击历史会话后高亮与标题不立即切换，以及会话加载或恢复期间删除、404、回滚可能清空或覆盖已显示会话的问题",
+                        "Fixed the chat page not switching highlight and title right after selecting a history session, and sessions being cleared or overwritten when a load or restore hit a deletion, a 404, or a rollback",
+                    ),
+                    Bilingual::new(
+                        "修复新增模型未触发记录迁移、导致部分升级场景下 NEW 徽章不显示的问题",
+                        "Fixed new models not triggering a record migration, which could hide the NEW badge in some upgrade scenarios",
+                    ),
+                ]),
             ],
         },
         ReleaseNote {

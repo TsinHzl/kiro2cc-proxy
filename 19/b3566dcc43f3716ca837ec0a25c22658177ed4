@@ -1,0 +1,23 @@
+web-ui/admin-ui/src/components/playground/playground-page.tsx
+  9fec8ce7c2b6f583 213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "19b3566dcc43f3716ca837ec0a25c22658177ed4",
+  "prompts": {
+    "9fec8ce7c2b6f583": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd0605bc-64bb-4829-ad46-202a13ca9e27",
+        "model": "deepseek-v4.1-flash-1017"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

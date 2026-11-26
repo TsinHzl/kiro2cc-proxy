@@ -13,9 +13,9 @@
 - **THEN** 发往 Kiro 的 `model` 为 `gpt-5.6-luna`
 
 #### 场景：Kiro 原生 GPT 模型名原样透传
-- **WHEN** 请求 `model` 以 `gpt-5.6-` 开头（当前上游含 `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna`，见 `src/anthropic/handlers.rs:623-649`）
+- **WHEN** 请求 `model` 以 `gpt-5.6-` 或 `gpt-6.` 开头（当前上游含 `gpt-6.2-astra` 及 `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna`，见 `src/anthropic/handlers.rs:623-649`）
 - **THEN** 发往 Kiro 的 `model` 与请求值完全一致，不做改写，且不记录兜底 `WARN`
-- **备注** 采用前缀规则而非枚举，确保上游未来新增 `gpt-5.6-*` 型号时自动透传，不会被兜底分支静默改写为 `gpt-5.6-terra`
+- **备注** 采用前缀规则而非枚举，确保上游未来新增 `gpt-5.6-*` / `gpt-6.*` 型号时自动透传，不会被兜底分支静默改写为 `gpt-5.6-terra`
 
 #### 场景：Claude 系模型名原样透传
 - **WHEN** 请求 `model` 以 `claude-` 开头

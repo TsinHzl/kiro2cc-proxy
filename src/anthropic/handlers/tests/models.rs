@@ -24,6 +24,7 @@ mod tests {
     fn test_guess_owned_by_known_and_unknown_prefixes() {
         assert_eq!(guess_owned_by("claude-sonnet-4.6"), "anthropic");
         assert_eq!(guess_owned_by("gpt-5.6-sol"), "openai");
+        assert_eq!(guess_owned_by("gpt-6.2-astra"), "openai");
         assert_eq!(guess_owned_by("auto"), "kiro");
         assert_eq!(guess_owned_by("deepseek-3.2"), "deepseek");
         assert_eq!(guess_owned_by("minimax-m2.5"), "minimax");
@@ -268,6 +269,22 @@ mod tests {
         // 回归：相邻条目不受影响
         assert!(list.iter().any(|m| m.id == "kimi-k3"));
         assert!(list.iter().any(|m| m.id == "gpt-5.6-sol"));
+    }
+
+    #[test]
+    fn test_build_model_list_includes_gpt_6_2_astra() {
+        let list = build_model_list();
+        let astra = list.iter().find(|m| m.id == "gpt-6.2-astra").unwrap();
+        assert_eq!(astra.owned_by, "openai");
+        assert_eq!(astra.display_name, "GPT 6.2 Astra");
+        assert_eq!(astra.max_tokens, 32000);
+        assert_eq!(
+            crate::anthropic::converter::map_model(&astra.id),
+            Some("gpt-6.2-astra".to_string())
+        );
+
+        // 回归：相邻条目不受影响
+        assert!(list.iter().any(|m| m.id == "gpt-5.6-luna"));
     }
 
     #[test]

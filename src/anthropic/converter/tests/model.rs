@@ -124,6 +124,29 @@ fn test_map_model_gpt_5_6_variants() {
 }
 
 #[test]
+fn test_map_model_gpt_6_2_astra() {
+    // gpt-6.2-astra（Kiro Enterprise Preview）：-thinking 后缀、大小写、空格与点号别名均归一
+    assert_eq!(map_model("gpt-6.2-astra").unwrap(), "gpt-6.2-astra");
+    assert_eq!(
+        map_model("gpt-6.2-astra-thinking").unwrap(),
+        "gpt-6.2-astra"
+    );
+    assert_eq!(map_model("GPT 6.2 Astra").unwrap(), "gpt-6.2-astra");
+    assert_eq!(map_model("gpt-6-2-astra").unwrap(), "gpt-6.2-astra");
+    assert_eq!(map_model("gpt-6.2").unwrap(), "gpt-6.2-astra");
+    assert_eq!(map_model("openai/gpt-astra").unwrap(), "gpt-6.2-astra");
+
+    // 回归：GPT-5.6 各档不受影响（含带日期后缀的 5.6 写法不得被误判为 6.2）
+    assert_eq!(map_model("gpt-5.6-sol").unwrap(), "gpt-5.6-sol");
+    assert_eq!(map_model("gpt-5.6-terra").unwrap(), "gpt-5.6-terra");
+    assert_eq!(map_model("gpt-5.6-luna").unwrap(), "gpt-5.6-luna");
+    assert_eq!(map_model("gpt-5.6-2026-07-13").unwrap(), "gpt-5.6-sol");
+
+    // 其他未知 6.x 版本不吞并到 astra，走开放透传
+    assert_eq!(map_model("gpt-6.20").unwrap(), "gpt-6.20");
+}
+
+#[test]
 fn test_map_model_kimi_k3() {
     // kimi-k3（上游 2026-10-16 新增）：含 -thinking 后缀与空格别名均归一到 kimi-k3
     assert_eq!(map_model("kimi-k3").unwrap(), "kimi-k3");

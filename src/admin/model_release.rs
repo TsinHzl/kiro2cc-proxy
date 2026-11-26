@@ -42,6 +42,7 @@ const ALWAYS_NEW_IDS: &[&str] = &[
     "claude-haiku-5.5",
     "kimi-k3",
     "grok-4.7",
+    "gpt-6.2-astra",
 ];
 
 /// 持久化内容：模型 ID → 登记日期（`None` 表示基线，不算新增）

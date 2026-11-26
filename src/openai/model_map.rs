@@ -2,8 +2,8 @@
 //! OpenAI 客户端模型名 → Kiro 上游模型名映射
 //!
 //! Codex CLI 只会请求 OpenAI 自家的模型名（`gpt-5-codex` 等），而 Kiro 上游提供的是
-//! `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna`（见 `crate::anthropic::handlers` 的
-//! `build_model_list()`）。本模块负责把前者翻译成后者。
+//! `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna` 与 `gpt-6.2-astra`（见
+//! `crate::anthropic::handlers` 的 `build_model_list()`）。本模块负责把前者翻译成后者。
 //!
 //! 映射只作用于**请求方向**；响应体的 `model` 字段必须回写客户端请求的原始名，
 //! 否则 Codex 会因请求/响应模型名不一致而告警。
@@ -14,8 +14,8 @@ const DEFAULT_GPT_MODEL: &str = "gpt-5.6-terra";
 /// Kiro 上游的高配 GPT 模型（codex-max 系映射目标）
 const MAX_GPT_MODEL: &str = "gpt-5.6-luna";
 
-/// Kiro 原生 GPT 模型的公共前缀
-const KIRO_GPT_PREFIX: &str = "gpt-5.6-";
+/// Kiro 原生 GPT 模型的公共前缀（GPT-5.6 系列、GPT 6.x 系列）
+const KIRO_GPT_PREFIXES: [&str; 2] = ["gpt-5.6-", "gpt-6."];
 
 /// 把客户端请求的模型名映射为 Kiro 上游可识别的模型名。
 ///
@@ -26,11 +26,12 @@ const KIRO_GPT_PREFIX: &str = "gpt-5.6-";
 /// | `gpt-5-codex`、`gpt-5.1-codex` | `gpt-5.6-terra` |
 /// | `gpt-5.1-codex-max` | `gpt-5.6-luna` |
 /// | `gpt-5.6-*`（`sol` / `terra` / `luna` 及上游未来新增型号） | 原样透传 |
+/// | `gpt-6.*`（`gpt-6.2-astra` 及上游未来新增型号） | 原样透传 |
 /// | `claude-*` | 原样透传 |
 /// | 其余 `gpt-*` | `gpt-5.6-terra`（兜底，记 WARN） |
 /// | 其他（`deepseek-*`、`auto` 等） | 原样透传 |
 ///
-/// `gpt-5.6-*` 用**前缀**而非枚举匹配，这样上游新增型号时无需改代码即自动透传，
+/// `gpt-5.6-*` / `gpt-6.*` 用**前缀**而非枚举匹配，这样上游新增型号时无需改代码即自动透传，
 /// 不会被兜底分支静默改写。
 ///
 /// # 已知限制
@@ -42,7 +43,7 @@ pub(crate) fn map_model(client_model: &str) -> &str {
         "gpt-5-codex" | "gpt-5.1-codex" => DEFAULT_GPT_MODEL,
         "gpt-5.1-codex-max" => MAX_GPT_MODEL,
         // Kiro 原生 GPT 模型：原样透传
-        m if m.starts_with(KIRO_GPT_PREFIX) => m,
+        m if KIRO_GPT_PREFIXES.iter().any(|p| m.starts_with(p)) => m,
         // Claude 系：原样透传（走既有 Anthropic 链路）
         m if m.starts_with("claude-") => m,
         // 未知 gpt 型号：兜底到默认 GPT 模型，留痕以便发现新型号
@@ -80,6 +81,13 @@ mod tests {
         assert_eq!(map_model("gpt-5.6-sol"), "gpt-5.6-sol");
         assert_eq!(map_model("gpt-5.6-terra"), "gpt-5.6-terra");
         assert_eq!(map_model("gpt-5.6-luna"), "gpt-5.6-luna");
+    }
+
+    #[test]
+    fn gpt_6_2_astra_passes_through() {
+        // gpt-6.2-astra 不得落进兜底分支被静默改写为 terra
+        assert_eq!(map_model("gpt-6.2-astra"), "gpt-6.2-astra");
+        assert_eq!(map_model("gpt-6.3-foo"), "gpt-6.3-foo");
     }
 
     #[test]

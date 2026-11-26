@@ -36,6 +36,21 @@ pub(crate) fn is_fable_52(model_lower: &str) -> bool {
     has_fable_version(model_lower, "fable-5-2")
 }
 
+/// 判断模型名是否属于 GPT 6.2 Astra，覆盖 `gpt-6.2-astra` / `gpt-6-2` / `GPT 6.2 Astra` 等写法。
+///
+/// 含 `astra` 即命中；否则把 `.` / 空格 / `_` 归一为 `-` 后匹配 `gpt-6-2`，且其后不能紧跟数字
+/// （避免把 `gpt-6.20` 之类误判为 6.2）。
+pub(crate) fn is_gpt_62_astra(model_lower: &str) -> bool {
+    if model_lower.contains("astra") {
+        return true;
+    }
+    let normalized = model_lower.replace(['.', ' ', '_'], "-");
+    const KEY: &str = "gpt-6-2";
+    normalized
+        .find(KEY)
+        .is_some_and(|i| !normalized[i + KEY.len()..].starts_with(|c: char| c.is_ascii_digit()))
+}
+
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
@@ -51,6 +66,7 @@ pub(crate) fn is_fable_52(model_lower: &str) -> bool {
 /// - 其他 opus → claude-opus-4.6
 /// - haiku 5.5/5-5 → claude-haiku-5.5
 /// - 其他 haiku → claude-haiku-4.5
+/// - gpt 6.2 / astra → gpt-6.2-astra
 pub fn map_model(model: &str) -> Option<String> {
     let model_lower = model.to_lowercase();
 
@@ -130,7 +146,11 @@ pub fn map_model(model: &str) -> Option<String> {
         // -thinking 后缀与空格别名同样归一到该 ID
         Some("grok-4.7".to_string())
     } else if model_lower.contains("gpt") {
-        if model_lower.contains("terra") {
+        if is_gpt_62_astra(&model_lower) {
+            // gpt-6.2-astra：Kiro 目前仅以 Preview 形式对 Enterprise 组织开放（仅 US 区域），
+            // 且需管理员在 approved list 中启用；是否可用由上游账号权限决定
+            Some("gpt-6.2-astra".to_string())
+        } else if model_lower.contains("terra") {
             Some("gpt-5.6-terra".to_string())
         } else if model_lower.contains("luna") {
             Some("gpt-5.6-luna".to_string())

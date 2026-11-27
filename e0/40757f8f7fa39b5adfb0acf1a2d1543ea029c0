@@ -1,0 +1,38 @@
+web-ui/admin-ui/src/components/daily-shared.tsx
+  7d0251c76204d6a8 4-14,48-116,160-169,172-189
+src/model/usage/tests.rs
+  7d0251c76204d6a8 1838-1901
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e040757f8f7fa39b5adfb0acf1a2d1543ea029c0",
+  "prompts": {
+    "6f50c688897c74e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4adcf0e5-d907-4e00-9c1a-58126b5d5bfc",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 197,
+      "overriden_lines": 0
+    },
+    "7d0251c76204d6a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da1d8ceb-aab8-4de5-9846-7e58d4b91e07",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 172,
+      "total_deletions": 85,
+      "accepted_lines": 172,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,75 @@
+src/admin/router.rs
+  5e7c65e892e7cda0 39,155-159
+web-ui/admin-ui/scripts/payload-rules.test.mjs
+  5e7c65e892e7cda0 1-104
+src/model/payload_rules/store.rs
+  5e7c65e892e7cda0 1-321
+web-ui/admin-ui/src/components/payload-rules-page.tsx
+  5e7c65e892e7cda0 1-333
+src/anthropic/handlers/helpers.rs
+  5e7c65e892e7cda0 9-10,16-72,825-999
+README.en.md
+  5e7c65e892e7cda0 723-762
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  5e7c65e892e7cda0 57-59,70,744-775
+web-ui/admin-ui/src/components/dashboard.tsx
+  5e7c65e892e7cda0 3,29,57,754,814-815
+src/admin/mod.rs
+  5e7c65e892e7cda0 31
+src/anthropic/handlers/post_messages.rs
+  5e7c65e892e7cda0 23,41
+src/admin/payload_rules_handler.rs
+  5e7c65e892e7cda0 1-245
+src/model/mod.rs
+  5e7c65e892e7cda0 10
+src/admin/middleware.rs
+  5e7c65e892e7cda0 24,59-60,82,141-145
+web-ui/admin-ui/src/components/dashboard/use-balance-fetcher.ts
+  5e7c65e892e7cda0 8
+src/anthropic/handlers/post_messages_cc/mod.rs
+  5e7c65e892e7cda0 22,51
+README.md
+  5e7c65e892e7cda0 744-783
+web-ui/admin-ui/src/components/payload-rule-dialog.tsx
+  5e7c65e892e7cda0 1-331
+src/main.rs
+  5e7c65e892e7cda0 314-323,325,404
+web-ui/admin-ui/src/components/payload-rule-samples.tsx
+  5e7c65e892e7cda0 1-107
+src/anthropic/handlers/tests/mod.rs
+  5e7c65e892e7cda0 7
+src/anthropic/handlers/tests/payload_rules.rs
+  5e7c65e892e7cda0 1-208
+src/model/payload_rules.rs
+  5e7c65e892e7cda0 1-539
+src/model/payload_rules/tests.rs
+  5e7c65e892e7cda0 1-465
+.gitignore
+  5e7c65e892e7cda0 41-42
+web-ui/admin-ui/src/api/credentials.ts
+  5e7c65e892e7cda0 33-35,528-542
+src/anthropic/middleware.rs
+  5e7c65e892e7cda0 39-40,69-70,86,145-153,230
+web-ui/admin-ui/src/lib/payload-rules.ts
+  5e7c65e892e7cda0 1-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "7c28a9a85ec75f28580069793ca47f8430ccc36c",
+  "prompts": {
+    "5e7c65e892e7cda0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb19b336-c56b-459f-bbab-f3df33055a0c",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 3630,
+      "total_deletions": 190,
+      "accepted_lines": 3445,
+      "overriden_lines": 0
+    }
+  }
+}

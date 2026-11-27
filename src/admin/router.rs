@@ -15,8 +15,8 @@ use super::{
         get_credential_7days_summary, get_credential_30days_summary, get_credential_models,
         get_credential_today_summary, get_credential_usage_records, get_credential_usage_summary,
         get_daily_usage, get_daily_usage_records, get_failure_logs, get_key_usage,
-        get_key_usage_records, get_rpm, get_server_info, get_throttle_logs, get_usage_records,
-        list_api_keys, reset_key_usage, update_api_key,
+        get_key_usage_range, get_key_usage_records, get_rpm, get_server_info, get_throttle_logs,
+        get_usage_records, list_api_keys, reset_key_usage, update_api_key,
     },
     changelog::get_changelog,
     chat_session_handler::{
@@ -135,6 +135,7 @@ pub fn create_admin_router(state: AdminState) -> Router {
             "/api-keys/{id}/usage/records/download",
             get(download_key_usage_records),
         )
+        .route("/api-keys/{id}/usage/range", get(get_key_usage_range))
         .route("/models", get(get_admin_models))
         .route("/changelog", get(get_changelog))
         .route("/rpm", get(get_rpm))

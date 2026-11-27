@@ -397,6 +397,41 @@ mod tests {
         tracker.records.write().push(record);
     }
 
+    /// 注入一条指定 API Key / 账号的日汇总记录（key 维度区间聚合测试用）
+    fn inject_key_record_at(
+        tracker: &UsageTracker,
+        api_key_id: u32,
+        credential_id: Option<u64>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        estimated_cost: f64,
+        credits_used: Option<f64>,
+    ) {
+        let record = crate::model::usage::UsageRecord {
+            api_key_id,
+            credential_id,
+            model: "claude-opus-4.6".to_string(),
+            input_tokens: 100,
+            output_tokens: 10,
+            estimated_cost,
+            credits_used,
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_5m_input_tokens: 0,
+            cache_creation_1h_input_tokens: 0,
+            created_at,
+            client_ip: None,
+            effort: None,
+            first_token_ms: None,
+            duration_ms: None,
+            thinking_token_count: None,
+            is_stream: None,
+            user_agent: None,
+            outcome: None,
+            error_message: None,
+        };
+        tracker.daily.write().add(&record);
+    }
+
     /// date_range：from == to 时区间版与单日版结果等价（单日版已改为区间版薄包装，
     /// 此测试锁住等价性防回归）。
     /// 等价性前提：结果未触及截断上限——单日版截断 2000 / 区间版截断 10000，
@@ -1331,6 +1366,121 @@ mod tests {
         let k = get_k_ref("claude-opus-4.6");
         assert!((s.total_credits - (2.0 + 3.0 * k)).abs() < 1e-9);
         assert!((s.total_credits_saved - (1.0 * k - 2.0)).abs() < 1e-9);
+
+        cleanup_usage_path(&path);
+    }
+
+    /// key range：零记录返回零值汇总（from/to 仍为合法区间，不报错）
+    #[tokio::test]
+    async fn test_range_summary_for_key_zero_when_no_records() {
+        let path = temp_usage_path("range_summary_key_empty");
+        let tracker = UsageTracker::load(&path).unwrap();
+
+        let s = tracker.get_range_summary_for_key(42, 7);
+
+        assert_eq!(s.api_key_id, 42);
+        assert_eq!(s.total_requests, 0);
+        assert_eq!(s.total_input_tokens, 0);
+        assert_eq!(s.total_output_tokens, 0);
+        assert_eq!(s.total_cache_read_tokens, 0);
+        assert_eq!(s.total_cost, 0.0);
+        assert_eq!(s.total_credits, 0.0);
+        assert_eq!(s.total_credits_saved, 0.0);
+        // 窗口两端语义与账号版一致：to_date = 今日（CST），from_date = 今日 - (days-1)
+        let cst = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+        let today = chrono::Utc::now().with_timezone(&cst).date_naive();
+        assert_eq!(s.to_date, today.to_string());
+        assert_eq!(s.from_date, (today - chrono::Duration::days(6)).to_string());
+        // JSON 契约：camelCase 键名供 ai-efficiency 等调用方解析
+        let json = serde_json::to_value(&s).unwrap();
+        assert_eq!(json["apiKeyId"], 42);
+        assert_eq!(json["fromDate"], s.from_date.as_str());
+        assert_eq!(json["toDate"], today.to_string().as_str());
+        assert_eq!(json["totalRequests"], 0);
+        assert_eq!(json["totalCost"], 0.0);
+        assert_eq!(json["totalCredits"], 0.0);
+        assert_eq!(json["totalCacheReadTokens"], 0);
+        cleanup_usage_path(&path);
+    }
+
+    /// key range：窗口归属 + Key 隔离 + credits 口径（credits_used 优先，缺失按 k_ref 回退）
+    #[tokio::test]
+    async fn test_range_summary_for_key_window_and_isolation() {
+        let path = temp_usage_path("range_summary_key_window");
+        let tracker = UsageTracker::load(&path).unwrap();
+
+        let cst = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+        let today = chrono::Utc::now().with_timezone(&cst).date_naive();
+        let to_utc = |d: chrono::NaiveDate| {
+            d.and_hms_opt(12, 0, 0)
+                .unwrap()
+                .and_local_timezone(cst)
+                .unwrap()
+                .with_timezone(&chrono::Utc)
+        };
+        let today_noon_utc = to_utc(today);
+        let in_window_utc = to_utc(today - chrono::Duration::days(6));
+        let out_window_utc = to_utc(today - chrono::Duration::days(7));
+
+        // key 3：今日（真实 credits）+ 窗口内（无 credits，按 k_ref 回退）+ 窗口外
+        inject_key_record_at(&tracker, 3, Some(5), today_noon_utc, 1.0, Some(2.0));
+        inject_key_record_at(&tracker, 3, Some(5), in_window_utc, 3.0, None);
+        inject_key_record_at(&tracker, 3, Some(5), out_window_utc, 9.0, None);
+        // 其他 Key（区间内）：不应计入 key 3
+        inject_key_record_at(&tracker, 4, Some(5), today_noon_utc, 9.0, Some(9.0));
+
+        let k = get_k_ref("claude-opus-4.6");
+        let s7 = tracker.get_range_summary_for_key(3, 7);
+        assert_eq!(s7.total_requests, 2);
+        assert_eq!(s7.total_cost, 4.0);
+        assert_eq!(s7.total_input_tokens, 200);
+        assert_eq!(s7.total_output_tokens, 20);
+        assert!((s7.total_credits - (2.0 + 3.0 * k)).abs() < 1e-9);
+        assert!((s7.total_credits_saved - (1.0 * k - 2.0)).abs() < 1e-9);
+        assert_eq!(s7.from_date, (today - chrono::Duration::days(6)).to_string());
+
+        // days=1 退化为「仅今日」
+        let s1 = tracker.get_range_summary_for_key(3, 1);
+        assert_eq!(s1.total_requests, 1);
+        assert_eq!(s1.from_date, today.to_string());
+
+        // days=30 覆盖窗口外的那条
+        let s30 = tracker.get_range_summary_for_key(3, 30);
+        assert_eq!(s30.total_requests, 3);
+
+        // Key 隔离
+        let s4 = tracker.get_range_summary_for_key(4, 7);
+        assert_eq!(s4.total_requests, 1);
+        assert_eq!(s4.total_credits, 9.0);
+
+        cleanup_usage_path(&path);
+    }
+
+    /// key range：days 越界兜底（0 → 1，极大值 → 366），不 panic
+    #[tokio::test]
+    async fn test_range_summary_for_key_days_clamped() {
+        let path = temp_usage_path("range_summary_key_days");
+        let tracker = UsageTracker::load(&path).unwrap();
+        let cst = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
+        let today = chrono::Utc::now().with_timezone(&cst).date_naive();
+        let noon_utc = today
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_local_timezone(cst)
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        inject_key_record_at(&tracker, 9, Some(1), noon_utc, 0.1, None);
+
+        let s0 = tracker.get_range_summary_for_key(9, 0);
+        assert_eq!(s0.total_requests, 1);
+        assert_eq!(s0.from_date, today.to_string());
+
+        let s_max = tracker.get_range_summary_for_key(9, u32::MAX);
+        assert_eq!(s_max.total_requests, 1);
+        assert_eq!(
+            s_max.from_date,
+            (today - chrono::Duration::days(365)).to_string()
+        );
 
         cleanup_usage_path(&path);
     }

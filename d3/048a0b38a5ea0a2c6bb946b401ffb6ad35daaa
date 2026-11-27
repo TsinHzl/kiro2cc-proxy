@@ -1,0 +1,46 @@
+web-ui/admin-ui/src/components/playground/math.tsx
+  8ddeaf6d4995f7b4 1-56
+web-ui/admin-ui/package.json
+  8ddeaf6d4995f7b4 24,39
+web-ui/admin-ui/src/components/playground/markdown.tsx
+  8ddeaf6d4995f7b4 7-8,12,14,19,80-86,134-141,148-151,186-187,242-243
+web-ui/admin-ui/src/components/playground/math-syntax.ts
+  8ddeaf6d4995f7b4 1-42
+web-ui/admin-ui/scripts/markdown-math.test.mjs
+  8ddeaf6d4995f7b4 1-37
+web-ui/admin-ui/src/components/playground/katex-render.ts
+  8ddeaf6d4995f7b4 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d3048a0b38a5ea0a2c6bb946b401ffb6ad35daaa",
+  "prompts": {
+    "8ddeaf6d4995f7b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e47e956b-03c5-4da1-a7fc-8ba1b66b88d3",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 183,
+      "total_deletions": 8,
+      "accepted_lines": 179,
+      "overriden_lines": 0
+    },
+    "b640112cd633070d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6cc0b224-72e9-4dec-ad08-1f04a1b85053",
+        "model": "deepseek_for_coding"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

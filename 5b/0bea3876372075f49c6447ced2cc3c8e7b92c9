@@ -1,0 +1,52 @@
+web-ui/admin-ui/src/components/payload-rules-page.tsx
+  5e7c65e892e7cda0 22,82,147-153
+web-ui/admin-ui/src/components/payload-rule-dialog.tsx
+  5e7c65e892e7cda0 55,66,73,80
+src/model/payload_rules.rs
+  5e7c65e892e7cda0 130-133,448-454,456-467,469-473,476,479,482-504,507-508,510,512-514,516-569,571
+web-ui/admin-ui/src/lib/payload-rules.ts
+  5e7c65e892e7cda0 87-90,156,159,161-162
+src/anthropic/handlers/helpers.rs
+  5e7c65e892e7cda0 63
+src/model/payload_rules/store.rs
+  5e7c65e892e7cda0 69,322-335
+src/anthropic/handlers/tests/payload_rules.rs
+  5e7c65e892e7cda0 20-27,33,35,50,79,115,142,166,214-375
+web-ui/admin-ui/scripts/payload-rules.test.mjs
+  5e7c65e892e7cda0 73-74,79-84
+web-ui/admin-ui/src/components/payload-rule-samples.tsx
+  5e7c65e892e7cda0 2,19-32,44,46-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5b0bea3876372075f49c6447ced2cc3c8e7b92c9",
+  "prompts": {
+    "514c82212cd931b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1097f85-d1c1-466e-a305-748446d9bfc3",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 468,
+      "total_deletions": 0,
+      "accepted_lines": 468,
+      "overriden_lines": 0
+    },
+    "5e7c65e892e7cda0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb19b336-c56b-459f-bbab-f3df33055a0c",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 361,
+      "total_deletions": 272,
+      "accepted_lines": 359,
+      "overriden_lines": 0
+    }
+  }
+}

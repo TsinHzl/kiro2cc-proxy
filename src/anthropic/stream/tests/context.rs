@@ -465,6 +465,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn thinking_credits_above_baseline_falls_back_to_prefix_estimate() {
+        // Sonnet 5.5，79556 输入 / 4512 输出，实测 credits 2.9651 高于无缓存基线 1.873
+        let (input, output, credits) = (79_556, 4_512, 2.9651);
+        let prefix = 75_000;
+        let model = "claude-sonnet-5-5";
+
+        let thinking = StreamContext::new_with_thinking(model, input, true)
+            .with_prefix_estimated_tokens(prefix);
+        assert_eq!(
+            thinking.derive_report_cache_usage(input, Some(credits), output),
+            (input - prefix, 0, prefix)
+        );
+
+        let plain = StreamContext::new_with_thinking(model, input, false)
+            .with_prefix_estimated_tokens(prefix);
+        assert_eq!(
+            plain.derive_report_cache_usage(input, Some(credits), output),
+            (input, 0, 0)
+        );
+    }
+
     // ===== credits 汇总行（showSessionCredits）=====
 
     use crate::anthropic::stream::{CreditsFooterRequest, ThinkingTextStyle};

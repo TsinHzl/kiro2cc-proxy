@@ -323,17 +323,26 @@ impl StreamContext {
                 u.cache_read_input_tokens,
             )
         } else if let Some(prefix) = self.prefix_estimated_tokens {
-            let read = crate::model::usage::refine_prefix_cache_read(
-                &self.model,
-                prefix,
-                input_tokens,
-                billed_output_tokens,
-                if self.has_continuation {
-                    None
-                } else {
-                    credits_used
-                },
-            );
+            let credits = if self.has_continuation {
+                None
+            } else {
+                credits_used
+            };
+            let refine = |c| {
+                crate::model::usage::refine_prefix_cache_read(
+                    &self.model,
+                    prefix,
+                    input_tokens,
+                    billed_output_tokens,
+                    c,
+                )
+            };
+            let mut read = refine(credits);
+            // thinking 的 credits 含上游不回传的思考 token，实测费率表（关闭 thinking）
+            // 的无缓存基线因此偏低，会把真实命中压成 0；此时回落静态前缀估算
+            if read == 0 && self.thinking_enabled && credits.is_some() {
+                read = refine(None);
+            }
             (input_tokens.saturating_sub(read), 0, read)
         } else {
             let sim = self.prompt_cache_usage.scale_to(input_tokens);

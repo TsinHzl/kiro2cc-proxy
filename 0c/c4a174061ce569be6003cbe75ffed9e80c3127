@@ -1,0 +1,23 @@
+CLAUDE.md
+  327ddd15be0d941c 24-26,29,56-57,62-63,97,112-128,138,146-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "0cc4a174061ce569be6003cbe75ffed9e80c3127",
+  "prompts": {
+    "327ddd15be0d941c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b74a380f-13c3-4e7e-8122-53575c56dcdf",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 6,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

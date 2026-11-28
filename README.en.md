@@ -10,7 +10,7 @@
 
 ![Admin Panel](docs/assets/admin-panel.png)
 
-> **✅ Supported Models: Claude Sonnet 5.5 / Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 5.5 / Claude Opus 5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 5.5 / Claude Haiku 4.5 / Claude Fable 5.2 / Claude Fable 5.1 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder-Next / Kimi K3 / Grok 4.7 / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna / GPT 6.2 Astra**
+> **✅ Supported Models: Claude Sonnet 5.5 / Claude Sonnet 5 / Claude Sonnet 4.5 / Claude Sonnet 4.6 / Claude Opus 5.5 / Claude Opus 5 / Claude Opus 4.5 / Claude Opus 4.6 / Claude Opus 4.7 / Claude Opus 4.8 / Claude Haiku 5.5 / Claude Haiku 4.5 / Claude Fable 5.2 / Claude Fable 5.1 / DeepSeek 3.2 / GLM-5 / MiniMax M2.1 / MiniMax M2.5 / Qwen3-Coder-Next / Kimi K3 / Grok 4.7 / GPT-5.6 Sol / GPT-5.6 Terra / GPT-5.6 Luna / GPT 6.2 Astra / GPT 6 Luna**
 
 ### 📖 Quick Navigation
 
@@ -880,7 +880,7 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-Model name can be `gpt-6.2-astra` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`, or any `claude-*` model name (passed through as-is to upstream). Codex CLI's built-in `gpt-5-codex` / `gpt-5.1-codex` auto-map to `gpt-5.6-terra`, and `gpt-5.1-codex-max` maps to `gpt-5.6-luna`.
+Model name can be `gpt-6.2-astra` / `gpt-6-luna` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`, or any `claude-*` model name (passed through as-is to upstream). Codex CLI's built-in `gpt-5-codex` / `gpt-5.1-codex` auto-map to `gpt-5.6-terra`, and `gpt-5.1-codex-max` maps to `gpt-5.6-luna`.
 
 ### Known Limitations
 
@@ -962,6 +962,7 @@ Any model name containing the following keywords is automatically mapped to the 
 | `*kimi*` | `kimi-k3` |
 | `*grok*` | `grok-4.7` |
 | `*gpt*` (including astra, or 6.2/6-2) | `gpt-6.2-astra` |
+| `*gpt*` (including luna with a version 6 marker, e.g. `gpt-6-luna`) | `gpt-6-luna` |
 | `*gpt*` (including terra) | `gpt-5.6-terra` |
 | `*gpt*` (including luna) | `gpt-5.6-luna` |
 | `*gpt*` (including sol, or 5.6/5-6 without a variant name, defaults to the flagship tier) | `gpt-5.6-sol` |

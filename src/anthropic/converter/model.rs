@@ -43,6 +43,13 @@ pub(crate) fn is_gpt_62_astra(model_lower: &str) -> bool {
     model_lower.contains("astra") || has_model_version(model_lower, "gpt-6-2")
 }
 
+/// 判断模型名是否属于 GPT 6 Luna，覆盖 `gpt-6-luna` / `GPT 6 Luna` 等写法。
+///
+/// 需同时含 `luna` 与 `gpt-6` 版本号；`gpt-5.6-luna` 归一后为 `gpt-5-6-luna`，不含 `gpt-6`，不会误判。
+pub(crate) fn is_gpt_6_luna(model_lower: &str) -> bool {
+    model_lower.contains("luna") && has_model_version(model_lower, "gpt-6")
+}
+
 /// 模型映射：将 Anthropic 模型名映射到 Kiro 模型 ID
 ///
 /// 按照用户要求：
@@ -59,6 +66,7 @@ pub(crate) fn is_gpt_62_astra(model_lower: &str) -> bool {
 /// - haiku 5.5/5-5 → claude-haiku-5.5
 /// - 其他 haiku → claude-haiku-4.5
 /// - gpt 6.2 / astra → gpt-6.2-astra
+/// - gpt 6 luna → gpt-6-luna
 pub fn map_model(model: &str) -> Option<String> {
     let model_lower = model.to_lowercase();
 
@@ -141,6 +149,9 @@ pub fn map_model(model: &str) -> Option<String> {
         if is_gpt_62_astra(&model_lower) {
             // 可用性由上游账号权限决定，本层只做名称归一
             Some("gpt-6.2-astra".to_string())
+        } else if is_gpt_6_luna(&model_lower) {
+            // 须在 5.6 Luna 分支之前判定，否则会被 contains("luna") 吞并
+            Some("gpt-6-luna".to_string())
         } else if model_lower.contains("terra") {
             Some("gpt-5.6-terra".to_string())
         } else if model_lower.contains("luna") {

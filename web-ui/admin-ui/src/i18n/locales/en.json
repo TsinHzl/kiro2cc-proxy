@@ -760,6 +760,7 @@
     "metricRateNone": "No multiplier data",
     "refreshList": "Refresh model list",
     "copyAllIds": "Copy All Model IDs",
+    "officialDocs": "Official Model Docs",
     "searchPlaceholder": "Search model ID / name",
     "searchClear": "Clear search",
     "colIndex": "#",

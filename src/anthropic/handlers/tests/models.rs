@@ -288,6 +288,22 @@ mod tests {
     }
 
     #[test]
+    fn test_build_model_list_includes_gpt_6_luna() {
+        let list = build_model_list();
+        let luna = list.iter().find(|m| m.id == "gpt-6-luna").unwrap();
+        assert_eq!(luna.owned_by, "openai");
+        assert_eq!(luna.display_name, "GPT 6 Luna");
+        assert_eq!(luna.max_tokens, 32000);
+        assert_eq!(
+            crate::anthropic::converter::map_model(&luna.id),
+            Some("gpt-6-luna".to_string())
+        );
+
+        // 回归：5.6 Luna 仍独立存在
+        assert!(list.iter().any(|m| m.id == "gpt-5.6-luna"));
+    }
+
+    #[test]
     fn test_build_model_list_includes_opus_5() {
         let list = build_model_list();
         let ids: std::collections::HashSet<&str> = list.iter().map(|m| m.id.as_str()).collect();

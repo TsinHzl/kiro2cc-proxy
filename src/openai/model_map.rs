@@ -14,8 +14,8 @@ const DEFAULT_GPT_MODEL: &str = "gpt-5.6-terra";
 /// Kiro 上游的高配 GPT 模型（codex-max 系映射目标）
 const MAX_GPT_MODEL: &str = "gpt-5.6-luna";
 
-/// Kiro 原生 GPT 模型的公共前缀（GPT-5.6 系列、GPT 6.x 系列）
-const KIRO_GPT_PREFIXES: [&str; 2] = ["gpt-5.6-", "gpt-6."];
+/// Kiro 原生 GPT 模型的公共前缀（GPT-5.6 系列、GPT 6.x 系列、GPT 6 系列）
+const KIRO_GPT_PREFIXES: [&str; 3] = ["gpt-5.6-", "gpt-6.", "gpt-6-"];
 
 /// 把客户端请求的模型名映射为 Kiro 上游可识别的模型名。
 ///
@@ -27,6 +27,7 @@ const KIRO_GPT_PREFIXES: [&str; 2] = ["gpt-5.6-", "gpt-6."];
 /// | `gpt-5.1-codex-max` | `gpt-5.6-luna` |
 /// | `gpt-5.6-*`（`sol` / `terra` / `luna` 及上游未来新增型号） | 原样透传 |
 /// | `gpt-6.*`（`gpt-6.2-astra` 及上游未来新增型号） | 原样透传 |
+/// | `gpt-6-*`（`gpt-6-luna` 及上游未来新增型号） | 原样透传 |
 /// | `claude-*` | 原样透传 |
 /// | 其余 `gpt-*` | `gpt-5.6-terra`（兜底，记 WARN） |
 /// | 其他（`deepseek-*`、`auto` 等） | 原样透传 |
@@ -88,6 +89,12 @@ mod tests {
         // gpt-6.2-astra 不得落进兜底分支被静默改写为 terra
         assert_eq!(map_model("gpt-6.2-astra"), "gpt-6.2-astra");
         assert_eq!(map_model("gpt-6.3-foo"), "gpt-6.3-foo");
+    }
+
+    #[test]
+    fn gpt_6_luna_passes_through() {
+        // gpt-6-luna 不得落进兜底分支被静默改写为 terra
+        assert_eq!(map_model("gpt-6-luna"), "gpt-6-luna");
     }
 
     #[test]

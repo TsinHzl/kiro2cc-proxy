@@ -147,6 +147,18 @@ fn test_map_model_gpt_6_2_astra() {
 }
 
 #[test]
+fn test_map_model_gpt_6_luna() {
+    assert_eq!(map_model("gpt-6-luna").unwrap(), "gpt-6-luna");
+    assert_eq!(map_model("gpt-6-luna-thinking").unwrap(), "gpt-6-luna");
+    assert_eq!(map_model("GPT 6 Luna").unwrap(), "gpt-6-luna");
+
+    // 回归：5.6 Luna 与 6.2 Astra 不受影响
+    assert_eq!(map_model("gpt-5.6-luna").unwrap(), "gpt-5.6-luna");
+    assert_eq!(map_model("gpt-5-6-luna").unwrap(), "gpt-5.6-luna");
+    assert_eq!(map_model("gpt-6.2-astra").unwrap(), "gpt-6.2-astra");
+}
+
+#[test]
 fn test_map_model_kimi_k3() {
     // kimi-k3（上游 2026-10-16 新增）：含 -thinking 后缀与空格别名均归一到 kimi-k3
     assert_eq!(map_model("kimi-k3").unwrap(), "kimi-k3");

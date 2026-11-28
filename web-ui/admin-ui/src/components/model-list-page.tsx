@@ -2,7 +2,7 @@
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@/lib/toast'
-import { Boxes, CheckCircle2, Copy, Gauge, Layers, Loader2, RotateCw, SearchX } from 'lucide-react'
+import { Boxes, CheckCircle2, Copy, ExternalLink, Gauge, Layers, Loader2, RotateCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FootSep, Metric, MetricFoot, MetricValue, MetricsBar } from '@/components/metrics'
 import { PageHead } from '@/components/page-head'
@@ -11,6 +11,7 @@ import { CELL, ICON_BTN, PANEL, PANEL_FOOT, ROW_HOVER, TH_BASE, TableScroll } fr
 import { TAG_BASE } from '@/components/api-key-row'
 import { useModels } from '@/hooks/use-credentials'
 import { copyToClipboard } from '@/lib/clipboard'
+import { KIRO_MODELS_DOC_URL } from '@/lib/constants'
 import { extractErrorMessage } from '@/lib/utils'
 import { localeTag } from '@/lib/locale'
 import type { ModelItem } from '@/types/api'
@@ -308,6 +309,12 @@ export function ModelListPage() {
         <Button variant="outline" onClick={handleCopyAll} disabled={models.length === 0}>
           <Copy aria-hidden="true" />
           {t('models.copyAllIds')}
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={KIRO_MODELS_DOC_URL} target="_blank" rel="noopener noreferrer">
+            <ExternalLink aria-hidden="true" />
+            {t('models.officialDocs')}
+          </a>
         </Button>
         <UpdatedAgo dataUpdatedAt={dataUpdatedAt} />
       </div>

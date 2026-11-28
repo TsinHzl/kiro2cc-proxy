@@ -758,6 +758,7 @@
     "metricRateNone": "暂无倍率数据",
     "refreshList": "刷新模型清单",
     "copyAllIds": "复制全部模型 ID",
+    "officialDocs": "官方模型文档",
     "searchPlaceholder": "搜索模型 ID / 名称",
     "searchClear": "清除搜索",
     "colIndex": "#",

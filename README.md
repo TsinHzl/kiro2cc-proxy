@@ -10,7 +10,7 @@
 
 ![Admin 管理面板](docs/assets/admin-panel.png)
 
-> **✅ 支持模型**：Claude Sonnet 5.5 · Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 5.5 · Claude Opus 5 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Haiku 5.5 · Claude Haiku 4.5 · Claude Fable 5.2 · Claude Fable 5.1 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder-Next · Kimi K3 · Grok 4.7 · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna · GPT 6.2 Astra
+> **✅ 支持模型**：Claude Sonnet 5.5 · Claude Sonnet 5 · Claude Sonnet 4.5 · Claude Sonnet 4.6 · Claude Opus 5.5 · Claude Opus 5 · Claude Opus 4.5 · Claude Opus 4.6 · Claude Opus 4.7 · Claude Opus 4.8 · Claude Haiku 5.5 · Claude Haiku 4.5 · Claude Fable 5.2 · Claude Fable 5.1 · DeepSeek 3.2 · GLM-5 · MiniMax M2.1 · MiniMax M2.5 · Qwen3-Coder-Next · Kimi K3 · Grok 4.7 · GPT-5.6 Sol · GPT-5.6 Terra · GPT-5.6 Luna · GPT 6.2 Astra · GPT 6 Luna
 
 ### 📖 快速导航
 
@@ -901,7 +901,7 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-模型名可填 `gpt-6.2-astra` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`，也可直接填 `claude-*` 系模型名（原样透传给上游）。Codex CLI 自带的 `gpt-5-codex` / `gpt-5.1-codex` 会自动映射到 `gpt-5.6-terra`，`gpt-5.1-codex-max` 映射到 `gpt-5.6-luna`。
+模型名可填 `gpt-6.2-astra` / `gpt-6-luna` / `gpt-5.6-terra` / `gpt-5.6-luna` / `gpt-5.6-sol`，也可直接填 `claude-*` 系模型名（原样透传给上游）。Codex CLI 自带的 `gpt-5-codex` / `gpt-5.1-codex` 会自动映射到 `gpt-5.6-terra`，`gpt-5.1-codex-max` 映射到 `gpt-5.6-luna`。
 
 ### 已知限制
 
@@ -983,6 +983,7 @@ Authorization: Bearer your-api-key
 | `*kimi*` | `kimi-k3` |
 | `*grok*` | `grok-4.7` |
 | `*gpt*`（含 astra，或含 6.2/6-2） | `gpt-6.2-astra` |
+| `*gpt*`（含 luna 且含 6 版本号，如 `gpt-6-luna`） | `gpt-6-luna` |
 | `*gpt*`（含 terra） | `gpt-5.6-terra` |
 | `*gpt*`（含 luna） | `gpt-5.6-luna` |
 | `*gpt*`（含 sol，或含 5.6/5-6 但无具体变体名，默认落到旗舰档） | `gpt-5.6-sol` |

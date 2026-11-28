@@ -1,0 +1,47 @@
+openspec/specs/openai-compat/spec.md
+  b55c4f2e9b3bc87b 16,18
+src/anthropic/handlers/models.rs
+  b55c4f2e9b3bc87b 561-569
+src/anthropic/converter/tests/model.rs
+  b55c4f2e9b3bc87b 150-160
+web-ui/admin-ui/src/lib/constants.ts
+  b55c4f2e9b3bc87b 3
+web-ui/admin-ui/src/i18n/locales/en.json
+  b55c4f2e9b3bc87b 763
+README.md
+  b55c4f2e9b3bc87b 13,904,986
+src/anthropic/converter/model.rs
+  b55c4f2e9b3bc87b 46-52,69,152-154
+web-ui/admin-ui/src/components/model-list-page.tsx
+  b55c4f2e9b3bc87b 5,14,313-318
+src/openai/model_map.rs
+  b55c4f2e9b3bc87b 17-18,30,95-100
+README.en.md
+  b55c4f2e9b3bc87b 13,883,965
+web-ui/admin-ui/src/i18n/locales/zh.json
+  b55c4f2e9b3bc87b 761
+src/admin/model_release.rs
+  b55c4f2e9b3bc87b 36,46,226,230
+src/anthropic/handlers/tests/models.rs
+  b55c4f2e9b3bc87b 291-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "f53e34f88a9c73ec0de066cc78613702eeb8b6a0",
+  "prompts": {
+    "b55c4f2e9b3bc87b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f01f477-09c9-489f-9692-16548e2351a4",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 81,
+      "total_deletions": 11,
+      "accepted_lines": 80,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,44 @@
+src/im/wecom.rs
+  dfb110f3f6b18049 213-214,216-239,249,252,718-738
+src/im/feishu.rs
+  dfb110f3f6b18049 166-168,170,174-175
+src/main.rs
+  dfb110f3f6b18049 472-474
+src/im/outbound.rs
+  dfb110f3f6b18049 219,224-225,230,480-486
+src/im/router.rs
+  dfb110f3f6b18049 28,31-32,85,139,284-285,290-294,297-298,300,324-326,339-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "d1e6f093ce017f1298605321cadcd3f8ecb35922",
+  "prompts": {
+    "365bb9c98723f743": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5df4405-de31-4eec-863f-3394b359385a",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 399,
+      "total_deletions": 0,
+      "accepted_lines": 396,
+      "overriden_lines": 0
+    },
+    "dfb110f3f6b18049": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d08135c2-1e34-496e-b05d-2e6550238414",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 137,
+      "total_deletions": 29,
+      "accepted_lines": 95,
+      "overriden_lines": 0
+    }
+  }
+}

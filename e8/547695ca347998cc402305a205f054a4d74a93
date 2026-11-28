@@ -1,0 +1,53 @@
+src/im/mod.rs
+  dfb110f3f6b18049 5,11
+src/admin/middleware.rs
+  dfb110f3f6b18049 61-62,82,121-125
+web-ui/admin-ui/src/hooks/use-credentials.ts
+  dfb110f3f6b18049 30-31,234-254
+web-ui/admin-ui/src/components/settings-panel.tsx
+  dfb110f3f6b18049 10,561-562
+README.md
+  dfb110f3f6b18049 930-933,984
+web-ui/admin-ui/src/components/im-channels-section.tsx
+  dfb110f3f6b18049 1-572
+src/im/control.rs
+  dfb110f3f6b18049 1-71
+src/main.rs
+  dfb110f3f6b18049 254-260,264,431-452,479-480
+web-ui/admin-ui/src/api/credentials.ts
+  dfb110f3f6b18049 33-34,169-180
+src/im/router.rs
+  dfb110f3f6b18049 5,37,45-48,52,64,83,96-115,121,125-136,148,153,159,162,174,212-213,326,373
+README.en.md
+  dfb110f3f6b18049 909-912,963
+src/admin/types.rs
+  dfb110f3f6b18049 702-748
+src/im/router/tests.rs
+  dfb110f3f6b18049 114-115,126,160,181,213,217-225,229-231,235,237-239,250-251,256-258,323-343
+src/admin/handlers.rs
+  dfb110f3f6b18049 643-863,1208-1243
+web-ui/admin-ui/src/types/api.ts
+  dfb110f3f6b18049 449-513
+src/admin/router.rs
+  dfb110f3f6b18049 30-35,125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e8547695ca347998cc402305a205f054a4d74a93",
+  "prompts": {
+    "dfb110f3f6b18049": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d08135c2-1e34-496e-b05d-2e6550238414",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 1329,
+      "total_deletions": 189,
+      "accepted_lines": 1216,
+      "overriden_lines": 0
+    }
+  }
+}

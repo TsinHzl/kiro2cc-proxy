@@ -152,6 +152,27 @@ pub async fn get_key_usage(
     Json(tracker.get_summary(id)).into_response()
 }
 
+/// GET /api/admin/api-keys/:id/usage/range?days=30
+/// 按 CST 自然日聚合单个 API Key 最近 N 天（含今日）的用量
+///
+/// 数据源为日汇总，不受明细分页与单 Key 留存上限影响；`days` 缺省 30、
+/// 取值 1..=366，与 `/credentials/{id}/usage/7days|30days` 同口径。
+pub async fn get_key_usage_range(
+    State(state): State<AdminState>,
+    Path(id): Path<u32>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let Some(tracker) = &state.usage_tracker else {
+        let error = AdminErrorResponse::internal_error("用量追踪未启用");
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(error)).into_response();
+    };
+    let days = params
+        .get("days")
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(30);
+    Json(tracker.get_range_summary_for_key(id, days)).into_response()
+}
+
 /// DELETE /api/admin/api-keys/:id/usage
 /// 重置单个 API Key 的用量记录
 pub async fn reset_key_usage(

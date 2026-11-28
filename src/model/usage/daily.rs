@@ -69,6 +69,28 @@ pub struct CredentialRangeSummary {
     pub total_cache_read_tokens: u64,
 }
 
+/// 指定 API Key 在 CST 最近 N 天（含今日）的用量汇总
+///
+/// 数据源为日汇总（不受明细分页与留存上限影响），无记录时返回零值汇总。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyRangeSummary {
+    pub api_key_id: u32,
+    /// 区间起始 CST 日期（含），格式 YYYY-MM-DD
+    pub from_date: String,
+    /// 区间结束 CST 日期（含），恒为今日
+    pub to_date: String,
+    pub total_requests: u64,
+    pub total_input_tokens: u64,
+    pub total_output_tokens: u64,
+    pub total_cost: f64,
+    pub total_credits: f64,
+    /// 节省的 credits 总量（仅含有 credits_used 的记录）
+    pub total_credits_saved: f64,
+    /// 累计 cache 命中的输入 tokens（None 按 0 计入）
+    pub total_cache_read_tokens: u64,
+}
+
 /// 指定账号全部留存统计的用量汇总
 ///
 /// 数据源为日汇总（不受明细裁剪影响），覆盖日汇总上线以来的全部请求；
@@ -171,6 +193,45 @@ impl UsageTracker {
             total_cost: t.cost,
             total_credits: t.credits,
             total_credits_saved: t.credits_saved,
+        }
+    }
+
+    /// 按 CST（UTC+8）聚合指定 API Key 最近 N 天（含今日）的用量。
+    ///
+    /// 与 `get_range_summary_for_credential` 同口径：区间为 [今日 - (days-1), 今日]，
+    /// 按 CST 归属日比较；读日汇总而非明细缓冲，因此不受 `MAX_RECORDS_PER_KEY`
+    /// 裁剪与分页影响。无记录时返回零值汇总（不报错）。
+    pub fn get_range_summary_for_key(&self, api_key_id: u32, days: u32) -> ApiKeyRangeSummary {
+        // 防御极大入参：NaiveDate 减法越界会 panic，区间查询无理由超过留存窗口
+        const MAX_RANGE_DAYS: u32 = 366;
+        let days = days.clamp(1, MAX_RANGE_DAYS);
+        let cst = FixedOffset::east_opt(8 * 3600).unwrap();
+        let today = chrono::Utc::now().with_timezone(&cst).date_naive();
+        let from = today - chrono::Duration::days((days - 1) as i64);
+        let from_s = from.format("%Y-%m-%d").to_string();
+        let to_s = today.format("%Y-%m-%d").to_string();
+
+        // YYYY-MM-DD 字典序即时间序
+        let mut total = DayTotals::default();
+        {
+            let daily = self.daily.read();
+            for (k, t) in daily.iter_key(api_key_id) {
+                if from_s.as_str() <= k.date.as_str() && k.date.as_str() <= to_s.as_str() {
+                    total.merge(t);
+                }
+            }
+        }
+        ApiKeyRangeSummary {
+            api_key_id,
+            from_date: from_s,
+            to_date: to_s,
+            total_requests: total.requests,
+            total_input_tokens: total.input_tokens,
+            total_output_tokens: total.output_tokens,
+            total_cache_read_tokens: total.cache_read_tokens,
+            total_cost: total.cost,
+            total_credits: total.credits,
+            total_credits_saved: total.credits_saved,
         }
     }
 

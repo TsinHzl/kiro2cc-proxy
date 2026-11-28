@@ -1,0 +1,67 @@
+.gitignore
+  dfb110f3f6b18049 40-41
+src/model/mod.rs
+  dfb110f3f6b18049 10
+src/im/guard.rs
+  dfb110f3f6b18049 1-208
+src/im/feishu.rs
+  dfb110f3f6b18049 1-866
+src/model/config.rs
+  dfb110f3f6b18049 9-10,281-284,381
+README.md
+  dfb110f3f6b18049 17,703,916-1021,1050-1058
+README.en.md
+  dfb110f3f6b18049 17,682,895-1000,1029-1037
+docs/代码速查表.md
+  dfb110f3f6b18049 43,984-1005,1040-1045
+src/im/types.rs
+  dfb110f3f6b18049 1-46
+src/model/im_config.rs
+  dfb110f3f6b18049 1-296
+src/im/mod.rs
+  dfb110f3f6b18049 1-16
+src/im/crypto.rs
+  dfb110f3f6b18049 1-248
+src/im/session_map.rs
+  dfb110f3f6b18049 1-464
+src/im/router.rs
+  dfb110f3f6b18049 1-875
+src/im/text.rs
+  dfb110f3f6b18049 1-85
+Cargo.toml
+  dfb110f3f6b18049 40-42
+openspec/project.md
+  dfb110f3f6b18049 78
+config.example.json
+  dfb110f3f6b18049 7-22
+src/main.rs
+  dfb110f3f6b18049 11,254-266,364-371,377-381,405,408-417,446,450-469
+src/im/outbound.rs
+  dfb110f3f6b18049 1-518
+src/im/wecom.rs
+  dfb110f3f6b18049 1-741
+src/im/dispatch.rs
+  dfb110f3f6b18049 1-501
+src/im/backend.rs
+  dfb110f3f6b18049 1-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "5c3a17fffaf4286e4035f643dca5fcbee11862c7",
+  "prompts": {
+    "dfb110f3f6b18049": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d08135c2-1e34-496e-b05d-2e6550238414",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "TsinHzl <tsinhzl@icloud.com>",
+      "messages": [],
+      "total_additions": 5683,
+      "total_deletions": 142,
+      "accepted_lines": 5555,
+      "overriden_lines": 0
+    }
+  }
+}
